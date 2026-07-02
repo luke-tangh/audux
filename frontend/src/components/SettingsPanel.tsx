@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { LibraryRoot } from "../types";
+import { pickAudioFolder } from "../tauri";
 
 type Props = {
   refresh: () => void;
@@ -16,7 +17,16 @@ export default function SettingsPanel({ refresh }: Props) {
   const [llmModel, setLlmModel] = useState("");
   const [llmApiKey, setLlmApiKey] = useState("");
 
+  const [backendStatus, setBackendStatus] = useState("checking");
+
   async function load() {
+    try {
+      await api.health();
+      setBackendStatus("ok");
+    } catch {
+      setBackendStatus("failed");
+    }
+
     setRoots(await api.listLibraryRoots());
 
     const settings = await api.listSettings();
@@ -28,6 +38,15 @@ export default function SettingsPanel({ refresh }: Props) {
   useEffect(() => {
     load().catch(console.error);
   }, []);
+
+  async function chooseFolder() {
+    const selected = await pickAudioFolder();
+    if (selected) {
+      setPath(selected);
+    } else {
+      alert("未选择文件夹，或当前不是 Tauri 运行环境。");
+    }
+  }
 
   async function addRoot() {
     if (!path.trim()) return;
@@ -63,14 +82,26 @@ export default function SettingsPanel({ refresh }: Props) {
       <h2>Settings</h2>
 
       <div className="section card">
+        <h3>后端状态</h3>
+        <p>
+          FastAPI Backend：
+          {backendStatus === "checking" && "检查中"}
+          {backendStatus === "ok" && "正常"}
+          {backendStatus === "failed" && "未连接"}
+        </p>
+        <button onClick={load}>重新检查</button>
+      </div>
+
+      <div className="section card">
         <h3>媒体库目录</h3>
 
         <div className="inline-form">
           <input
             value={path}
             onChange={(e) => setPath(e.target.value)}
-            placeholder="输入本地目录路径，例如 /Users/me/Music"
+            placeholder="输入或选择本地目录路径"
           />
+          <button onClick={chooseFolder}>选择文件夹</button>
           <button onClick={addRoot}>添加目录</button>
         </div>
 

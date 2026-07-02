@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default permissions for Local Audio Library",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:default",
+    "shell:allow-spawn",
+    "shell:allow-execute",
+    "dialog:default",
+    "dialog:allow-open",
+    "process:default"
+  ]
+}
