@@ -1,10 +1,12 @@
+import json
 from pathlib import Path
 from typing import Optional
+
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
-from sqlalchemy import text, func, or_, and_
+from sqlalchemy import func, or_, and_
 
 from .db import create_db_and_tables, get_session
 from .models import (
@@ -30,10 +32,12 @@ from .schemas import (
     PlaylistItemAdd,
     TranscriptCreate,
     SettingUpdate,
+    LLMConfig,
 )
 from .scanner import scan_library_root
 from .search import rebuild_audio_search_index, search_audio_ids
 from .tasks import create_task, start_worker_once
+from .ai_client import call_openai_compatible_chat, get_ai_message_content
 
 
 app = FastAPI(title="Local Audio Library API", version="0.1.0")
@@ -71,9 +75,6 @@ def _apply_enabled_roots_filter(
     session: Session,
     include_disabled_roots: bool = False,
 ):
-    """
-    默认音频库只展示启用状态的 LibraryRoot 下的音频。
-    """
     if include_disabled_roots:
         return stmt
 
@@ -85,6 +86,20 @@ def _apply_enabled_roots_filter(
         return None
 
     return stmt.where(AudioItem.library_root_id.in_(enabled_root_ids))
+
+
+def _parse_task_output_payload(value: Optional[str]) -> dict:
+    if not value:
+        return {}
+
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    return {}
 
 
 # Library Root
@@ -309,6 +324,50 @@ def get_audio_file(audio_id: int, session: Session = Depends(get_session)):
     return FileResponse(str(path), media_type=media_type, filename=item.file_name)
 
 
+@app.get("/audio-items/{audio_id}/ai-suggestions")
+def get_audio_ai_suggestions(audio_id: int, session: Session = Depends(get_session)):
+    audio = session.get(AudioItem, audio_id)
+    if not audio:
+        raise HTTPException(status_code=404, detail="Audio item not found")
+
+    tasks = session.exec(
+        select(AITask)
+        .where(AITask.audio_id == audio_id)
+        .where(AITask.task_type == "analyze")
+        .where(AITask.output_payload != None)
+        .order_by(AITask.created_at.desc())
+        .limit(20)
+    ).all()
+
+    for task in tasks:
+        payload = _parse_task_output_payload(task.output_payload)
+
+        tags = payload.get("tags", [])
+        if not isinstance(tags, list):
+            tags = []
+
+        tags = [str(x).strip() for x in tags if str(x).strip()]
+        description = payload.get("description") or audio.description_ai
+        language = payload.get("language") or audio.language
+
+        if description or tags:
+            return {
+                "task_id": task.id,
+                "description": description,
+                "tags": tags,
+                "language": language,
+                "raw_content": payload.get("raw_content"),
+            }
+
+    return {
+        "task_id": None,
+        "description": audio.description_ai,
+        "tags": [],
+        "language": audio.language,
+        "raw_content": None,
+    }
+
+
 # Tags
 
 @app.get("/tags")
@@ -511,6 +570,7 @@ def save_transcript(
                 TranscriptSegment.transcript_id == existing.id
             )
         ).all()
+
         for seg in old_segments:
             session.delete(seg)
 
@@ -559,6 +619,12 @@ def enqueue_analyze(audio_id: int, session: Session = Depends(get_session)):
     if not audio:
         raise HTTPException(status_code=404, detail="Audio not found")
 
+    endpoint = session.get(Setting, "llm.endpoint")
+    model_name = session.get(Setting, "llm.model_name")
+
+    if not endpoint or not endpoint.value or not model_name or not model_name.value:
+        raise HTTPException(status_code=400, detail="LLM endpoint or model_name is not configured")
+
     audio.ai_status = "pending"
     audio.updated_at = now_iso()
     session.add(audio)
@@ -566,6 +632,42 @@ def enqueue_analyze(audio_id: int, session: Session = Depends(get_session)):
 
     task = create_task(session, audio_id, "analyze")
     return task
+
+
+@app.post("/ai/test-llm")
+async def test_llm_config(payload: LLMConfig):
+    if not payload.endpoint or not payload.model_name:
+        raise HTTPException(status_code=400, detail="endpoint and model_name are required")
+
+    try:
+        response = await call_openai_compatible_chat(
+            endpoint=payload.endpoint,
+            model_name=payload.model_name,
+            api_key=payload.api_key or None,
+            timeout=payload.timeout,
+            max_tokens=payload.max_tokens or 64,
+            temperature=payload.temperature if payload.temperature is not None else 0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a connection test assistant. Reply briefly.",
+                },
+                {
+                    "role": "user",
+                    "content": "Return exactly: ok",
+                },
+            ],
+        )
+
+        content = get_ai_message_content(response)
+
+        return {
+            "ok": True,
+            "content": content,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/ai-tasks")
@@ -593,11 +695,53 @@ def retry_ai_task(task_id: int, session: Session = Depends(get_session)):
     task.status = "pending"
     task.retry_count += 1
     task.error_message = None
+    task.output_payload = None
     task.started_at = None
     task.finished_at = None
     task.updated_at = now_iso()
     session.add(task)
+
+    audio = session.get(AudioItem, task.audio_id)
+    if audio:
+        if task.task_type == "transcribe":
+            audio.transcript_status = "pending"
+        if task.task_type == "analyze":
+            audio.ai_status = "pending"
+
+        audio.updated_at = now_iso()
+        session.add(audio)
+
     session.commit()
+    session.refresh(task)
+    return task
+
+
+@app.post("/ai-tasks/{task_id}/cancel")
+def cancel_ai_task(task_id: int, session: Session = Depends(get_session)):
+    task = session.get(AITask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task.status in ["done", "failed", "canceled"]:
+        raise HTTPException(status_code=400, detail="Task cannot be canceled")
+
+    task.status = "canceled"
+    task.finished_at = now_iso()
+    task.updated_at = now_iso()
+    session.add(task)
+
+    audio = session.get(AudioItem, task.audio_id)
+    if audio:
+        if task.task_type == "transcribe":
+            audio.transcript_status = "canceled"
+        if task.task_type == "analyze":
+            audio.ai_status = "canceled"
+
+        audio.updated_at = now_iso()
+        session.add(audio)
+
+    session.commit()
+    session.refresh(task)
     return task
 
 

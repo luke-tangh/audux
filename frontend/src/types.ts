@@ -109,6 +109,38 @@ export type Transcript = {
   }[];
 };
 
+export type AITask = {
+  id: number;
+  audio_id: number;
+  task_type: "transcribe" | "analyze" | string;
+  status: "pending" | "running" | "done" | "failed" | "canceled" | string;
+  input_payload?: string;
+  output_payload?: string;
+  error_message?: string;
+  retry_count: number;
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+  updated_at: string;
+};
+
+export type AISuggestions = {
+  task_id: number | null;
+  description?: string;
+  tags: string[];
+  language?: string;
+  raw_content?: string;
+};
+
+export type LLMConfigPayload = {
+  endpoint: string;
+  model_name: string;
+  api_key?: string;
+  timeout: number;
+  max_tokens?: number;
+  temperature?: number;
+};
+
 export function displayTitle(a: AudioItem): string {
   return a.title_user || a.title_original || a.file_name;
 }

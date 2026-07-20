@@ -1,7 +1,10 @@
 import type {
+  AISuggestions,
+  AITask,
   AudioDetail,
   AudioItem,
   LibraryRoot,
+  LLMConfigPayload,
   Playlist,
   PlaylistDetail,
   Tag,
@@ -84,6 +87,9 @@ export const api = {
 
   getAudioDetail: (id: number) => request<AudioDetail>(`/audio-items/${id}`),
 
+  getAiSuggestions: (id: number) =>
+    request<AISuggestions>(`/audio-items/${id}/ai-suggestions`),
+
   updateAudio: (id: number, payload: Partial<AudioItem>) =>
     request<AudioItem>(`/audio-items/${id}`, {
       method: "PATCH",
@@ -103,10 +109,10 @@ export const api = {
 
   listTags: () => request<Tag[]>("/tags"),
 
-  addTags: (audioId: number, tags: string[]) =>
+  addTags: (audioId: number, tags: string[], source: "user" | "ai" | "system" = "user") =>
     request<Tag[]>(`/audio-items/${audioId}/tags`, {
       method: "POST",
-      body: JSON.stringify({ tags, source: "user" })
+      body: JSON.stringify({ tags, source })
     }),
 
   removeTag: (audioId: number, tagId: number) =>
@@ -131,18 +137,34 @@ export const api = {
     }),
 
   transcribe: (audioId: number) =>
-    request(`/audio-items/${audioId}/transcribe`, {
+    request<AITask>(`/audio-items/${audioId}/transcribe`, {
       method: "POST"
     }),
 
   analyze: (audioId: number) =>
-    request(`/audio-items/${audioId}/analyze`, {
+    request<AITask>(`/audio-items/${audioId}/analyze`, {
       method: "POST"
+    }),
+
+  testLlm: (payload: LLMConfigPayload) =>
+    request<{ ok: boolean; content: string }>("/ai/test-llm", {
+      method: "POST",
+      body: JSON.stringify(payload)
     }),
 
   getTranscript: (audioId: number) => request<Transcript>(`/audio-items/${audioId}/transcript`),
 
-  listTasks: () => request<any[]>("/ai-tasks"),
+  listTasks: () => request<AITask[]>("/ai-tasks"),
+
+  retryTask: (taskId: number) =>
+    request<AITask>(`/ai-tasks/${taskId}/retry`, {
+      method: "POST"
+    }),
+
+  cancelTask: (taskId: number) =>
+    request<AITask>(`/ai-tasks/${taskId}/cancel`, {
+      method: "POST"
+    }),
 
   setSetting: (key: string, value: string) =>
     request("/settings", {

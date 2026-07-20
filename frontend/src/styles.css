@@ -105,6 +105,10 @@ textarea {
   font-size: 15px;
 }
 
+.section-button {
+  margin-top: 10px;
+}
+
 .playlist-name,
 .playlist-empty {
   padding: 6px 0;
@@ -240,6 +244,7 @@ textarea {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .field-grid {
@@ -284,6 +289,20 @@ textarea {
   border-radius: 999px;
   padding: 4px 8px;
   font-size: 13px;
+}
+
+.tag.suggestion {
+  background: #7c3aed;
+}
+
+.tag.accepted {
+  background: #166534;
+}
+
+.tag em {
+  font-style: normal;
+  font-size: 12px;
+  opacity: 0.85;
 }
 
 .tag button {
@@ -343,6 +362,20 @@ textarea {
   padding: 16px;
 }
 
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.settings-grid label {
+  display: grid;
+  gap: 5px;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
 .root-row {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -400,6 +433,108 @@ textarea {
 
 .volume-control input {
   width: 90px;
+}
+
+.task-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-panel-header h3 {
+  margin: 0;
+}
+
+.task-table-wrap {
+  overflow: auto;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+  font-size: 13px;
+}
+
+.task-table th,
+.task-table td {
+  border-bottom: 1px solid #1f2937;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.task-table th {
+  background: #111827;
+  color: #cbd5e1;
+  position: sticky;
+  top: 0;
+}
+
+.task-error {
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #fecaca;
+}
+
+.task-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  background: #374151;
+  color: #e5e7eb;
+}
+
+.status-pill.pending {
+  background: #92400e;
+  color: #fef3c7;
+}
+
+.status-pill.running {
+  background: #1d4ed8;
+  color: #dbeafe;
+}
+
+.status-pill.done {
+  background: #166534;
+  color: #dcfce7;
+}
+
+.status-pill.failed {
+  background: #991b1b;
+  color: #fee2e2;
+}
+
+.status-pill.canceled {
+  background: #4b5563;
+  color: #e5e7eb;
+}
+
+.test-result {
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 10px;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+}
+
+.muted {
+  color: #9ca3af;
+  font-size: 13px;
 }
 
 .empty {

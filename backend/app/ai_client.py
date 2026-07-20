@@ -24,10 +24,12 @@ async def call_openai_compatible_chat(
     payload = {
         "model": model_name,
         "messages": messages,
-        "temperature": temperature,
     }
 
-    if max_tokens:
+    if temperature is not None:
+        payload["temperature"] = temperature
+
+    if max_tokens is not None:
         payload["max_tokens"] = max_tokens
 
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -36,14 +38,28 @@ async def call_openai_compatible_chat(
         return resp.json()
 
 
-def parse_ai_json_response(response: dict) -> dict:
-    content = response["choices"][0]["message"]["content"]
+def get_ai_message_content(response: dict) -> str:
+    try:
+        return response["choices"][0]["message"]["content"]
+    except Exception as e:
+        raise ValueError(f"Invalid OpenAI-compatible response schema: {e}")
 
+
+def parse_ai_json_content(content: str) -> dict:
     try:
         return json.loads(content)
     except Exception:
         start = content.find("{")
         end = content.rfind("}")
         if start >= 0 and end > start:
-            return json.loads(content[start : end + 1])
+            try:
+                return json.loads(content[start : end + 1])
+            except Exception:
+                pass
+
         raise ValueError("LLM response is not valid JSON")
+
+
+def parse_ai_json_response(response: dict) -> dict:
+    content = get_ai_message_content(response)
+    return parse_ai_json_content(content)

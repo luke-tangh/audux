@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import type { AudioItem, Playlist, Tag, Transcript } from "../types";
+import type { AISuggestions, AudioItem, Playlist, Tag, Transcript } from "../types";
 import { displayDescription, displayTitle, formatDuration } from "../types";
 
 type Props = {
@@ -15,11 +15,18 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
   const [tagInput, setTagInput] = useState("");
   const [editing, setEditing] = useState<Partial<AudioItem>>({});
   const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestions | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<number | "">("");
+
+  const acceptedTagNames = useMemo(() => {
+    return new Set(tags.map((t) => t.name));
+  }, [tags]);
 
   useEffect(() => {
     async function load() {
       setTranscript(null);
+      setAiSuggestions(null);
+
       if (!audio) return;
 
       const detail = await api.getAudioDetail(audio.id);
@@ -34,6 +41,7 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
       });
 
       api.getTranscript(audio.id).then(setTranscript).catch(() => setTranscript(null));
+      api.getAiSuggestions(audio.id).then(setAiSuggestions).catch(() => setAiSuggestions(null));
     }
 
     load().catch(console.error);
@@ -41,6 +49,14 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
 
   if (!audio) {
     return <section className="detail-panel empty">请选择一个音频</section>;
+  }
+
+  async function reloadTagsAndSuggestions() {
+    const detail = await api.getAudioDetail(audio!.id);
+    setTags(detail.tags);
+
+    const suggestions = await api.getAiSuggestions(audio!.id).catch(() => null);
+    setAiSuggestions(suggestions);
   }
 
   async function save() {
@@ -56,32 +72,39 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
 
     if (names.length === 0) return;
 
-    await api.addTags(audio!.id, names);
+    await api.addTags(audio!.id, names, "user");
     setTagInput("");
 
-    const detail = await api.getAudioDetail(audio!.id);
-    setTags(detail.tags);
+    await reloadTagsAndSuggestions();
     refresh();
   }
 
   async function removeTag(tagId: number) {
     await api.removeTag(audio!.id, tagId);
 
-    const detail = await api.getAudioDetail(audio!.id);
-    setTags(detail.tags);
+    await reloadTagsAndSuggestions();
     refresh();
   }
 
   async function transcribe() {
     await api.transcribe(audio!.id);
     refresh();
-    alert("已创建转写任务。当前 MVP 使用占位转写，可替换 faster-whisper。");
+    alert("已创建转写任务。可在 Settings 的任务队列中查看状态。");
   }
 
   async function analyze() {
+    const settings = await api.listSettings();
+    const endpoint = settings.find((s) => s.key === "llm.endpoint")?.value;
+    const modelName = settings.find((s) => s.key === "llm.model_name")?.value;
+
+    if (!endpoint || !modelName) {
+      alert("请先在 Settings 中配置本地 LLM endpoint 和 model_name。");
+      return;
+    }
+
     await api.analyze(audio!.id);
     refresh();
-    alert("已创建 AI 分析任务。请确认 Settings 中配置了本地 LLM endpoint。");
+    alert("已创建 AI 分析任务。完成后会显示 AI 建议描述和标签。");
   }
 
   async function addToPlaylist() {
@@ -92,12 +115,35 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
   }
 
   async function acceptAiDescription() {
-    if (!audio?.description_ai) return;
+    const description = aiSuggestions?.description || audio?.description_ai;
+    if (!description) return;
 
-    await api.updateAudio(audio.id, {
-      description_user: audio.description_ai
+    await api.updateAudio(audio!.id, {
+      description_user: description
     });
 
+    setEditing({ ...editing, description_user: description });
+    refresh();
+  }
+
+  async function acceptAiTag(tagName: string) {
+    await api.addTags(audio!.id, [tagName], "ai");
+
+    await reloadTagsAndSuggestions();
+    refresh();
+  }
+
+  async function acceptAllAiTags() {
+    const names =
+      aiSuggestions?.tags
+        .map((x) => x.trim())
+        .filter((x) => x && !acceptedTagNames.has(x)) || [];
+
+    if (names.length === 0) return;
+
+    await api.addTags(audio!.id, names, "ai");
+
+    await reloadTagsAndSuggestions();
     refresh();
   }
 
@@ -112,6 +158,9 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
       }
     }, 120);
   }
+
+  const hasAiDescription = Boolean(aiSuggestions?.description || audio.description_ai);
+  const aiTags = aiSuggestions?.tags || [];
 
   return (
     <section className="detail-panel">
@@ -185,6 +234,8 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
         <p>播放位置：{formatDuration(audio.last_position_seconds)}</p>
         <p>播放次数：{audio.play_count}</p>
         <p>上次播放：{audio.last_played_at || "-"}</p>
+        <p>Transcript 状态：{audio.transcript_status}</p>
+        <p>AI 状态：{audio.ai_status}</p>
       </div>
 
       <div className="section">
@@ -233,12 +284,43 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
         <h3>Description</h3>
         <p>{displayDescription(audio) || "暂无描述"}</p>
 
-        {audio.description_ai && (
+        {hasAiDescription && (
           <div className="ai-box">
             <h4>AI 建议描述</h4>
-            <p>{audio.description_ai}</p>
+            <p>{aiSuggestions?.description || audio.description_ai}</p>
             <button onClick={acceptAiDescription}>接受为用户描述</button>
           </div>
+        )}
+      </div>
+
+      <div className="section">
+        <h3>AI 标签建议</h3>
+
+        {aiTags.length === 0 && <p>暂无 AI 标签建议</p>}
+
+        {aiTags.length > 0 && (
+          <>
+            <div className="tag-list">
+              {aiTags.map((tagName) => {
+                const accepted = acceptedTagNames.has(tagName);
+
+                return (
+                  <span className={accepted ? "tag accepted" : "tag suggestion"} key={tagName}>
+                    #{tagName}
+                    {accepted ? (
+                      <em>已接受</em>
+                    ) : (
+                      <button onClick={() => acceptAiTag(tagName)}>接受</button>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+
+            <button className="section-button" onClick={acceptAllAiTags}>
+              接受全部未添加标签
+            </button>
+          </>
         )}
       </div>
 
