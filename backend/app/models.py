@@ -152,3 +152,26 @@ class Setting(SQLModel, table=True):
     key: str = Field(primary_key=True)
     value: str
     updated_at: str = Field(default_factory=now_iso)
+
+
+class ScanTask(SQLModel, table=True):
+    __tablename__ = "scan_tasks"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    root_id: int = Field(foreign_key="library_roots.id", index=True)
+
+    status: str = "pending"
+
+    total_files: int = 0
+    processed_files: int = 0
+
+    imported: int = 0
+    updated: int = 0
+    missing: int = 0
+
+    error_message: Optional[str] = None
+
+    created_at: str = Field(default_factory=now_iso)
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    updated_at: str = Field(default_factory=now_iso)

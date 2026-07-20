@@ -2,21 +2,33 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import type { AISuggestions, AudioItem, Playlist, Tag, Transcript } from "../types";
 import { displayDescription, displayTitle, formatDuration } from "../types";
+import { pickAudioFile } from "../tauri";
 
 type Props = {
   audio: AudioItem | null;
   refresh: () => void;
   onPlay: (a: AudioItem) => void;
   playlists: Playlist[];
+  selectedPlaylistId?: number | null;
+  onDeleted: () => void;
 };
 
-export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props) {
+export default function DetailPanel({
+  audio,
+  refresh,
+  onPlay,
+  playlists,
+  selectedPlaylistId,
+  onDeleted
+}: Props) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [editing, setEditing] = useState<Partial<AudioItem>>({});
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestions | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<number | "">("");
+  const [relocatePath, setRelocatePath] = useState("");
+  const [coverVersion, setCoverVersion] = useState(Date.now());
 
   const acceptedTagNames = useMemo(() => {
     return new Set(tags.map((t) => t.name));
@@ -26,8 +38,11 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
     async function load() {
       setTranscript(null);
       setAiSuggestions(null);
+      setRelocatePath("");
 
       if (!audio) return;
+
+      setCoverVersion(Date.now());
 
       const detail = await api.getAudioDetail(audio.id);
       setTags(detail.tags);
@@ -159,6 +174,59 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
     }, 120);
   }
 
+  async function uploadCover(file?: File) {
+    if (!file) return;
+
+    await api.uploadCover(audio!.id, file);
+    setCoverVersion(Date.now());
+    refresh();
+  }
+
+  async function deleteCover() {
+    const ok = window.confirm("确认删除当前封面？");
+    if (!ok) return;
+
+    await api.deleteCover(audio!.id);
+    setCoverVersion(Date.now());
+    refresh();
+  }
+
+  async function chooseRelocateFile() {
+    const selected = await pickAudioFile();
+    if (selected) {
+      setRelocatePath(selected);
+    }
+  }
+
+  async function relocate() {
+    const path = relocatePath.trim();
+    if (!path) return;
+
+    await api.relocateAudio(audio!.id, path);
+    setRelocatePath("");
+    alert("文件已重新定位");
+    refresh();
+  }
+
+  async function deleteFromDatabase() {
+    const ok = window.confirm(
+      "确认从应用数据库中移除该条目？不会删除本地音频文件。"
+    );
+    if (!ok) return;
+
+    await api.deleteAudio(audio!.id, false);
+    onDeleted();
+  }
+
+  function exportTranscript(format: "txt" | "json" | "srt") {
+    window.open(api.transcriptExportUrl(audio!.id, format), "_blank");
+  }
+
+  function exportPlaylist(format: "json" | "m3u") {
+    if (!selectedPlaylistId) return;
+    window.open(api.playlistExportUrl(selectedPlaylistId, format), "_blank");
+  }
+
   const hasAiDescription = Boolean(aiSuggestions?.description || audio.description_ai);
   const aiTags = aiSuggestions?.tags || [];
 
@@ -166,10 +234,42 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
     <section className="detail-panel">
       <h2>{displayTitle(audio)}</h2>
 
+      <div className="detail-cover-block">
+        <div className="detail-cover">
+          {audio.cover_path ? (
+            <img
+              src={api.coverUrl(audio.id, coverVersion)}
+              alt=""
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          ) : (
+            <span>♪</span>
+          )}
+        </div>
+
+        <div className="cover-actions">
+          <label className="upload-button">
+            上传封面
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => uploadCover(e.currentTarget.files?.[0])}
+            />
+          </label>
+
+          <button onClick={deleteCover} disabled={!audio.cover_path}>
+            删除封面
+          </button>
+        </div>
+      </div>
+
       <div className="actions">
         <button onClick={() => onPlay(audio)}>播放</button>
         <button onClick={transcribe}>转写</button>
         <button onClick={analyze}>AI 分析</button>
+        <button onClick={deleteFromDatabase}>从数据库移除</button>
       </div>
 
       <div className="field-grid">
@@ -236,6 +336,16 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
         <p>上次播放：{audio.last_played_at || "-"}</p>
         <p>Transcript 状态：{audio.transcript_status}</p>
         <p>AI 状态：{audio.ai_status}</p>
+
+        <div className="inline-form">
+          <input
+            value={relocatePath}
+            onChange={(e) => setRelocatePath(e.target.value)}
+            placeholder="重新定位到新的音频文件路径"
+          />
+          <button onClick={chooseRelocateFile}>选择文件</button>
+          <button onClick={relocate}>重新定位</button>
+        </div>
       </div>
 
       <div className="section">
@@ -278,6 +388,13 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
 
           <button onClick={addToPlaylist}>加入</button>
         </div>
+
+        {selectedPlaylistId && (
+          <div className="actions section-actions">
+            <button onClick={() => exportPlaylist("json")}>导出当前 Playlist JSON</button>
+            <button onClick={() => exportPlaylist("m3u")}>导出当前 Playlist M3U</button>
+          </div>
+        )}
       </div>
 
       <div className="section">
@@ -330,20 +447,28 @@ export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props
         {!transcript && <p>暂无 transcript</p>}
 
         {transcript && (
-          <div className="transcript">
-            {transcript.segments.length > 0 ? (
-              transcript.segments.map((seg) => (
-                <div key={seg.id} className="segment">
-                  <button onClick={() => jumpToSegment(seg.start_seconds)}>
-                    {formatDuration(seg.start_seconds)}
-                  </button>
-                  <span>{seg.text}</span>
-                </div>
-              ))
-            ) : (
-              <p>{transcript.transcript.full_text}</p>
-            )}
-          </div>
+          <>
+            <div className="actions">
+              <button onClick={() => exportTranscript("txt")}>导出 TXT</button>
+              <button onClick={() => exportTranscript("json")}>导出 JSON</button>
+              <button onClick={() => exportTranscript("srt")}>导出 SRT</button>
+            </div>
+
+            <div className="transcript">
+              {transcript.segments.length > 0 ? (
+                transcript.segments.map((seg) => (
+                  <div key={seg.id} className="segment">
+                    <button onClick={() => jumpToSegment(seg.start_seconds)}>
+                      {formatDuration(seg.start_seconds)}
+                    </button>
+                    <span>{seg.text}</span>
+                  </div>
+                ))
+              ) : (
+                <p>{transcript.transcript.full_text}</p>
+              )}
+            </div>
+          </>
         )}
       </div>
     </section>

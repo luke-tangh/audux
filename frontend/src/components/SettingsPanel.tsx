@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import type { LibraryRoot } from "../types";
+import type { LibraryRoot, ScanTask } from "../types";
 import { pickAudioFolder } from "../tauri";
 import TaskPanel from "./TaskPanel";
 
@@ -8,8 +8,14 @@ type Props = {
   refresh: () => void;
 };
 
+function scanProgress(task: ScanTask): number {
+  if (!task.total_files) return 0;
+  return Math.round((task.processed_files / task.total_files) * 100);
+}
+
 export default function SettingsPanel({ refresh }: Props) {
   const [roots, setRoots] = useState<LibraryRoot[]>([]);
+  const [scanTasks, setScanTasks] = useState<ScanTask[]>([]);
   const [path, setPath] = useState("");
   const [scanResult, setScanResult] = useState("");
   const [playlistName, setPlaylistName] = useState("");
@@ -28,18 +34,31 @@ export default function SettingsPanel({ refresh }: Props) {
 
   const [llmTestResult, setLlmTestResult] = useState("");
   const [backendStatus, setBackendStatus] = useState("checking");
+  const [logs, setLogs] = useState("");
+
+  async function loadScanTasks() {
+    const rows = await api.listScanTasks({ limit: 20 });
+    setScanTasks(rows);
+  }
+
+  async function loadLogs() {
+    const result = await api.getLogs(400);
+    setLogs(result.content || "");
+  }
 
   async function load() {
     try {
       await api.health();
       setBackendStatus("ok");
 
-      const [rootRows, settings] = await Promise.all([
+      const [rootRows, settings, scanRows] = await Promise.all([
         api.listLibraryRoots(),
-        api.listSettings()
+        api.listSettings(),
+        api.listScanTasks({ limit: 20 })
       ]);
 
       setRoots(rootRows);
+      setScanTasks(scanRows);
 
       setAsrModelName(settings.find((s) => s.key === "asr.model_name")?.value || "small");
       setAsrDevice(settings.find((s) => s.key === "asr.device")?.value || "cpu");
@@ -60,6 +79,13 @@ export default function SettingsPanel({ refresh }: Props) {
 
   useEffect(() => {
     load().catch(console.error);
+    loadLogs().catch(console.error);
+
+    const timer = setInterval(() => {
+      loadScanTasks().catch(console.error);
+    }, 3000);
+
+    return () => clearInterval(timer);
   }, []);
 
   async function chooseFolder() {
@@ -92,12 +118,18 @@ export default function SettingsPanel({ refresh }: Props) {
   }
 
   async function scan(id: number) {
-    setScanResult("扫描中...");
-
-    const result = await api.scanLibraryRoot(id);
-
-    setScanResult(`导入 ${result.imported}，更新 ${result.updated}，缺失 ${result.missing}`);
+    setScanResult("已创建扫描任务...");
+    const task = await api.scanLibraryRoot(id);
+    setScanResult(`扫描任务 #${task.id} 已创建`);
+    await loadScanTasks();
     refresh();
+  }
+
+  async function cancelScan(task: ScanTask) {
+    if (!window.confirm(`确认取消扫描任务 #${task.id}？`)) return;
+
+    await api.cancelScanTask(task.id);
+    await loadScanTasks();
   }
 
   async function createPlaylist() {
@@ -149,6 +181,14 @@ export default function SettingsPanel({ refresh }: Props) {
     }
   }
 
+  async function rebuildSearch() {
+    const ok = window.confirm("确认重建所有音频的搜索索引？");
+    if (!ok) return;
+
+    const result = await api.rebuildSearchIndex();
+    alert(`已重建 ${result.count} 条索引`);
+  }
+
   return (
     <section className="settings-panel">
       <h2>Settings</h2>
@@ -195,6 +235,36 @@ export default function SettingsPanel({ refresh }: Props) {
         ))}
 
         {scanResult && <p>{scanResult}</p>}
+      </div>
+
+      <div className="section card">
+        <h3>扫描任务</h3>
+
+        {scanTasks.length === 0 && <p className="muted">暂无扫描任务</p>}
+
+        {scanTasks.map((task) => (
+          <div key={task.id} className="scan-task-row">
+            <div>
+              <strong>#{task.id}</strong> root: {task.root_id} · status:{" "}
+              <span className={`status-pill ${task.status}`}>{task.status}</span>
+            </div>
+
+            <div className="progress-line">
+              <div style={{ width: `${scanProgress(task)}%` }} />
+            </div>
+
+            <div className="scan-task-meta">
+              {task.processed_files}/{task.total_files} · imported {task.imported} · updated{" "}
+              {task.updated} · missing {task.missing}
+            </div>
+
+            {task.error_message && <div className="task-error">{task.error_message}</div>}
+
+            {(task.status === "pending" || task.status === "running") && (
+              <button onClick={() => cancelScan(task)}>取消</button>
+            )}
+          </div>
+        ))}
       </div>
 
       <div className="section card">
@@ -322,7 +392,34 @@ export default function SettingsPanel({ refresh }: Props) {
       </div>
 
       <div className="section card">
+        <h3>导出与维护</h3>
+
+        <div className="actions">
+          <button onClick={() => window.open(api.metadataExportUrl("json"), "_blank")}>
+            导出 Metadata JSON
+          </button>
+
+          <button onClick={() => window.open(api.metadataExportUrl("csv"), "_blank")}>
+            导出 Metadata CSV
+          </button>
+
+          <button onClick={rebuildSearch}>重建搜索索引</button>
+        </div>
+      </div>
+
+      <div className="section card">
         <TaskPanel onTaskChanged={refresh} />
+      </div>
+
+      <div className="section card">
+        <h3>日志</h3>
+
+        <div className="actions">
+          <button onClick={loadLogs}>刷新日志</button>
+          <button onClick={() => window.open(api.logsFileUrl(), "_blank")}>下载日志文件</button>
+        </div>
+
+        <pre className="log-viewer">{logs || "暂无日志"}</pre>
       </div>
     </section>
   );

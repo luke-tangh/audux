@@ -1,3 +1,4 @@
+import { api } from "../api";
 import type { AudioItem } from "../types";
 import { displayAuthor, displayTitle, formatDuration } from "../types";
 
@@ -11,7 +12,26 @@ type Props = {
   selectedId?: number;
   onSelect: (item: AudioItem) => void;
   onPlay: (item: AudioItem) => void;
+  onBatchTranscribe: () => void;
+  onBatchAnalyze: () => void;
 };
+
+function CoverThumb({ item }: { item: AudioItem }) {
+  return (
+    <div className="cover-thumb">
+      <span>♪</span>
+      {item.cover_path && (
+        <img
+          src={api.coverUrl(item.id, item.updated_at)}
+          alt=""
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+    </div>
+  );
+}
 
 export default function AudioList({
   title,
@@ -22,7 +42,9 @@ export default function AudioList({
   items,
   selectedId,
   onSelect,
-  onPlay
+  onPlay,
+  onBatchTranscribe,
+  onBatchAnalyze
 }: Props) {
   return (
     <section className="audio-list">
@@ -47,6 +69,15 @@ export default function AudioList({
           />
           缺描述
         </label>
+
+        <div className="toolbar-actions">
+          <button onClick={onBatchTranscribe} disabled={items.length === 0}>
+            批量转写
+          </button>
+          <button onClick={onBatchAnalyze} disabled={items.length === 0}>
+            批量 AI 分析
+          </button>
+        </div>
       </div>
 
       <div className="list">
@@ -59,7 +90,7 @@ export default function AudioList({
             onClick={() => onSelect(item)}
             onDoubleClick={() => onPlay(item)}
           >
-            <div className="cover-placeholder">♪</div>
+            <CoverThumb item={item} />
 
             <div className="audio-info">
               <div className="title">

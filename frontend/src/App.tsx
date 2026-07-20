@@ -93,7 +93,9 @@ export default function App() {
 
     if (selected) {
       const found = items.find((x) => x.id === selected.id);
-      if (found) setSelected(found);
+      if (found) {
+        setSelected(found);
+      }
     }
   }
 
@@ -144,6 +146,37 @@ export default function App() {
     void playQueueIndex(playingIndex + 1, playbackQueue);
   }
 
+  async function batchTranscribeCurrentList() {
+    if (audioItems.length === 0) return;
+
+    const ok = window.confirm(`确认为当前列表中的 ${audioItems.length} 个音频创建转写任务？`);
+    if (!ok) return;
+
+    const result = await api.batchTranscribe(audioItems.map((x) => x.id));
+    alert(`已创建 ${result.created} 个任务，跳过 ${result.skipped} 个。`);
+    refresh();
+  }
+
+  async function batchAnalyzeCurrentList() {
+    if (audioItems.length === 0) return;
+
+    const ok = window.confirm(`确认为当前列表中的 ${audioItems.length} 个音频创建 AI 分析任务？`);
+    if (!ok) return;
+
+    try {
+      const result = await api.batchAnalyze(audioItems.map((x) => x.id));
+      alert(`已创建 ${result.created} 个任务，跳过 ${result.skipped} 个。`);
+      refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function handleAudioDeleted() {
+    setSelected(null);
+    refresh();
+  }
+
   const activePlaylist = playlists.find((p) => p.id === selectedPlaylistId);
 
   let listTitle = "Library";
@@ -179,6 +212,8 @@ export default function App() {
               selectedId={selected?.id}
               onSelect={setSelected}
               onPlay={(item) => playAudio(item, audioItems)}
+              onBatchTranscribe={batchTranscribeCurrentList}
+              onBatchAnalyze={batchAnalyzeCurrentList}
             />
 
             <DetailPanel
@@ -186,6 +221,8 @@ export default function App() {
               refresh={refresh}
               onPlay={(item) => playAudio(item, audioItems)}
               playlists={playlists}
+              selectedPlaylistId={selectedPlaylistId}
+              onDeleted={handleAudioDeleted}
             />
           </>
         )}

@@ -3,10 +3,12 @@ import type {
   AITask,
   AudioDetail,
   AudioItem,
+  BatchTaskResult,
   LibraryRoot,
   LLMConfigPayload,
   Playlist,
   PlaylistDetail,
+  ScanTask,
   Tag,
   Transcript
 } from "./types";
@@ -14,12 +16,20 @@ import type {
 export const API_BASE = "http://127.0.0.1:8765";
 
 async function request<T = any>(path: string, options?: RequestInit): Promise<T> {
+  const body = options?.body;
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string> | undefined)
+  };
+
+  if (!isFormData && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const resp = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers || {})
-    },
-    ...options
+    ...options,
+    headers
   });
 
   if (!resp.ok) {
@@ -48,7 +58,20 @@ export const api = {
     }),
 
   scanLibraryRoot: (id: number) =>
-    request<{ imported: number; updated: number; missing: number }>(`/library-roots/${id}/scan`, {
+    request<ScanTask>(`/library-roots/${id}/scan`, {
+      method: "POST"
+    }),
+
+  listScanTasks: (params?: { root_id?: number; limit?: number }) => {
+    const sp = new URLSearchParams();
+    if (params?.root_id !== undefined) sp.set("root_id", String(params.root_id));
+    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
+    const qs = sp.toString();
+    return request<ScanTask[]>(`/scan-tasks${qs ? `?${qs}` : ""}`);
+  },
+
+  cancelScanTask: (id: number) =>
+    request<ScanTask>(`/scan-tasks/${id}/cancel`, {
       method: "POST"
     }),
 
@@ -96,6 +119,35 @@ export const api = {
       body: JSON.stringify(payload)
     }),
 
+  deleteAudio: (id: number, deleteFile = false) =>
+    request<{ ok: boolean }>(`/audio-items/${id}?delete_file=${String(deleteFile)}`, {
+      method: "DELETE"
+    }),
+
+  relocateAudio: (id: number, filePath: string) =>
+    request<AudioItem>(`/audio-items/${id}/relocate`, {
+      method: "POST",
+      body: JSON.stringify({ file_path: filePath })
+    }),
+
+  uploadCover: (id: number, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+
+    return request<AudioItem>(`/audio-items/${id}/cover`, {
+      method: "POST",
+      body: fd
+    });
+  },
+
+  deleteCover: (id: number) =>
+    request<AudioItem>(`/audio-items/${id}/cover`, {
+      method: "DELETE"
+    }),
+
+  coverUrl: (id: number, version?: string | number) =>
+    `${API_BASE}/audio-items/${id}/cover${version ? `?v=${encodeURIComponent(String(version))}` : ""}`,
+
   updatePlaybackPosition: (id: number, last_position_seconds: number) =>
     request<{ ok: boolean }>(`/audio-items/${id}/playback-position`, {
       method: "POST",
@@ -136,6 +188,9 @@ export const api = {
       body: JSON.stringify({ audio_id: audioId })
     }),
 
+  playlistExportUrl: (playlistId: number, format: "json" | "m3u") =>
+    `${API_BASE}/playlists/${playlistId}/export?format=${encodeURIComponent(format)}`,
+
   transcribe: (audioId: number) =>
     request<AITask>(`/audio-items/${audioId}/transcribe`, {
       method: "POST"
@@ -146,6 +201,18 @@ export const api = {
       method: "POST"
     }),
 
+  batchTranscribe: (audioIds: number[]) =>
+    request<BatchTaskResult>("/audio-items/batch/transcribe", {
+      method: "POST",
+      body: JSON.stringify({ audio_ids: audioIds })
+    }),
+
+  batchAnalyze: (audioIds: number[]) =>
+    request<BatchTaskResult>("/audio-items/batch/analyze", {
+      method: "POST",
+      body: JSON.stringify({ audio_ids: audioIds })
+    }),
+
   testLlm: (payload: LLMConfigPayload) =>
     request<{ ok: boolean; content: string }>("/ai/test-llm", {
       method: "POST",
@@ -153,6 +220,12 @@ export const api = {
     }),
 
   getTranscript: (audioId: number) => request<Transcript>(`/audio-items/${audioId}/transcript`),
+
+  transcriptExportUrl: (audioId: number, format: "txt" | "json" | "srt") =>
+    `${API_BASE}/audio-items/${audioId}/transcript/export?format=${encodeURIComponent(format)}`,
+
+  metadataExportUrl: (format: "json" | "csv") =>
+    `${API_BASE}/export/metadata?format=${encodeURIComponent(format)}`,
 
   listTasks: () => request<AITask[]>("/ai-tasks"),
 
@@ -172,5 +245,14 @@ export const api = {
       body: JSON.stringify({ key, value })
     }),
 
-  listSettings: () => request<{ key: string; value: string; updated_at: string }[]>("/settings")
+  listSettings: () => request<{ key: string; value: string; updated_at: string }[]>("/settings"),
+
+  rebuildSearchIndex: () =>
+    request<{ ok: boolean; count: number }>("/maintenance/rebuild-search-index", {
+      method: "POST"
+    }),
+
+  getLogs: (lines = 300) => request<{ file: string; content: string }>(`/logs/app?lines=${lines}`),
+
+  logsFileUrl: () => `${API_BASE}/logs/app/file`
 };

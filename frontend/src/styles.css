@@ -109,6 +109,10 @@ textarea {
   margin-top: 10px;
 }
 
+.section-actions {
+  margin-top: 10px;
+}
+
 .playlist-name,
 .playlist-empty {
   padding: 6px 0;
@@ -162,6 +166,13 @@ textarea {
   width: auto;
 }
 
+.toolbar-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .list {
   overflow: auto;
   flex: 1;
@@ -184,7 +195,8 @@ textarea {
   background: #1e3a8a;
 }
 
-.cover-placeholder {
+.cover-placeholder,
+.cover-thumb {
   width: 44px;
   height: 44px;
   background: #374151;
@@ -192,6 +204,17 @@ textarea {
   display: grid;
   place-items: center;
   font-size: 22px;
+  position: relative;
+  overflow: hidden;
+  color: #cbd5e1;
+}
+
+.cover-thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .audio-info {
@@ -238,6 +261,58 @@ textarea {
 
 .detail-panel h2 {
   margin-top: 0;
+}
+
+.detail-cover-block {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.detail-cover {
+  width: 112px;
+  height: 112px;
+  border-radius: 12px;
+  background: #374151;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  font-size: 42px;
+  color: #cbd5e1;
+  flex: 0 0 auto;
+}
+
+.detail-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-button {
+  cursor: pointer;
+  border: 1px solid #374151;
+  background: #1f2937;
+  color: #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-button:hover {
+  background: #374151;
+}
+
+.upload-button input {
+  display: none;
 }
 
 .actions {
@@ -406,6 +481,32 @@ textarea {
   width: auto;
 }
 
+.scan-task-row {
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #111827;
+}
+
+.progress-line {
+  height: 8px;
+  border-radius: 999px;
+  background: #374151;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.progress-line div {
+  height: 100%;
+  background: #2563eb;
+}
+
+.scan-task-meta {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
 .player-bar {
   height: 84px;
   border-top: 1px solid #374151;
@@ -530,6 +631,18 @@ textarea {
   padding: 10px;
   color: #cbd5e1;
   white-space: pre-wrap;
+}
+
+.log-viewer {
+  background: #030712;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 12px;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+  font-size: 12px;
 }
 
 .muted {

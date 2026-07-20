@@ -23,6 +23,10 @@ class PlaybackPositionUpdate(BaseModel):
     last_position_seconds: float
 
 
+class RelocateAudioRequest(BaseModel):
+    file_path: str
+
+
 class TagsAddRequest(BaseModel):
     tags: List[str]
     source: str = "user"
@@ -63,6 +67,10 @@ class LLMConfig(BaseModel):
     timeout: int = 60
     max_tokens: Optional[int] = 800
     temperature: Optional[float] = 0.2
+
+
+class BatchAudioRequest(BaseModel):
+    audio_ids: List[int]
 
 
 class ApiResponse(BaseModel):

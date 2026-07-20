@@ -124,6 +124,26 @@ export type AITask = {
   updated_at: string;
 };
 
+export type ScanTask = {
+  id: number;
+  root_id: number;
+  status: "pending" | "running" | "done" | "failed" | "canceled" | string;
+
+  total_files: number;
+  processed_files: number;
+
+  imported: number;
+  updated: number;
+  missing: number;
+
+  error_message?: string;
+
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+  updated_at: string;
+};
+
 export type AISuggestions = {
   task_id: number | null;
   description?: string;
@@ -139,6 +159,16 @@ export type LLMConfigPayload = {
   timeout: number;
   max_tokens?: number;
   temperature?: number;
+};
+
+export type BatchTaskResult = {
+  created: number;
+  skipped: number;
+  errors: {
+    audio_id: number;
+    error: string;
+  }[];
+  tasks: AITask[];
 };
 
 export function displayTitle(a: AudioItem): string {

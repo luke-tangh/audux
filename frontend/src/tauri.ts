@@ -13,3 +13,13 @@ export async function pickAudioFolder(): Promise<string | null> {
     return null;
   }
 }
+
+export async function pickAudioFile(): Promise<string | null> {
+  try {
+    const result = await invoke<string | null>("pick_audio_file");
+    return result;
+  } catch (err) {
+    console.error("pick_audio_file failed", err);
+    return null;
+  }
+}
