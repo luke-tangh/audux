@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { AudioItem, Tag, Playlist } from "./types";
 import { displayAuthor, displayDescription, displayTitle } from "./types";
@@ -31,6 +31,10 @@ function missingFilterToParam(value: MissingFilter): boolean | undefined {
   return undefined;
 }
 
+function isBusyStatus(status?: string): boolean {
+  return status === "pending" || status === "running";
+}
+
 function ToastStack({
   toasts,
   onClose
@@ -41,53 +45,13 @@ function ToastStack({
   if (toasts.length === 0) return null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        right: 18,
-        bottom: 122,
-        zIndex: 9999,
-        display: "grid",
-        gap: 10,
-        width: 340
-      }}
-    >
+    <div className="toast-stack">
       {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          style={{
-            padding: "12px 14px",
-            borderRadius: 16,
-            border:
-              toast.type === "error"
-                ? "1px solid rgba(239,68,68,.45)"
-                : toast.type === "success"
-                  ? "1px solid rgba(34,197,94,.45)"
-                  : "1px solid rgba(96,165,250,.45)",
-            background:
-              toast.type === "error"
-                ? "rgba(127,29,29,.92)"
-                : toast.type === "success"
-                  ? "rgba(20,83,45,.92)"
-                  : "rgba(30,64,175,.92)",
-            color: "#fff",
-            boxShadow: "0 18px 48px rgba(0,0,0,.34)",
-            backdropFilter: "blur(18px)"
-          }}
-        >
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-            <div style={{ flex: 1, lineHeight: 1.55 }}>{toast.message}</div>
+        <div key={toast.id} className={`toast toast-${toast.type}`}>
+          <div className="toast-content">
+            <div className="toast-message">{toast.message}</div>
 
-            <button
-              onClick={() => onClose(toast.id)}
-              style={{
-                padding: "0 6px",
-                minWidth: 26,
-                height: 26,
-                borderRadius: 999,
-                boxShadow: "none"
-              }}
-            >
+            <button className="toast-close" onClick={() => onClose(toast.id)}>
               ×
             </button>
           </div>
@@ -107,6 +71,7 @@ export default function App() {
   const [playingIndex, setPlayingIndex] = useState(-1);
 
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | undefined>();
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
   const [missingDescriptionOnly, setMissingDescriptionOnly] = useState(false);
@@ -118,6 +83,11 @@ export default function App() {
   const [playlistItemsRaw, setPlaylistItemsRaw] = useState<AudioItem[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
+  const loadSeqRef = useRef(0);
 
   function notify(message: string, type: ToastType = "info") {
     const id = Date.now() + Math.random();
@@ -140,6 +110,14 @@ export default function App() {
     setToasts((rows) => rows.filter((toast) => toast.id !== id));
   }
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedQ(q);
+    }, 260);
+
+    return () => window.clearTimeout(timer);
+  }, [q]);
+
   async function loadNavigation() {
     const [tagRows, playlistRows] = await Promise.all([
       api.listTags().catch(() => []),
@@ -153,7 +131,7 @@ export default function App() {
   function applyClientFiltersForPlaylist(items: AudioItem[]) {
     let result = [...items];
 
-    const keyword = q.trim().toLowerCase();
+    const keyword = debouncedQ.trim().toLowerCase();
     if (keyword) {
       result = result.filter((item) => {
         const text = [
@@ -194,48 +172,81 @@ export default function App() {
   }
 
   async function load() {
-    await loadNavigation();
+    const loadSeq = ++loadSeqRef.current;
 
-    if (view === "settings") return;
+    if (view !== "settings") {
+      setLoading(true);
+    }
 
-    let items: AudioItem[] = [];
+    setLoadError("");
 
-    if (view === "playlist") {
-      if (!selectedPlaylistId) {
-        setPlaylistItemsRaw([]);
+    try {
+      await loadNavigation();
+
+      if (loadSeq !== loadSeqRef.current) return;
+
+      if (view === "settings") {
         setAudioItems([]);
+        setPlaylistItemsRaw([]);
         return;
       }
 
-      const detail = await api.getPlaylist(selectedPlaylistId);
+      let items: AudioItem[] = [];
 
-      const rawItems: AudioItem[] = detail.items.map((x) => ({
-        ...x.audio,
-        playlist_item_id: x.playlist_item.id,
-        playlist_order_index: x.playlist_item.order_index
-      }));
+      if (view === "playlist") {
+        if (!selectedPlaylistId) {
+          setPlaylistItemsRaw([]);
+          setAudioItems([]);
+          setSelected(null);
+          return;
+        }
 
-      setPlaylistItemsRaw(rawItems);
-      items = applyClientFiltersForPlaylist(rawItems);
-    } else {
-      setPlaylistItemsRaw([]);
+        const detail = await api.getPlaylist(selectedPlaylistId);
 
-      items = await api.listAudioItems({
-        q: q || undefined,
-        tag: selectedTag,
-        favorite: view === "favorites" ? true : undefined,
-        missing_description: missingDescriptionOnly || undefined,
-        has_transcript: transcriptFilterToParam(hasTranscriptFilter),
-        missing: missingFilterToParam(missingFilter)
+        const rawItems: AudioItem[] = detail.items.map((x) => ({
+          ...x.audio,
+          playlist_item_id: x.playlist_item.id,
+          playlist_order_index: x.playlist_item.order_index
+        }));
+
+        setPlaylistItemsRaw(rawItems);
+        items = applyClientFiltersForPlaylist(rawItems);
+      } else {
+        setPlaylistItemsRaw([]);
+
+        items = await api.listAudioItems({
+          q: debouncedQ || undefined,
+          tag: selectedTag,
+          favorite: view === "favorites" ? true : undefined,
+          missing_description: missingDescriptionOnly || undefined,
+          has_transcript: transcriptFilterToParam(hasTranscriptFilter),
+          missing: missingFilterToParam(missingFilter)
+        });
+      }
+
+      if (loadSeq !== loadSeqRef.current) return;
+
+      setAudioItems(items);
+
+      setSelected((prev) => {
+        if (items.length === 0) return null;
+
+        if (prev) {
+          const found = items.find((x) => x.id === prev.id);
+          if (found) return found;
+        }
+
+        return items[0];
       });
-    }
+    } catch (err) {
+      if (loadSeq !== loadSeqRef.current) return;
 
-    setAudioItems(items);
-
-    if (selected) {
-      const found = items.find((x) => x.id === selected.id);
-      if (found) {
-        setSelected(found);
+      const message = err instanceof Error ? err.message : String(err);
+      setLoadError(message);
+      throw err;
+    } finally {
+      if (loadSeq === loadSeqRef.current) {
+        setLoading(false);
       }
     }
   }
@@ -247,7 +258,7 @@ export default function App() {
     });
   }, [
     view,
-    q,
+    debouncedQ,
     selectedTag,
     selectedPlaylistId,
     missingDescriptionOnly,
@@ -258,6 +269,20 @@ export default function App() {
 
   function refresh() {
     setRefreshToken((v) => v + 1);
+  }
+
+  function clearFilters() {
+    setQ("");
+    setSelectedTag(undefined);
+    setMissingDescriptionOnly(false);
+    setHasTranscriptFilter("all");
+    setMissingFilter("all");
+  }
+
+  function openSettings() {
+    setView("settings");
+    setSelectedTag(undefined);
+    setSelectedPlaylistId(null);
   }
 
   async function playQueueIndex(index: number, queue: AudioItem[] = playbackQueue) {
@@ -348,12 +373,30 @@ export default function App() {
   async function batchTranscribeCurrentList() {
     if (audioItems.length === 0) return;
 
-    const ok = window.confirm(`确认为当前列表中的 ${audioItems.length} 个音频创建转写任务？`);
+    const eligible = audioItems.filter(
+      (item) => !item.is_missing && !isBusyStatus(item.transcript_status)
+    );
+
+    if (eligible.length === 0) {
+      notify("当前列表没有可创建转写任务的音频。缺失文件或进行中的任务会被跳过。", "info");
+      return;
+    }
+
+    const skippedByClient = audioItems.length - eligible.length;
+
+    const ok = window.confirm(
+      `将为 ${eligible.length} 个音频创建转写任务${
+        skippedByClient ? `，并跳过 ${skippedByClient} 个缺失文件或进行中的音频` : ""
+      }。确认继续？`
+    );
+
     if (!ok) return;
 
     try {
-      const result = await api.batchTranscribe(audioItems.map((x) => x.id));
-      notify(`已创建 ${result.created} 个转写任务，跳过 ${result.skipped} 个。`, "success");
+      const result = await api.batchTranscribe(eligible.map((x) => x.id));
+      const skippedTotal = skippedByClient + result.skipped;
+
+      notify(`已创建 ${result.created} 个转写任务，跳过 ${skippedTotal} 个。`, "success");
       refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
@@ -363,17 +406,33 @@ export default function App() {
   async function batchAnalyzeCurrentList() {
     if (audioItems.length === 0) return;
 
-    const ok = window.confirm(`确认为当前列表中的 ${audioItems.length} 个音频创建 AI 分析任务？`);
+    const eligible = audioItems.filter((item) => !isBusyStatus(item.ai_status));
+
+    if (eligible.length === 0) {
+      notify("当前列表没有可创建 AI 分析任务的音频。进行中的任务会被跳过。", "info");
+      return;
+    }
+
+    const skippedByClient = audioItems.length - eligible.length;
+
+    const ok = window.confirm(
+      `将为 ${eligible.length} 个音频创建 AI 分析任务${
+        skippedByClient ? `，并跳过 ${skippedByClient} 个进行中的音频` : ""
+      }。确认继续？`
+    );
+
     if (!ok) return;
 
     try {
-      const result = await api.batchAnalyze(audioItems.map((x) => x.id));
+      const result = await api.batchAnalyze(eligible.map((x) => x.id));
 
       if (result.privacy_warning) {
         notify(result.privacy_warning, "error");
       }
 
-      notify(`已创建 ${result.created} 个 AI 分析任务，跳过 ${result.skipped} 个。`, "success");
+      const skippedTotal = skippedByClient + result.skipped;
+
+      notify(`已创建 ${result.created} 个 AI 分析任务，跳过 ${skippedTotal} 个。`, "success");
       refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
@@ -515,6 +574,10 @@ export default function App() {
               title={listTitle}
               q={q}
               setQ={setQ}
+              isLoading={loading}
+              loadError={loadError}
+              onOpenSettings={openSettings}
+              onClearFilters={clearFilters}
               missingDescriptionOnly={missingDescriptionOnly}
               setMissingDescriptionOnly={setMissingDescriptionOnly}
               hasTranscriptFilter={hasTranscriptFilter}

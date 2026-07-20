@@ -83,7 +83,38 @@ export default function DetailPanel({
   }, [audio?.id]);
 
   if (!audio) {
-    return <section className="detail-panel empty">请选择一个音频</section>;
+    return (
+      <section className="detail-panel detail-empty-panel">
+        <div className="empty-detail-card">
+          <div className="empty-detail-icon">♪</div>
+
+          <span className="eyebrow">Detail</span>
+
+          <h2>选择一个音频开始整理</h2>
+
+          <p>
+            在左侧列表中选择音频后，可以查看封面、metadata、播放记录、标签、AI 建议和 transcript。
+          </p>
+
+          <div className="detail-empty-steps">
+            <div>
+              <strong>1</strong>
+              <span>添加媒体库目录</span>
+            </div>
+
+            <div>
+              <strong>2</strong>
+              <span>扫描并导入音频</span>
+            </div>
+
+            <div>
+              <strong>3</strong>
+              <span>转写、AI 分析、整理标签</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   async function reloadTagsAndSuggestions() {
@@ -348,6 +379,18 @@ export default function DetailPanel({
   return (
     <section className="detail-panel">
       <h2>{displayTitle(audio)}</h2>
+
+      <div className="detail-meta-strip">
+        <span>{formatDuration(audio.duration_seconds)}</span>
+        <span>{audio.file_ext || "audio"}</span>
+        <span>{audio.is_missing ? "文件缺失" : "文件可用"}</span>
+        <span className={`status-pill ${audio.transcript_status}`}>
+          转写 {audio.transcript_status}
+        </span>
+        <span className={`status-pill ${audio.ai_status}`}>
+          AI {audio.ai_status}
+        </span>
+      </div>
 
       <div className="detail-cover-block">
         <div className="detail-cover">

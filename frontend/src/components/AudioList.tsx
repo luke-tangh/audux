@@ -10,6 +10,10 @@ type Props = {
   title: string;
   q: string;
   setQ: (q: string) => void;
+  isLoading?: boolean;
+  loadError?: string;
+  onOpenSettings: () => void;
+  onClearFilters: () => void;
   missingDescriptionOnly: boolean;
   setMissingDescriptionOnly: (v: boolean) => void;
   hasTranscriptFilter: TranscriptFilter;
@@ -172,29 +176,11 @@ function SearchHits({
   if (!query.trim() || hits.length === 0) return null;
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gap: 6,
-        marginTop: 8,
-        padding: 8,
-        border: "1px solid rgba(148,163,184,.16)",
-        borderRadius: 12,
-        background: "rgba(2,6,23,.24)"
-      }}
-    >
+    <div className="search-hits">
       {hits.map((hit, index) => (
         <div
           key={`${hit.field}-${index}`}
-          style={{
-            display: "grid",
-            gridTemplateColumns: hit.start_seconds !== undefined ? "86px minmax(0,1fr)" : "72px minmax(0,1fr)",
-            gap: 8,
-            alignItems: "start",
-            color: "#cbd5e1",
-            fontSize: 12,
-            lineHeight: 1.5
-          }}
+          className={hit.start_seconds !== undefined ? "search-hit timed" : "search-hit"}
         >
           {hit.start_seconds !== undefined ? (
             <button
@@ -202,22 +188,17 @@ function SearchHits({
                 e.stopPropagation();
                 onPlayAt(item, hit.start_seconds || 0);
               }}
-              style={{
-                padding: "3px 7px",
-                fontSize: 12,
-                borderRadius: 999
-              }}
               title="从该 transcript 命中位置播放"
             >
               {formatDuration(hit.start_seconds)}
             </button>
           ) : (
-            <strong style={{ color: "#93c5fd" }}>{hit.label}</strong>
+            <strong>{hit.label}</strong>
           )}
 
           <span>
             {hit.start_seconds !== undefined && (
-              <strong style={{ color: "#93c5fd", marginRight: 6 }}>{hit.label}</strong>
+              <strong>{hit.label}</strong>
             )}
             <HighlightText text={hit.text} query={query} />
           </span>
@@ -231,12 +212,16 @@ function EmptyState({
   q,
   missingDescriptionOnly,
   hasTranscriptFilter,
-  missingFilter
+  missingFilter,
+  onOpenSettings,
+  onClearFilters
 }: {
   q: string;
   missingDescriptionOnly: boolean;
   hasTranscriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
+  onOpenSettings: () => void;
+  onClearFilters: () => void;
 }) {
   const hasFilter =
     Boolean(q.trim()) ||
@@ -245,7 +230,7 @@ function EmptyState({
     missingFilter !== "all";
 
   return (
-    <div className="empty-state">
+    <div className="empty-state redesigned-empty-state">
       <div className="empty-icon">🎧</div>
 
       <div className="empty-title">
@@ -254,9 +239,47 @@ function EmptyState({
 
       <div className="empty-subtitle">
         {hasFilter
-          ? "可以尝试清空搜索关键词，或关闭筛选条件。"
-          : "请进入设置添加媒体库目录，然后点击扫描。"}
+          ? "当前搜索或筛选条件没有命中结果。可以清空筛选后重新浏览。"
+          : "添加本地媒体库目录后，系统会自动读取 metadata、封面，并支持转写和 AI 标签整理。"}
       </div>
+
+      <div className="empty-actions">
+        {hasFilter ? (
+          <button className="primary-soft-button" onClick={onClearFilters}>
+            清空筛选条件
+          </button>
+        ) : (
+          <button className="primary-soft-button" onClick={onOpenSettings}>
+            去设置添加媒体库
+          </button>
+        )}
+
+        <button className="ghost-button" onClick={onOpenSettings}>
+          打开设置
+        </button>
+      </div>
+
+      <div className="empty-support">
+        支持 MP3 / M4A / FLAC / WAV / OGG · 可转写 · 可 AI 生成描述和标签
+      </div>
+    </div>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div className="list-skeleton" aria-label="正在加载音频列表">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div className="skeleton-row" key={index}>
+          <span className="skeleton-cover" />
+          <span className="skeleton-content">
+            <span className="skeleton-line long" />
+            <span className="skeleton-line medium" />
+            <span className="skeleton-line short" />
+          </span>
+          <span className="skeleton-action" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -265,6 +288,10 @@ export default function AudioList({
   title,
   q,
   setQ,
+  isLoading = false,
+  loadError,
+  onOpenSettings,
+  onClearFilters,
   missingDescriptionOnly,
   setMissingDescriptionOnly,
   hasTranscriptFilter,
@@ -285,13 +312,19 @@ export default function AudioList({
 }: Props) {
   const [draggedPlaylistItemId, setDraggedPlaylistItemId] = useState<number | null>(null);
 
+  const hasActiveFilter =
+    Boolean(q.trim()) ||
+    missingDescriptionOnly ||
+    hasTranscriptFilter !== "all" ||
+    missingFilter !== "all";
+
   function findDraggedItem(): AudioItem | undefined {
     if (!draggedPlaylistItemId) return undefined;
     return items.find((item) => item.playlist_item_id === draggedPlaylistItemId);
   }
 
   return (
-    <section className="audio-list">
+    <section className="audio-list" aria-busy={isLoading}>
       <div className="library-header">
         <div className="toolbar-title">
           <div>
@@ -299,7 +332,9 @@ export default function AudioList({
             <strong>{title}</strong>
           </div>
 
-          <span className="count-chip">{items.length} 个音频</span>
+          <span className={`count-chip ${isLoading ? "loading-chip" : ""}`}>
+            {isLoading ? "正在更新..." : `${items.length} 个音频`}
+          </span>
         </div>
 
         <div className="toolbar-controls">
@@ -345,6 +380,12 @@ export default function AudioList({
         </div>
 
         <div className="toolbar-actions">
+          {hasActiveFilter && (
+            <button className="ghost-button" onClick={onClearFilters}>
+              清空筛选
+            </button>
+          )}
+
           <button
             className="ghost-button"
             onClick={onBatchTranscribe}
@@ -364,12 +405,30 @@ export default function AudioList({
       </div>
 
       <div className="list">
-        {items.length === 0 && (
+        {loadError && (
+          <div className="list-error">
+            <strong>列表加载失败</strong>
+            <span>{loadError}</span>
+            <button onClick={onClearFilters}>清空筛选后重试</button>
+          </div>
+        )}
+
+        {isLoading && items.length > 0 && (
+          <div className="list-loading-bar">
+            正在更新结果…
+          </div>
+        )}
+
+        {isLoading && items.length === 0 && <ListSkeleton />}
+
+        {!isLoading && !loadError && items.length === 0 && (
           <EmptyState
             q={q}
             missingDescriptionOnly={missingDescriptionOnly}
             hasTranscriptFilter={hasTranscriptFilter}
             missingFilter={missingFilter}
+            onOpenSettings={onOpenSettings}
+            onClearFilters={onClearFilters}
           />
         )}
 
@@ -452,14 +511,7 @@ export default function AudioList({
                 <SearchHits item={item} query={q} onPlayAt={onPlayAt} />
               </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                  justifyContent: "flex-end"
-                }}
-              >
+              <div className="row-actions">
                 <button
                   className="row-play-button"
                   onClick={(e) => {
