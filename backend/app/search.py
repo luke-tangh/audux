@@ -75,49 +75,74 @@ def _build_safe_fts5_query(q: str) -> str:
     return " AND ".join(_escape_fts5_phrase(token) for token in tokens)
 
 
+def _like_search_audio_ids(session: Session, q: str, limit: int = 200) -> list[int]:
+    pattern = f"%{q}%"
+
+    rows = session.execute(
+        text(
+            """
+            SELECT DISTINCT audio_id
+            FROM search_index
+            WHERE title LIKE :pattern
+               OR author LIKE :pattern
+               OR description LIKE :pattern
+               OR tags LIKE :pattern
+               OR transcript LIKE :pattern
+            LIMIT :limit
+            """
+        ),
+        {
+            "pattern": pattern,
+            "limit": limit,
+        },
+    ).fetchall()
+
+    return [int(row[0]) for row in rows]
+
+
 def search_audio_ids(session: Session, q: str) -> list[int]:
     q = q.strip()
     if not q:
         return []
 
+    result: list[int] = []
+    seen: set[int] = set()
+
     fts_query = _build_safe_fts5_query(q)
-    if not fts_query:
-        return []
 
+    if fts_query:
+        try:
+            rows = session.execute(
+                text(
+                    """
+                    SELECT audio_id
+                    FROM search_index
+                    WHERE search_index MATCH :q
+                    LIMIT 200
+                    """
+                ),
+                {"q": fts_query},
+            ).fetchall()
+
+            for row in rows:
+                audio_id = int(row[0])
+                if audio_id not in seen:
+                    seen.add(audio_id)
+                    result.append(audio_id)
+
+        except Exception:
+            # FTS5 可能因为 tokenizer / 特殊输入出现异常。
+            # 下面仍会使用 LIKE 作为兜底。
+            pass
+
+    # 即使 FTS 有结果，也额外使用 LIKE 补全。
+    # 这样能改善中文、部分词、未分词文本、文件名片段的搜索体验。
     try:
-        rows = session.execute(
-            text(
-                """
-                SELECT audio_id
-                FROM search_index
-                WHERE search_index MATCH :q
-                LIMIT 200
-                """
-            ),
-            {"q": fts_query},
-        ).fetchall()
-
-        return [int(row[0]) for row in rows]
-
+        for audio_id in _like_search_audio_ids(session, q, limit=200):
+            if audio_id not in seen:
+                seen.add(audio_id)
+                result.append(audio_id)
     except Exception:
-        # FTS5 仍可能因为 tokenizer / 特殊输入出现异常。
-        # 这里降级为 LIKE，保证搜索框不会把接口打崩。
-        pattern = f"%{q}%"
+        pass
 
-        rows = session.execute(
-            text(
-                """
-                SELECT DISTINCT audio_id
-                FROM search_index
-                WHERE title LIKE :pattern
-                   OR author LIKE :pattern
-                   OR description LIKE :pattern
-                   OR tags LIKE :pattern
-                   OR transcript LIKE :pattern
-                LIMIT 200
-                """
-            ),
-            {"pattern": pattern},
-        ).fetchall()
-
-        return [int(row[0]) for row in rows]
+    return result[:200]

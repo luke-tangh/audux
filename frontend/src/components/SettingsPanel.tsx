@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
-import { api } from "../api";
-import type { LibraryRoot, ScanTask } from "../types";
+import { useEffect, useRef, useState } from "react";
+import { api, endpointPrivacyWarning } from "../api";
+import type { LibraryRoot, ScanTask, Tag } from "../types";
 import { pickAudioFolder } from "../tauri";
 import TaskPanel from "./TaskPanel";
 
+type ToastType = "info" | "success" | "error";
+
 type Props = {
   refresh: () => void;
+  notify?: (message: string, type?: ToastType) => void;
 };
 
 function scanProgress(task: ScanTask): number {
@@ -13,12 +16,17 @@ function scanProgress(task: ScanTask): number {
   return Math.round((task.processed_files / task.total_files) * 100);
 }
 
-export default function SettingsPanel({ refresh }: Props) {
+function terminalStatus(status: string): boolean {
+  return status === "done" || status === "failed" || status === "canceled";
+}
+
+export default function SettingsPanel({ refresh, notify }: Props) {
   const [roots, setRoots] = useState<LibraryRoot[]>([]);
   const [scanTasks, setScanTasks] = useState<ScanTask[]>([]);
   const [path, setPath] = useState("");
   const [scanResult, setScanResult] = useState("");
   const [playlistName, setPlaylistName] = useState("");
+  const [maintenanceTags, setMaintenanceTags] = useState<Tag[]>([]);
 
   const [asrModelName, setAsrModelName] = useState("small");
   const [asrDevice, setAsrDevice] = useState("cpu");
@@ -36,9 +44,43 @@ export default function SettingsPanel({ refresh }: Props) {
   const [backendStatus, setBackendStatus] = useState("checking");
   const [logs, setLogs] = useState("");
 
+  const scanStatusRef = useRef<Record<number, string>>({});
+  const scanInitializedRef = useRef(false);
+
+  function applyScanTasks(rows: ScanTask[], allowNotify = true) {
+    if (allowNotify && scanInitializedRef.current) {
+      for (const task of rows) {
+        const previous = scanStatusRef.current[task.id];
+
+        if (previous && previous !== task.status && terminalStatus(task.status)) {
+          if (task.status === "done") {
+            notify?.(`扫描任务 #${task.id} 已完成，导入 ${task.imported}，更新 ${task.updated}，缺失 ${task.missing}`, "success");
+          }
+
+          if (task.status === "failed") {
+            notify?.(`扫描任务 #${task.id} 失败：${task.error_message || "未知错误"}`, "error");
+          }
+
+          if (task.status === "canceled") {
+            notify?.(`扫描任务 #${task.id} 已取消`, "info");
+          }
+        }
+      }
+    }
+
+    const nextStatus: Record<number, string> = {};
+    for (const task of rows) {
+      nextStatus[task.id] = task.status;
+    }
+
+    scanStatusRef.current = nextStatus;
+    scanInitializedRef.current = true;
+    setScanTasks(rows);
+  }
+
   async function loadScanTasks() {
     const rows = await api.listScanTasks({ limit: 20 });
-    setScanTasks(rows);
+    applyScanTasks(rows, true);
   }
 
   async function loadLogs() {
@@ -46,19 +88,26 @@ export default function SettingsPanel({ refresh }: Props) {
     setLogs(result.content || "");
   }
 
+  async function loadTags() {
+    const tagRows = await api.listTags().catch(() => []);
+    setMaintenanceTags(tagRows);
+  }
+
   async function load() {
     try {
       await api.health();
       setBackendStatus("ok");
 
-      const [rootRows, settings, scanRows] = await Promise.all([
+      const [rootRows, settings, scanRows, tagRows] = await Promise.all([
         api.listLibraryRoots(),
         api.listSettings(),
-        api.listScanTasks({ limit: 20 })
+        api.listScanTasks({ limit: 20 }),
+        api.listTags().catch(() => [])
       ]);
 
       setRoots(rootRows);
-      setScanTasks(scanRows);
+      applyScanTasks(scanRows, false);
+      setMaintenanceTags(tagRows);
 
       setAsrModelName(settings.find((s) => s.key === "asr.model_name")?.value || "small");
       setAsrDevice(settings.find((s) => s.key === "asr.device")?.value || "cpu");
@@ -74,6 +123,7 @@ export default function SettingsPanel({ refresh }: Props) {
     } catch (err) {
       console.error(err);
       setBackendStatus("failed");
+      notify?.(err instanceof Error ? err.message : String(err), "error");
     }
   }
 
@@ -94,75 +144,121 @@ export default function SettingsPanel({ refresh }: Props) {
     if (selected) {
       setPath(selected);
     } else {
-      alert("未选择文件夹，或当前不是 Tauri 运行环境。");
+      notify?.("未选择文件夹，或当前不是 Tauri 运行环境。", "error");
     }
   }
 
   async function addRoot() {
     if (!path.trim()) return;
 
-    await api.createLibraryRoot(path.trim());
-    setPath("");
+    try {
+      await api.createLibraryRoot(path.trim());
+      setPath("");
 
-    await load();
-    refresh();
+      await load();
+      refresh();
+      notify?.("媒体库目录已添加", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function toggleRoot(root: LibraryRoot, isEnabled: boolean) {
-    await api.updateLibraryRoot(root.id, {
-      is_enabled: isEnabled
-    });
+    try {
+      await api.updateLibraryRoot(root.id, {
+        is_enabled: isEnabled
+      });
 
-    await load();
-    refresh();
+      await load();
+      refresh();
+      notify?.(isEnabled ? "媒体库目录已启用" : "媒体库目录已禁用", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function scan(id: number) {
-    setScanResult("已创建扫描任务...");
-    const task = await api.scanLibraryRoot(id);
-    setScanResult(`扫描任务 #${task.id} 已创建`);
-    await loadScanTasks();
-    refresh();
+    try {
+      setScanResult("已创建扫描任务...");
+      const task = await api.scanLibraryRoot(id);
+      setScanResult(`扫描任务 #${task.id} 已创建`);
+      notify?.(`扫描任务 #${task.id} 已创建`, "success");
+      await loadScanTasks();
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function cancelScan(task: ScanTask) {
     if (!window.confirm(`确认取消扫描任务 #${task.id}？`)) return;
 
-    await api.cancelScanTask(task.id);
-    await loadScanTasks();
+    try {
+      await api.cancelScanTask(task.id);
+      notify?.(`扫描任务 #${task.id} 已请求取消`, "info");
+      await loadScanTasks();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function createPlaylist() {
     if (!playlistName.trim()) return;
 
-    await api.createPlaylist(playlistName.trim());
-    setPlaylistName("");
+    try {
+      await api.createPlaylist(playlistName.trim());
+      setPlaylistName("");
 
-    refresh();
-    await load();
+      refresh();
+      await load();
+
+      notify?.("Playlist 已创建", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function saveAsr() {
-    await api.setSetting("asr.model_name", asrModelName.trim() || "small");
-    await api.setSetting("asr.device", asrDevice.trim() || "cpu");
-    await api.setSetting("asr.compute_type", asrComputeType.trim() || "int8");
-    await api.setSetting("asr.beam_size", asrBeamSize.trim() || "5");
+    try {
+      await api.setSetting("asr.model_name", asrModelName.trim() || "small");
+      await api.setSetting("asr.device", asrDevice.trim() || "cpu");
+      await api.setSetting("asr.compute_type", asrComputeType.trim() || "int8");
+      await api.setSetting("asr.beam_size", asrBeamSize.trim() || "5");
 
-    alert("ASR 设置已保存");
+      notify?.("ASR 设置已保存", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function saveLlm() {
-    await api.setSetting("llm.endpoint", llmEndpoint.trim());
-    await api.setSetting("llm.model_name", llmModel.trim());
-    await api.setSetting("llm.api_key", llmApiKey);
-    await api.setSetting("llm.timeout", llmTimeout.trim() || "60");
-    await api.setSetting("llm.max_tokens", llmMaxTokens.trim() || "800");
-    await api.setSetting("llm.temperature", llmTemperature.trim() || "0.2");
+    const warning = endpointPrivacyWarning(llmEndpoint);
+    if (warning) {
+      const ok = window.confirm(`${warning}\n\n确认保存该 endpoint？`);
+      if (!ok) return;
+    }
 
-    alert("LLM 设置已保存");
+    try {
+      await api.setSetting("llm.endpoint", llmEndpoint.trim());
+      await api.setSetting("llm.model_name", llmModel.trim());
+      await api.setSetting("llm.api_key", llmApiKey);
+      await api.setSetting("llm.timeout", llmTimeout.trim() || "60");
+      await api.setSetting("llm.max_tokens", llmMaxTokens.trim() || "800");
+      await api.setSetting("llm.temperature", llmTemperature.trim() || "0.2");
+
+      notify?.("LLM 设置已保存", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function testLlm() {
+    const warning = endpointPrivacyWarning(llmEndpoint);
+    if (warning) {
+      const ok = window.confirm(`${warning}\n\n确认继续测试连接？`);
+      if (!ok) return;
+    }
+
     setLlmTestResult("测试中...");
 
     try {
@@ -175,9 +271,16 @@ export default function SettingsPanel({ refresh }: Props) {
         temperature: Number(llmTemperature || "0")
       });
 
+      if (result.privacy_warning) {
+        notify?.(result.privacy_warning, "error");
+      }
+
       setLlmTestResult(`连接成功：${result.content}`);
+      notify?.("LLM 连接测试成功", "success");
     } catch (err) {
-      setLlmTestResult(`连接失败：${err instanceof Error ? err.message : String(err)}`);
+      const message = err instanceof Error ? err.message : String(err);
+      setLlmTestResult(`连接失败：${message}`);
+      notify?.(`LLM 连接测试失败：${message}`, "error");
     }
   }
 
@@ -185,9 +288,60 @@ export default function SettingsPanel({ refresh }: Props) {
     const ok = window.confirm("确认重建所有音频的搜索索引？");
     if (!ok) return;
 
-    const result = await api.rebuildSearchIndex();
-    alert(`已重建 ${result.count} 条索引`);
+    try {
+      const result = await api.rebuildSearchIndex();
+      notify?.(`已重建 ${result.count} 条搜索索引`, "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
+
+  async function renameTag(tag: Tag) {
+    const name = window.prompt("输入新的标签名称：", tag.name);
+    if (!name || !name.trim() || name.trim() === tag.name) return;
+
+    try {
+      await api.updateTag(tag.id, { name: name.trim() });
+      await loadTags();
+      refresh();
+      notify?.("标签已重命名", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function deleteTag(tag: Tag) {
+    const ok = window.confirm(
+      `确认删除标签 #${tag.name}？\n\n如果该标签仍被音频使用，默认不会删除。`
+    );
+
+    if (!ok) return;
+
+    try {
+      await api.deleteTag(tag.id, false);
+      await loadTags();
+      refresh();
+      notify?.("标签已删除", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function cleanupTags() {
+    const ok = window.confirm("确认清理所有没有关联音频的 orphan tags？");
+    if (!ok) return;
+
+    try {
+      const result = await api.cleanupTags();
+      await loadTags();
+      refresh();
+      notify?.(`已清理 ${result.deleted} 个未使用标签`, "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  const llmWarning = endpointPrivacyWarning(llmEndpoint);
 
   return (
     <section className="settings-panel">
@@ -281,6 +435,31 @@ export default function SettingsPanel({ refresh }: Props) {
       </div>
 
       <div className="section card">
+        <h3>标签维护</h3>
+
+        <p className="muted">
+          可重命名标签，或清理没有关联任何音频的 orphan tags。
+        </p>
+
+        <div className="actions">
+          <button onClick={cleanupTags}>清理未使用标签</button>
+          <button onClick={loadTags}>刷新标签</button>
+        </div>
+
+        {maintenanceTags.length === 0 && <p className="muted">暂无标签</p>}
+
+        <div className="tag-list">
+          {maintenanceTags.map((tag) => (
+            <span key={tag.id} className="tag">
+              #{tag.name}
+              <button onClick={() => renameTag(tag)}>重命名</button>
+              <button onClick={() => deleteTag(tag)}>删除</button>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="section card">
         <h3>本地 ASR 设置 faster-whisper</h3>
 
         <div className="settings-grid">
@@ -321,7 +500,11 @@ export default function SettingsPanel({ refresh }: Props) {
         </div>
 
         <button onClick={saveAsr}>保存 ASR 设置</button>
-        <p className="muted">需要后端环境安装 faster-whisper。</p>
+
+        <p className="muted">
+          需要后端环境安装 faster-whisper。若希望完全离线，请优先填写本地模型路径；
+          如果填写 small / medium / large-v3 等模型名称，首次运行可能尝试下载模型。
+        </p>
       </div>
 
       <div className="section card">
@@ -383,6 +566,12 @@ export default function SettingsPanel({ refresh }: Props) {
           </label>
         </div>
 
+        {llmWarning && (
+          <p className="test-result" style={{ color: "#fecaca" }}>
+            隐私提醒：{llmWarning}
+          </p>
+        )}
+
         <div className="actions">
           <button onClick={saveLlm}>保存 LLM 设置</button>
           <button onClick={testLlm}>测试连接</button>
@@ -408,7 +597,7 @@ export default function SettingsPanel({ refresh }: Props) {
       </div>
 
       <div className="section card">
-        <TaskPanel onTaskChanged={refresh} />
+        <TaskPanel onTaskChanged={refresh} notify={notify} />
       </div>
 
       <div className="section card">

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../api";
+import { api, endpointPrivacyWarning } from "../api";
 import type { AISuggestions, AudioItem, Playlist, Tag, Transcript } from "../types";
 import { displayDescription, displayTitle, formatDuration } from "../types";
 import { pickAudioFile } from "../tauri";
+
+type ToastType = "info" | "success" | "error";
 
 type Props = {
   audio: AudioItem | null;
@@ -11,6 +13,7 @@ type Props = {
   playlists: Playlist[];
   selectedPlaylistId?: number | null;
   onDeleted: () => void;
+  notify?: (message: string, type?: ToastType) => void;
 };
 
 export default function DetailPanel({
@@ -19,10 +22,13 @@ export default function DetailPanel({
   onPlay,
   playlists,
   selectedPlaylistId,
-  onDeleted
+  onDeleted,
+  notify
 }: Props) {
   const [tags, setTags] = useState<Tag[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [selectedExistingTag, setSelectedExistingTag] = useState<number | "">("");
   const [editing, setEditing] = useState<Partial<AudioItem>>({});
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestions | null>(null);
@@ -34,18 +40,29 @@ export default function DetailPanel({
     return new Set(tags.map((t) => t.name));
   }, [tags]);
 
+  const availableExistingTags = useMemo(() => {
+    return allTags.filter((tag) => !acceptedTagNames.has(tag.name));
+  }, [allTags, acceptedTagNames]);
+
   useEffect(() => {
     async function load() {
       setTranscript(null);
       setAiSuggestions(null);
       setRelocatePath("");
+      setSelectedExistingTag("");
 
       if (!audio) return;
 
       setCoverVersion(Date.now());
 
-      const detail = await api.getAudioDetail(audio.id);
+      const [detail, tagRows] = await Promise.all([
+        api.getAudioDetail(audio.id),
+        api.listTags().catch(() => [])
+      ]);
+
       setTags(detail.tags);
+      setAllTags(tagRows);
+
       setEditing({
         title_user: detail.audio.title_user || "",
         author_user: detail.audio.author_user || "",
@@ -59,7 +76,10 @@ export default function DetailPanel({
       api.getAiSuggestions(audio.id).then(setAiSuggestions).catch(() => setAiSuggestions(null));
     }
 
-    load().catch(console.error);
+    load().catch((err) => {
+      console.error(err);
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    });
   }, [audio?.id]);
 
   if (!audio) {
@@ -67,16 +87,26 @@ export default function DetailPanel({
   }
 
   async function reloadTagsAndSuggestions() {
-    const detail = await api.getAudioDetail(audio!.id);
+    const [detail, tagRows] = await Promise.all([
+      api.getAudioDetail(audio!.id),
+      api.listTags().catch(() => [])
+    ]);
+
     setTags(detail.tags);
+    setAllTags(tagRows);
 
     const suggestions = await api.getAiSuggestions(audio!.id).catch(() => null);
     setAiSuggestions(suggestions);
   }
 
   async function save() {
-    await api.updateAudio(audio!.id, editing);
-    refresh();
+    try {
+      await api.updateAudio(audio!.id, editing);
+      notify?.("Metadata 已保存", "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function addTags() {
@@ -87,65 +117,126 @@ export default function DetailPanel({
 
     if (names.length === 0) return;
 
-    await api.addTags(audio!.id, names, "user");
-    setTagInput("");
+    try {
+      await api.addTags(audio!.id, names, "user");
+      setTagInput("");
 
-    await reloadTagsAndSuggestions();
-    refresh();
+      await reloadTagsAndSuggestions();
+      notify?.("标签已添加", "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function addExistingTag() {
+    if (!selectedExistingTag) return;
+
+    const tag = allTags.find((x) => x.id === Number(selectedExistingTag));
+    if (!tag) return;
+
+    try {
+      await api.addTags(audio!.id, [tag.name], "user");
+      setSelectedExistingTag("");
+
+      await reloadTagsAndSuggestions();
+      notify?.("已有标签已添加", "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function removeTag(tagId: number) {
-    await api.removeTag(audio!.id, tagId);
+    try {
+      await api.removeTag(audio!.id, tagId);
 
-    await reloadTagsAndSuggestions();
-    refresh();
+      await reloadTagsAndSuggestions();
+      notify?.("标签已移除", "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function transcribe() {
-    await api.transcribe(audio!.id);
-    refresh();
-    alert("已创建转写任务。可在 Settings 的任务队列中查看状态。");
+    try {
+      await api.transcribe(audio!.id);
+      refresh();
+      notify?.("已创建转写任务，可在 Settings 的任务队列中查看状态。", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function analyze() {
-    const settings = await api.listSettings();
-    const endpoint = settings.find((s) => s.key === "llm.endpoint")?.value;
-    const modelName = settings.find((s) => s.key === "llm.model_name")?.value;
+    try {
+      const settings = await api.listSettings();
+      const endpoint = settings.find((s) => s.key === "llm.endpoint")?.value;
+      const modelName = settings.find((s) => s.key === "llm.model_name")?.value;
 
-    if (!endpoint || !modelName) {
-      alert("请先在 Settings 中配置本地 LLM endpoint 和 model_name。");
-      return;
+      if (!endpoint || !modelName) {
+        notify?.("请先在 Settings 中配置本地 LLM endpoint 和 model_name。", "error");
+        return;
+      }
+
+      const warning = endpointPrivacyWarning(endpoint);
+      if (warning) {
+        const ok = window.confirm(`${warning}\n\n确认继续发起 AI 分析？`);
+        if (!ok) return;
+      }
+
+      const task = await api.analyze(audio!.id);
+
+      if (task.privacy_warning) {
+        notify?.(task.privacy_warning, "error");
+      }
+
+      refresh();
+      notify?.("已创建 AI 分析任务。完成后会显示 AI 建议描述和标签。", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
     }
-
-    await api.analyze(audio!.id);
-    refresh();
-    alert("已创建 AI 分析任务。完成后会显示 AI 建议描述和标签。");
   }
 
   async function addToPlaylist() {
     if (!selectedPlaylist) return;
 
-    await api.addToPlaylist(Number(selectedPlaylist), audio!.id);
-    alert("已添加到 playlist");
+    try {
+      await api.addToPlaylist(Number(selectedPlaylist), audio!.id);
+      notify?.("已添加到 playlist", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function acceptAiDescription() {
     const description = aiSuggestions?.description || audio?.description_ai;
     if (!description) return;
 
-    await api.updateAudio(audio!.id, {
-      description_user: description
-    });
+    try {
+      await api.updateAudio(audio!.id, {
+        description_user: description
+      });
 
-    setEditing({ ...editing, description_user: description });
-    refresh();
+      setEditing({ ...editing, description_user: description });
+      notify?.("AI 描述已接受为用户描述", "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function acceptAiTag(tagName: string) {
-    await api.addTags(audio!.id, [tagName], "ai");
+    try {
+      await api.addTags(audio!.id, [tagName], "ai");
 
-    await reloadTagsAndSuggestions();
-    refresh();
+      await reloadTagsAndSuggestions();
+      notify?.(`已接受标签：${tagName}`, "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function acceptAllAiTags() {
@@ -156,10 +247,15 @@ export default function DetailPanel({
 
     if (names.length === 0) return;
 
-    await api.addTags(audio!.id, names, "ai");
+    try {
+      await api.addTags(audio!.id, names, "ai");
 
-    await reloadTagsAndSuggestions();
-    refresh();
+      await reloadTagsAndSuggestions();
+      notify?.(`已接受 ${names.length} 个 AI 标签`, "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   function jumpToSegment(startSeconds: number) {
@@ -177,18 +273,28 @@ export default function DetailPanel({
   async function uploadCover(file?: File) {
     if (!file) return;
 
-    await api.uploadCover(audio!.id, file);
-    setCoverVersion(Date.now());
-    refresh();
+    try {
+      await api.uploadCover(audio!.id, file);
+      setCoverVersion(Date.now());
+      notify?.("封面已上传", "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function deleteCover() {
     const ok = window.confirm("确认删除当前封面？");
     if (!ok) return;
 
-    await api.deleteCover(audio!.id);
-    setCoverVersion(Date.now());
-    refresh();
+    try {
+      await api.deleteCover(audio!.id);
+      setCoverVersion(Date.now());
+      notify?.("封面已删除", "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function chooseRelocateFile() {
@@ -202,10 +308,14 @@ export default function DetailPanel({
     const path = relocatePath.trim();
     if (!path) return;
 
-    await api.relocateAudio(audio!.id, path);
-    setRelocatePath("");
-    alert("文件已重新定位");
-    refresh();
+    try {
+      await api.relocateAudio(audio!.id, path);
+      setRelocatePath("");
+      notify?.("文件已重新定位", "success");
+      refresh();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function deleteFromDatabase() {
@@ -214,8 +324,13 @@ export default function DetailPanel({
     );
     if (!ok) return;
 
-    await api.deleteAudio(audio!.id, false);
-    onDeleted();
+    try {
+      await api.deleteAudio(audio!.id, false);
+      notify?.("音频条目已从数据库移除", "success");
+      onDeleted();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   function exportTranscript(format: "txt" | "json" | "srt") {
@@ -383,10 +498,27 @@ export default function DetailPanel({
         <div className="inline-form">
           <input
             value={tagInput}
-            placeholder="标签，用逗号分隔"
+            placeholder="新标签，可用逗号分隔"
             onChange={(e) => setTagInput(e.target.value)}
           />
           <button onClick={addTags}>添加</button>
+        </div>
+
+        <div className="inline-form">
+          <select
+            value={selectedExistingTag}
+            onChange={(e) => setSelectedExistingTag(e.target.value ? Number(e.target.value) : "")}
+          >
+            <option value="">选择已有标签</option>
+            {availableExistingTags.map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                #{tag.name}
+              </option>
+            ))}
+          </select>
+          <button onClick={addExistingTag} disabled={!selectedExistingTag}>
+            添加已有标签
+          </button>
         </div>
       </div>
 

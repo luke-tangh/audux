@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import type { AITask } from "../types";
 
+type ToastType = "info" | "success" | "error";
+
 type Props = {
   onTaskChanged?: () => void;
+  notify?: (message: string, type?: ToastType) => void;
 };
 
 function formatTime(value?: string): string {
@@ -25,34 +28,82 @@ function statusClass(status: string): string {
   return "";
 }
 
-export default function TaskPanel({ onTaskChanged }: Props) {
+function terminalStatus(status: string): boolean {
+  return status === "done" || status === "failed" || status === "canceled";
+}
+
+export default function TaskPanel({ onTaskChanged, notify }: Props) {
   const [tasks, setTasks] = useState<AITask[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const taskStatusRef = useRef<Record<number, string>>({});
+  const initializedRef = useRef(false);
+
+  function applyTasks(rows: AITask[]) {
+    if (initializedRef.current) {
+      for (const task of rows) {
+        const previous = taskStatusRef.current[task.id];
+
+        if (previous && previous !== task.status && terminalStatus(task.status)) {
+          if (task.status === "done") {
+            notify?.(`任务 #${task.id} 已完成：${task.task_type}`, "success");
+          }
+
+          if (task.status === "failed") {
+            notify?.(`任务 #${task.id} 失败：${task.error_message || task.task_type}`, "error");
+          }
+
+          if (task.status === "canceled") {
+            notify?.(`任务 #${task.id} 已取消`, "info");
+          }
+        }
+      }
+    }
+
+    const nextStatus: Record<number, string> = {};
+    for (const task of rows) {
+      nextStatus[task.id] = task.status;
+    }
+
+    taskStatusRef.current = nextStatus;
+    initializedRef.current = true;
+    setTasks(rows);
+  }
 
   async function load() {
     setLoading(true);
     try {
       const rows = await api.listTasks();
-      setTasks(rows);
+      applyTasks(rows);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load().catch(console.error);
+    load().catch((err) => {
+      console.error(err);
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    });
 
     const timer = setInterval(() => {
-      load().catch(console.error);
+      load().catch((err) => {
+        console.error(err);
+      });
     }, 3000);
 
     return () => clearInterval(timer);
   }, []);
 
   async function retry(task: AITask) {
-    await api.retryTask(task.id);
-    await load();
-    onTaskChanged?.();
+    try {
+      await api.retryTask(task.id);
+      notify?.(`任务 #${task.id} 已重新加入队列`, "success");
+      await load();
+      onTaskChanged?.();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   async function cancel(task: AITask) {
@@ -64,9 +115,14 @@ export default function TaskPanel({ onTaskChanged }: Props) {
 
     if (!ok) return;
 
-    await api.cancelTask(task.id);
-    await load();
-    onTaskChanged?.();
+    try {
+      await api.cancelTask(task.id);
+      notify?.(`任务 #${task.id} 已请求取消`, "info");
+      await load();
+      onTaskChanged?.();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   return (

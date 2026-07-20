@@ -5,19 +5,42 @@ import { displayTitle, formatDuration } from "../types";
 
 type Props = {
   audio: AudioItem | null;
+  queue: AudioItem[];
+  queueIndex: number;
   canPrevious: boolean;
   canNext: boolean;
   onPrevious: () => void;
   onNext: () => void;
+  onQueueSelect: (index: number) => void;
+  onQueueRemove: (index: number) => void;
+  onQueueClear: () => void;
   onPositionSaved: () => void;
 };
 
+function shouldPromptRestart(audio: AudioItem): boolean {
+  const saved = audio.last_position_seconds || 0;
+  const total = audio.duration_seconds || 0;
+
+  if (saved <= 0 || total <= 0) return false;
+  if (saved >= total) return true;
+
+  const remain = total - saved;
+  const threshold = Math.max(10, total * 0.02);
+
+  return remain <= threshold;
+}
+
 export default function PlayerBar({
   audio,
+  queue,
+  queueIndex,
   canPrevious,
   canNext,
   onPrevious,
   onNext,
+  onQueueSelect,
+  onQueueRemove,
+  onQueueClear,
   onPositionSaved
 }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -27,6 +50,7 @@ export default function PlayerBar({
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -42,12 +66,25 @@ export default function PlayerBar({
       return;
     }
 
+    let startSeconds = audio.last_position_seconds || 0;
+
+    if (shouldPromptRestart(audio)) {
+      const ok = window.confirm(
+        "上次播放位置已接近结尾，是否从头播放？\n\n确定：从头播放\n取消：从上次位置继续"
+      );
+
+      if (ok) {
+        startSeconds = 0;
+        api.updatePlaybackPosition(audio.id, 0).then(onPositionSaved).catch(console.error);
+      }
+    }
+
     el.src = `${API_BASE}/audio-items/${audio.id}/file`;
     el.playbackRate = rate;
     el.volume = volume;
-    el.currentTime = audio.last_position_seconds || 0;
+    el.currentTime = startSeconds;
 
-    setCurrent(audio.last_position_seconds || 0);
+    setCurrent(startSeconds);
     setDuration(0);
 
     el.play()
@@ -134,11 +171,16 @@ export default function PlayerBar({
     }
   }
 
+  function selectQueueItem(index: number) {
+    onQueueSelect(index);
+    setQueueOpen(false);
+  }
+
   const safeDuration = Number.isFinite(duration) ? duration : 0;
   const progress = safeDuration > 0 ? Math.min(100, (current / safeDuration) * 100) : 0;
 
   return (
-    <footer className="player-bar">
+    <footer className="player-bar compact-player-bar">
       <audio
         ref={audioRef}
         onPlay={() => setIsPlaying(true)}
@@ -148,7 +190,7 @@ export default function PlayerBar({
         onEnded={handleEnded}
       />
 
-      <div className="player-track-card">
+      <div className="player-track-card compact-track-card">
         <span className="eyebrow">正在播放</span>
 
         <div className="now-playing">
@@ -156,7 +198,7 @@ export default function PlayerBar({
         </div>
       </div>
 
-      <div className="player-controls">
+      <div className="player-controls compact-player-controls">
         <button
           className="icon-button"
           onClick={onPrevious}
@@ -194,7 +236,7 @@ export default function PlayerBar({
         </button>
       </div>
 
-      <div className="player-progress">
+      <div className="player-progress compact-player-progress">
         <span>{formatDuration(current)}</span>
 
         <input
@@ -211,9 +253,9 @@ export default function PlayerBar({
         <span>{formatDuration(safeDuration)}</span>
       </div>
 
-      <div className="player-options">
-        <label>
-          速度
+      <div className="player-options compact-player-options">
+        <label className="compact-speed-control">
+          <span>速度</span>
           <select value={rate} onChange={(e) => setRate(Number(e.target.value))}>
             {[0.75, 1, 1.25, 1.5, 2].map((r) => (
               <option key={r} value={r}>
@@ -223,8 +265,8 @@ export default function PlayerBar({
           </select>
         </label>
 
-        <label className="volume-control">
-          音量
+        <label className="compact-volume-control">
+          <span>音量</span>
           <input
             type="range"
             min={0}
@@ -234,6 +276,74 @@ export default function PlayerBar({
             onChange={(e) => setVolume(Number(e.target.value))}
           />
         </label>
+
+        <div className="compact-queue-control">
+          <button
+            className="queue-toggle-button"
+            onClick={() => setQueueOpen((v) => !v)}
+            disabled={queue.length === 0}
+            title="播放队列"
+          >
+            队列 {queue.length > 0 ? `(${queueIndex + 1}/${queue.length})` : ""}
+          </button>
+
+          {queueOpen && (
+            <div className="queue-popover">
+              <div className="queue-popover-header">
+                <strong>播放队列</strong>
+
+                <button
+                  onClick={() => {
+                    onQueueClear();
+                    setQueueOpen(false);
+                  }}
+                  disabled={queue.length === 0}
+                >
+                  清空
+                </button>
+              </div>
+
+              {queue.length === 0 && (
+                <div className="queue-empty">
+                  空队列
+                </div>
+              )}
+
+              {queue.length > 0 && (
+                <div className="queue-list">
+                  {queue.map((item, index) => (
+                    <div
+                      key={`${item.id}-${index}`}
+                      className={`queue-row ${index === queueIndex ? "active" : ""}`}
+                    >
+                      <button
+                        className="queue-row-main"
+                        onClick={() => selectQueueItem(index)}
+                        title={displayTitle(item)}
+                      >
+                        <span className="queue-index">
+                          {index === queueIndex ? "▶" : index + 1}
+                        </span>
+
+                        <span className="queue-title">
+                          {displayTitle(item)}
+                        </span>
+                      </button>
+
+                      <button
+                        className="queue-remove"
+                        onClick={() => onQueueRemove(index)}
+                        title="从队列移除"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </footer>
   );

@@ -6,6 +6,7 @@ import type {
   BatchTaskResult,
   LibraryRoot,
   LLMConfigPayload,
+  LLMTestResult,
   Playlist,
   PlaylistDetail,
   ScanTask,
@@ -14,6 +15,71 @@ import type {
 } from "./types";
 
 export const API_BASE = "http://127.0.0.1:8765";
+
+export class ApiError extends Error {
+  status: number;
+  detail?: unknown;
+  raw?: string;
+
+  constructor(message: string, status: number, detail?: unknown, raw?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+    this.raw = raw;
+  }
+}
+
+function readableErrorFromJson(value: any): string {
+  if (!value) return "";
+
+  if (typeof value.detail === "string") {
+    return value.detail;
+  }
+
+  if (Array.isArray(value.detail)) {
+    return value.detail
+      .map((item) => {
+        if (typeof item?.msg === "string") return item.msg;
+        return JSON.stringify(item);
+      })
+      .join("; ");
+  }
+
+  if (value.detail !== undefined) {
+    try {
+      return JSON.stringify(value.detail, null, 2);
+    } catch {
+      return String(value.detail);
+    }
+  }
+
+  if (typeof value.message === "string") {
+    return value.message;
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+async function parseErrorResponse(resp: Response): Promise<ApiError> {
+  const text = await resp.text();
+
+  if (!text) {
+    return new ApiError(`HTTP ${resp.status}`, resp.status);
+  }
+
+  try {
+    const json = JSON.parse(text);
+    const message = readableErrorFromJson(json) || `HTTP ${resp.status}`;
+    return new ApiError(message, resp.status, json.detail, text);
+  } catch {
+    return new ApiError(text, resp.status, undefined, text);
+  }
+}
 
 async function request<T = any>(path: string, options?: RequestInit): Promise<T> {
   const body = options?.body;
@@ -33,11 +99,45 @@ async function request<T = any>(path: string, options?: RequestInit): Promise<T>
   });
 
   if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(text || `HTTP ${resp.status}`);
+    throw await parseErrorResponse(resp);
   }
 
-  return resp.json();
+  if (resp.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await resp.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text);
+}
+
+export function isProbablyLocalEndpoint(endpoint: string): boolean {
+  try {
+    const parsed = new URL(endpoint);
+    const host = parsed.hostname.toLowerCase();
+
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".localhost")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function endpointPrivacyWarning(endpoint: string): string | null {
+  if (!endpoint.trim()) return null;
+
+  if (isProbablyLocalEndpoint(endpoint.trim())) {
+    return null;
+  }
+
+  return "当前 LLM endpoint 不是 localhost / 127.0.0.1。AI 分析会把音频 metadata 和 transcript 发送到该地址。请确认这是你信任的本地或内网模型服务。";
 }
 
 export const api = {
@@ -161,6 +261,20 @@ export const api = {
 
   listTags: () => request<Tag[]>("/tags"),
 
+  updateTag: (tagId: number, payload: { name: string }) =>
+    request<Tag>(`/tags/${tagId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }),
+
+  deleteTag: (tagId: number, force = false) =>
+    request<{ ok: boolean; affected_audio_items: number }>(
+      `/tags/${tagId}?force=${String(force)}`,
+      {
+        method: "DELETE"
+      }
+    ),
+
   addTags: (audioId: number, tags: string[], source: "user" | "ai" | "system" = "user") =>
     request<Tag[]>(`/audio-items/${audioId}/tags`, {
       method: "POST",
@@ -225,7 +339,7 @@ export const api = {
     }),
 
   testLlm: (payload: LLMConfigPayload) =>
-    request<{ ok: boolean; content: string }>("/ai/test-llm", {
+    request<LLMTestResult>("/ai/test-llm", {
       method: "POST",
       body: JSON.stringify(payload)
     }),
@@ -260,6 +374,11 @@ export const api = {
 
   rebuildSearchIndex: () =>
     request<{ ok: boolean; count: number }>("/maintenance/rebuild-search-index", {
+      method: "POST"
+    }),
+
+  cleanupTags: () =>
+    request<{ ok: boolean; deleted: number }>("/maintenance/cleanup-tags", {
       method: "POST"
     }),
 

@@ -2,9 +2,12 @@ import csv
 import io
 import json
 import mimetypes
+import os
+import ipaddress
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import (
     FastAPI,
@@ -42,6 +45,7 @@ from .schemas import (
     PlaybackPositionUpdate,
     RelocateAudioRequest,
     TagsAddRequest,
+    TagUpdate,
     PlaylistCreate,
     PlaylistItemAdd,
     PlaylistItemsReorder,
@@ -65,11 +69,24 @@ from .ai_client import call_openai_compatible_chat, get_ai_message_content
 setup_logging()
 logger = get_logger(__name__)
 
-app = FastAPI(title="Local Audio Library API", version="0.3.0")
+app = FastAPI(title="Local Audio Library API", version="0.4.0")
+
+ALLOW_ALL_CORS = os.getenv("LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+LOCAL_ORIGIN_REGEX = (
+    r"^(https?://(127\.0\.0\.1|localhost)(:\d+)?"
+    r"|https?://tauri\.localhost"
+    r"|tauri://localhost)$"
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"] if ALLOW_ALL_CORS else [],
+    allow_origin_regex=None if ALLOW_ALL_CORS else LOCAL_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -96,6 +113,45 @@ async def on_startup():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+def _is_local_endpoint(endpoint: str) -> bool:
+    try:
+        parsed = urlparse(endpoint)
+        host = parsed.hostname
+        if not host:
+            return False
+
+        host = host.lower()
+
+        if host in {"localhost", "127.0.0.1", "::1"}:
+            return True
+
+        if host.endswith(".localhost"):
+            return True
+
+        try:
+            ip = ipaddress.ip_address(host)
+            return bool(ip.is_loopback)
+        except Exception:
+            return False
+
+    except Exception:
+        return False
+
+
+def _llm_privacy_warning(endpoint: str) -> Optional[str]:
+    if not endpoint:
+        return None
+
+    if _is_local_endpoint(endpoint):
+        return None
+
+    return (
+        "当前 LLM endpoint 不是 localhost / 127.0.0.1。"
+        "AI 分析会把音频 metadata 和 transcript 发送到该地址。"
+        "请确认这是你信任的本地或内网模型服务。"
+    )
 
 
 def _apply_enabled_roots_filter(
@@ -162,11 +218,183 @@ def _tags_for_audio(session: Session, audio_id: int) -> list[Tag]:
     ).all()
 
 
-def _audio_with_tags_dict(session: Session, audio: AudioItem) -> dict:
+def _query_tokens(q: Optional[str]) -> list[str]:
+    if not q:
+        return []
+
+    tokens = [x.strip().lower() for x in q.split() if x.strip()]
+    if tokens:
+        return tokens
+
+    q = q.strip().lower()
+    return [q] if q else []
+
+
+def _text_matches_tokens(text_value: Optional[str], tokens: list[str]) -> bool:
+    if not text_value or not tokens:
+        return False
+
+    lower = text_value.lower()
+    return any(token in lower for token in tokens)
+
+
+def _shorten_hit_text(text_value: str, tokens: list[str], max_len: int = 220) -> str:
+    text_value = text_value.strip()
+    if len(text_value) <= max_len:
+        return text_value
+
+    lower = text_value.lower()
+    first_pos = -1
+
+    for token in tokens:
+        pos = lower.find(token)
+        if pos >= 0 and (first_pos < 0 or pos < first_pos):
+            first_pos = pos
+
+    if first_pos < 0:
+        return text_value[:max_len].rstrip() + "..."
+
+    start = max(0, first_pos - 80)
+    end = min(len(text_value), start + max_len)
+
+    snippet = text_value[start:end].strip()
+
+    if start > 0:
+        snippet = "..." + snippet
+
+    if end < len(text_value):
+        snippet = snippet + "..."
+
+    return snippet
+
+
+def _add_search_hit(
+    hits: list[dict],
+    field: str,
+    label: str,
+    text_value: Optional[str],
+    tokens: list[str],
+    start_seconds: Optional[float] = None,
+    end_seconds: Optional[float] = None,
+    limit: int = 6,
+):
+    if len(hits) >= limit:
+        return
+
+    if not text_value:
+        return
+
+    if not _text_matches_tokens(text_value, tokens):
+        return
+
+    hit = {
+        "field": field,
+        "label": label,
+        "text": _shorten_hit_text(text_value, tokens),
+    }
+
+    if start_seconds is not None:
+        hit["start_seconds"] = start_seconds
+
+    if end_seconds is not None:
+        hit["end_seconds"] = end_seconds
+
+    hits.append(hit)
+
+
+def _search_hits_for_audio(
+    session: Session,
+    audio: AudioItem,
+    q: Optional[str],
+    tags: Optional[list[Tag]] = None,
+) -> list[dict]:
+    tokens = _query_tokens(q)
+    if not tokens or audio.id is None:
+        return []
+
+    hits: list[dict] = []
+
+    _add_search_hit(
+        hits,
+        "title",
+        "标题",
+        audio.title_user or audio.title_original or audio.file_name,
+        tokens,
+    )
+    _add_search_hit(
+        hits,
+        "author",
+        "作者",
+        audio.author_user or audio.author_original,
+        tokens,
+    )
+    _add_search_hit(
+        hits,
+        "description",
+        "描述",
+        audio.description_user or audio.description_ai or audio.description_original,
+        tokens,
+    )
+
+    tag_rows = tags if tags is not None else _tags_for_audio(session, audio.id)
+    tag_text = " ".join(tag.name for tag in tag_rows)
+    _add_search_hit(hits, "tags", "标签", tag_text, tokens)
+
+    transcript = session.exec(
+        select(Transcript).where(Transcript.audio_id == audio.id)
+    ).first()
+
+    if not transcript:
+        return hits[:6]
+
+    segments = session.exec(
+        select(TranscriptSegment)
+        .where(TranscriptSegment.transcript_id == transcript.id)
+        .order_by(TranscriptSegment.segment_index)
+    ).all()
+
+    segment_hit_count = 0
+
+    for seg in segments:
+        if segment_hit_count >= 3:
+            break
+
+        before_count = len(hits)
+        _add_search_hit(
+            hits,
+            "transcript",
+            "Transcript",
+            seg.text,
+            tokens,
+            start_seconds=seg.start_seconds,
+            end_seconds=seg.end_seconds,
+        )
+
+        if len(hits) > before_count:
+            segment_hit_count += 1
+
+    if segment_hit_count == 0:
+        _add_search_hit(
+            hits,
+            "transcript",
+            "Transcript",
+            transcript.full_text,
+            tokens,
+        )
+
+    return hits[:6]
+
+
+def _audio_with_tags_dict(
+    session: Session,
+    audio: AudioItem,
+    search_query: Optional[str] = None,
+) -> dict:
     if audio.id is None:
         return {
             **audio.model_dump(),
             "tags": [],
+            "search_hits": [],
         }
 
     tags = _tags_for_audio(session, audio.id)
@@ -174,6 +402,9 @@ def _audio_with_tags_dict(session: Session, audio: AudioItem) -> dict:
     return {
         **audio.model_dump(),
         "tags": [tag.model_dump() for tag in tags],
+        "search_hits": _search_hits_for_audio(session, audio, search_query, tags=tags)
+        if search_query
+        else [],
     }
 
 
@@ -385,7 +616,8 @@ def list_audio_items(
 
     stmt = stmt.order_by(AudioItem.updated_at.desc()).offset(offset).limit(limit)
     rows = session.exec(stmt).all()
-    return [_audio_with_tags_dict(session, item) for item in rows]
+
+    return [_audio_with_tags_dict(session, item, search_query=q) for item in rows]
 
 
 @app.post("/audio-items/batch/transcribe")
@@ -436,6 +668,10 @@ def batch_analyze(
     if not endpoint or not endpoint.value or not model_name or not model_name.value:
         raise HTTPException(status_code=400, detail="LLM endpoint or model_name is not configured")
 
+    warning = _llm_privacy_warning(endpoint.value)
+    if warning:
+        logger.warning("Batch analyze uses non-local LLM endpoint: %s", endpoint.value)
+
     created = []
     skipped = []
     errors = []
@@ -463,6 +699,7 @@ def batch_analyze(
     return {
         "created": len(created),
         "skipped": len(skipped),
+        "privacy_warning": warning,
         "errors": errors,
         "tasks": created,
     }
@@ -818,6 +1055,78 @@ def get_audio_ai_suggestions(audio_id: int, session: Session = Depends(get_sessi
 @app.get("/tags")
 def list_tags(session: Session = Depends(get_session)):
     return session.exec(select(Tag).order_by(Tag.name)).all()
+
+
+@app.patch("/tags/{tag_id}")
+def update_tag(
+    tag_id: int,
+    payload: TagUpdate,
+    session: Session = Depends(get_session),
+):
+    tag = session.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+
+    name = payload.name.strip() if payload.name is not None else None
+    if not name:
+        raise HTTPException(status_code=400, detail="Tag name is required")
+
+    exists = session.exec(
+        select(Tag).where(Tag.name == name, Tag.id != tag_id)
+    ).first()
+
+    if exists:
+        raise HTTPException(status_code=409, detail="Tag name already exists")
+
+    audio_ids = session.exec(
+        select(AudioTag.audio_id).where(AudioTag.tag_id == tag_id)
+    ).all()
+
+    tag.name = name
+    session.add(tag)
+    session.commit()
+    session.refresh(tag)
+
+    for audio_id in audio_ids:
+        rebuild_audio_search_index(session, audio_id)
+
+    logger.info("Tag renamed id=%s name=%s", tag_id, name)
+    return tag
+
+
+@app.delete("/tags/{tag_id}")
+def delete_tag(
+    tag_id: int,
+    force: bool = False,
+    session: Session = Depends(get_session),
+):
+    tag = session.get(Tag, tag_id)
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+
+    links = session.exec(
+        select(AudioTag).where(AudioTag.tag_id == tag_id)
+    ).all()
+
+    if links and not force:
+        raise HTTPException(status_code=400, detail="Tag is still used by audio items")
+
+    affected_audio_ids = [link.audio_id for link in links]
+
+    for link in links:
+        session.delete(link)
+
+    session.delete(tag)
+    session.commit()
+
+    for audio_id in affected_audio_ids:
+        rebuild_audio_search_index(session, audio_id)
+
+    logger.info("Tag deleted id=%s force=%s", tag_id, force)
+    return {
+        "ok": True,
+        "affected_audio_items": len(affected_audio_ids),
+    }
 
 
 @app.post("/audio-items/{audio_id}/tags")
@@ -1239,19 +1548,28 @@ def enqueue_analyze(audio_id: int, session: Session = Depends(get_session)):
     if not endpoint or not endpoint.value or not model_name or not model_name.value:
         raise HTTPException(status_code=400, detail="LLM endpoint or model_name is not configured")
 
+    warning = _llm_privacy_warning(endpoint.value)
+    if warning:
+        logger.warning("Analyze uses non-local LLM endpoint: %s", endpoint.value)
+
     audio.ai_status = "pending"
     audio.updated_at = now_iso()
     session.add(audio)
     session.commit()
 
     task = create_task(session, audio_id, "analyze")
-    return task
+    return {
+        **task.model_dump(),
+        "privacy_warning": warning,
+    }
 
 
 @app.post("/ai/test-llm")
 async def test_llm_config(payload: LLMConfig):
     if not payload.endpoint or not payload.model_name:
         raise HTTPException(status_code=400, detail="endpoint and model_name are required")
+
+    warning = _llm_privacy_warning(payload.endpoint)
 
     try:
         response = await call_openai_compatible_chat(
@@ -1278,6 +1596,8 @@ async def test_llm_config(payload: LLMConfig):
         return {
             "ok": True,
             "content": content,
+            "is_local_endpoint": warning is None,
+            "privacy_warning": warning,
         }
 
     except Exception as e:
@@ -1405,7 +1725,7 @@ def search(
         return []
 
     rows = session.exec(stmt).all()
-    row_by_id = {row.id: _audio_with_tags_dict(session, row) for row in rows}
+    row_by_id = {row.id: _audio_with_tags_dict(session, row, search_query=q) for row in rows}
 
     return [row_by_id[i] for i in ids if i in row_by_id]
 
@@ -1484,6 +1804,32 @@ def rebuild_all_search_index(session: Session = Depends(get_session)):
 
     logger.info("Search index rebuilt count=%s", count)
     return {"ok": True, "count": count}
+
+
+@app.post("/maintenance/cleanup-tags")
+def cleanup_orphan_tags(session: Session = Depends(get_session)):
+    tags = session.exec(select(Tag)).all()
+    deleted = 0
+
+    for tag in tags:
+        if tag.id is None:
+            continue
+
+        link = session.exec(
+            select(AudioTag).where(AudioTag.tag_id == tag.id)
+        ).first()
+
+        if not link:
+            session.delete(tag)
+            deleted += 1
+
+    session.commit()
+
+    logger.info("Orphan tags cleaned count=%s", deleted)
+    return {
+        "ok": True,
+        "deleted": deleted,
+    }
 
 
 @app.get("/logs/app")

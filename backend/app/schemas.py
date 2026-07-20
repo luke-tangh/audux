@@ -32,6 +32,10 @@ class TagsAddRequest(BaseModel):
     source: str = "user"
 
 
+class TagUpdate(BaseModel):
+    name: Optional[str] = None
+
+
 class PlaylistCreate(BaseModel):
     name: str
     description: Optional[str] = None

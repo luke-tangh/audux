@@ -13,6 +13,14 @@ export type Tag = {
   created_at: string;
 };
 
+export type SearchHit = {
+  field: "title" | "author" | "description" | "tags" | "transcript" | string;
+  label: string;
+  text: string;
+  start_seconds?: number;
+  end_seconds?: number;
+};
+
 export type AudioItem = {
   id: number;
   file_path: string;
@@ -61,6 +69,7 @@ export type AudioItem = {
   updated_at: string;
 
   tags?: Tag[];
+  search_hits?: SearchHit[];
 
   playlist_item_id?: number;
   playlist_order_index?: number;
@@ -127,6 +136,7 @@ export type AITask = {
   started_at?: string;
   finished_at?: string;
   updated_at: string;
+  privacy_warning?: string;
 };
 
 export type ScanTask = {
@@ -166,9 +176,17 @@ export type LLMConfigPayload = {
   temperature?: number;
 };
 
+export type LLMTestResult = {
+  ok: boolean;
+  content: string;
+  is_local_endpoint?: boolean;
+  privacy_warning?: string;
+};
+
 export type BatchTaskResult = {
   created: number;
   skipped: number;
+  privacy_warning?: string;
   errors: {
     audio_id: number;
     error: string;
