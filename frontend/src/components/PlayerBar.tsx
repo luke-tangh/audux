@@ -26,10 +26,21 @@ export default function PlayerBar({
   const [volume, setVolume] = useState(Number(localStorage.getItem("volume") || "1"));
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     const el = audioRef.current;
-    if (!el || !audio) return;
+    if (!el) return;
+
+    if (!audio) {
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+      setCurrent(0);
+      setDuration(0);
+      setIsPlaying(false);
+      return;
+    }
 
     el.src = `${API_BASE}/audio-items/${audio.id}/file`;
     el.playbackRate = rate;
@@ -37,8 +48,14 @@ export default function PlayerBar({
     el.currentTime = audio.last_position_seconds || 0;
 
     setCurrent(audio.last_position_seconds || 0);
+    setDuration(0);
 
-    el.play().catch(console.error);
+    el.play()
+      .then(() => setIsPlaying(true))
+      .catch((err) => {
+        console.error(err);
+        setIsPlaying(false);
+      });
   }, [audio?.id]);
 
   useEffect(() => {
@@ -117,66 +134,107 @@ export default function PlayerBar({
     }
   }
 
+  const safeDuration = Number.isFinite(duration) ? duration : 0;
+  const progress = safeDuration > 0 ? Math.min(100, (current / safeDuration) * 100) : 0;
+
   return (
     <footer className="player-bar">
       <audio
         ref={audioRef}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
         onEnded={handleEnded}
       />
 
-      <div className="now-playing">
-        {audio ? displayTitle(audio) : "未播放"}
+      <div className="player-track-card">
+        <span className="eyebrow">正在播放</span>
+
+        <div className="now-playing">
+          {audio ? displayTitle(audio) : "选择一个音频开始播放"}
+        </div>
       </div>
 
-      <button onClick={onPrevious} disabled={!audio || !canPrevious}>
-        上一首
-      </button>
+      <div className="player-controls">
+        <button
+          className="icon-button"
+          onClick={onPrevious}
+          disabled={!audio || !canPrevious}
+          title="上一首"
+        >
+          ‹
+        </button>
 
-      <button onClick={toggle} disabled={!audio}>
-        播放/暂停
-      </button>
+        <button
+          className="play-toggle"
+          onClick={toggle}
+          disabled={!audio}
+          title={isPlaying ? "暂停" : "播放"}
+        >
+          {isPlaying ? "暂停" : "播放"}
+        </button>
 
-      <button onClick={onNext} disabled={!audio || !canNext}>
-        下一首
-      </button>
+        <button
+          className="icon-button"
+          onClick={onNext}
+          disabled={!audio || !canNext}
+          title="下一首"
+        >
+          ›
+        </button>
 
-      <button onClick={stopAndReset} disabled={!audio}>
-        停止
-      </button>
+        <button
+          className="stop-button"
+          onClick={stopAndReset}
+          disabled={!audio}
+          title="停止并重置播放位置"
+        >
+          停止
+        </button>
+      </div>
 
-      <span>{formatDuration(current)}</span>
+      <div className="player-progress">
+        <span>{formatDuration(current)}</span>
 
-      <input
-        type="range"
-        min={0}
-        max={duration || 0}
-        value={Math.min(current, duration || current || 0)}
-        onChange={(e) => seek(Number(e.target.value))}
-      />
-
-      <span>{formatDuration(duration)}</span>
-
-      <select value={rate} onChange={(e) => setRate(Number(e.target.value))}>
-        {[0.75, 1, 1.25, 1.5, 2].map((r) => (
-          <option key={r} value={r}>
-            {r}x
-          </option>
-        ))}
-      </select>
-
-      <label className="volume-control">
-        音量
         <input
           type="range"
           min={0}
-          max={1}
-          step={0.01}
-          value={volume}
-          onChange={(e) => setVolume(Number(e.target.value))}
+          max={safeDuration || 0}
+          value={Math.min(current, safeDuration || current || 0)}
+          onChange={(e) => seek(Number(e.target.value))}
+          style={{
+            background: `linear-gradient(90deg, #60a5fa 0%, #8b5cf6 ${progress}%, rgba(51, 65, 85, 0.9) ${progress}%, rgba(51, 65, 85, 0.9) 100%)`
+          }}
         />
-      </label>
+
+        <span>{formatDuration(safeDuration)}</span>
+      </div>
+
+      <div className="player-options">
+        <label>
+          速度
+          <select value={rate} onChange={(e) => setRate(Number(e.target.value))}>
+            {[0.75, 1, 1.25, 1.5, 2].map((r) => (
+              <option key={r} value={r}>
+                {r}x
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="volume-control">
+          音量
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={volume}
+            onChange={(e) => setVolume(Number(e.target.value))}
+          />
+        </label>
+      </div>
     </footer>
   );
 }
