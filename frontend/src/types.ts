@@ -6,6 +6,13 @@ export type LibraryRoot = {
   updated_at: string;
 };
 
+export type Tag = {
+  id: number;
+  name: string;
+  source: string;
+  created_at: string;
+};
+
 export type AudioItem = {
   id: number;
   file_path: string;
@@ -52,13 +59,11 @@ export type AudioItem = {
 
   created_at: string;
   updated_at: string;
-};
 
-export type Tag = {
-  id: number;
-  name: string;
-  source: string;
-  created_at: string;
+  tags?: Tag[];
+
+  playlist_item_id?: number;
+  playlist_order_index?: number;
 };
 
 export type AudioDetail = {

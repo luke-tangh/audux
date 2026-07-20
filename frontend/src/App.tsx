@@ -9,6 +9,20 @@ import PlayerBar from "./components/PlayerBar";
 import SettingsPanel from "./components/SettingsPanel";
 
 type ViewMode = "library" | "favorites" | "playlist" | "settings";
+type TranscriptFilter = "all" | "yes" | "no";
+type MissingFilter = "all" | "available" | "missing";
+
+function transcriptFilterToParam(value: TranscriptFilter): boolean | undefined {
+  if (value === "yes") return true;
+  if (value === "no") return false;
+  return undefined;
+}
+
+function missingFilterToParam(value: MissingFilter): boolean | undefined {
+  if (value === "missing") return true;
+  if (value === "available") return false;
+  return undefined;
+}
 
 export default function App() {
   const [view, setView] = useState<ViewMode>("library");
@@ -23,9 +37,12 @@ export default function App() {
   const [selectedTag, setSelectedTag] = useState<string | undefined>();
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
   const [missingDescriptionOnly, setMissingDescriptionOnly] = useState(false);
+  const [hasTranscriptFilter, setHasTranscriptFilter] = useState<TranscriptFilter>("all");
+  const [missingFilter, setMissingFilter] = useState<MissingFilter>("all");
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [playlistItemsRaw, setPlaylistItemsRaw] = useState<AudioItem[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
 
   async function loadNavigation() {
@@ -48,7 +65,8 @@ export default function App() {
           displayTitle(item),
           displayAuthor(item),
           displayDescription(item),
-          item.file_name
+          item.file_name,
+          ...(item.tags || []).map((tag) => tag.name)
         ]
           .join(" ")
           .toLowerCase();
@@ -59,6 +77,22 @@ export default function App() {
 
     if (missingDescriptionOnly) {
       result = result.filter((item) => !displayDescription(item).trim());
+    }
+
+    if (hasTranscriptFilter === "yes") {
+      result = result.filter((item) => item.transcript_status === "done");
+    }
+
+    if (hasTranscriptFilter === "no") {
+      result = result.filter((item) => item.transcript_status !== "done");
+    }
+
+    if (missingFilter === "missing") {
+      result = result.filter((item) => item.is_missing);
+    }
+
+    if (missingFilter === "available") {
+      result = result.filter((item) => !item.is_missing);
     }
 
     return result;
@@ -73,19 +107,31 @@ export default function App() {
 
     if (view === "playlist") {
       if (!selectedPlaylistId) {
+        setPlaylistItemsRaw([]);
         setAudioItems([]);
         return;
       }
 
       const detail = await api.getPlaylist(selectedPlaylistId);
-      items = detail.items.map((x) => x.audio);
-      items = applyClientFiltersForPlaylist(items);
+
+      const rawItems: AudioItem[] = detail.items.map((x) => ({
+        ...x.audio,
+        playlist_item_id: x.playlist_item.id,
+        playlist_order_index: x.playlist_item.order_index
+      }));
+
+      setPlaylistItemsRaw(rawItems);
+      items = applyClientFiltersForPlaylist(rawItems);
     } else {
+      setPlaylistItemsRaw([]);
+
       items = await api.listAudioItems({
         q: q || undefined,
         tag: selectedTag,
         favorite: view === "favorites" ? true : undefined,
-        missing_description: missingDescriptionOnly || undefined
+        missing_description: missingDescriptionOnly || undefined,
+        has_transcript: transcriptFilterToParam(hasTranscriptFilter),
+        missing: missingFilterToParam(missingFilter)
       });
     }
 
@@ -107,6 +153,8 @@ export default function App() {
     selectedTag,
     selectedPlaylistId,
     missingDescriptionOnly,
+    hasTranscriptFilter,
+    missingFilter,
     refreshToken
   ]);
 
@@ -172,6 +220,65 @@ export default function App() {
     }
   }
 
+  async function removeFromCurrentPlaylist(item: AudioItem) {
+    if (!selectedPlaylistId || !item.playlist_item_id) return;
+
+    const ok = window.confirm(`确认从当前 playlist 移除「${displayTitle(item)}」？`);
+    if (!ok) return;
+
+    await api.removePlaylistItem(selectedPlaylistId, item.playlist_item_id);
+
+    setPlaylistItemsRaw((rows) =>
+      rows.filter((x) => x.playlist_item_id !== item.playlist_item_id)
+    );
+
+    setAudioItems((rows) =>
+      rows.filter((x) => x.playlist_item_id !== item.playlist_item_id)
+    );
+
+    if (selected?.id === item.id) {
+      setSelected(null);
+    }
+
+    refresh();
+  }
+
+  async function movePlaylistItem(item: AudioItem, direction: "up" | "down") {
+    if (!selectedPlaylistId || !item.playlist_item_id) return;
+
+    const currentIndex = playlistItemsRaw.findIndex(
+      (x) => x.playlist_item_id === item.playlist_item_id
+    );
+
+    if (currentIndex < 0) return;
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= playlistItemsRaw.length) return;
+
+    const nextRaw = [...playlistItemsRaw];
+    const tmp = nextRaw[currentIndex];
+    nextRaw[currentIndex] = nextRaw[targetIndex];
+    nextRaw[targetIndex] = tmp;
+
+    const itemIds = nextRaw
+      .map((x) => x.playlist_item_id)
+      .filter((id): id is number => typeof id === "number");
+
+    if (itemIds.length !== nextRaw.length) return;
+
+    await api.reorderPlaylistItems(selectedPlaylistId, itemIds);
+
+    const normalized = nextRaw.map((x, index) => ({
+      ...x,
+      playlist_order_index: index
+    }));
+
+    setPlaylistItemsRaw(normalized);
+    setAudioItems(applyClientFiltersForPlaylist(normalized));
+
+    refresh();
+  }
+
   function handleAudioDeleted() {
     setSelected(null);
     refresh();
@@ -208,12 +315,19 @@ export default function App() {
               setQ={setQ}
               missingDescriptionOnly={missingDescriptionOnly}
               setMissingDescriptionOnly={setMissingDescriptionOnly}
+              hasTranscriptFilter={hasTranscriptFilter}
+              setHasTranscriptFilter={setHasTranscriptFilter}
+              missingFilter={missingFilter}
+              setMissingFilter={setMissingFilter}
               items={audioItems}
               selectedId={selected?.id}
               onSelect={setSelected}
               onPlay={(item) => playAudio(item, audioItems)}
               onBatchTranscribe={batchTranscribeCurrentList}
               onBatchAnalyze={batchAnalyzeCurrentList}
+              isPlaylistView={view === "playlist"}
+              onRemoveFromPlaylist={view === "playlist" ? removeFromCurrentPlaylist : undefined}
+              onMovePlaylistItem={view === "playlist" ? movePlaylistItem : undefined}
             />
 
             <DetailPanel

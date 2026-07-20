@@ -326,16 +326,36 @@ export default function DetailPanel({
       <button onClick={save}>保存 metadata</button>
 
       <div className="section">
+        <h3>原始 Metadata</h3>
+        <p>显示标题：{displayTitle(audio)}</p>
+        <p>原始标题：{audio.title_original || "-"}</p>
+        <p>原始作者：{audio.author_original || "-"}</p>
+        <p>原始专辑：{audio.album_original || "-"}</p>
+        <p>原始描述：{audio.description_original || "-"}</p>
+        <p>用户标题：{audio.title_user || "-"}</p>
+        <p>用户作者：{audio.author_user || "-"}</p>
+        <p>用户专辑：{audio.album_user || "-"}</p>
+        <p>用户描述：{audio.description_user || "-"}</p>
+        <p>AI 描述：{audio.description_ai || "-"}</p>
+      </div>
+
+      <div className="section">
         <h3>文件信息</h3>
         <p>文件名：{audio.file_name}</p>
         <p>路径：{audio.file_path}</p>
+        <p>格式：{audio.file_ext || "-"}</p>
         <p>时长：{formatDuration(audio.duration_seconds)}</p>
         <p>大小：{audio.file_size ? `${Math.round(audio.file_size / 1024 / 1024)} MB` : "-"}</p>
+        <p>修改时间：{audio.file_mtime || "-"}</p>
+        <p>Bitrate：{audio.bitrate || "-"}</p>
+        <p>Sample Rate：{audio.sample_rate || "-"}</p>
+        <p>Channels：{audio.channels || "-"}</p>
         <p>播放位置：{formatDuration(audio.last_position_seconds)}</p>
         <p>播放次数：{audio.play_count}</p>
         <p>上次播放：{audio.last_played_at || "-"}</p>
         <p>Transcript 状态：{audio.transcript_status}</p>
         <p>AI 状态：{audio.ai_status}</p>
+        <p>文件状态：{audio.is_missing ? "missing" : "available"}</p>
 
         <div className="inline-form">
           <input

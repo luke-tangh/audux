@@ -44,6 +44,7 @@ from .schemas import (
     TagsAddRequest,
     PlaylistCreate,
     PlaylistItemAdd,
+    PlaylistItemsReorder,
     TranscriptCreate,
     SettingUpdate,
     LLMConfig,
@@ -152,13 +153,32 @@ def _cover_media_type(path: Path) -> str:
     return guessed or "image/jpeg"
 
 
-def _audio_to_export_dict(session: Session, audio: AudioItem) -> dict:
-    tags = session.exec(
+def _tags_for_audio(session: Session, audio_id: int) -> list[Tag]:
+    return session.exec(
         select(Tag)
         .join(AudioTag, AudioTag.tag_id == Tag.id)
-        .where(AudioTag.audio_id == audio.id)
+        .where(AudioTag.audio_id == audio_id)
         .order_by(Tag.name)
     ).all()
+
+
+def _audio_with_tags_dict(session: Session, audio: AudioItem) -> dict:
+    if audio.id is None:
+        return {
+            **audio.model_dump(),
+            "tags": [],
+        }
+
+    tags = _tags_for_audio(session, audio.id)
+
+    return {
+        **audio.model_dump(),
+        "tags": [tag.model_dump() for tag in tags],
+    }
+
+
+def _audio_to_export_dict(session: Session, audio: AudioItem) -> dict:
+    tags = _tags_for_audio(session, audio.id)
 
     return {
         **audio.model_dump(),
@@ -364,7 +384,8 @@ def list_audio_items(
         stmt = stmt.where(AudioItem.id.in_(audio_ids))
 
     stmt = stmt.order_by(AudioItem.updated_at.desc()).offset(offset).limit(limit)
-    return session.exec(stmt).all()
+    rows = session.exec(stmt).all()
+    return [_audio_with_tags_dict(session, item) for item in rows]
 
 
 @app.post("/audio-items/batch/transcribe")
@@ -453,11 +474,7 @@ def get_audio_item(audio_id: int, session: Session = Depends(get_session)):
     if not item:
         raise HTTPException(status_code=404, detail="Audio item not found")
 
-    tags = session.exec(
-        select(Tag)
-        .join(AudioTag, AudioTag.tag_id == Tag.id)
-        .where(AudioTag.audio_id == audio_id)
-    ).all()
+    tags = _tags_for_audio(session, audio_id)
 
     return {
         "audio": item,
@@ -888,7 +905,13 @@ def get_playlist(playlist_id: int, session: Session = Depends(get_session)):
 
     return {
         "playlist": playlist,
-        "items": [{"playlist_item": pi, "audio": audio} for pi, audio in items],
+        "items": [
+            {
+                "playlist_item": pi,
+                "audio": _audio_with_tags_dict(session, audio),
+            }
+            for pi, audio in items
+        ],
     }
 
 
@@ -920,9 +943,56 @@ def add_audio_to_playlist(
         order_index=next_order,
     )
     session.add(item)
+
+    playlist.updated_at = now_iso()
+    session.add(playlist)
+
     session.commit()
     session.refresh(item)
     return item
+
+
+@app.patch("/playlists/{playlist_id}/items/reorder")
+def reorder_playlist_items(
+    playlist_id: int,
+    payload: PlaylistItemsReorder,
+    session: Session = Depends(get_session),
+):
+    playlist = session.get(Playlist, playlist_id)
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    items = session.exec(
+        select(PlaylistItem).where(PlaylistItem.playlist_id == playlist_id)
+    ).all()
+
+    current_by_id = {item.id: item for item in items}
+    requested_ids = payload.item_ids
+
+    if len(requested_ids) != len(set(requested_ids)):
+        raise HTTPException(status_code=400, detail="Duplicate playlist item ids")
+
+    if set(requested_ids) != set(current_by_id.keys()):
+        raise HTTPException(
+            status_code=400,
+            detail="item_ids must exactly match current playlist items",
+        )
+
+    for order_index, item_id in enumerate(requested_ids):
+        row = current_by_id[item_id]
+        row.order_index = order_index
+        session.add(row)
+
+    playlist.updated_at = now_iso()
+    session.add(playlist)
+
+    session.commit()
+
+    logger.info("Playlist reordered id=%s count=%s", playlist_id, len(requested_ids))
+    return {
+        "ok": True,
+        "count": len(requested_ids),
+    }
 
 
 @app.delete("/playlists/{playlist_id}/items/{item_id}")
@@ -935,7 +1005,14 @@ def remove_playlist_item(
     if not item or item.playlist_id != playlist_id:
         raise HTTPException(status_code=404, detail="Playlist item not found")
 
+    playlist = session.get(Playlist, playlist_id)
+
     session.delete(item)
+
+    if playlist:
+        playlist.updated_at = now_iso()
+        session.add(playlist)
+
     session.commit()
     return {"ok": True}
 
@@ -1328,7 +1405,7 @@ def search(
         return []
 
     rows = session.exec(stmt).all()
-    row_by_id = {row.id: row for row in rows}
+    row_by_id = {row.id: _audio_with_tags_dict(session, row) for row in rows}
 
     return [row_by_id[i] for i in ids if i in row_by_id]
 
@@ -1362,12 +1439,7 @@ def export_metadata(
         )
 
         for audio in items:
-            tags = session.exec(
-                select(Tag)
-                .join(AudioTag, AudioTag.tag_id == Tag.id)
-                .where(AudioTag.audio_id == audio.id)
-                .order_by(Tag.name)
-            ).all()
+            tags = _tags_for_audio(session, audio.id)
 
             writer.writerow(
                 [

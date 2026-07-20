@@ -1,5 +1,5 @@
 from typing import Optional, List, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LibraryRootCreate(BaseModel):
@@ -41,6 +41,10 @@ class PlaylistItemAdd(BaseModel):
     audio_id: int
 
 
+class PlaylistItemsReorder(BaseModel):
+    item_ids: List[int]
+
+
 class TranscriptSegmentCreate(BaseModel):
     segment_index: int
     start_seconds: float
@@ -52,7 +56,7 @@ class TranscriptCreate(BaseModel):
     language: Optional[str] = None
     full_text: str
     model_name: Optional[str] = None
-    segments: List[TranscriptSegmentCreate] = []
+    segments: List[TranscriptSegmentCreate] = Field(default_factory=list)
 
 
 class SettingUpdate(BaseModel):

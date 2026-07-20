@@ -2,18 +2,28 @@ import { api } from "../api";
 import type { AudioItem } from "../types";
 import { displayAuthor, displayTitle, formatDuration } from "../types";
 
+type TranscriptFilter = "all" | "yes" | "no";
+type MissingFilter = "all" | "available" | "missing";
+
 type Props = {
   title: string;
   q: string;
   setQ: (q: string) => void;
   missingDescriptionOnly: boolean;
   setMissingDescriptionOnly: (v: boolean) => void;
+  hasTranscriptFilter: TranscriptFilter;
+  setHasTranscriptFilter: (v: TranscriptFilter) => void;
+  missingFilter: MissingFilter;
+  setMissingFilter: (v: MissingFilter) => void;
   items: AudioItem[];
   selectedId?: number;
   onSelect: (item: AudioItem) => void;
   onPlay: (item: AudioItem) => void;
   onBatchTranscribe: () => void;
   onBatchAnalyze: () => void;
+  isPlaylistView?: boolean;
+  onRemoveFromPlaylist?: (item: AudioItem) => void;
+  onMovePlaylistItem?: (item: AudioItem, direction: "up" | "down") => void;
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -65,14 +75,44 @@ function CoverThumb({ item }: { item: AudioItem }) {
   );
 }
 
+function RowTags({ item }: { item: AudioItem }) {
+  const tags = item.tags || [];
+
+  if (tags.length === 0) return null;
+
+  return (
+    <div className="row-status">
+      {tags.slice(0, 6).map((tag) => (
+        <span className="status-pill none" key={tag.id}>
+          #{tag.name}
+        </span>
+      ))}
+
+      {tags.length > 6 && (
+        <span className="status-pill none">
+          +{tags.length - 6}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function EmptyState({
   q,
-  missingDescriptionOnly
+  missingDescriptionOnly,
+  hasTranscriptFilter,
+  missingFilter
 }: {
   q: string;
   missingDescriptionOnly: boolean;
+  hasTranscriptFilter: TranscriptFilter;
+  missingFilter: MissingFilter;
 }) {
-  const hasFilter = Boolean(q.trim()) || missingDescriptionOnly;
+  const hasFilter =
+    Boolean(q.trim()) ||
+    missingDescriptionOnly ||
+    hasTranscriptFilter !== "all" ||
+    missingFilter !== "all";
 
   return (
     <div className="empty-state">
@@ -84,7 +124,7 @@ function EmptyState({
 
       <div className="empty-subtitle">
         {hasFilter
-          ? "可以尝试清空搜索关键词，或关闭“缺描述”筛选。"
+          ? "可以尝试清空搜索关键词，或关闭筛选条件。"
           : "请进入设置添加媒体库目录，然后点击扫描。"}
       </div>
     </div>
@@ -97,12 +137,19 @@ export default function AudioList({
   setQ,
   missingDescriptionOnly,
   setMissingDescriptionOnly,
+  hasTranscriptFilter,
+  setHasTranscriptFilter,
+  missingFilter,
+  setMissingFilter,
   items,
   selectedId,
   onSelect,
   onPlay,
   onBatchTranscribe,
-  onBatchAnalyze
+  onBatchAnalyze,
+  isPlaylistView,
+  onRemoveFromPlaylist,
+  onMovePlaylistItem
 }: Props) {
   return (
     <section className="audio-list">
@@ -136,6 +183,26 @@ export default function AudioList({
             />
             只看缺描述
           </label>
+
+          <select
+            value={hasTranscriptFilter}
+            onChange={(e) => setHasTranscriptFilter(e.target.value as TranscriptFilter)}
+            title="按 transcript 状态筛选"
+          >
+            <option value="all">全部转写</option>
+            <option value="yes">已有 transcript</option>
+            <option value="no">未完成 transcript</option>
+          </select>
+
+          <select
+            value={missingFilter}
+            onChange={(e) => setMissingFilter(e.target.value as MissingFilter)}
+            title="按文件缺失状态筛选"
+          >
+            <option value="all">全部文件</option>
+            <option value="available">仅可播放</option>
+            <option value="missing">仅缺失</option>
+          </select>
         </div>
 
         <div className="toolbar-actions">
@@ -159,12 +226,17 @@ export default function AudioList({
 
       <div className="list">
         {items.length === 0 && (
-          <EmptyState q={q} missingDescriptionOnly={missingDescriptionOnly} />
+          <EmptyState
+            q={q}
+            missingDescriptionOnly={missingDescriptionOnly}
+            hasTranscriptFilter={hasTranscriptFilter}
+            missingFilter={missingFilter}
+          />
         )}
 
         {items.map((item) => (
           <div
-            key={item.id}
+            key={isPlaylistView && item.playlist_item_id ? `${item.id}-${item.playlist_item_id}` : item.id}
             className={`audio-row ${selectedId === item.id ? "selected" : ""}`}
             onClick={() => onSelect(item)}
             onDoubleClick={() => onPlay(item)}
@@ -193,21 +265,66 @@ export default function AudioList({
                 )}
               </div>
 
+              <RowTags item={item} />
+
               <div className="row-status">
                 <StatusPill label="转写" value={item.transcript_status} />
                 <StatusPill label="AI" value={item.ai_status} />
               </div>
             </div>
 
-            <button
-              className="row-play-button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPlay(item);
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                justifyContent: "flex-end"
               }}
             >
-              播放
-            </button>
+              <button
+                className="row-play-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlay(item);
+                }}
+              >
+                播放
+              </button>
+
+              {isPlaylistView && item.playlist_item_id && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMovePlaylistItem?.(item, "up");
+                    }}
+                    title="在当前 playlist 中上移"
+                  >
+                    上移
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMovePlaylistItem?.(item, "down");
+                    }}
+                    title="在当前 playlist 中下移"
+                  >
+                    下移
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveFromPlaylist?.(item);
+                    }}
+                    title="从当前 playlist 移除"
+                  >
+                    移除
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         ))}
       </div>

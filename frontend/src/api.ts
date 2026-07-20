@@ -188,6 +188,17 @@ export const api = {
       body: JSON.stringify({ audio_id: audioId })
     }),
 
+  removePlaylistItem: (playlistId: number, playlistItemId: number) =>
+    request<{ ok: boolean }>(`/playlists/${playlistId}/items/${playlistItemId}`, {
+      method: "DELETE"
+    }),
+
+  reorderPlaylistItems: (playlistId: number, itemIds: number[]) =>
+    request<{ ok: boolean; count: number }>(`/playlists/${playlistId}/items/reorder`, {
+      method: "PATCH",
+      body: JSON.stringify({ item_ids: itemIds })
+    }),
+
   playlistExportUrl: (playlistId: number, format: "json" | "m3u") =>
     `${API_BASE}/playlists/${playlistId}/export?format=${encodeURIComponent(format)}`,
 
