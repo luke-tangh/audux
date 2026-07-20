@@ -4,7 +4,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlmodel import Session, select
-from sqlalchemy import text, func
+from sqlalchemy import text, func, or_, and_
 
 from .db import create_db_and_tables, get_session
 from .models import (
@@ -46,6 +46,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+AUDIO_MIME_TYPES = {
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".flac": "audio/flac",
+    ".wav": "audio/wav",
+    ".ogg": "audio/ogg",
+}
+
 
 @app.on_event("startup")
 async def on_startup():
@@ -56,6 +64,27 @@ async def on_startup():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+def _apply_enabled_roots_filter(
+    stmt,
+    session: Session,
+    include_disabled_roots: bool = False,
+):
+    """
+    默认音频库只展示启用状态的 LibraryRoot 下的音频。
+    """
+    if include_disabled_roots:
+        return stmt
+
+    enabled_root_ids = session.exec(
+        select(LibraryRoot.id).where(LibraryRoot.is_enabled == True)
+    ).all()
+
+    if not enabled_root_ids:
+        return None
+
+    return stmt.where(AudioItem.library_root_id.in_(enabled_root_ids))
 
 
 # Library Root
@@ -120,11 +149,21 @@ def list_audio_items(
     has_transcript: Optional[bool] = None,
     favorite: Optional[bool] = None,
     missing: Optional[bool] = None,
+    missing_description: Optional[bool] = None,
+    include_disabled_roots: bool = False,
     limit: int = 100,
     offset: int = 0,
     session: Session = Depends(get_session),
 ):
     stmt = select(AudioItem)
+
+    stmt = _apply_enabled_roots_filter(
+        stmt,
+        session,
+        include_disabled_roots=include_disabled_roots,
+    )
+    if stmt is None:
+        return []
 
     if q:
         ids = search_audio_ids(session, q)
@@ -139,17 +178,41 @@ def list_audio_items(
         stmt = stmt.where(AudioItem.is_missing == missing)
 
     if has_transcript is not None:
-        stmt = stmt.where(AudioItem.transcript_status == ("done" if has_transcript else "none"))
+        if has_transcript:
+            stmt = stmt.where(AudioItem.transcript_status == "done")
+        else:
+            stmt = stmt.where(AudioItem.transcript_status != "done")
+
+    if missing_description is not None:
+        if missing_description:
+            stmt = stmt.where(
+                and_(
+                    or_(AudioItem.description_user == None, AudioItem.description_user == ""),
+                    or_(AudioItem.description_ai == None, AudioItem.description_ai == ""),
+                    or_(AudioItem.description_original == None, AudioItem.description_original == ""),
+                )
+            )
+        else:
+            stmt = stmt.where(
+                or_(
+                    and_(AudioItem.description_user != None, AudioItem.description_user != ""),
+                    and_(AudioItem.description_ai != None, AudioItem.description_ai != ""),
+                    and_(AudioItem.description_original != None, AudioItem.description_original != ""),
+                )
+            )
 
     if tag:
         tag_row = session.exec(select(Tag).where(Tag.name == tag)).first()
         if not tag_row:
             return []
+
         audio_ids = session.exec(
             select(AudioTag.audio_id).where(AudioTag.tag_id == tag_row.id)
         ).all()
+
         if not audio_ids:
             return []
+
         stmt = stmt.where(AudioItem.id.in_(audio_ids))
 
     stmt = stmt.order_by(AudioItem.updated_at.desc()).offset(offset).limit(limit)
@@ -242,7 +305,8 @@ def get_audio_file(audio_id: int, session: Session = Depends(get_session)):
         session.commit()
         raise HTTPException(status_code=404, detail="Audio file missing")
 
-    return FileResponse(str(path), media_type="audio/mpeg", filename=item.file_name)
+    media_type = AUDIO_MIME_TYPES.get(path.suffix.lower(), "application/octet-stream")
+    return FileResponse(str(path), media_type=media_type, filename=item.file_name)
 
 
 # Tags
@@ -442,6 +506,14 @@ def save_transcript(
     ).first()
 
     if existing:
+        old_segments = session.exec(
+            select(TranscriptSegment).where(
+                TranscriptSegment.transcript_id == existing.id
+            )
+        ).all()
+        for seg in old_segments:
+            session.delete(seg)
+
         session.delete(existing)
         session.commit()
 
@@ -553,10 +625,26 @@ def upsert_setting(payload: SettingUpdate, session: Session = Depends(get_sessio
 
 
 @app.get("/search")
-def search(q: str, session: Session = Depends(get_session)):
+def search(
+    q: str,
+    include_disabled_roots: bool = False,
+    session: Session = Depends(get_session),
+):
     ids = search_audio_ids(session, q)
     if not ids:
         return []
 
-    rows = session.exec(select(AudioItem).where(AudioItem.id.in_(ids))).all()
-    return rows
+    stmt = select(AudioItem).where(AudioItem.id.in_(ids))
+    stmt = _apply_enabled_roots_filter(
+        stmt,
+        session,
+        include_disabled_roots=include_disabled_roots,
+    )
+
+    if stmt is None:
+        return []
+
+    rows = session.exec(stmt).all()
+    row_by_id = {row.id: row for row in rows}
+
+    return [row_by_id[i] for i in ids if i in row_by_id]

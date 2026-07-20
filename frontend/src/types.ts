@@ -13,6 +13,9 @@ export type AudioItem = {
   file_ext?: string;
   file_size?: number;
   file_mtime?: string;
+  file_hash?: string;
+
+  library_root_id?: number;
 
   title_original?: string;
   title_user?: string;
@@ -71,6 +74,20 @@ export type Playlist = {
   updated_at: string;
 };
 
+export type PlaylistDetail = {
+  playlist: Playlist;
+  items: {
+    playlist_item: {
+      id: number;
+      playlist_id: number;
+      audio_id: number;
+      order_index: number;
+      created_at: string;
+    };
+    audio: AudioItem;
+  }[];
+};
+
 export type Transcript = {
   transcript: {
     id: number;
@@ -106,10 +123,15 @@ export function displayDescription(a: AudioItem): string {
 
 export function formatDuration(seconds?: number): string {
   if (!seconds && seconds !== 0) return "--:--";
+
   const s = Math.floor(seconds);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  }
+
   return `${m}:${String(sec).padStart(2, "0")}`;
 }

@@ -23,16 +23,20 @@ export default function SettingsPanel({ refresh }: Props) {
     try {
       await api.health();
       setBackendStatus("ok");
-    } catch {
+
+      const [rootRows, settings] = await Promise.all([
+        api.listLibraryRoots(),
+        api.listSettings()
+      ]);
+
+      setRoots(rootRows);
+      setLlmEndpoint(settings.find((s) => s.key === "llm.endpoint")?.value || "");
+      setLlmModel(settings.find((s) => s.key === "llm.model_name")?.value || "");
+      setLlmApiKey(settings.find((s) => s.key === "llm.api_key")?.value || "");
+    } catch (err) {
+      console.error(err);
       setBackendStatus("failed");
     }
-
-    setRoots(await api.listLibraryRoots());
-
-    const settings = await api.listSettings();
-    setLlmEndpoint(settings.find((s) => s.key === "llm.endpoint")?.value || "");
-    setLlmModel(settings.find((s) => s.key === "llm.model_name")?.value || "");
-    setLlmApiKey(settings.find((s) => s.key === "llm.api_key")?.value || "");
   }
 
   useEffect(() => {
@@ -41,6 +45,7 @@ export default function SettingsPanel({ refresh }: Props) {
 
   async function chooseFolder() {
     const selected = await pickAudioFolder();
+
     if (selected) {
       setPath(selected);
     } else {
@@ -50,30 +55,47 @@ export default function SettingsPanel({ refresh }: Props) {
 
   async function addRoot() {
     if (!path.trim()) return;
+
     await api.createLibraryRoot(path.trim());
     setPath("");
+
+    await load();
+    refresh();
+  }
+
+  async function toggleRoot(root: LibraryRoot, isEnabled: boolean) {
+    await api.updateLibraryRoot(root.id, {
+      is_enabled: isEnabled
+    });
+
     await load();
     refresh();
   }
 
   async function scan(id: number) {
     setScanResult("扫描中...");
+
     const result = await api.scanLibraryRoot(id);
+
     setScanResult(`导入 ${result.imported}，更新 ${result.updated}，缺失 ${result.missing}`);
     refresh();
   }
 
   async function createPlaylist() {
     if (!playlistName.trim()) return;
+
     await api.createPlaylist(playlistName.trim());
     setPlaylistName("");
+
     refresh();
+    await load();
   }
 
   async function saveLlm() {
     await api.setSetting("llm.endpoint", llmEndpoint);
     await api.setSetting("llm.model_name", llmModel);
     await api.setSetting("llm.api_key", llmApiKey);
+
     alert("LLM 设置已保存");
   }
 
@@ -106,8 +128,18 @@ export default function SettingsPanel({ refresh }: Props) {
         </div>
 
         {roots.map((root) => (
-          <div key={root.id} className="root-row">
+          <div key={root.id} className={`root-row ${root.is_enabled ? "" : "disabled"}`}>
             <span>{root.path}</span>
+
+            <label className="root-toggle">
+              <input
+                type="checkbox"
+                checked={root.is_enabled}
+                onChange={(e) => toggleRoot(root, e.target.checked)}
+              />
+              {root.is_enabled ? "启用" : "禁用"}
+            </label>
+
             <button onClick={() => scan(root.id)}>扫描</button>
           </div>
         ))}
@@ -117,6 +149,7 @@ export default function SettingsPanel({ refresh }: Props) {
 
       <div className="section card">
         <h3>创建 Playlist</h3>
+
         <div className="inline-form">
           <input
             value={playlistName}
@@ -129,6 +162,7 @@ export default function SettingsPanel({ refresh }: Props) {
 
       <div className="section card">
         <h3>本地 LLM 设置</h3>
+
         <label>
           Endpoint
           <input

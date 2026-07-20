@@ -6,11 +6,11 @@ import { displayDescription, displayTitle, formatDuration } from "../types";
 type Props = {
   audio: AudioItem | null;
   refresh: () => void;
-  setPlaying: (a: AudioItem) => void;
+  onPlay: (a: AudioItem) => void;
   playlists: Playlist[];
 };
 
-export default function DetailPanel({ audio, refresh, setPlaying, playlists }: Props) {
+export default function DetailPanel({ audio, refresh, onPlay, playlists }: Props) {
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [editing, setEditing] = useState<Partial<AudioItem>>({});
@@ -58,6 +58,7 @@ export default function DetailPanel({ audio, refresh, setPlaying, playlists }: P
 
     await api.addTags(audio!.id, names);
     setTagInput("");
+
     const detail = await api.getAudioDetail(audio!.id);
     setTags(detail.tags);
     refresh();
@@ -65,6 +66,7 @@ export default function DetailPanel({ audio, refresh, setPlaying, playlists }: P
 
   async function removeTag(tagId: number) {
     await api.removeTag(audio!.id, tagId);
+
     const detail = await api.getAudioDetail(audio!.id);
     setTags(detail.tags);
     refresh();
@@ -84,16 +86,31 @@ export default function DetailPanel({ audio, refresh, setPlaying, playlists }: P
 
   async function addToPlaylist() {
     if (!selectedPlaylist) return;
+
     await api.addToPlaylist(Number(selectedPlaylist), audio!.id);
     alert("已添加到 playlist");
   }
 
   async function acceptAiDescription() {
     if (!audio?.description_ai) return;
+
     await api.updateAudio(audio.id, {
       description_user: audio.description_ai
     });
+
     refresh();
+  }
+
+  function jumpToSegment(startSeconds: number) {
+    onPlay(audio!);
+
+    setTimeout(() => {
+      const audioEl = document.querySelector("audio");
+      if (audioEl) {
+        audioEl.currentTime = startSeconds;
+        audioEl.play().catch(console.error);
+      }
+    }, 120);
   }
 
   return (
@@ -101,7 +118,7 @@ export default function DetailPanel({ audio, refresh, setPlaying, playlists }: P
       <h2>{displayTitle(audio)}</h2>
 
       <div className="actions">
-        <button onClick={() => setPlaying(audio)}>播放</button>
+        <button onClick={() => onPlay(audio)}>播放</button>
         <button onClick={transcribe}>转写</button>
         <button onClick={analyze}>AI 分析</button>
       </div>
@@ -166,10 +183,13 @@ export default function DetailPanel({ audio, refresh, setPlaying, playlists }: P
         <p>时长：{formatDuration(audio.duration_seconds)}</p>
         <p>大小：{audio.file_size ? `${Math.round(audio.file_size / 1024 / 1024)} MB` : "-"}</p>
         <p>播放位置：{formatDuration(audio.last_position_seconds)}</p>
+        <p>播放次数：{audio.play_count}</p>
+        <p>上次播放：{audio.last_played_at || "-"}</p>
       </div>
 
       <div className="section">
         <h3>Tags</h3>
+
         <div className="tag-list">
           {tags.map((tag) => (
             <span className="tag" key={tag.id}>
@@ -191,6 +211,7 @@ export default function DetailPanel({ audio, refresh, setPlaying, playlists }: P
 
       <div className="section">
         <h3>Playlist</h3>
+
         <div className="inline-form">
           <select
             value={selectedPlaylist}
@@ -203,6 +224,7 @@ export default function DetailPanel({ audio, refresh, setPlaying, playlists }: P
               </option>
             ))}
           </select>
+
           <button onClick={addToPlaylist}>加入</button>
         </div>
       </div>
@@ -222,6 +244,7 @@ export default function DetailPanel({ audio, refresh, setPlaying, playlists }: P
 
       <div className="section">
         <h3>Transcript</h3>
+
         {!transcript && <p>暂无 transcript</p>}
 
         {transcript && (
@@ -229,15 +252,7 @@ export default function DetailPanel({ audio, refresh, setPlaying, playlists }: P
             {transcript.segments.length > 0 ? (
               transcript.segments.map((seg) => (
                 <div key={seg.id} className="segment">
-                  <button
-                    onClick={() => {
-                      const audioEl = document.querySelector("audio");
-                      if (audioEl) {
-                        audioEl.currentTime = seg.start_seconds;
-                        audioEl.play();
-                      }
-                    }}
-                  >
+                  <button onClick={() => jumpToSegment(seg.start_seconds)}>
                     {formatDuration(seg.start_seconds)}
                   </button>
                   <span>{seg.text}</span>

@@ -2,23 +2,51 @@ import type { AudioItem } from "../types";
 import { displayAuthor, displayTitle, formatDuration } from "../types";
 
 type Props = {
+  title: string;
   q: string;
   setQ: (q: string) => void;
+  missingDescriptionOnly: boolean;
+  setMissingDescriptionOnly: (v: boolean) => void;
   items: AudioItem[];
   selectedId?: number;
   onSelect: (item: AudioItem) => void;
   onPlay: (item: AudioItem) => void;
 };
 
-export default function AudioList({ q, setQ, items, selectedId, onSelect, onPlay }: Props) {
+export default function AudioList({
+  title,
+  q,
+  setQ,
+  missingDescriptionOnly,
+  setMissingDescriptionOnly,
+  items,
+  selectedId,
+  onSelect,
+  onPlay
+}: Props) {
   return (
     <section className="audio-list">
       <div className="toolbar">
+        <div className="toolbar-title">
+          <strong>{title}</strong>
+          <span>{items.length} items</span>
+        </div>
+
         <input
+          className="search-input"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="搜索 title / description / tags / transcript"
         />
+
+        <label className="toolbar-check">
+          <input
+            type="checkbox"
+            checked={missingDescriptionOnly}
+            onChange={(e) => setMissingDescriptionOnly(e.target.checked)}
+          />
+          缺描述
+        </label>
       </div>
 
       <div className="list">
@@ -39,9 +67,11 @@ export default function AudioList({ q, setQ, items, selectedId, onSelect, onPlay
                 {displayTitle(item)}
                 {item.is_missing ? <span className="badge danger">missing</span> : null}
               </div>
+
               <div className="meta">
                 {displayAuthor(item) || "Unknown"} · {formatDuration(item.duration_seconds)}
               </div>
+
               <div className="status">
                 transcript: {item.transcript_status} · ai: {item.ai_status}
               </div>

@@ -34,6 +34,11 @@ button:hover {
   background: #374151;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 button.active {
   background: #2563eb;
   border-color: #2563eb;
@@ -100,7 +105,8 @@ textarea {
   font-size: 15px;
 }
 
-.playlist-name {
+.playlist-name,
+.playlist-empty {
   padding: 6px 0;
   color: #cbd5e1;
   font-size: 14px;
@@ -116,6 +122,40 @@ textarea {
 .toolbar {
   padding: 12px;
   border-bottom: 1px solid #374151;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.toolbar-title {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #cbd5e1;
+}
+
+.toolbar-title span {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.search-input {
+  min-width: 0;
+}
+
+.toolbar-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.toolbar-check input {
+  width: auto;
 }
 
 .list {
@@ -305,11 +345,15 @@ textarea {
 
 .root-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 8px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid #1f2937;
+}
+
+.root-row.disabled {
+  opacity: 0.6;
 }
 
 .root-row span {
@@ -317,13 +361,25 @@ textarea {
   color: #cbd5e1;
 }
 
+.root-toggle {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+  color: #cbd5e1;
+}
+
+.root-toggle input {
+  width: auto;
+}
+
 .player-bar {
-  height: 72px;
+  height: 84px;
   border-top: 1px solid #374151;
   background: #030712;
   display: grid;
-  grid-template-columns: 260px auto 60px 1fr 60px 90px;
-  gap: 12px;
+  grid-template-columns: 240px auto auto auto auto 60px minmax(120px, 1fr) 60px 90px 150px;
+  gap: 10px;
   align-items: center;
   padding: 12px;
 }
@@ -332,6 +388,18 @@ textarea {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.volume-control {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.volume-control input {
+  width: 90px;
 }
 
 .empty {
