@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import type { AudioItem } from "../types";
-import { displayAuthor, displayTitle, formatDuration } from "../types";
+import { displayAuthor, displayDescription, displayTitle, formatDuration } from "../types";
 
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing";
@@ -76,19 +76,7 @@ function HighlightText({
           return <span key={index}>{part}</span>;
         }
 
-        return (
-          <mark
-            key={index}
-            style={{
-              padding: "0 2px",
-              borderRadius: 4,
-              color: "#111827",
-              background: "#fde68a"
-            }}
-          >
-            {part}
-          </mark>
-        );
+        return <mark key={index}>{part}</mark>;
       })}
     </>
   );
@@ -146,18 +134,14 @@ function RowTags({
   if (tags.length === 0) return null;
 
   return (
-    <div className="row-status">
-      {tags.slice(0, 6).map((tag) => (
-        <span className="status-pill none" key={tag.id}>
+    <div className="row-tags">
+      {tags.slice(0, 5).map((tag) => (
+        <span className="mini-tag" key={tag.id}>
           #<HighlightText text={tag.name} query={query} />
         </span>
       ))}
 
-      {tags.length > 6 && (
-        <span className="status-pill none">
-          +{tags.length - 6}
-        </span>
-      )}
+      {tags.length > 5 && <span className="mini-tag muted-tag">+{tags.length - 5}</span>}
     </div>
   );
 }
@@ -197,9 +181,7 @@ function SearchHits({
           )}
 
           <span>
-            {hit.start_seconds !== undefined && (
-              <strong>{hit.label}</strong>
-            )}
+            {hit.start_seconds !== undefined && <strong>{hit.label}</strong>}
             <HighlightText text={hit.text} query={query} />
           </span>
         </div>
@@ -230,8 +212,8 @@ function EmptyState({
     missingFilter !== "all";
 
   return (
-    <div className="empty-state redesigned-empty-state">
-      <div className="empty-icon">🎧</div>
+    <div className="empty-state">
+      <div className="empty-illustration">🎧</div>
 
       <div className="empty-title">
         {hasFilter ? "没有找到匹配的音频" : "还没有导入音频"}
@@ -245,12 +227,12 @@ function EmptyState({
 
       <div className="empty-actions">
         {hasFilter ? (
-          <button className="primary-soft-button" onClick={onClearFilters}>
-            清空筛选条件
+          <button className="primary-button" onClick={onClearFilters}>
+            清空筛选
           </button>
         ) : (
-          <button className="primary-soft-button" onClick={onOpenSettings}>
-            去设置添加媒体库
+          <button className="primary-button" onClick={onOpenSettings}>
+            添加媒体库
           </button>
         )}
 
@@ -269,7 +251,7 @@ function EmptyState({
 function ListSkeleton() {
   return (
     <div className="list-skeleton" aria-label="正在加载音频列表">
-      {Array.from({ length: 6 }).map((_, index) => (
+      {Array.from({ length: 7 }).map((_, index) => (
         <div className="skeleton-row" key={index}>
           <span className="skeleton-cover" />
           <span className="skeleton-content">
@@ -285,26 +267,19 @@ function ListSkeleton() {
 }
 
 export default function AudioList({
-  title,
   q,
-  setQ,
   isLoading = false,
   loadError,
   onOpenSettings,
   onClearFilters,
   missingDescriptionOnly,
-  setMissingDescriptionOnly,
   hasTranscriptFilter,
-  setHasTranscriptFilter,
   missingFilter,
-  setMissingFilter,
   items,
   selectedId,
   onSelect,
   onPlay,
   onPlayAt,
-  onBatchTranscribe,
-  onBatchAnalyze,
   isPlaylistView,
   onRemoveFromPlaylist,
   onMovePlaylistItem,
@@ -312,132 +287,50 @@ export default function AudioList({
 }: Props) {
   const [draggedPlaylistItemId, setDraggedPlaylistItemId] = useState<number | null>(null);
 
-  const hasActiveFilter =
-    Boolean(q.trim()) ||
-    missingDescriptionOnly ||
-    hasTranscriptFilter !== "all" ||
-    missingFilter !== "all";
-
   function findDraggedItem(): AudioItem | undefined {
     if (!draggedPlaylistItemId) return undefined;
     return items.find((item) => item.playlist_item_id === draggedPlaylistItemId);
   }
 
   return (
-    <section className="audio-list" aria-busy={isLoading}>
-      <div className="library-header">
-        <div className="toolbar-title">
-          <div>
-            <span className="eyebrow">当前视图</span>
-            <strong>{title}</strong>
-          </div>
-
-          <span className={`count-chip ${isLoading ? "loading-chip" : ""}`}>
-            {isLoading ? "正在更新..." : `${items.length} 个音频`}
-          </span>
+    <section className="audio-list-panel" aria-busy={isLoading}>
+      {loadError && (
+        <div className="list-error">
+          <strong>列表加载失败</strong>
+          <span>{loadError}</span>
+          <button onClick={onClearFilters}>清空筛选后重试</button>
         </div>
+      )}
 
-        <div className="toolbar-controls">
-          <div className="search-box">
-            <span aria-hidden="true">⌕</span>
+      {isLoading && items.length > 0 && (
+        <div className="list-loading-bar">正在更新结果…</div>
+      )}
 
-            <input
-              className="search-input"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="搜索标题、作者、描述、标签或转写文本"
-            />
-          </div>
+      {isLoading && items.length === 0 && <ListSkeleton />}
 
-          <label className="filter-pill">
-            <input
-              type="checkbox"
-              checked={missingDescriptionOnly}
-              onChange={(e) => setMissingDescriptionOnly(e.target.checked)}
-            />
-            只看缺描述
-          </label>
+      {!isLoading && !loadError && items.length === 0 && (
+        <EmptyState
+          q={q}
+          missingDescriptionOnly={missingDescriptionOnly}
+          hasTranscriptFilter={hasTranscriptFilter}
+          missingFilter={missingFilter}
+          onOpenSettings={onOpenSettings}
+          onClearFilters={onClearFilters}
+        />
+      )}
 
-          <select
-            value={hasTranscriptFilter}
-            onChange={(e) => setHasTranscriptFilter(e.target.value as TranscriptFilter)}
-            title="按 transcript 状态筛选"
-          >
-            <option value="all">全部转写</option>
-            <option value="yes">已有 transcript</option>
-            <option value="no">未完成 transcript</option>
-          </select>
-
-          <select
-            value={missingFilter}
-            onChange={(e) => setMissingFilter(e.target.value as MissingFilter)}
-            title="按文件缺失状态筛选"
-          >
-            <option value="all">全部文件</option>
-            <option value="available">仅可播放</option>
-            <option value="missing">仅缺失</option>
-          </select>
-        </div>
-
-        <div className="toolbar-actions">
-          {hasActiveFilter && (
-            <button className="ghost-button" onClick={onClearFilters}>
-              清空筛选
-            </button>
-          )}
-
-          <button
-            className="ghost-button"
-            onClick={onBatchTranscribe}
-            disabled={items.length === 0}
-          >
-            批量转写
-          </button>
-
-          <button
-            className="primary-soft-button"
-            onClick={onBatchAnalyze}
-            disabled={items.length === 0}
-          >
-            批量 AI 分析
-          </button>
-        </div>
-      </div>
-
-      <div className="list">
-        {loadError && (
-          <div className="list-error">
-            <strong>列表加载失败</strong>
-            <span>{loadError}</span>
-            <button onClick={onClearFilters}>清空筛选后重试</button>
-          </div>
-        )}
-
-        {isLoading && items.length > 0 && (
-          <div className="list-loading-bar">
-            正在更新结果…
-          </div>
-        )}
-
-        {isLoading && items.length === 0 && <ListSkeleton />}
-
-        {!isLoading && !loadError && items.length === 0 && (
-          <EmptyState
-            q={q}
-            missingDescriptionOnly={missingDescriptionOnly}
-            hasTranscriptFilter={hasTranscriptFilter}
-            missingFilter={missingFilter}
-            onOpenSettings={onOpenSettings}
-            onClearFilters={onClearFilters}
-          />
-        )}
-
+      <div className="audio-scroll-list">
         {items.map((item) => {
           const draggable = Boolean(isPlaylistView && item.playlist_item_id);
+          const description = displayDescription(item);
 
           return (
             <div
-              key={isPlaylistView && item.playlist_item_id ? `${item.id}-${item.playlist_item_id}` : item.id}
+              key={
+                isPlaylistView && item.playlist_item_id
+                  ? `${item.id}-${item.playlist_item_id}`
+                  : item.id
+              }
               className={`audio-row ${selectedId === item.id ? "selected" : ""}`}
               draggable={draggable}
               onDragStart={(e) => {
@@ -466,7 +359,9 @@ export default function AudioList({
               onDoubleClick={() => onPlay(item)}
               style={{
                 opacity:
-                  draggedPlaylistItemId && draggedPlaylistItemId === item.playlist_item_id ? 0.62 : 1
+                  draggedPlaylistItemId && draggedPlaylistItemId === item.playlist_item_id
+                    ? 0.62
+                    : 1
               }}
             >
               <CoverThumb item={item} />
@@ -481,8 +376,8 @@ export default function AudioList({
                   {item.is_missing ? <span className="badge danger">missing</span> : null}
 
                   {draggable && (
-                    <span className="status-pill none" title="拖拽可调整 playlist 顺序">
-                      拖拽排序
+                    <span className="drag-hint" title="拖拽可调整 playlist 顺序">
+                      ⠿
                     </span>
                   )}
                 </div>
@@ -500,6 +395,12 @@ export default function AudioList({
                     </>
                   )}
                 </div>
+
+                {description && (
+                  <div className="description-line">
+                    <HighlightText text={description} query={q} />
+                  </div>
+                )}
 
                 <RowTags item={item} query={q} />
 
@@ -531,7 +432,7 @@ export default function AudioList({
                       }}
                       title="在当前 playlist 中上移"
                     >
-                      上移
+                      ↑
                     </button>
 
                     <button
@@ -541,7 +442,7 @@ export default function AudioList({
                       }}
                       title="在当前 playlist 中下移"
                     >
-                      下移
+                      ↓
                     </button>
 
                     <button

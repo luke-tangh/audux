@@ -5,6 +5,7 @@ import { pickAudioFolder } from "../tauri";
 import TaskPanel from "./TaskPanel";
 
 type ToastType = "info" | "success" | "error";
+type SettingsTab = "library" | "asr" | "llm" | "tasks" | "maintenance" | "logs";
 
 type Props = {
   refresh: () => void;
@@ -21,6 +22,8 @@ function terminalStatus(status: string): boolean {
 }
 
 export default function SettingsPanel({ refresh, notify }: Props) {
+  const [activeTab, setActiveTab] = useState<SettingsTab>("library");
+
   const [roots, setRoots] = useState<LibraryRoot[]>([]);
   const [scanTasks, setScanTasks] = useState<ScanTask[]>([]);
   const [path, setPath] = useState("");
@@ -54,7 +57,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
         if (previous && previous !== task.status && terminalStatus(task.status)) {
           if (task.status === "done") {
-            notify?.(`扫描任务 #${task.id} 已完成，导入 ${task.imported}，更新 ${task.updated}，缺失 ${task.missing}`, "success");
+            notify?.(
+              `扫描任务 #${task.id} 已完成，导入 ${task.imported}，更新 ${task.updated}，缺失 ${task.missing}`,
+              "success"
+            );
           }
 
           if (task.status === "failed") {
@@ -345,270 +351,323 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   return (
     <section className="settings-panel">
-      <h2>Settings</h2>
+      <header className="settings-header">
+        <div>
+          <span className="eyebrow">Control Center</span>
+          <h2>设置中心</h2>
+          <p>管理媒体库、ASR、LLM、任务、维护和日志。</p>
+        </div>
 
-      <div className="section card">
-        <h3>后端状态</h3>
-        <p>
-          FastAPI Backend：
+        <div className={`backend-status ${backendStatus}`}>
+          <span />
           {backendStatus === "checking" && "检查中"}
-          {backendStatus === "ok" && "正常"}
-          {backendStatus === "failed" && "未连接"}
-        </p>
-        <button onClick={load}>重新检查</button>
+          {backendStatus === "ok" && "后端正常"}
+          {backendStatus === "failed" && "后端未连接"}
+        </div>
+      </header>
+
+      <div className="settings-tabs">
+        <button className={activeTab === "library" ? "active" : ""} onClick={() => setActiveTab("library")}>
+          媒体库
+        </button>
+        <button className={activeTab === "asr" ? "active" : ""} onClick={() => setActiveTab("asr")}>
+          ASR
+        </button>
+        <button className={activeTab === "llm" ? "active" : ""} onClick={() => setActiveTab("llm")}>
+          LLM
+        </button>
+        <button className={activeTab === "tasks" ? "active" : ""} onClick={() => setActiveTab("tasks")}>
+          任务
+        </button>
+        <button
+          className={activeTab === "maintenance" ? "active" : ""}
+          onClick={() => setActiveTab("maintenance")}
+        >
+          维护
+        </button>
+        <button className={activeTab === "logs" ? "active" : ""} onClick={() => setActiveTab("logs")}>
+          日志
+        </button>
       </div>
 
-      <div className="section card">
-        <h3>媒体库目录</h3>
+      <div className="settings-content">
+        {activeTab === "library" && (
+          <div className="settings-grid-layout">
+            <section className="panel-card">
+              <h3>媒体库目录</h3>
 
-        <div className="inline-form">
-          <input
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            placeholder="输入或选择本地目录路径"
-          />
-          <button onClick={chooseFolder}>选择文件夹</button>
-          <button onClick={addRoot}>添加目录</button>
-        </div>
+              <div className="inline-form">
+                <input
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  placeholder="输入或选择本地目录路径"
+                />
+                <button onClick={chooseFolder}>选择文件夹</button>
+                <button className="primary-button" onClick={addRoot}>
+                  添加目录
+                </button>
+              </div>
 
-        {roots.map((root) => (
-          <div key={root.id} className={`root-row ${root.is_enabled ? "" : "disabled"}`}>
-            <span>{root.path}</span>
+              {roots.length === 0 && <p className="muted">暂无媒体库目录。</p>}
 
-            <label className="root-toggle">
-              <input
-                type="checkbox"
-                checked={root.is_enabled}
-                onChange={(e) => toggleRoot(root, e.target.checked)}
-              />
-              {root.is_enabled ? "启用" : "禁用"}
-            </label>
+              {roots.map((root) => (
+                <div key={root.id} className={`root-card ${root.is_enabled ? "" : "disabled"}`}>
+                  <div>
+                    <strong>{root.path}</strong>
+                    <span>{root.is_enabled ? "启用中" : "已禁用"}</span>
+                  </div>
 
-            <button onClick={() => scan(root.id)}>扫描</button>
+                  <label className="root-toggle">
+                    <input
+                      type="checkbox"
+                      checked={root.is_enabled}
+                      onChange={(e) => toggleRoot(root, e.target.checked)}
+                    />
+                    {root.is_enabled ? "启用" : "禁用"}
+                  </label>
+
+                  <button onClick={() => scan(root.id)}>扫描</button>
+                </div>
+              ))}
+
+              {scanResult && <p className="test-result">{scanResult}</p>}
+            </section>
+
+            <section className="panel-card">
+              <h3>扫描任务</h3>
+
+              {scanTasks.length === 0 && <p className="muted">暂无扫描任务</p>}
+
+              {scanTasks.map((task) => (
+                <div key={task.id} className="scan-task-row">
+                  <div className="scan-task-top">
+                    <strong>#{task.id}</strong>
+                    <span>root: {task.root_id}</span>
+                    <span className={`status-pill ${task.status}`}>{task.status}</span>
+                  </div>
+
+                  <div className="progress-line">
+                    <div style={{ width: `${scanProgress(task)}%` }} />
+                  </div>
+
+                  <div className="scan-task-meta">
+                    {task.processed_files}/{task.total_files} · imported {task.imported} · updated{" "}
+                    {task.updated} · missing {task.missing}
+                  </div>
+
+                  {task.error_message && <div className="task-error">{task.error_message}</div>}
+
+                  {(task.status === "pending" || task.status === "running") && (
+                    <button onClick={() => cancelScan(task)}>取消</button>
+                  )}
+                </div>
+              ))}
+            </section>
+
+            <section className="panel-card">
+              <h3>创建 Playlist</h3>
+
+              <div className="inline-form">
+                <input
+                  value={playlistName}
+                  onChange={(e) => setPlaylistName(e.target.value)}
+                  placeholder="Playlist 名称"
+                />
+                <button className="primary-button" onClick={createPlaylist}>
+                  创建
+                </button>
+              </div>
+            </section>
           </div>
-        ))}
-
-        {scanResult && <p>{scanResult}</p>}
-      </div>
-
-      <div className="section card">
-        <h3>扫描任务</h3>
-
-        {scanTasks.length === 0 && <p className="muted">暂无扫描任务</p>}
-
-        {scanTasks.map((task) => (
-          <div key={task.id} className="scan-task-row">
-            <div>
-              <strong>#{task.id}</strong> root: {task.root_id} · status:{" "}
-              <span className={`status-pill ${task.status}`}>{task.status}</span>
-            </div>
-
-            <div className="progress-line">
-              <div style={{ width: `${scanProgress(task)}%` }} />
-            </div>
-
-            <div className="scan-task-meta">
-              {task.processed_files}/{task.total_files} · imported {task.imported} · updated{" "}
-              {task.updated} · missing {task.missing}
-            </div>
-
-            {task.error_message && <div className="task-error">{task.error_message}</div>}
-
-            {(task.status === "pending" || task.status === "running") && (
-              <button onClick={() => cancelScan(task)}>取消</button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="section card">
-        <h3>创建 Playlist</h3>
-
-        <div className="inline-form">
-          <input
-            value={playlistName}
-            onChange={(e) => setPlaylistName(e.target.value)}
-            placeholder="Playlist 名称"
-          />
-          <button onClick={createPlaylist}>创建</button>
-        </div>
-      </div>
-
-      <div className="section card">
-        <h3>标签维护</h3>
-
-        <p className="muted">
-          可重命名标签，或清理没有关联任何音频的 orphan tags。
-        </p>
-
-        <div className="actions">
-          <button onClick={cleanupTags}>清理未使用标签</button>
-          <button onClick={loadTags}>刷新标签</button>
-        </div>
-
-        {maintenanceTags.length === 0 && <p className="muted">暂无标签</p>}
-
-        <div className="tag-list">
-          {maintenanceTags.map((tag) => (
-            <span key={tag.id} className="tag">
-              #{tag.name}
-              <button onClick={() => renameTag(tag)}>重命名</button>
-              <button onClick={() => deleteTag(tag)}>删除</button>
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div className="section card">
-        <h3>本地 ASR 设置 faster-whisper</h3>
-
-        <div className="settings-grid">
-          <label>
-            Model Name / Path
-            <input
-              value={asrModelName}
-              onChange={(e) => setAsrModelName(e.target.value)}
-              placeholder="small 或本地模型路径"
-            />
-          </label>
-
-          <label>
-            Device
-            <select value={asrDevice} onChange={(e) => setAsrDevice(e.target.value)}>
-              <option value="cpu">cpu</option>
-              <option value="cuda">cuda</option>
-            </select>
-          </label>
-
-          <label>
-            Compute Type
-            <input
-              value={asrComputeType}
-              onChange={(e) => setAsrComputeType(e.target.value)}
-              placeholder="int8 / float16 / float32"
-            />
-          </label>
-
-          <label>
-            Beam Size
-            <input
-              value={asrBeamSize}
-              onChange={(e) => setAsrBeamSize(e.target.value)}
-              placeholder="5"
-            />
-          </label>
-        </div>
-
-        <button onClick={saveAsr}>保存 ASR 设置</button>
-
-        <p className="muted">
-          需要后端环境安装 faster-whisper。若希望完全离线，请优先填写本地模型路径；
-          如果填写 small / medium / large-v3 等模型名称，首次运行可能尝试下载模型。
-        </p>
-      </div>
-
-      <div className="section card">
-        <h3>本地 LLM 设置</h3>
-
-        <div className="settings-grid">
-          <label>
-            Endpoint
-            <input
-              value={llmEndpoint}
-              onChange={(e) => setLlmEndpoint(e.target.value)}
-              placeholder="http://127.0.0.1:1234/v1"
-            />
-          </label>
-
-          <label>
-            Model Name
-            <input
-              value={llmModel}
-              onChange={(e) => setLlmModel(e.target.value)}
-              placeholder="local-model"
-            />
-          </label>
-
-          <label>
-            API Key，可为空
-            <input
-              value={llmApiKey}
-              onChange={(e) => setLlmApiKey(e.target.value)}
-              placeholder="可为空"
-            />
-          </label>
-
-          <label>
-            Timeout 秒
-            <input
-              value={llmTimeout}
-              onChange={(e) => setLlmTimeout(e.target.value)}
-              placeholder="60"
-            />
-          </label>
-
-          <label>
-            Max Tokens
-            <input
-              value={llmMaxTokens}
-              onChange={(e) => setLlmMaxTokens(e.target.value)}
-              placeholder="800"
-            />
-          </label>
-
-          <label>
-            Temperature
-            <input
-              value={llmTemperature}
-              onChange={(e) => setLlmTemperature(e.target.value)}
-              placeholder="0.2"
-            />
-          </label>
-        </div>
-
-        {llmWarning && (
-          <p className="test-result" style={{ color: "#fecaca" }}>
-            隐私提醒：{llmWarning}
-          </p>
         )}
 
-        <div className="actions">
-          <button onClick={saveLlm}>保存 LLM 设置</button>
-          <button onClick={testLlm}>测试连接</button>
-        </div>
+        {activeTab === "asr" && (
+          <section className="panel-card max-form-card">
+            <h3>本地 ASR 设置 faster-whisper</h3>
 
-        {llmTestResult && <p className="test-result">{llmTestResult}</p>}
-      </div>
+            <div className="settings-form-grid">
+              <label>
+                Model Name / Path
+                <input
+                  value={asrModelName}
+                  onChange={(e) => setAsrModelName(e.target.value)}
+                  placeholder="small 或本地模型路径"
+                />
+              </label>
 
-      <div className="section card">
-        <h3>导出与维护</h3>
+              <label>
+                Device
+                <select value={asrDevice} onChange={(e) => setAsrDevice(e.target.value)}>
+                  <option value="cpu">cpu</option>
+                  <option value="cuda">cuda</option>
+                </select>
+              </label>
 
-        <div className="actions">
-          <button onClick={() => window.open(api.metadataExportUrl("json"), "_blank")}>
-            导出 Metadata JSON
-          </button>
+              <label>
+                Compute Type
+                <input
+                  value={asrComputeType}
+                  onChange={(e) => setAsrComputeType(e.target.value)}
+                  placeholder="int8 / float16 / float32"
+                />
+              </label>
 
-          <button onClick={() => window.open(api.metadataExportUrl("csv"), "_blank")}>
-            导出 Metadata CSV
-          </button>
+              <label>
+                Beam Size
+                <input
+                  value={asrBeamSize}
+                  onChange={(e) => setAsrBeamSize(e.target.value)}
+                  placeholder="5"
+                />
+              </label>
+            </div>
 
-          <button onClick={rebuildSearch}>重建搜索索引</button>
-        </div>
-      </div>
+            <button className="primary-button" onClick={saveAsr}>
+              保存 ASR 设置
+            </button>
 
-      <div className="section card">
-        <TaskPanel onTaskChanged={refresh} notify={notify} />
-      </div>
+            <p className="muted">
+              需要后端环境安装 faster-whisper。若希望完全离线，请优先填写本地模型路径；
+              如果填写 small / medium / large-v3 等模型名称，首次运行可能尝试下载模型。
+            </p>
+          </section>
+        )}
 
-      <div className="section card">
-        <h3>日志</h3>
+        {activeTab === "llm" && (
+          <section className="panel-card max-form-card">
+            <h3>本地 LLM 设置</h3>
 
-        <div className="actions">
-          <button onClick={loadLogs}>刷新日志</button>
-          <button onClick={() => window.open(api.logsFileUrl(), "_blank")}>下载日志文件</button>
-        </div>
+            <div className="settings-form-grid">
+              <label>
+                Endpoint
+                <input
+                  value={llmEndpoint}
+                  onChange={(e) => setLlmEndpoint(e.target.value)}
+                  placeholder="http://127.0.0.1:1234/v1"
+                />
+              </label>
 
-        <pre className="log-viewer">{logs || "暂无日志"}</pre>
+              <label>
+                Model Name
+                <input
+                  value={llmModel}
+                  onChange={(e) => setLlmModel(e.target.value)}
+                  placeholder="local-model"
+                />
+              </label>
+
+              <label>
+                API Key，可为空
+                <input
+                  value={llmApiKey}
+                  onChange={(e) => setLlmApiKey(e.target.value)}
+                  placeholder="可为空"
+                />
+              </label>
+
+              <label>
+                Timeout 秒
+                <input
+                  value={llmTimeout}
+                  onChange={(e) => setLlmTimeout(e.target.value)}
+                  placeholder="60"
+                />
+              </label>
+
+              <label>
+                Max Tokens
+                <input
+                  value={llmMaxTokens}
+                  onChange={(e) => setLlmMaxTokens(e.target.value)}
+                  placeholder="800"
+                />
+              </label>
+
+              <label>
+                Temperature
+                <input
+                  value={llmTemperature}
+                  onChange={(e) => setLlmTemperature(e.target.value)}
+                  placeholder="0.2"
+                />
+              </label>
+            </div>
+
+            {llmWarning && <p className="privacy-warning">隐私提醒：{llmWarning}</p>}
+
+            <div className="section-actions">
+              <button className="primary-button" onClick={saveLlm}>
+                保存 LLM 设置
+              </button>
+              <button onClick={testLlm}>测试连接</button>
+            </div>
+
+            {llmTestResult && <p className="test-result">{llmTestResult}</p>}
+          </section>
+        )}
+
+        {activeTab === "tasks" && (
+          <section className="panel-card">
+            <TaskPanel onTaskChanged={refresh} notify={notify} />
+          </section>
+        )}
+
+        {activeTab === "maintenance" && (
+          <div className="settings-grid-layout">
+            <section className="panel-card">
+              <h3>导出与索引</h3>
+
+              <div className="section-actions">
+                <button onClick={() => window.open(api.metadataExportUrl("json"), "_blank")}>
+                  导出 Metadata JSON
+                </button>
+
+                <button onClick={() => window.open(api.metadataExportUrl("csv"), "_blank")}>
+                  导出 Metadata CSV
+                </button>
+
+                <button onClick={rebuildSearch}>重建搜索索引</button>
+              </div>
+            </section>
+
+            <section className="panel-card">
+              <h3>标签维护</h3>
+
+              <p className="muted">可重命名标签，或清理没有关联任何音频的 orphan tags。</p>
+
+              <div className="section-actions">
+                <button onClick={cleanupTags}>清理未使用标签</button>
+                <button onClick={loadTags}>刷新标签</button>
+              </div>
+
+              {maintenanceTags.length === 0 && <p className="muted">暂无标签</p>}
+
+              <div className="tag-list">
+                {maintenanceTags.map((tag) => (
+                  <span key={tag.id} className="tag">
+                    #{tag.name}
+                    <button onClick={() => renameTag(tag)}>重命名</button>
+                    <button onClick={() => deleteTag(tag)}>删除</button>
+                  </span>
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {activeTab === "logs" && (
+          <section className="panel-card">
+            <h3>日志</h3>
+
+            <div className="section-actions">
+              <button onClick={loadLogs}>刷新日志</button>
+              <button onClick={() => window.open(api.logsFileUrl(), "_blank")}>下载日志文件</button>
+              <button onClick={load}>重新检查后端</button>
+            </div>
+
+            <pre className="log-viewer">{logs || "暂无日志"}</pre>
+          </section>
+        )}
       </div>
     </section>
   );

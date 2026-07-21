@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, endpointPrivacyWarning } from "../api";
 import type { AISuggestions, AudioItem, Playlist, Tag, Transcript } from "../types";
-import { displayDescription, displayTitle, formatDuration } from "../types";
+import { displayAuthor, displayDescription, displayTitle, formatDuration } from "../types";
 import { pickAudioFile } from "../tauri";
 
 type ToastType = "info" | "success" | "error";
+type InspectorTab = "overview" | "ai" | "transcript" | "file";
 
 type Props = {
   audio: AudioItem | null;
@@ -25,6 +26,8 @@ export default function DetailPanel({
   onDeleted,
   notify
 }: Props) {
+  const [activeTab, setActiveTab] = useState<InspectorTab>("overview");
+
   const [tags, setTags] = useState<Tag[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagInput, setTagInput] = useState("");
@@ -50,6 +53,7 @@ export default function DetailPanel({
       setAiSuggestions(null);
       setRelocatePath("");
       setSelectedExistingTag("");
+      setActiveTab("overview");
 
       if (!audio) return;
 
@@ -84,16 +88,16 @@ export default function DetailPanel({
 
   if (!audio) {
     return (
-      <section className="detail-panel detail-empty-panel">
+      <aside className="inspector-panel empty-inspector">
         <div className="empty-detail-card">
           <div className="empty-detail-icon">♪</div>
 
-          <span className="eyebrow">Detail</span>
+          <span className="eyebrow">Inspector</span>
 
           <h2>选择一个音频开始整理</h2>
 
           <p>
-            在左侧列表中选择音频后，可以查看封面、metadata、播放记录、标签、AI 建议和 transcript。
+            在中间列表中选择音频后，可以查看封面、metadata、播放记录、标签、AI 建议和 transcript。
           </p>
 
           <div className="detail-empty-steps">
@@ -113,7 +117,7 @@ export default function DetailPanel({
             </div>
           </div>
         </div>
-      </section>
+      </aside>
     );
   }
 
@@ -194,7 +198,7 @@ export default function DetailPanel({
     try {
       await api.transcribe(audio!.id);
       refresh();
-      notify?.("已创建转写任务，可在 Settings 的任务队列中查看状态。", "success");
+      notify?.("已创建转写任务，可在设置中心的任务页查看状态。", "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -207,7 +211,7 @@ export default function DetailPanel({
       const modelName = settings.find((s) => s.key === "llm.model_name")?.value;
 
       if (!endpoint || !modelName) {
-        notify?.("请先在 Settings 中配置本地 LLM endpoint 和 model_name。", "error");
+        notify?.("请先在设置中心配置本地 LLM endpoint 和 model_name。", "error");
         return;
       }
 
@@ -225,6 +229,7 @@ export default function DetailPanel({
 
       refresh();
       notify?.("已创建 AI 分析任务。完成后会显示 AI 建议描述和标签。", "success");
+      setActiveTab("ai");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -350,9 +355,7 @@ export default function DetailPanel({
   }
 
   async function deleteFromDatabase() {
-    const ok = window.confirm(
-      "确认从应用数据库中移除该条目？不会删除本地音频文件。"
-    );
+    const ok = window.confirm("确认从应用数据库中移除该条目？不会删除本地音频文件。");
     if (!ok) return;
 
     try {
@@ -377,23 +380,9 @@ export default function DetailPanel({
   const aiTags = aiSuggestions?.tags || [];
 
   return (
-    <section className="detail-panel">
-      <h2>{displayTitle(audio)}</h2>
-
-      <div className="detail-meta-strip">
-        <span>{formatDuration(audio.duration_seconds)}</span>
-        <span>{audio.file_ext || "audio"}</span>
-        <span>{audio.is_missing ? "文件缺失" : "文件可用"}</span>
-        <span className={`status-pill ${audio.transcript_status}`}>
-          转写 {audio.transcript_status}
-        </span>
-        <span className={`status-pill ${audio.ai_status}`}>
-          AI {audio.ai_status}
-        </span>
-      </div>
-
-      <div className="detail-cover-block">
-        <div className="detail-cover">
+    <aside className="inspector-panel">
+      <div className="inspector-hero">
+        <div className="inspector-cover">
           {audio.cover_path ? (
             <img
               src={api.coverUrl(audio.id, coverVersion)}
@@ -407,265 +396,402 @@ export default function DetailPanel({
           )}
         </div>
 
-        <div className="cover-actions">
+        <div className="inspector-title">
+          <h2>{displayTitle(audio)}</h2>
+          <p>
+            {displayAuthor(audio) || "Unknown"} · {formatDuration(audio.duration_seconds)}
+          </p>
+
+          <div className="detail-meta-strip">
+            <span>{audio.file_ext || "audio"}</span>
+            <span>{audio.is_missing ? "文件缺失" : "文件可用"}</span>
+            <span className={`status-pill ${audio.transcript_status}`}>
+              转写 {audio.transcript_status}
+            </span>
+            <span className={`status-pill ${audio.ai_status}`}>AI {audio.ai_status}</span>
+          </div>
+        </div>
+
+        <div className="inspector-actions">
+          <button className="primary-button" onClick={() => onPlay(audio)}>
+            播放
+          </button>
+          <button onClick={transcribe}>转写</button>
+          <button onClick={analyze}>AI 分析</button>
           <label className="upload-button">
-            上传封面
+            封面
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={(e) => uploadCover(e.currentTarget.files?.[0])}
             />
           </label>
-
-          <button onClick={deleteCover} disabled={!audio.cover_path}>
-            删除封面
-          </button>
         </div>
       </div>
 
-      <div className="actions">
-        <button onClick={() => onPlay(audio)}>播放</button>
-        <button onClick={transcribe}>转写</button>
-        <button onClick={analyze}>AI 分析</button>
-        <button onClick={deleteFromDatabase}>从数据库移除</button>
+      <div className="inspector-tabs">
+        <button
+          className={activeTab === "overview" ? "active" : ""}
+          onClick={() => setActiveTab("overview")}
+        >
+          概览
+        </button>
+
+        <button
+          className={activeTab === "ai" ? "active" : ""}
+          onClick={() => setActiveTab("ai")}
+        >
+          AI
+        </button>
+
+        <button
+          className={activeTab === "transcript" ? "active" : ""}
+          onClick={() => setActiveTab("transcript")}
+        >
+          Transcript
+        </button>
+
+        <button
+          className={activeTab === "file" ? "active" : ""}
+          onClick={() => setActiveTab("file")}
+        >
+          文件
+        </button>
       </div>
 
-      <div className="field-grid">
-        <label>
-          用户标题
-          <input
-            value={editing.title_user as string}
-            onChange={(e) => setEditing({ ...editing, title_user: e.target.value })}
-          />
-        </label>
+      <div className="inspector-body">
+        {activeTab === "overview" && (
+          <div className="inspector-section-stack">
+            <section className="panel-card">
+              <h3>Metadata</h3>
 
-        <label>
-          作者
-          <input
-            value={editing.author_user as string}
-            onChange={(e) => setEditing({ ...editing, author_user: e.target.value })}
-          />
-        </label>
+              <div className="field-grid">
+                <label>
+                  用户标题
+                  <input
+                    value={(editing.title_user as string) || ""}
+                    onChange={(e) => setEditing({ ...editing, title_user: e.target.value })}
+                  />
+                </label>
 
-        <label>
-          专辑
-          <input
-            value={editing.album_user as string}
-            onChange={(e) => setEditing({ ...editing, album_user: e.target.value })}
-          />
-        </label>
+                <label>
+                  作者
+                  <input
+                    value={(editing.author_user as string) || ""}
+                    onChange={(e) => setEditing({ ...editing, author_user: e.target.value })}
+                  />
+                </label>
 
-        <label>
-          语言
-          <input
-            value={editing.language as string}
-            onChange={(e) => setEditing({ ...editing, language: e.target.value })}
-          />
-        </label>
+                <label>
+                  专辑
+                  <input
+                    value={(editing.album_user as string) || ""}
+                    onChange={(e) => setEditing({ ...editing, album_user: e.target.value })}
+                  />
+                </label>
 
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={Boolean(editing.is_favorite)}
-            onChange={(e) => setEditing({ ...editing, is_favorite: e.target.checked })}
-          />
-          收藏
-        </label>
+                <label>
+                  语言
+                  <input
+                    value={(editing.language as string) || ""}
+                    onChange={(e) => setEditing({ ...editing, language: e.target.value })}
+                  />
+                </label>
 
-        <label className="wide">
-          用户描述
-          <textarea
-            value={editing.description_user as string}
-            onChange={(e) => setEditing({ ...editing, description_user: e.target.value })}
-          />
-        </label>
-      </div>
+                <label className="checkbox-row wide">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editing.is_favorite)}
+                    onChange={(e) =>
+                      setEditing({ ...editing, is_favorite: e.target.checked })
+                    }
+                  />
+                  收藏
+                </label>
 
-      <button onClick={save}>保存 metadata</button>
+                <label className="wide">
+                  用户描述
+                  <textarea
+                    value={(editing.description_user as string) || ""}
+                    onChange={(e) =>
+                      setEditing({ ...editing, description_user: e.target.value })
+                    }
+                  />
+                </label>
+              </div>
 
-      <div className="section">
-        <h3>原始 Metadata</h3>
-        <p>显示标题：{displayTitle(audio)}</p>
-        <p>原始标题：{audio.title_original || "-"}</p>
-        <p>原始作者：{audio.author_original || "-"}</p>
-        <p>原始专辑：{audio.album_original || "-"}</p>
-        <p>原始描述：{audio.description_original || "-"}</p>
-        <p>用户标题：{audio.title_user || "-"}</p>
-        <p>用户作者：{audio.author_user || "-"}</p>
-        <p>用户专辑：{audio.album_user || "-"}</p>
-        <p>用户描述：{audio.description_user || "-"}</p>
-        <p>AI 描述：{audio.description_ai || "-"}</p>
-      </div>
+              <div className="section-actions">
+                <button className="primary-button" onClick={save}>
+                  保存 metadata
+                </button>
+              </div>
+            </section>
 
-      <div className="section">
-        <h3>文件信息</h3>
-        <p>文件名：{audio.file_name}</p>
-        <p>路径：{audio.file_path}</p>
-        <p>格式：{audio.file_ext || "-"}</p>
-        <p>时长：{formatDuration(audio.duration_seconds)}</p>
-        <p>大小：{audio.file_size ? `${Math.round(audio.file_size / 1024 / 1024)} MB` : "-"}</p>
-        <p>修改时间：{audio.file_mtime || "-"}</p>
-        <p>Bitrate：{audio.bitrate || "-"}</p>
-        <p>Sample Rate：{audio.sample_rate || "-"}</p>
-        <p>Channels：{audio.channels || "-"}</p>
-        <p>播放位置：{formatDuration(audio.last_position_seconds)}</p>
-        <p>播放次数：{audio.play_count}</p>
-        <p>上次播放：{audio.last_played_at || "-"}</p>
-        <p>Transcript 状态：{audio.transcript_status}</p>
-        <p>AI 状态：{audio.ai_status}</p>
-        <p>文件状态：{audio.is_missing ? "missing" : "available"}</p>
+            <section className="panel-card">
+              <h3>Tags</h3>
 
-        <div className="inline-form">
-          <input
-            value={relocatePath}
-            onChange={(e) => setRelocatePath(e.target.value)}
-            placeholder="重新定位到新的音频文件路径"
-          />
-          <button onClick={chooseRelocateFile}>选择文件</button>
-          <button onClick={relocate}>重新定位</button>
-        </div>
-      </div>
-
-      <div className="section">
-        <h3>Tags</h3>
-
-        <div className="tag-list">
-          {tags.map((tag) => (
-            <span className="tag" key={tag.id}>
-              #{tag.name}
-              <button onClick={() => removeTag(tag.id)}>×</button>
-            </span>
-          ))}
-        </div>
-
-        <div className="inline-form">
-          <input
-            value={tagInput}
-            placeholder="新标签，可用逗号分隔"
-            onChange={(e) => setTagInput(e.target.value)}
-          />
-          <button onClick={addTags}>添加</button>
-        </div>
-
-        <div className="inline-form">
-          <select
-            value={selectedExistingTag}
-            onChange={(e) => setSelectedExistingTag(e.target.value ? Number(e.target.value) : "")}
-          >
-            <option value="">选择已有标签</option>
-            {availableExistingTags.map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                #{tag.name}
-              </option>
-            ))}
-          </select>
-          <button onClick={addExistingTag} disabled={!selectedExistingTag}>
-            添加已有标签
-          </button>
-        </div>
-      </div>
-
-      <div className="section">
-        <h3>Playlist</h3>
-
-        <div className="inline-form">
-          <select
-            value={selectedPlaylist}
-            onChange={(e) => setSelectedPlaylist(e.target.value ? Number(e.target.value) : "")}
-          >
-            <option value="">选择 playlist</option>
-            {playlists.map((p) => (
-              <option value={p.id} key={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-
-          <button onClick={addToPlaylist}>加入</button>
-        </div>
-
-        {selectedPlaylistId && (
-          <div className="actions section-actions">
-            <button onClick={() => exportPlaylist("json")}>导出当前 Playlist JSON</button>
-            <button onClick={() => exportPlaylist("m3u")}>导出当前 Playlist M3U</button>
-          </div>
-        )}
-      </div>
-
-      <div className="section">
-        <h3>Description</h3>
-        <p>{displayDescription(audio) || "暂无描述"}</p>
-
-        {hasAiDescription && (
-          <div className="ai-box">
-            <h4>AI 建议描述</h4>
-            <p>{aiSuggestions?.description || audio.description_ai}</p>
-            <button onClick={acceptAiDescription}>接受为用户描述</button>
-          </div>
-        )}
-      </div>
-
-      <div className="section">
-        <h3>AI 标签建议</h3>
-
-        {aiTags.length === 0 && <p>暂无 AI 标签建议</p>}
-
-        {aiTags.length > 0 && (
-          <>
-            <div className="tag-list">
-              {aiTags.map((tagName) => {
-                const accepted = acceptedTagNames.has(tagName);
-
-                return (
-                  <span className={accepted ? "tag accepted" : "tag suggestion"} key={tagName}>
-                    #{tagName}
-                    {accepted ? (
-                      <em>已接受</em>
-                    ) : (
-                      <button onClick={() => acceptAiTag(tagName)}>接受</button>
-                    )}
+              <div className="tag-list">
+                {tags.map((tag) => (
+                  <span className="tag" key={tag.id}>
+                    #{tag.name}
+                    <button onClick={() => removeTag(tag.id)}>×</button>
                   </span>
-                );
-              })}
-            </div>
+                ))}
+              </div>
 
-            <button className="section-button" onClick={acceptAllAiTags}>
-              接受全部未添加标签
-            </button>
-          </>
-        )}
-      </div>
+              <div className="inline-form">
+                <input
+                  value={tagInput}
+                  placeholder="新标签，可用逗号分隔"
+                  onChange={(e) => setTagInput(e.target.value)}
+                />
+                <button onClick={addTags}>添加</button>
+              </div>
 
-      <div className="section">
-        <h3>Transcript</h3>
+              <div className="inline-form">
+                <select
+                  value={selectedExistingTag}
+                  onChange={(e) =>
+                    setSelectedExistingTag(e.target.value ? Number(e.target.value) : "")
+                  }
+                >
+                  <option value="">选择已有标签</option>
+                  {availableExistingTags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      #{tag.name}
+                    </option>
+                  ))}
+                </select>
+                <button onClick={addExistingTag} disabled={!selectedExistingTag}>
+                  添加已有标签
+                </button>
+              </div>
+            </section>
 
-        {!transcript && <p>暂无 transcript</p>}
+            <section className="panel-card">
+              <h3>Playlist</h3>
 
-        {transcript && (
-          <>
-            <div className="actions">
-              <button onClick={() => exportTranscript("txt")}>导出 TXT</button>
-              <button onClick={() => exportTranscript("json")}>导出 JSON</button>
-              <button onClick={() => exportTranscript("srt")}>导出 SRT</button>
-            </div>
+              <div className="inline-form">
+                <select
+                  value={selectedPlaylist}
+                  onChange={(e) =>
+                    setSelectedPlaylist(e.target.value ? Number(e.target.value) : "")
+                  }
+                >
+                  <option value="">选择 playlist</option>
+                  {playlists.map((p) => (
+                    <option value={p.id} key={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
 
-            <div className="transcript">
-              {transcript.segments.length > 0 ? (
-                transcript.segments.map((seg) => (
-                  <div key={seg.id} className="segment">
-                    <button onClick={() => jumpToSegment(seg.start_seconds)}>
-                      {formatDuration(seg.start_seconds)}
-                    </button>
-                    <span>{seg.text}</span>
-                  </div>
-                ))
-              ) : (
-                <p>{transcript.transcript.full_text}</p>
+                <button onClick={addToPlaylist}>加入</button>
+              </div>
+
+              {selectedPlaylistId && (
+                <div className="section-actions">
+                  <button onClick={() => exportPlaylist("json")}>导出当前 JSON</button>
+                  <button onClick={() => exportPlaylist("m3u")}>导出当前 M3U</button>
+                </div>
               )}
-            </div>
-          </>
+            </section>
+
+            <section className="panel-card">
+              <h3>当前描述</h3>
+              <p>{displayDescription(audio) || "暂无描述"}</p>
+            </section>
+          </div>
+        )}
+
+        {activeTab === "ai" && (
+          <div className="inspector-section-stack">
+            <section className="panel-card ai-card">
+              <div className="card-heading-row">
+                <h3>AI 建议描述</h3>
+                <button onClick={analyze}>重新分析</button>
+              </div>
+
+              {hasAiDescription ? (
+                <>
+                  <p>{aiSuggestions?.description || audio.description_ai}</p>
+                  <button className="primary-button" onClick={acceptAiDescription}>
+                    接受为用户描述
+                  </button>
+                </>
+              ) : (
+                <div className="soft-empty">
+                  暂无 AI 建议。点击「AI 分析」后，会根据 metadata 和 transcript 生成描述。
+                </div>
+              )}
+            </section>
+
+            <section className="panel-card">
+              <div className="card-heading-row">
+                <h3>AI 标签建议</h3>
+                {aiTags.length > 0 && (
+                  <button onClick={acceptAllAiTags}>接受全部未添加标签</button>
+                )}
+              </div>
+
+              {aiTags.length === 0 && <div className="soft-empty">暂无 AI 标签建议</div>}
+
+              {aiTags.length > 0 && (
+                <div className="tag-list">
+                  {aiTags.map((tagName) => {
+                    const accepted = acceptedTagNames.has(tagName);
+
+                    return (
+                      <span
+                        className={accepted ? "tag accepted" : "tag suggestion"}
+                        key={tagName}
+                      >
+                        #{tagName}
+                        {accepted ? (
+                          <em>已接受</em>
+                        ) : (
+                          <button onClick={() => acceptAiTag(tagName)}>接受</button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {aiSuggestions?.raw_content && (
+              <section className="panel-card">
+                <details>
+                  <summary>查看原始 AI 输出</summary>
+                  <pre className="raw-ai-output">{aiSuggestions.raw_content}</pre>
+                </details>
+              </section>
+            )}
+          </div>
+        )}
+
+        {activeTab === "transcript" && (
+          <div className="inspector-section-stack">
+            <section className="panel-card">
+              <div className="card-heading-row">
+                <h3>Transcript</h3>
+
+                {transcript && (
+                  <div className="compact-actions">
+                    <button onClick={() => exportTranscript("txt")}>TXT</button>
+                    <button onClick={() => exportTranscript("json")}>JSON</button>
+                    <button onClick={() => exportTranscript("srt")}>SRT</button>
+                  </div>
+                )}
+              </div>
+
+              {!transcript && (
+                <div className="transcript-empty">
+                  <p>暂无 transcript。</p>
+                  <button className="primary-button" onClick={transcribe}>
+                    开始转写
+                  </button>
+                </div>
+              )}
+
+              {transcript && (
+                <div className="transcript-timeline">
+                  {transcript.segments.length > 0 ? (
+                    transcript.segments.map((seg) => (
+                      <div key={seg.id} className="segment">
+                        <button onClick={() => jumpToSegment(seg.start_seconds)}>
+                          {formatDuration(seg.start_seconds)}
+                        </button>
+                        <span>{seg.text}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p>{transcript.transcript.full_text}</p>
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeTab === "file" && (
+          <div className="inspector-section-stack">
+            <section className="panel-card file-info-card">
+              <h3>文件信息</h3>
+
+              <dl>
+                <dt>文件名</dt>
+                <dd>{audio.file_name}</dd>
+
+                <dt>路径</dt>
+                <dd>{audio.file_path}</dd>
+
+                <dt>格式</dt>
+                <dd>{audio.file_ext || "-"}</dd>
+
+                <dt>时长</dt>
+                <dd>{formatDuration(audio.duration_seconds)}</dd>
+
+                <dt>大小</dt>
+                <dd>{audio.file_size ? `${Math.round(audio.file_size / 1024 / 1024)} MB` : "-"}</dd>
+
+                <dt>修改时间</dt>
+                <dd>{audio.file_mtime || "-"}</dd>
+
+                <dt>Bitrate</dt>
+                <dd>{audio.bitrate || "-"}</dd>
+
+                <dt>Sample Rate</dt>
+                <dd>{audio.sample_rate || "-"}</dd>
+
+                <dt>Channels</dt>
+                <dd>{audio.channels || "-"}</dd>
+
+                <dt>播放位置</dt>
+                <dd>{formatDuration(audio.last_position_seconds)}</dd>
+
+                <dt>播放次数</dt>
+                <dd>{audio.play_count}</dd>
+
+                <dt>上次播放</dt>
+                <dd>{audio.last_played_at || "-"}</dd>
+              </dl>
+            </section>
+
+            <section className="panel-card">
+              <h3>重新定位</h3>
+
+              <div className="inline-form">
+                <input
+                  value={relocatePath}
+                  onChange={(e) => setRelocatePath(e.target.value)}
+                  placeholder="新的音频文件路径"
+                />
+                <button onClick={chooseRelocateFile}>选择</button>
+              </div>
+
+              <button className="section-button" onClick={relocate}>
+                重新定位文件
+              </button>
+            </section>
+
+            <section className="panel-card danger-zone">
+              <h3>危险操作</h3>
+              <p>这些操作会影响数据库记录或封面文件，请谨慎使用。</p>
+
+              <div className="section-actions">
+                <button onClick={deleteCover} disabled={!audio.cover_path}>
+                  删除封面
+                </button>
+
+                <button className="danger-button" onClick={deleteFromDatabase}>
+                  从数据库移除
+                </button>
+              </div>
+            </section>
+          </div>
         )}
       </div>
-    </section>
+    </aside>
   );
 }

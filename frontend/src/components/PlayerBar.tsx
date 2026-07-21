@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { API_BASE, api } from "../api";
 import type { AudioItem } from "../types";
-import { displayTitle, formatDuration } from "../types";
+import { displayAuthor, displayTitle, formatDuration } from "../types";
 
 type Props = {
   audio: AudioItem | null;
@@ -151,10 +151,7 @@ export default function PlayerBar({
     setCurrent(0);
 
     if (audio) {
-      api
-        .updatePlaybackPosition(audio.id, 0)
-        .then(onPositionSaved)
-        .catch(console.error);
+      api.updatePlaybackPosition(audio.id, 0).then(onPositionSaved).catch(console.error);
     }
   }
 
@@ -180,7 +177,7 @@ export default function PlayerBar({
   const progress = safeDuration > 0 ? Math.min(100, (current / safeDuration) * 100) : 0;
 
   return (
-    <footer className="player-bar compact-player-bar">
+    <footer className="player-dock">
       <audio
         ref={audioRef}
         onPlay={() => setIsPlaying(true)}
@@ -190,71 +187,67 @@ export default function PlayerBar({
         onEnded={handleEnded}
       />
 
-      <div className="player-track-card compact-track-card">
-        <span className="eyebrow">正在播放</span>
+      <div className="player-now-card">
+        <div className="player-cover">
+          {audio?.cover_path ? (
+            <img
+              src={api.coverUrl(audio.id, audio.updated_at)}
+              alt=""
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          ) : (
+            <span>♪</span>
+          )}
+        </div>
 
-        <div className="now-playing">
-          {audio ? displayTitle(audio) : "选择一个音频开始播放"}
+        <div className="player-now-text">
+          <span className="eyebrow">正在播放</span>
+          <strong>{audio ? displayTitle(audio) : "选择一个音频开始播放"}</strong>
+          <em>{audio ? displayAuthor(audio) || "Unknown" : "播放队列为空"}</em>
         </div>
       </div>
 
-      <div className="player-controls compact-player-controls">
-        <button
-          className="icon-button"
-          onClick={onPrevious}
-          disabled={!audio || !canPrevious}
-          title="上一首"
-        >
-          ‹
-        </button>
+      <div className="player-center">
+        <div className="player-controls">
+          <button className="icon-button" onClick={onPrevious} disabled={!audio || !canPrevious}>
+            ‹
+          </button>
 
-        <button
-          className="play-toggle"
-          onClick={toggle}
-          disabled={!audio}
-          title={isPlaying ? "暂停" : "播放"}
-        >
-          {isPlaying ? "暂停" : "播放"}
-        </button>
+          <button className="play-toggle" onClick={toggle} disabled={!audio}>
+            {isPlaying ? "暂停" : "播放"}
+          </button>
 
-        <button
-          className="icon-button"
-          onClick={onNext}
-          disabled={!audio || !canNext}
-          title="下一首"
-        >
-          ›
-        </button>
+          <button className="icon-button" onClick={onNext} disabled={!audio || !canNext}>
+            ›
+          </button>
 
-        <button
-          className="stop-button"
-          onClick={stopAndReset}
-          disabled={!audio}
-          title="停止并重置播放位置"
-        >
-          停止
-        </button>
+          <button className="stop-button" onClick={stopAndReset} disabled={!audio}>
+            停止
+          </button>
+        </div>
+
+        <div className="player-progress">
+          <span>{formatDuration(current)}</span>
+
+          <input
+            type="range"
+            min={0}
+            max={safeDuration || 0}
+            value={Math.min(current, safeDuration || current || 0)}
+            onChange={(e) => seek(Number(e.target.value))}
+            style={{
+              background: `linear-gradient(90deg, #38bdf8 0%, #8b5cf6 ${progress}%, rgba(51, 65, 85, 0.9) ${progress}%, rgba(51, 65, 85, 0.9) 100%)`
+            }}
+          />
+
+          <span>{formatDuration(safeDuration)}</span>
+        </div>
       </div>
 
-      <div className="player-progress compact-player-progress">
-        <span>{formatDuration(current)}</span>
-
-        <input
-          type="range"
-          min={0}
-          max={safeDuration || 0}
-          value={Math.min(current, safeDuration || current || 0)}
-          onChange={(e) => seek(Number(e.target.value))}
-          style={{
-            background: `linear-gradient(90deg, #60a5fa 0%, #8b5cf6 ${progress}%, rgba(51, 65, 85, 0.9) ${progress}%, rgba(51, 65, 85, 0.9) 100%)`
-          }}
-        />
-
-        <span>{formatDuration(safeDuration)}</span>
-      </div>
-
-      <div className="player-options compact-player-options">
-        <label className="compact-speed-control">
+      <div className="player-options">
+        <label>
           <span>速度</span>
           <select value={rate} onChange={(e) => setRate(Number(e.target.value))}>
             {[0.75, 1, 1.25, 1.5, 2].map((r) => (
@@ -265,7 +258,7 @@ export default function PlayerBar({
           </select>
         </label>
 
-        <label className="compact-volume-control">
+        <label>
           <span>音量</span>
           <input
             type="range"
@@ -277,14 +270,13 @@ export default function PlayerBar({
           />
         </label>
 
-        <div className="compact-queue-control">
+        <div className="queue-control">
           <button
             className="queue-toggle-button"
             onClick={() => setQueueOpen((v) => !v)}
             disabled={queue.length === 0}
-            title="播放队列"
           >
-            队列 {queue.length > 0 ? `(${queueIndex + 1}/${queue.length})` : ""}
+            队列 {queue.length > 0 ? `${queueIndex + 1}/${queue.length}` : ""}
           </button>
 
           {queueOpen && (
@@ -303,11 +295,7 @@ export default function PlayerBar({
                 </button>
               </div>
 
-              {queue.length === 0 && (
-                <div className="queue-empty">
-                  空队列
-                </div>
-              )}
+              {queue.length === 0 && <div className="queue-empty">空队列</div>}
 
               {queue.length > 0 && (
                 <div className="queue-list">
@@ -325,9 +313,7 @@ export default function PlayerBar({
                           {index === queueIndex ? "▶" : index + 1}
                         </span>
 
-                        <span className="queue-title">
-                          {displayTitle(item)}
-                        </span>
+                        <span className="queue-title">{displayTitle(item)}</span>
                       </button>
 
                       <button

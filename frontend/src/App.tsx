@@ -1,14 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import type { AudioItem, Tag, Playlist } from "./types";
+import type { AudioItem, Playlist, Tag } from "./types";
 import { displayAuthor, displayDescription, displayTitle } from "./types";
 import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
 import AudioList from "./components/AudioList";
 import DetailPanel from "./components/DetailPanel";
 import PlayerBar from "./components/PlayerBar";
 import SettingsPanel from "./components/SettingsPanel";
 
-type ViewMode = "library" | "favorites" | "playlist" | "settings";
+type ViewMode =
+  | "library"
+  | "favorites"
+  | "playlist"
+  | "settings"
+  | "missingDescription"
+  | "transcribed"
+  | "missing"
+  | "aiFailed";
+
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing";
 type ToastType = "info" | "success" | "error";
@@ -33,6 +43,15 @@ function missingFilterToParam(value: MissingFilter): boolean | undefined {
 
 function isBusyStatus(status?: string): boolean {
   return status === "pending" || status === "running";
+}
+
+function isSmartView(view: ViewMode): boolean {
+  return (
+    view === "missingDescription" ||
+    view === "transcribed" ||
+    view === "missing" ||
+    view === "aiFailed"
+  );
 }
 
 function ToastStack({
@@ -74,6 +93,7 @@ export default function App() {
   const [debouncedQ, setDebouncedQ] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | undefined>();
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
+
   const [missingDescriptionOnly, setMissingDescriptionOnly] = useState(false);
   const [hasTranscriptFilter, setHasTranscriptFilter] = useState<TranscriptFilter>("all");
   const [missingFilter, setMissingFilter] = useState<MissingFilter>("all");
@@ -101,9 +121,12 @@ export default function App() {
       }
     ]);
 
-    window.setTimeout(() => {
-      setToasts((rows) => rows.filter((toast) => toast.id !== id));
-    }, type === "error" ? 8000 : 3800);
+    window.setTimeout(
+      () => {
+        setToasts((rows) => rows.filter((toast) => toast.id !== id));
+      },
+      type === "error" ? 8000 : 3800
+    );
   }
 
   function closeToast(id: number) {
@@ -113,7 +136,7 @@ export default function App() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedQ(q);
-    }, 260);
+    }, 240);
 
     return () => window.clearTimeout(timer);
   }, [q]);
@@ -218,10 +241,20 @@ export default function App() {
           q: debouncedQ || undefined,
           tag: selectedTag,
           favorite: view === "favorites" ? true : undefined,
-          missing_description: missingDescriptionOnly || undefined,
-          has_transcript: transcriptFilterToParam(hasTranscriptFilter),
-          missing: missingFilterToParam(missingFilter)
+          missing_description:
+            view === "missingDescription" ? true : missingDescriptionOnly || undefined,
+          has_transcript:
+            view === "transcribed"
+              ? true
+              : transcriptFilterToParam(hasTranscriptFilter),
+          missing:
+            view === "missing" ? true : missingFilterToParam(missingFilter),
+          limit: 300
         });
+
+        if (view === "aiFailed") {
+          items = items.filter((item) => item.ai_status === "failed");
+        }
       }
 
       if (loadSeq !== loadSeqRef.current) return;
@@ -277,6 +310,10 @@ export default function App() {
     setMissingDescriptionOnly(false);
     setHasTranscriptFilter("all");
     setMissingFilter("all");
+
+    if (isSmartView(view)) {
+      setView("library");
+    }
   }
 
   function openSettings() {
@@ -307,7 +344,11 @@ export default function App() {
     await playQueueIndex(index, nextQueue);
   }
 
-  async function playAudioAt(item: AudioItem, startSeconds: number, queue: AudioItem[] = audioItems) {
+  async function playAudioAt(
+    item: AudioItem,
+    startSeconds: number,
+    queue: AudioItem[] = audioItems
+  ) {
     await playAudio(item, queue);
 
     window.setTimeout(() => {
@@ -316,7 +357,7 @@ export default function App() {
         audioEl.currentTime = startSeconds;
         audioEl.play().catch(console.error);
       }
-    }, 180);
+    }, 160);
   }
 
   function playPrevious() {
@@ -547,13 +588,50 @@ export default function App() {
 
   const activePlaylist = playlists.find((p) => p.id === selectedPlaylistId);
 
-  let listTitle = "Library";
-  if (view === "favorites") listTitle = "Favorites";
-  if (view === "playlist") listTitle = activePlaylist ? `Playlist: ${activePlaylist.name}` : "Playlist";
+  let listTitle = "资料库";
+  let listSubtitle = "浏览、搜索和整理你的本地音频知识库";
+
+  if (view === "favorites") {
+    listTitle = "收藏";
+    listSubtitle = "你标记为常听或重要的音频";
+  }
+
+  if (view === "playlist") {
+    listTitle = activePlaylist ? activePlaylist.name : "播放列表";
+    listSubtitle = activePlaylist?.description || "管理当前播放列表中的音频顺序";
+  }
+
+  if (view === "missingDescription") {
+    listTitle = "缺少描述";
+    listSubtitle = "需要补充用户描述或 AI 描述的音频";
+  }
+
+  if (view === "transcribed") {
+    listTitle = "已转写";
+    listSubtitle = "已经生成 transcript，可全文搜索和导出的音频";
+  }
+
+  if (view === "missing") {
+    listTitle = "文件缺失";
+    listSubtitle = "数据库中存在，但本地文件路径不可用的音频";
+  }
+
+  if (view === "aiFailed") {
+    listTitle = "AI 失败";
+    listSubtitle = "AI 分析失败或需要重新处理的音频";
+  }
+
+  const hasActiveFilter =
+    Boolean(q.trim()) ||
+    Boolean(selectedTag) ||
+    missingDescriptionOnly ||
+    hasTranscriptFilter !== "all" ||
+    missingFilter !== "all" ||
+    isSmartView(view);
 
   return (
-    <div className="app">
-      <div className="main">
+    <div className="app-shell">
+      <div className={`main-shell ${view === "settings" ? "settings-mode" : ""}`}>
         <Sidebar
           view={view}
           setView={setView}
@@ -567,35 +645,63 @@ export default function App() {
         />
 
         {view === "settings" ? (
-          <SettingsPanel refresh={refresh} notify={notify} />
+          <main className="workspace settings-workspace">
+            <SettingsPanel refresh={refresh} notify={notify} />
+          </main>
         ) : (
           <>
-            <AudioList
-              title={listTitle}
-              q={q}
-              setQ={setQ}
-              isLoading={loading}
-              loadError={loadError}
-              onOpenSettings={openSettings}
-              onClearFilters={clearFilters}
-              missingDescriptionOnly={missingDescriptionOnly}
-              setMissingDescriptionOnly={setMissingDescriptionOnly}
-              hasTranscriptFilter={hasTranscriptFilter}
-              setHasTranscriptFilter={setHasTranscriptFilter}
-              missingFilter={missingFilter}
-              setMissingFilter={setMissingFilter}
-              items={audioItems}
-              selectedId={selected?.id}
-              onSelect={setSelected}
-              onPlay={(item) => playAudio(item, audioItems)}
-              onPlayAt={(item, seconds) => playAudioAt(item, seconds, audioItems)}
-              onBatchTranscribe={batchTranscribeCurrentList}
-              onBatchAnalyze={batchAnalyzeCurrentList}
-              isPlaylistView={view === "playlist"}
-              onRemoveFromPlaylist={view === "playlist" ? removeFromCurrentPlaylist : undefined}
-              onMovePlaylistItem={view === "playlist" ? movePlaylistItem : undefined}
-              onMovePlaylistItemTo={view === "playlist" ? movePlaylistItemTo : undefined}
-            />
+            <main className="workspace">
+              <TopBar
+                title={listTitle}
+                subtitle={listSubtitle}
+                totalCount={audioItems.length}
+                q={q}
+                setQ={setQ}
+                isLoading={loading}
+                hasActiveFilter={hasActiveFilter}
+                onClearFilters={clearFilters}
+                missingDescriptionOnly={missingDescriptionOnly}
+                setMissingDescriptionOnly={setMissingDescriptionOnly}
+                hasTranscriptFilter={hasTranscriptFilter}
+                setHasTranscriptFilter={setHasTranscriptFilter}
+                missingFilter={missingFilter}
+                setMissingFilter={setMissingFilter}
+                onBatchTranscribe={batchTranscribeCurrentList}
+                onBatchAnalyze={batchAnalyzeCurrentList}
+                onOpenSettings={openSettings}
+              />
+
+              <AudioList
+                title={listTitle}
+                q={q}
+                setQ={setQ}
+                isLoading={loading}
+                loadError={loadError}
+                onOpenSettings={openSettings}
+                onClearFilters={clearFilters}
+                missingDescriptionOnly={missingDescriptionOnly}
+                setMissingDescriptionOnly={setMissingDescriptionOnly}
+                hasTranscriptFilter={hasTranscriptFilter}
+                setHasTranscriptFilter={setHasTranscriptFilter}
+                missingFilter={missingFilter}
+                setMissingFilter={setMissingFilter}
+                items={audioItems}
+                selectedId={selected?.id}
+                onSelect={setSelected}
+                onPlay={(item) => playAudio(item, audioItems)}
+                onPlayAt={(item, seconds) => playAudioAt(item, seconds, audioItems)}
+                onBatchTranscribe={batchTranscribeCurrentList}
+                onBatchAnalyze={batchAnalyzeCurrentList}
+                isPlaylistView={view === "playlist"}
+                onRemoveFromPlaylist={
+                  view === "playlist" ? removeFromCurrentPlaylist : undefined
+                }
+                onMovePlaylistItem={view === "playlist" ? movePlaylistItem : undefined}
+                onMovePlaylistItemTo={
+                  view === "playlist" ? movePlaylistItemTo : undefined
+                }
+              />
+            </main>
 
             <DetailPanel
               audio={selected}
