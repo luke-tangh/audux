@@ -35,9 +35,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/local-audio-backend"
-    ],
     "resources": []
   }
 }
