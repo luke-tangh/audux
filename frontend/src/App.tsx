@@ -29,6 +29,10 @@ type Toast = {
   type: ToastType;
 };
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function transcriptFilterToParam(value: TranscriptFilter): boolean | undefined {
   if (value === "yes") return true;
   if (value === "no") return false;
@@ -42,7 +46,7 @@ function missingFilterToParam(value: MissingFilter): boolean | undefined {
 }
 
 function isBusyStatus(status?: string): boolean {
-  return status === "pending" || status === "running";
+  return status === "pending" || status === "running" || status === "cancel_requested";
 }
 
 function isSmartView(view: ViewMode): boolean {
@@ -108,6 +112,28 @@ export default function App() {
   const [loadError, setLoadError] = useState("");
 
   const loadSeqRef = useRef(0);
+  const backendReadyRef = useRef(false);
+
+  async function ensureBackendReady() {
+    if (backendReadyRef.current) return;
+
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      try {
+        await api.health();
+        backendReadyRef.current = true;
+        return;
+      } catch (err) {
+        lastError = err;
+        await sleep(500);
+      }
+    }
+
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Backend is not ready");
+  }
 
   function notify(message: string, type: ToastType = "info") {
     const id = Date.now() + Math.random();
@@ -204,6 +230,7 @@ export default function App() {
     setLoadError("");
 
     try {
+      await ensureBackendReady();
       await loadNavigation();
 
       if (loadSeq !== loadSeqRef.current) return;
@@ -302,6 +329,25 @@ export default function App() {
 
   function refresh() {
     setRefreshToken((v) => v + 1);
+  }
+
+  function handlePlaybackPositionSaved(audioId: number, position: number) {
+    const lastPlayedAt = new Date().toISOString();
+
+    const patch = (item: AudioItem): AudioItem =>
+      item.id === audioId
+        ? {
+            ...item,
+            last_position_seconds: position,
+            last_played_at: lastPlayedAt
+          }
+        : item;
+
+    setAudioItems((rows) => rows.map(patch));
+    setPlaylistItemsRaw((rows) => rows.map(patch));
+    setPlaybackQueue((rows) => rows.map(patch));
+    setSelected((prev) => (prev ? patch(prev) : prev));
+    setPlaying((prev) => (prev ? patch(prev) : prev));
   }
 
   function clearFilters() {
@@ -727,7 +773,7 @@ export default function App() {
         onQueueSelect={(index) => void playQueueIndex(index, playbackQueue)}
         onQueueRemove={(index) => void removeQueueItem(index)}
         onQueueClear={clearQueue}
-        onPositionSaved={refresh}
+        onPositionSaved={handlePlaybackPositionSaved}
       />
 
       <ToastStack toasts={toasts} onClose={closeToast} />

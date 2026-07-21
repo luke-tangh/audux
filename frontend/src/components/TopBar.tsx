@@ -62,12 +62,21 @@ export default function TopBar({
 
       <div className="top-action-row">
         <div className="global-search">
-          <span aria-hidden="true">⌕</span>
+          <span className="global-search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path
+                d="M10.5 4.75a5.75 5.75 0 1 0 0 11.5 5.75 5.75 0 0 0 0-11.5ZM3.25 10.5a7.25 7.25 0 1 1 12.78 4.67l4.15 4.15a.75.75 0 1 1-1.06 1.06l-4.15-4.15A7.25 7.25 0 0 1 3.25 10.5Z"
+                fill="currentColor"
+              />
+            </svg>
+          </span>
+
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="搜索标题、作者、标签、描述或 transcript"
           />
+
           {q.trim() && (
             <button className="search-clear-button" onClick={() => setQ("")}>
               ×

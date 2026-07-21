@@ -1,6 +1,7 @@
 import json
 import asyncio
 from sqlmodel import Session, select
+from sqlalchemy import text
 
 from .db import engine
 from .models import AITask, AudioItem, Transcript, TranscriptSegment, Setting
@@ -15,6 +16,8 @@ from .ai_client import (
 
 
 _task_runner_started = False
+
+CANCEL_REQUEST_STATUSES = {"canceled", "cancel_requested"}
 
 
 class TaskCanceled(Exception):
@@ -70,7 +73,7 @@ def get_setting_float(session: Session, key: str, default: float) -> float:
 def is_task_canceled(session: Session, task_id: int) -> bool:
     session.expire_all()
     task = session.get(AITask, task_id)
-    return bool(task and task.status == "canceled")
+    return bool(task and task.status in CANCEL_REQUEST_STATUSES)
 
 
 def set_audio_task_status(
@@ -109,28 +112,56 @@ def finalize_canceled_task(session: Session, task_id: int):
     set_audio_task_status(session, task.audio_id, task.task_type, "canceled")
 
 
+def claim_next_pending_task(session: Session) -> AITask | None:
+    task_id = session.exec(
+        select(AITask.id)
+        .where(AITask.status == "pending")
+        .order_by(AITask.created_at)
+    ).first()
+
+    if task_id is None:
+        return None
+
+    now = now_iso()
+
+    result = session.execute(
+        text(
+            """
+            UPDATE ai_tasks
+            SET status = 'running',
+                started_at = :now,
+                updated_at = :now
+            WHERE id = :task_id
+              AND status = 'pending'
+            """
+        ),
+        {
+            "task_id": task_id,
+            "now": now,
+        },
+    )
+    session.commit()
+
+    if result.rowcount != 1:
+        return None
+
+    return session.get(AITask, task_id)
+
+
 async def worker_loop():
     while True:
         await asyncio.sleep(1)
 
         with Session(engine) as session:
-            task = session.exec(
-                select(AITask)
-                .where(AITask.status == "pending")
-                .order_by(AITask.created_at)
-            ).first()
+            task = claim_next_pending_task(session)
 
             if not task:
                 continue
 
-            task_id = task.id
+            if task.id is None:
+                continue
 
-            task.status = "running"
-            task.started_at = now_iso()
-            task.updated_at = now_iso()
-            session.add(task)
-            session.commit()
-            session.refresh(task)
+            task_id = task.id
 
             try:
                 if task.task_type == "transcribe":
@@ -146,7 +177,7 @@ async def worker_loop():
                 if not fresh:
                     continue
 
-                if fresh.status == "canceled":
+                if fresh.status in CANCEL_REQUEST_STATUSES:
                     finalize_canceled_task(session, task_id)
                     continue
 
@@ -157,13 +188,15 @@ async def worker_loop():
                 session.commit()
 
             except TaskCanceled:
+                session.rollback()
                 finalize_canceled_task(session, task_id)
 
             except Exception as e:
+                session.rollback()
                 session.expire_all()
                 fresh = session.get(AITask, task_id)
 
-                if fresh and fresh.status == "canceled":
+                if fresh and fresh.status in CANCEL_REQUEST_STATUSES:
                     finalize_canceled_task(session, task_id)
                     continue
 
@@ -190,6 +223,9 @@ async def worker_loop():
 
 
 async def handle_transcribe_task(session: Session, task: AITask):
+    if task.id is None:
+        raise ValueError("Task id is missing")
+
     task_id = task.id
     audio_id = task.audio_id
 
@@ -239,7 +275,7 @@ async def handle_transcribe_task(session: Session, task: AITask):
             session.delete(seg)
 
         session.delete(old)
-        session.commit()
+        session.flush()
 
     transcript = Transcript(
         audio_id=audio_id,
@@ -251,8 +287,10 @@ async def handle_transcribe_task(session: Session, task: AITask):
         updated_at=now_iso(),
     )
     session.add(transcript)
-    session.commit()
-    session.refresh(transcript)
+    session.flush()
+
+    if transcript.id is None:
+        raise ValueError("Failed to create transcript")
 
     for seg in result.get("segments", []):
         row = TranscriptSegment(
@@ -265,6 +303,9 @@ async def handle_transcribe_task(session: Session, task: AITask):
         session.add(row)
 
     audio = session.get(AudioItem, audio_id)
+    if not audio:
+        raise ValueError("Audio not found")
+
     audio.transcript_status = "done"
     audio.updated_at = now_iso()
     session.add(audio)
@@ -274,6 +315,9 @@ async def handle_transcribe_task(session: Session, task: AITask):
 
 
 async def handle_analyze_task(session: Session, task: AITask):
+    if task.id is None:
+        raise ValueError("Task id is missing")
+
     task_id = task.id
     audio_id = task.audio_id
 
@@ -379,6 +423,9 @@ transcript:
     tags = parsed.get("tags", [])
     language = parsed.get("language")
 
+    if language is not None and not isinstance(language, str):
+        language = None
+
     if not description or not isinstance(description, str):
         raise ValueError("Invalid AI JSON schema: description is required")
 
@@ -392,6 +439,9 @@ transcript:
             normalized_tags.append(name)
 
     audio = session.get(AudioItem, audio_id)
+    if not audio:
+        raise ValueError("Audio not found")
+
     audio.description_ai = description.strip()
     audio.language = audio.language or language
     audio.ai_status = "done"

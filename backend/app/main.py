@@ -16,9 +16,11 @@ from fastapi import (
     BackgroundTasks,
     UploadFile,
     File,
+    Query,
+    Request,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, PlainTextResponse
+from fastapi.responses import FileResponse, Response, PlainTextResponse, JSONResponse
 from sqlmodel import Session, select
 from sqlalchemy import func, or_, and_, text
 
@@ -102,6 +104,70 @@ AUDIO_MIME_TYPES = {
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+LOCAL_CLIENT_HEADER_NAME = "X-Local-Audio-Client"
+LOCAL_CLIENT_HEADER_VALUE = "local-audio-library"
+
+BUSY_AUDIO_TASK_STATUSES = {"pending", "running", "cancel_requested"}
+
+
+def _is_allowed_request_origin(origin: str) -> bool:
+    if ALLOW_ALL_CORS:
+        return True
+
+    try:
+        parsed = urlparse(origin)
+        scheme = (parsed.scheme or "").lower()
+        host = (parsed.hostname or "").lower()
+
+        if scheme == "tauri" and host == "localhost":
+            return True
+
+        if scheme not in {"http", "https"}:
+            return False
+
+        if host in {"localhost", "127.0.0.1", "::1"}:
+            return True
+
+        if host.endswith(".localhost"):
+            return True
+
+        try:
+            ip = ipaddress.ip_address(host)
+            return bool(ip.is_loopback)
+        except Exception:
+            return False
+
+    except Exception:
+        return False
+
+
+@app.middleware("http")
+async def local_request_guard(request: Request, call_next):
+    """
+    本地 API CSRF 防护。
+
+    CORS 只能阻止跨站读取响应，不能阻止恶意网页用 form/no-cors 触发无 body POST。
+    所有 unsafe 请求必须携带自定义 header；普通跨站 form 无法发送该 header。
+    """
+    if request.method.upper() != "OPTIONS":
+        origin = request.headers.get("origin")
+        if origin and not _is_allowed_request_origin(origin):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Forbidden origin"},
+            )
+
+        if request.method.upper() in UNSAFE_METHODS:
+            client_header = request.headers.get(LOCAL_CLIENT_HEADER_NAME)
+            if client_header != LOCAL_CLIENT_HEADER_VALUE:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Missing local client header"},
+                )
+
+    return await call_next(request)
+
 
 @app.on_event("startup")
 async def on_startup():
@@ -167,9 +233,45 @@ def _apply_enabled_roots_filter(
     ).all()
 
     if not enabled_root_ids:
-        return None
+        return stmt.where(AudioItem.library_root_id == None)
 
-    return stmt.where(AudioItem.library_root_id.in_(enabled_root_ids))
+    return stmt.where(
+        or_(
+            AudioItem.library_root_id == None,
+            AudioItem.library_root_id.in_(enabled_root_ids),
+        )
+    )
+
+
+def _find_library_root_id_for_path(session: Session, file_path: Path) -> Optional[int]:
+    """
+    根据文件路径匹配当前已有 library root。
+
+    使用最长前缀匹配，避免嵌套 root 时归到较外层目录。
+    若不属于任何 root，返回 None，表示手动定位到 root 外部。
+    """
+    resolved_file = file_path.expanduser().resolve()
+    roots = session.exec(select(LibraryRoot)).all()
+
+    best_root_id: Optional[int] = None
+    best_len = -1
+
+    for root in roots:
+        if root.id is None:
+            continue
+
+        try:
+            root_path = Path(root.path).expanduser().resolve()
+            resolved_file.relative_to(root_path)
+
+            root_len = len(str(root_path))
+            if root_len > best_len:
+                best_root_id = root.id
+                best_len = root_len
+        except Exception:
+            continue
+
+    return best_root_id
 
 
 def _parse_task_output_payload(value: Optional[str]) -> dict:
@@ -196,8 +298,9 @@ def _attachment_headers(filename: str) -> dict:
 
 
 def _srt_time(seconds: float) -> str:
-    ms = int((seconds - int(seconds)) * 1000)
-    total = int(seconds)
+    total_ms = max(0, int(round(seconds * 1000)))
+    ms = total_ms % 1000
+    total = total_ms // 1000
     s = total % 60
     m = (total // 60) % 60
     h = total // 3600
@@ -498,7 +601,7 @@ def scan_root_sync(root_id: int, session: Session = Depends(get_session)):
 @app.get("/scan-tasks")
 def list_scan_tasks(
     root_id: Optional[int] = None,
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200),
     session: Session = Depends(get_session),
 ):
     stmt = select(ScanTask)
@@ -550,8 +653,8 @@ def list_audio_items(
     missing: Optional[bool] = None,
     missing_description: Optional[bool] = None,
     include_disabled_roots: bool = False,
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
 ):
     stmt = select(AudioItem)
@@ -635,7 +738,7 @@ def batch_transcribe(
             errors.append({"audio_id": audio_id, "error": "Audio not found"})
             continue
 
-        if audio.transcript_status in ["pending", "running"]:
+        if audio.transcript_status in BUSY_AUDIO_TASK_STATUSES:
             skipped.append(audio_id)
             continue
 
@@ -682,7 +785,7 @@ def batch_analyze(
             errors.append({"audio_id": audio_id, "error": "Audio not found"})
             continue
 
-        if audio.ai_status in ["pending", "running"]:
+        if audio.ai_status in BUSY_AUDIO_TASK_STATUSES:
             skipped.append(audio_id)
             continue
 
@@ -839,6 +942,7 @@ def relocate_audio_item(
     item.file_ext = new_path.suffix.lower()
     item.file_size = stat.st_size
     item.file_mtime = datetime.utcfromtimestamp(stat.st_mtime).isoformat()
+    item.library_root_id = _find_library_root_id_for_path(session, new_path)
     item.is_missing = False
 
     for key, value in meta.items():
@@ -1166,6 +1270,8 @@ def add_tags_to_audio(
 
         result.append(tag)
 
+    item.updated_at = now_iso()
+    session.add(item)
     session.commit()
     rebuild_audio_search_index(session, audio_id)
     return result
@@ -1178,6 +1284,12 @@ def remove_audio_tag(audio_id: int, tag_id: int, session: Session = Depends(get_
         raise HTTPException(status_code=404, detail="Audio tag relation not found")
 
     session.delete(link)
+
+    item = session.get(AudioItem, audio_id)
+    if item:
+        item.updated_at = now_iso()
+        session.add(item)
+
     session.commit()
     rebuild_audio_search_index(session, audio_id)
     return {"ok": True}
@@ -1383,6 +1495,12 @@ def enqueue_transcribe(audio_id: int, session: Session = Depends(get_session)):
     if not audio:
         raise HTTPException(status_code=404, detail="Audio not found")
 
+    if audio.transcript_status in BUSY_AUDIO_TASK_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail="Transcribe task is already pending, running or canceling",
+        )
+
     audio.transcript_status = "pending"
     audio.updated_at = now_iso()
     session.add(audio)
@@ -1498,7 +1616,7 @@ def save_transcript(
             session.delete(seg)
 
         session.delete(existing)
-        session.commit()
+        session.flush()
 
     transcript = Transcript(
         audio_id=audio_id,
@@ -1510,8 +1628,10 @@ def save_transcript(
         updated_at=now_iso(),
     )
     session.add(transcript)
-    session.commit()
-    session.refresh(transcript)
+    session.flush()
+
+    if transcript.id is None:
+        raise HTTPException(status_code=500, detail="Failed to create transcript")
 
     for seg in payload.segments:
         session.add(
@@ -1528,6 +1648,7 @@ def save_transcript(
     audio.updated_at = now_iso()
     session.add(audio)
     session.commit()
+    session.refresh(transcript)
 
     rebuild_audio_search_index(session, audio_id)
 
@@ -1541,6 +1662,12 @@ def enqueue_analyze(audio_id: int, session: Session = Depends(get_session)):
     audio = session.get(AudioItem, audio_id)
     if not audio:
         raise HTTPException(status_code=404, detail="Audio not found")
+
+    if audio.ai_status in BUSY_AUDIO_TASK_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail="Analyze task is already pending, running or canceling",
+        )
 
     endpoint = session.get(Setting, "llm.endpoint")
     model_name = session.get(Setting, "llm.model_name")
@@ -1659,17 +1786,27 @@ def cancel_ai_task(task_id: int, session: Session = Depends(get_session)):
     if task.status in ["done", "failed", "canceled"]:
         raise HTTPException(status_code=400, detail="Task cannot be canceled")
 
-    task.status = "canceled"
-    task.finished_at = now_iso()
+    if task.status == "cancel_requested":
+        return task
+
     task.updated_at = now_iso()
+
+    if task.status == "running":
+        task.status = "cancel_requested"
+        audio_status = "cancel_requested"
+    else:
+        task.status = "canceled"
+        task.finished_at = now_iso()
+        audio_status = "canceled"
+
     session.add(task)
 
     audio = session.get(AudioItem, task.audio_id)
     if audio:
         if task.task_type == "transcribe":
-            audio.transcript_status = "canceled"
+            audio.transcript_status = audio_status
         if task.task_type == "analyze":
-            audio.ai_status = "canceled"
+            audio.ai_status = audio_status
 
         audio.updated_at = now_iso()
         session.add(audio)
@@ -1833,7 +1970,7 @@ def cleanup_orphan_tags(session: Session = Depends(get_session)):
 
 
 @app.get("/logs/app")
-def get_app_logs(lines: int = 300):
+def get_app_logs(lines: int = Query(default=300, ge=1, le=2000)):
     return {
         "file": str(LOG_FILE),
         "content": read_log_tail(lines),

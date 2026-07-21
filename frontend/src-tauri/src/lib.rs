@@ -2,9 +2,12 @@ use std::sync::Mutex;
 
 use tauri::Manager;
 #[cfg(not(debug_assertions))]
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 struct BackendProcess(Mutex<Option<std::process::Child>>);
+
+#[cfg(not(debug_assertions))]
+struct BackendSidecarProcess(Mutex<Option<CommandChild>>);
 
 #[tauri::command]
 async fn pick_audio_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
@@ -42,6 +45,43 @@ fn start_backend_sidecar(app: &tauri::AppHandle) {
     #[cfg(not(debug_assertions))]
     {
         start_backend_in_release(app);
+    }
+}
+
+fn stop_backend_sidecar(app: &tauri::AppHandle) {
+    #[cfg(debug_assertions)]
+    {
+        let state = app.state::<BackendProcess>();
+        let mut guard = match state.0.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock backend process state: {}", e);
+                return;
+            }
+        };
+
+        if let Some(mut child) = guard.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+            println!("Python backend process stopped.");
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    {
+        let state = app.state::<BackendSidecarProcess>();
+        let mut guard = match state.0.lock() {
+            Ok(guard) => guard,
+            Err(e) => {
+                eprintln!("Failed to lock backend sidecar state: {}", e);
+                return;
+            }
+        };
+
+        if let Some(mut child) = guard.take() {
+            let _ = child.kill();
+            println!("Backend sidecar stopped.");
+        }
     }
 }
 
@@ -143,6 +183,20 @@ fn start_backend_in_dev(app: &tauri::AppHandle) {
 
 #[cfg(not(debug_assertions))]
 fn start_backend_in_release(app: &tauri::AppHandle) {
+    let state = app.state::<BackendSidecarProcess>();
+    let mut guard = match state.0.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            eprintln!("Failed to lock backend sidecar state: {}", e);
+            return;
+        }
+    };
+
+    if guard.is_some() {
+        println!("Backend sidecar is already marked as started.");
+        return;
+    }
+
     let shell = app.shell();
 
     let result = shell.sidecar("local-audio-backend");
@@ -151,10 +205,9 @@ fn start_backend_in_release(app: &tauri::AppHandle) {
         Ok(cmd) => match cmd.spawn() {
             Ok((mut rx, child)) => {
                 println!("Backend sidecar started.");
+                *guard = Some(child);
 
                 tauri::async_runtime::spawn(async move {
-                    let _child = child;
-
                     while let Some(event) = rx.recv().await {
                         println!("Backend sidecar event: {:?}", event);
                     }
@@ -171,11 +224,16 @@ fn start_backend_in_release(app: &tauri::AppHandle) {
 }
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .manage(BackendProcess(Mutex::new(None)))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_process::init());
+
+    #[cfg(not(debug_assertions))]
+    let builder = builder.manage(BackendSidecarProcess(Mutex::new(None)));
+
+    builder
         .invoke_handler(tauri::generate_handler![
             pick_audio_folder,
             pick_audio_file,
@@ -185,6 +243,12 @@ pub fn run() {
             let handle = app.handle().clone();
             start_backend_sidecar(&handle);
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                let handle = window.app_handle();
+                stop_backend_sidecar(&handle);
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

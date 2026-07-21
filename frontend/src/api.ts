@@ -16,6 +16,9 @@ import type {
 
 export const API_BASE = "http://127.0.0.1:8765";
 
+export const LOCAL_AUDIO_CLIENT_HEADER = "X-Local-Audio-Client";
+export const LOCAL_AUDIO_CLIENT_ID = "local-audio-library";
+
 export class ApiError extends Error {
   status: number;
   detail?: unknown;
@@ -88,6 +91,8 @@ async function request<T = any>(path: string, options?: RequestInit): Promise<T>
   const headers: Record<string, string> = {
     ...(options?.headers as Record<string, string> | undefined)
   };
+
+  headers[LOCAL_AUDIO_CLIENT_HEADER] = LOCAL_AUDIO_CLIENT_ID;
 
   if (!isFormData && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";

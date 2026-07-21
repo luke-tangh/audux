@@ -14,7 +14,7 @@ type Props = {
   onQueueSelect: (index: number) => void;
   onQueueRemove: (index: number) => void;
   onQueueClear: () => void;
-  onPositionSaved: () => void;
+  onPositionSaved: (audioId: number, position: number) => void;
 };
 
 function shouldPromptRestart(audio: AudioItem): boolean {
@@ -44,6 +44,8 @@ export default function PlayerBar({
   onPositionSaved
 }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastSavedRef = useRef<{ audioId: number; position: number } | null>(null);
+  const endedAudioIdRef = useRef<number | null>(null);
 
   const [rate, setRate] = useState(Number(localStorage.getItem("playbackRate") || "1"));
   const [volume, setVolume] = useState(Number(localStorage.getItem("volume") || "1"));
@@ -52,11 +54,44 @@ export default function PlayerBar({
   const [isPlaying, setIsPlaying] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
 
+  async function savePositionFor(audioId: number, position: number) {
+    if (!Number.isFinite(position)) return;
+
+    const normalized = Math.max(0, position);
+    const last = lastSavedRef.current;
+
+    if (
+      last &&
+      last.audioId === audioId &&
+      Math.abs(last.position - normalized) < 0.5
+    ) {
+      return;
+    }
+
+    lastSavedRef.current = {
+      audioId,
+      position: normalized
+    };
+
+    await api.updatePlaybackPosition(audioId, normalized);
+    onPositionSaved(audioId, normalized);
+  }
+
+  function saveCurrentPosition(positionOverride?: number) {
+    const el = audioRef.current;
+    if (!el || !audio) return;
+
+    const position = positionOverride ?? el.currentTime;
+    void savePositionFor(audio.id, position).catch(console.error);
+  }
+
   useEffect(() => {
     const el = audioRef.current;
+    const currentAudio = audio;
+
     if (!el) return;
 
-    if (!audio) {
+    if (!currentAudio) {
       el.pause();
       el.removeAttribute("src");
       el.load();
@@ -66,20 +101,22 @@ export default function PlayerBar({
       return;
     }
 
-    let startSeconds = audio.last_position_seconds || 0;
+    endedAudioIdRef.current = null;
 
-    if (shouldPromptRestart(audio)) {
+    let startSeconds = currentAudio.last_position_seconds || 0;
+
+    if (shouldPromptRestart(currentAudio)) {
       const ok = window.confirm(
         "上次播放位置已接近结尾，是否从头播放？\n\n确定：从头播放\n取消：从上次位置继续"
       );
 
       if (ok) {
         startSeconds = 0;
-        api.updatePlaybackPosition(audio.id, 0).then(onPositionSaved).catch(console.error);
+        void savePositionFor(currentAudio.id, 0).catch(console.error);
       }
     }
 
-    el.src = `${API_BASE}/audio-items/${audio.id}/file`;
+    el.src = `${API_BASE}/audio-items/${currentAudio.id}/file`;
     el.playbackRate = rate;
     el.volume = volume;
     el.currentTime = startSeconds;
@@ -93,6 +130,14 @@ export default function PlayerBar({
         console.error(err);
         setIsPlaying(false);
       });
+
+    return () => {
+      if (!currentAudio) return;
+      if (endedAudioIdRef.current === currentAudio.id) return;
+
+      const latestPosition = Number.isFinite(el.currentTime) ? el.currentTime : startSeconds;
+      void savePositionFor(currentAudio.id, latestPosition).catch(console.error);
+    };
   }, [audio?.id]);
 
   useEffect(() => {
@@ -114,14 +159,11 @@ export default function PlayerBar({
       const el = audioRef.current;
       if (!el || !audio || el.paused) return;
 
-      api
-        .updatePlaybackPosition(audio.id, el.currentTime)
-        .then(onPositionSaved)
-        .catch(console.error);
+      saveCurrentPosition(el.currentTime);
     }, 5000);
 
     return () => clearInterval(timer);
-  }, [audio?.id, onPositionSaved]);
+  }, [audio?.id]);
 
   function toggle() {
     const el = audioRef.current;
@@ -151,14 +193,14 @@ export default function PlayerBar({
     setCurrent(0);
 
     if (audio) {
-      api.updatePlaybackPosition(audio.id, 0).then(onPositionSaved).catch(console.error);
+      void savePositionFor(audio.id, 0).catch(console.error);
     }
   }
 
   async function handleEnded() {
     if (audio) {
-      await api.updatePlaybackPosition(audio.id, 0).catch(console.error);
-      onPositionSaved();
+      endedAudioIdRef.current = audio.id;
+      await savePositionFor(audio.id, 0).catch(console.error);
     }
 
     setCurrent(0);
@@ -181,7 +223,13 @@ export default function PlayerBar({
       <audio
         ref={audioRef}
         onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
+        onPause={(e) => {
+          setIsPlaying(false);
+
+          if (audio && endedAudioIdRef.current !== audio.id) {
+            saveCurrentPosition(e.currentTarget.currentTime);
+          }
+        }}
         onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
         onEnded={handleEnded}

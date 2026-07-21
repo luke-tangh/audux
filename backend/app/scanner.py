@@ -125,7 +125,6 @@ def extract_embedded_cover(path: Path, audio_id: int) -> Optional[dict]:
 
         tags = getattr(audio, "tags", None)
 
-        # MP3 ID3 APIC
         if tags:
             try:
                 for key in tags.keys():
@@ -137,7 +136,6 @@ def extract_embedded_cover(path: Path, audio_id: int) -> Optional[dict]:
             except Exception:
                 pass
 
-        # M4A covr
         if data is None and tags:
             try:
                 covr = tags.get("covr")
@@ -157,7 +155,6 @@ def extract_embedded_cover(path: Path, audio_id: int) -> Optional[dict]:
             except Exception:
                 pass
 
-        # FLAC pictures
         if data is None:
             try:
                 pictures = getattr(audio, "pictures", None)
@@ -168,7 +165,6 @@ def extract_embedded_cover(path: Path, audio_id: int) -> Optional[dict]:
             except Exception:
                 pass
 
-        # Vorbis METADATA_BLOCK_PICTURE
         if data is None and tags:
             try:
                 from mutagen.flac import Picture
@@ -267,6 +263,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
     missing = 0
     processed = 0
     found_paths = set()
+    canceled = False
 
     _update_scan_task(
         session,
@@ -285,6 +282,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
 
     for file_path in candidates:
         if _is_scan_canceled(session, scan_task_id):
+            canceled = True
             _update_scan_task(
                 session,
                 scan_task_id,
@@ -307,9 +305,9 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
             existing.file_size = stat.st_size
             existing.file_mtime = mtime
             existing.is_missing = False
+            existing.library_root_id = root.id
             existing.updated_at = now_iso()
 
-            # 更新技术 metadata，保留用户自定义 metadata。
             meta = read_audio_metadata(file_path)
             for key, value in meta.items():
                 setattr(existing, key, value)
@@ -354,6 +352,32 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
             missing=missing,
         )
 
+    if canceled or _is_scan_canceled(session, scan_task_id):
+        _update_scan_task(
+            session,
+            scan_task_id,
+            status="canceled",
+            processed_files=processed,
+            imported=imported,
+            updated=updated,
+            missing=missing,
+            finished_at=now_iso(),
+        )
+
+        logger.info(
+            "Scan canceled root=%s imported=%s updated=%s missing=%s",
+            root.path,
+            imported,
+            updated,
+            missing,
+        )
+
+        return {
+            "imported": imported,
+            "updated": updated,
+            "missing": missing,
+        }
+
     items = session.exec(
         select(AudioItem).where(AudioItem.library_root_id == root.id)
     ).all()
@@ -367,17 +391,16 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
 
     session.commit()
 
-    if not _is_scan_canceled(session, scan_task_id):
-        _update_scan_task(
-            session,
-            scan_task_id,
-            status="done",
-            processed_files=processed,
-            imported=imported,
-            updated=updated,
-            missing=missing,
-            finished_at=now_iso(),
-        )
+    _update_scan_task(
+        session,
+        scan_task_id,
+        status="done",
+        processed_files=processed,
+        imported=imported,
+        updated=updated,
+        missing=missing,
+        finished_at=now_iso(),
+    )
 
     logger.info(
         "Scan done root=%s imported=%s updated=%s missing=%s",
