@@ -1,8 +1,8 @@
-fastapi
-uvicorn
-sqlmodel
-pydantic
-mutagen
-python-multipart
-httpx
-faster-whisper
+fastapi==0.139.2
+uvicorn==0.51.0
+sqlmodel==0.0.39
+pydantic==2.13.4
+mutagen==1.48.1
+python-multipart==0.0.32
+httpx==0.28.1
+faster-whisper==1.2.1

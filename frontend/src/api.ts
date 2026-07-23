@@ -94,7 +94,7 @@ async function request<T = any>(path: string, options?: RequestInit): Promise<T>
 
   headers[LOCAL_AUDIO_CLIENT_HEADER] = LOCAL_AUDIO_CLIENT_ID;
 
-  if (!isFormData && !headers["Content-Type"]) {
+  if (!isFormData && !headers["Content-Type"] && body !== undefined) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -188,6 +188,8 @@ export const api = {
     has_transcript?: boolean;
     missing_description?: boolean;
     include_disabled_roots?: boolean;
+    ai_status?: string;
+    transcript_status?: string;
     limit?: number;
     offset?: number;
   }) => {
@@ -206,6 +208,8 @@ export const api = {
     if (params?.include_disabled_roots !== undefined) {
       sp.set("include_disabled_roots", String(params.include_disabled_roots));
     }
+    if (params?.ai_status) sp.set("ai_status", params.ai_status);
+    if (params?.transcript_status) sp.set("transcript_status", params.transcript_status);
     if (params?.limit !== undefined) sp.set("limit", String(params.limit));
     if (params?.offset !== undefined) sp.set("offset", String(params.offset));
 
@@ -251,7 +255,9 @@ export const api = {
     }),
 
   coverUrl: (id: number, version?: string | number) =>
-    `${API_BASE}/audio-items/${id}/cover${version ? `?v=${encodeURIComponent(String(version))}` : ""}`,
+    `${API_BASE}/audio-items/${id}/cover${
+      version ? `?v=${encodeURIComponent(String(version))}` : ""
+    }`,
 
   updatePlaybackPosition: (id: number, last_position_seconds: number) =>
     request<{ ok: boolean }>(`/audio-items/${id}/playback-position`, {

@@ -8,6 +8,9 @@ import AudioList from "./components/AudioList";
 import DetailPanel from "./components/DetailPanel";
 import PlayerBar from "./components/PlayerBar";
 import SettingsPanel from "./components/SettingsPanel";
+import ToastStack from "./components/ToastStack";
+import { useBackendReady } from "./hooks/useBackendReady";
+import { useToast } from "./hooks/useToast";
 
 type ViewMode =
   | "library"
@@ -21,17 +24,11 @@ type ViewMode =
 
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing";
-type ToastType = "info" | "success" | "error";
 
-type Toast = {
-  id: number;
-  message: string;
-  type: ToastType;
-};
+const AUDIO_PAGE_LIMIT = 200;
+const MAX_AUTO_LOADED_AUDIO = 5000;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
+type AudioListParams = Parameters<typeof api.listAudioItems>[0];
 
 function transcriptFilterToParam(value: TranscriptFilter): boolean | undefined {
   if (value === "yes") return true;
@@ -58,30 +55,30 @@ function isSmartView(view: ViewMode): boolean {
   );
 }
 
-function ToastStack({
-  toasts,
-  onClose
-}: {
-  toasts: Toast[];
-  onClose: (id: number) => void;
-}) {
-  if (toasts.length === 0) return null;
+async function loadAllAudioItems(params: AudioListParams = {}): Promise<AudioItem[]> {
+  const result: AudioItem[] = [];
 
-  return (
-    <div className="toast-stack">
-      {toasts.map((toast) => (
-        <div key={toast.id} className={`toast toast-${toast.type}`}>
-          <div className="toast-content">
-            <div className="toast-message">{toast.message}</div>
+  for (let offset = 0; offset < MAX_AUTO_LOADED_AUDIO; ) {
+    const page = await api.listAudioItems({
+      ...params,
+      limit: AUDIO_PAGE_LIMIT,
+      offset
+    });
 
-            <button className="toast-close" onClick={() => onClose(toast.id)}>
-              ×
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+    result.push(...page);
+
+    if (page.length < AUDIO_PAGE_LIMIT) {
+      break;
+    }
+
+    offset += page.length;
+
+    if (result.length >= MAX_AUTO_LOADED_AUDIO) {
+      break;
+    }
+  }
+
+  return result;
 }
 
 export default function App() {
@@ -106,58 +103,14 @@ export default function App() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [playlistItemsRaw, setPlaylistItemsRaw] = useState<AudioItem[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
-  const [toasts, setToasts] = useState<Toast[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   const loadSeqRef = useRef(0);
-  const backendReadyRef = useRef(false);
 
-  async function ensureBackendReady() {
-    if (backendReadyRef.current) return;
-
-    let lastError: unknown = null;
-
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      try {
-        await api.health();
-        backendReadyRef.current = true;
-        return;
-      } catch (err) {
-        lastError = err;
-        await sleep(500);
-      }
-    }
-
-    throw lastError instanceof Error
-      ? lastError
-      : new Error("Backend is not ready");
-  }
-
-  function notify(message: string, type: ToastType = "info") {
-    const id = Date.now() + Math.random();
-
-    setToasts((rows) => [
-      ...rows,
-      {
-        id,
-        message,
-        type
-      }
-    ]);
-
-    window.setTimeout(
-      () => {
-        setToasts((rows) => rows.filter((toast) => toast.id !== id));
-      },
-      type === "error" ? 8000 : 3800
-    );
-  }
-
-  function closeToast(id: number) {
-    setToasts((rows) => rows.filter((toast) => toast.id !== id));
-  }
+  const { ensureBackendReady } = useBackendReady();
+  const { toasts, notify, closeToast } = useToast();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -217,6 +170,10 @@ export default function App() {
       result = result.filter((item) => !item.is_missing);
     }
 
+    if (view === "aiFailed") {
+      result = result.filter((item) => item.ai_status === "failed");
+    }
+
     return result;
   }
 
@@ -264,24 +221,19 @@ export default function App() {
       } else {
         setPlaylistItemsRaw([]);
 
-        items = await api.listAudioItems({
+        const params: AudioListParams = {
           q: debouncedQ || undefined,
           tag: selectedTag,
           favorite: view === "favorites" ? true : undefined,
           missing_description:
             view === "missingDescription" ? true : missingDescriptionOnly || undefined,
           has_transcript:
-            view === "transcribed"
-              ? true
-              : transcriptFilterToParam(hasTranscriptFilter),
-          missing:
-            view === "missing" ? true : missingFilterToParam(missingFilter),
-          limit: 300
-        });
+            view === "transcribed" ? true : transcriptFilterToParam(hasTranscriptFilter),
+          missing: view === "missing" ? true : missingFilterToParam(missingFilter),
+          ai_status: view === "aiFailed" ? "failed" : undefined
+        };
 
-        if (view === "aiFailed") {
-          items = items.filter((item) => item.ai_status === "failed");
-        }
+        items = await loadAllAudioItems(params);
       }
 
       if (loadSeq !== loadSeqRef.current) return;
