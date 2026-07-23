@@ -4,6 +4,7 @@ from typing import Optional
 
 from sqlmodel import Session, select
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from .db import engine
 from .models import AITask, AudioItem, Transcript, TranscriptSegment, Setting
@@ -16,6 +17,7 @@ from .ai_client import (
     parse_ai_json_content,
 )
 from .logger import get_logger
+from .local_security import ensure_llm_endpoint_allowed
 
 
 logger = get_logger(__name__)
@@ -29,6 +31,18 @@ INTERRUPTED_TASK_STATUSES = {"running", "cancel_requested"}
 
 class TaskCanceled(Exception):
     pass
+
+
+class ActiveTaskConflict(Exception):
+    pass
+
+
+def _is_unique_constraint_error(error: IntegrityError) -> bool:
+    message = str(getattr(error, "orig", error)).lower()
+    return (
+        "unique constraint failed" in message
+        or "ux_ai_tasks_active" in message
+    )
 
 
 def create_task(
@@ -45,7 +59,19 @@ def create_task(
         updated_at=now_iso(),
     )
     session.add(task)
-    session.commit()
+
+    try:
+        session.commit()
+    except IntegrityError as e:
+        session.rollback()
+
+        if _is_unique_constraint_error(e):
+            raise ActiveTaskConflict(
+                "Another active task already exists for this audio item and task type"
+            ) from e
+
+        raise
+
     session.refresh(task)
     return task
 
@@ -489,6 +515,22 @@ async def handle_analyze_task(session: Session, task: AITask):
 
     if not endpoint or not model_name:
         raise ValueError("LLM endpoint or model_name is not configured")
+
+    # 入队时做过隐私校验，但任务真正执行时 settings 可能已经变化。
+    # 因此 worker 执行点必须再次校验，防止 remote endpoint 授权被关闭后
+    # 仍继续发送 metadata / transcript。
+    try:
+        privacy_warning = ensure_llm_endpoint_allowed(session, endpoint)
+    except Exception as e:
+        detail = getattr(e, "detail", None)
+
+        if detail:
+            raise ValueError(str(detail)) from e
+
+        raise
+
+    if privacy_warning:
+        logger.warning("Analyze task uses non-local LLM endpoint: %s", endpoint)
 
     transcript = session.exec(
         select(Transcript).where(Transcript.audio_id == audio_id)

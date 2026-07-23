@@ -101,6 +101,82 @@ def _add_column_if_missing(conn, table_name: str, column_name: str, ddl: str):
         conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {ddl}"))
 
 
+def _table_exists(conn, table_name: str) -> bool:
+    row = conn.execute(
+        text(
+            """
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name = :table_name
+            """
+        ),
+        {"table_name": table_name},
+    ).fetchone()
+    return row is not None
+
+
+def _dedupe_active_ai_tasks(conn):
+    """
+    创建 active task 唯一索引前，处理旧库里可能已经存在的重复 active task。
+
+    保留每个 audio_id + task_type 下 id 最小的一条 active task，
+    其余 active task 标记为 canceled，避免 CREATE UNIQUE INDEX 失败。
+    """
+    now = datetime.utcnow().isoformat()
+
+    conn.execute(
+        text(
+            """
+            UPDATE ai_tasks
+            SET status = 'canceled',
+                error_message = COALESCE(error_message, :message),
+                finished_at = COALESCE(finished_at, :now),
+                updated_at = :now
+            WHERE status IN ('pending', 'running', 'cancel_requested')
+              AND id NOT IN (
+                  SELECT MIN(id)
+                  FROM ai_tasks
+                  WHERE status IN ('pending', 'running', 'cancel_requested')
+                  GROUP BY audio_id, task_type
+              )
+            """
+        ),
+        {
+            "now": now,
+            "message": "Duplicate active task canceled during schema migration",
+        },
+    )
+
+
+def _dedupe_active_scan_tasks(conn):
+    """
+    创建 active scan task 唯一索引前，处理旧库里可能已经存在的同 root 重复扫描任务。
+    """
+    now = datetime.utcnow().isoformat()
+
+    conn.execute(
+        text(
+            """
+            UPDATE scan_tasks
+            SET status = 'canceled',
+                error_message = COALESCE(error_message, :message),
+                finished_at = COALESCE(finished_at, :now),
+                updated_at = :now
+            WHERE status IN ('pending', 'running')
+              AND id NOT IN (
+                  SELECT MIN(id)
+                  FROM scan_tasks
+                  WHERE status IN ('pending', 'running')
+                  GROUP BY root_id
+              )
+            """
+        ),
+        {
+            "now": now,
+            "message": "Duplicate active scan task canceled during schema migration",
+        },
+    )
+
+
 def run_migrations():
     """
     轻量迁移机制。
@@ -165,3 +241,37 @@ def run_migrations():
             )
 
             _mark_migration_applied(conn, 4, "index_audio_items_file_hash")
+
+        if not _migration_applied(conn, 5):
+            # 防止同一个音频同一类型任务在 pending/running/cancel_requested
+            # 状态下重复存在。这里提供数据库级并发保护。
+            if _table_exists(conn, "ai_tasks"):
+                _dedupe_active_ai_tasks(conn)
+
+                conn.execute(
+                    text(
+                        """
+                        CREATE UNIQUE INDEX IF NOT EXISTS ux_ai_tasks_active
+                        ON ai_tasks(audio_id, task_type)
+                        WHERE status IN ('pending', 'running', 'cancel_requested');
+                        """
+                    )
+                )
+
+            # 防止同一个 library root 同时存在多个 pending/running 扫描任务。
+            if _table_exists(conn, "scan_tasks"):
+                _dedupe_active_scan_tasks(conn)
+
+                conn.execute(
+                    text(
+                        """
+                        CREATE UNIQUE INDEX IF NOT EXISTS ux_scan_tasks_active_root
+                        ON scan_tasks(root_id)
+                        WHERE status IN ('pending', 'running');
+                        """
+                    )
+                )
+
+            _mark_migration_applied(
+                conn, 5, "unique_active_ai_and_scan_tasks"
+            )

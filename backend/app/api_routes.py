@@ -20,6 +20,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, Response, PlainTextResponse
 from sqlmodel import Session, select
 from sqlalchemy import func, or_, and_, text
+from sqlalchemy.exc import IntegrityError
 
 from .db import get_session, COVERS_DIR
 from .logger import get_logger, read_log_tail, read_log_file_redacted, LOG_FILE
@@ -61,7 +62,7 @@ from .scanner import (
     extract_embedded_cover,
 )
 from .search import rebuild_audio_search_index, search_audio_ids
-from .tasks import create_task, get_active_task
+from .tasks import create_task, get_active_task, ActiveTaskConflict
 from .ai_client import call_openai_compatible_chat, get_ai_message_content
 from .local_security import ensure_llm_endpoint_allowed, _llm_privacy_warning
 
@@ -80,6 +81,8 @@ AUDIO_MIME_TYPES = {
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 BUSY_AUDIO_TASK_STATUSES = {"pending", "running", "cancel_requested"}
+
+ACTIVE_SCAN_TASK_STATUSES = {"pending", "running"}
 
 SAFE_DOWNLOAD_NAME_PATTERN = re.compile(r'[\r\n\\/"<>|:*?]+')
 
@@ -173,6 +176,23 @@ def _parse_task_output_payload(value: Optional[str]) -> dict:
         pass
 
     return {}
+
+
+def _is_unique_constraint_error(error: IntegrityError) -> bool:
+    message = str(getattr(error, "orig", error)).lower()
+    return "unique constraint failed" in message
+
+
+def _get_active_scan_task(
+    session: Session,
+    root_id: int,
+) -> Optional[ScanTask]:
+    return session.exec(
+        select(ScanTask)
+        .where(ScanTask.root_id == root_id)
+        .where(ScanTask.status.in_(list(ACTIVE_SCAN_TASK_STATUSES)))
+        .order_by(ScanTask.created_at)
+    ).first()
 
 
 def _safe_download_name(name: str) -> str:
@@ -655,10 +675,29 @@ def scan_root(
     if not root:
         raise HTTPException(status_code=404, detail="Library root not found")
 
+    active_task = _get_active_scan_task(session, root_id)
+    if active_task:
+        raise HTTPException(
+            status_code=409,
+            detail="Scan task is already pending or running for this library root",
+        )
+
     task = ScanTask(root_id=root_id, status="pending")
     session.add(task)
-    session.commit()
-    session.refresh(task)
+
+    try:
+        session.commit()
+        session.refresh(task)
+    except IntegrityError as e:
+        session.rollback()
+
+        if _is_unique_constraint_error(e):
+            raise HTTPException(
+                status_code=409,
+                detail="Scan task is already pending or running for this library root",
+            )
+
+        raise
 
     background_tasks.add_task(scan_library_root_task, root_id, task.id)
 
@@ -668,6 +707,17 @@ def scan_root(
 
 @router.post("/library-roots/{root_id}/scan-sync")
 def scan_root_sync(root_id: int, session: Session = Depends(get_session)):
+    root = session.get(LibraryRoot, root_id)
+    if not root:
+        raise HTTPException(status_code=404, detail="Library root not found")
+
+    active_task = _get_active_scan_task(session, root_id)
+    if active_task:
+        raise HTTPException(
+            status_code=409,
+            detail="Scan task is already pending or running for this library root",
+        )
+
     try:
         return scan_library_root(session, root_id)
     except ValueError as e:
@@ -805,8 +855,12 @@ def batch_transcribe(
         session.add(audio)
         session.commit()
 
-        task = create_task(session, audio_id, "transcribe")
-        created.append(task)
+        try:
+            task = create_task(session, audio_id, "transcribe")
+            created.append(task)
+        except ActiveTaskConflict:
+            skipped.append(audio_id)
+            continue
 
     logger.info("Batch transcribe created=%s skipped=%s", len(created), len(skipped))
 
@@ -856,8 +910,12 @@ def batch_analyze(
         session.add(audio)
         session.commit()
 
-        task = create_task(session, audio_id, "analyze")
-        created.append(task)
+        try:
+            task = create_task(session, audio_id, "analyze")
+            created.append(task)
+        except ActiveTaskConflict:
+            skipped.append(audio_id)
+            continue
 
     logger.info("Batch analyze created=%s skipped=%s", len(created), len(skipped))
 
@@ -1574,7 +1632,14 @@ def enqueue_transcribe(audio_id: int, session: Session = Depends(get_session)):
     session.add(audio)
     session.commit()
 
-    task = create_task(session, audio_id, "transcribe")
+    try:
+        task = create_task(session, audio_id, "transcribe")
+    except ActiveTaskConflict:
+        raise HTTPException(
+            status_code=409,
+            detail="Transcribe task is already pending, running or canceling",
+        )
+
     return task
 
 
@@ -1758,7 +1823,14 @@ def enqueue_analyze(audio_id: int, session: Session = Depends(get_session)):
     session.add(audio)
     session.commit()
 
-    task = create_task(session, audio_id, "analyze")
+    try:
+        task = create_task(session, audio_id, "analyze")
+    except ActiveTaskConflict:
+        raise HTTPException(
+            status_code=409,
+            detail="Analyze task is already pending, running or canceling",
+        )
+
     return {
         **task.model_dump(),
         "privacy_warning": warning,
@@ -1830,6 +1902,23 @@ def retry_ai_task(task_id: int, session: Session = Depends(get_session)):
     if get_active_task(session, task.audio_id, task.task_type, exclude_task_id=task.id):
         raise HTTPException(status_code=409, detail="Another task is already active")
 
+    if task.task_type == "analyze":
+        endpoint = session.get(Setting, "llm.endpoint")
+        model_name = session.get(Setting, "llm.model_name")
+
+        if not endpoint or not endpoint.value or not model_name or not model_name.value:
+            raise HTTPException(
+                status_code=400,
+                detail="LLM endpoint or model_name is not configured",
+            )
+
+        warning = ensure_llm_endpoint_allowed(session, endpoint.value)
+        if warning:
+            logger.warning(
+                "Retry analyze uses non-local LLM endpoint: %s",
+                endpoint.value,
+            )
+
     task.status = "pending"
     task.retry_count += 1
     task.error_message = None
@@ -1849,7 +1938,19 @@ def retry_ai_task(task_id: int, session: Session = Depends(get_session)):
         audio.updated_at = now_iso()
         session.add(audio)
 
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError as e:
+        session.rollback()
+
+        if _is_unique_constraint_error(e):
+            raise HTTPException(
+                status_code=409,
+                detail="Another task is already active",
+            )
+
+        raise
+
     session.refresh(task)
     return task
 

@@ -297,7 +297,8 @@ Release 构建前请确认：
 前端会自动请求 `/auth/token`。如果你手动 curl 调试，需要先获取 token：
 
 ```bash
-curl http://127.0.0.1:8765/auth/token
+curl http://127.0.0.1:8765/auth/token \
+  -H "X-Local-Audio-Client: local-audio-library"
 ```
 
 然后带 header：
