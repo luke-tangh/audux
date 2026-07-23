@@ -1,0 +1,254 @@
+@media (max-width: 1280px) {
+  .main-shell {
+    grid-template-columns: 232px minmax(0, 1fr) minmax(340px, 380px);
+    gap: 12px;
+    padding: 12px 12px 10px;
+  }
+
+  .main-shell.settings-mode {
+    grid-template-columns: 232px minmax(0, 1fr);
+  }
+
+  .top-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-group,
+  .top-buttons {
+    flex-wrap: wrap;
+  }
+
+  .filter-group select {
+    flex: 1 1 140px;
+  }
+
+  .player-dock {
+    grid-template-columns: minmax(220px, 280px) minmax(280px, 1fr) minmax(240px, 290px);
+  }
+}
+
+@media (max-width: 1080px) {
+  :root {
+    --player-height: 98px;
+  }
+
+  .main-shell {
+    grid-template-columns: 220px minmax(0, 1fr) 340px;
+  }
+
+  .main-shell.settings-mode {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .settings-grid-layout,
+  .settings-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-grid-layout > .panel-card:first-child {
+    grid-column: auto;
+  }
+
+  .audio-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .row-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    opacity: 1;
+  }
+
+  .player-dock {
+    grid-template-columns: minmax(190px, 240px) minmax(250px, 1fr) minmax(220px, 250px);
+    gap: 10px;
+  }
+
+  .player-options {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .queue-popover {
+    width: min(380px, 54vw);
+  }
+}
+
+@media (max-height: 760px) {
+  .sidebar {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .brand {
+    padding-bottom: 10px;
+  }
+
+  .brand-orb {
+    width: 38px;
+    height: 38px;
+    border-radius: 14px;
+  }
+
+  .brand-copy h2 {
+    font-size: 17px;
+  }
+
+  .brand-copy p {
+    display: none;
+  }
+
+  .nav-card {
+    padding: 8px;
+  }
+
+  .nav-symbol {
+    width: 32px;
+    height: 32px;
+  }
+
+  .nav-card em {
+    display: none;
+  }
+
+  .sidebar-section:not(.tag-section) .sidebar-scroll-area {
+    max-height: clamp(72px, 14vh, 124px);
+  }
+
+  .privacy-card {
+    display: none;
+  }
+}
+
+@media (max-height: 660px) {
+  .sidebar-nav {
+    max-height: 220px;
+  }
+
+  .sidebar-footer {
+    display: none;
+  }
+}
+
+@media (max-width: 1040px) {
+  .main-shell {
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(300px, 42vh);
+  }
+
+  .main-shell.settings-mode {
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    grid-row: 1 / span 2;
+    padding: 12px;
+  }
+
+  .main-shell.settings-mode .sidebar {
+    grid-row: 1;
+  }
+
+  .workspace {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .inspector-panel {
+    display: flex;
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+  }
+
+  .main-shell.settings-mode .workspace {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .player-dock {
+    grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+    height: auto;
+    min-height: var(--player-height);
+  }
+
+  .player-options {
+    grid-column: 1 / -1;
+    grid-template-columns: 100px minmax(0, 1fr) minmax(180px, 240px);
+    grid-template-areas: "speed volume queue";
+  }
+
+  .queue-control {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 860px) {
+  .main-shell,
+  .main-shell.settings-mode {
+    grid-template-columns: 196px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .sidebar {
+    border-radius: 18px;
+  }
+
+  .nav-card {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .nav-symbol {
+    width: 30px;
+    height: 30px;
+  }
+
+  .nav-card strong {
+    font-size: 13px;
+  }
+
+  .row-actions {
+    padding-left: 0;
+  }
+
+  .description-line {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .player-dock {
+    grid-template-columns: 1fr;
+  }
+
+  .player-now-card,
+  .player-center,
+  .player-options {
+    grid-column: 1;
+  }
+
+  .player-options {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "speed"
+      "volume"
+      "queue";
+  }
+}
+
+@media (max-width: 1180px) {
+  .audio-row {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .row-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    opacity: 1;
+    padding-left: 68px;
+  }
+}

@@ -1,0 +1,59 @@
+.task-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-panel-header h3 {
+  margin: 0;
+}
+
+.task-table-wrap {
+  overflow: auto;
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.26);
+}
+
+.task-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.task-table th,
+.task-table td {
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.task-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: var(--text-soft);
+  background: rgba(15, 23, 42, 0.94);
+}
+
+.task-table tr:hover td {
+  background: rgba(30, 41, 59, 0.38);
+}
+
+.task-error {
+  max-width: 260px;
+  color: #fecaca;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

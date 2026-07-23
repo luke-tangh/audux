@@ -1,0 +1,218 @@
+.settings-panel {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.012)),
+    var(--surface);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  backdrop-filter: blur(22px);
+}
+
+.settings-header {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.settings-header h2 {
+  margin: 0;
+  color: white;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+}
+
+.settings-header p {
+  margin: 7px 0 0;
+  color: var(--text-muted);
+}
+
+.backend-status {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  white-space: nowrap;
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.3);
+}
+
+.backend-status span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.backend-status.ok span {
+  background: var(--success);
+}
+
+.backend-status.failed span {
+  background: var(--danger);
+}
+
+.settings-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.settings-tabs button {
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.38);
+  box-shadow: none;
+}
+
+.settings-tabs button.active {
+  color: white;
+  border-color: rgba(125, 211, 252, 0.38);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.34), rgba(139, 92, 246, 0.2));
+}
+
+.settings-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+.settings-grid-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.settings-grid-layout > .panel-card:first-child {
+  grid-column: 1 / -1;
+}
+
+.max-form-card {
+  max-width: 760px;
+}
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 13px;
+  margin-bottom: 14px;
+}
+
+.root-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.24);
+}
+
+.root-card.disabled {
+  opacity: 0.58;
+}
+
+.root-card strong {
+  display: block;
+  min-width: 0;
+  color: var(--text-soft);
+  word-break: break-all;
+}
+
+.root-card span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.root-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.scan-task-row {
+  margin-top: 10px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.26);
+}
+
+.scan-task-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.progress-line {
+  height: 9px;
+  margin: 10px 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(51, 65, 85, 0.78);
+}
+
+.progress-line div {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+.scan-task-meta {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.privacy-warning {
+  padding: 12px;
+  color: #fecaca;
+  line-height: 1.6;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 16px;
+  background: rgba(127, 29, 29, 0.24);
+}
+
+.test-result {
+  padding: 12px;
+  color: var(--text-soft);
+  white-space: pre-wrap;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.42);
+}
+
+.log-viewer {
+  max-height: 560px;
+  overflow: auto;
+  padding: 13px;
+  color: var(--text-soft);
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.55;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.62);
+}
