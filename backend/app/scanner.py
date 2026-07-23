@@ -16,6 +16,8 @@ logger = get_logger(__name__)
 SUPPORTED_EXTS = {".mp3", ".m4a", ".flac", ".wav", ".ogg"}
 
 SCAN_PROGRESS_INTERVAL = 25
+MAX_COVER_BYTES = 10 * 1024 * 1024
+INTERRUPTED_SCAN_STATUSES = {"pending", "running"}
 
 
 def _tag_first(tags, keys: list[str]) -> Optional[str]:
@@ -95,6 +97,10 @@ def _save_cover_bytes(audio_id: int, data: bytes, mime: Optional[str]) -> Option
     if not data:
         return None
 
+    if len(data) > MAX_COVER_BYTES:
+        logger.warning("Embedded cover is too large audio_id=%s bytes=%s", audio_id, len(data))
+        return None
+
     COVERS_DIR.mkdir(parents=True, exist_ok=True)
 
     for old in COVERS_DIR.glob(f"audio_{audio_id}.*"):
@@ -107,6 +113,18 @@ def _save_cover_bytes(audio_id: int, data: bytes, mime: Optional[str]) -> Option
     out = COVERS_DIR / f"audio_{audio_id}{ext}"
     out.write_bytes(data)
     return str(out)
+
+
+def _delete_managed_cover_file(path_value: Optional[str]):
+    if not path_value:
+        return
+
+    try:
+        cover_path = Path(path_value)
+        if cover_path.exists() and cover_path.parent.resolve() == COVERS_DIR.resolve():
+            cover_path.unlink()
+    except Exception:
+        pass
 
 
 def extract_embedded_cover(path: Path, audio_id: int) -> Optional[dict]:
@@ -215,20 +233,36 @@ def _is_scan_canceled(session: Session, task_id: Optional[int]) -> bool:
     return bool(task and task.status == "canceled")
 
 
-def _ensure_cover(session: Session, item: AudioItem, file_path: Path):
+def _ensure_cover(session: Session, item: AudioItem, file_path: Path, force_refresh: bool = False):
     if item.id is None:
         return
 
     if item.cover_source == "user" and item.cover_path and Path(item.cover_path).exists():
         return
 
-    if item.cover_source == "embedded" and item.cover_path and Path(item.cover_path).exists():
+    changed = False
+
+    if force_refresh and item.cover_source == "embedded":
+        _delete_managed_cover_file(item.cover_path)
+        item.cover_path = None
+        item.cover_source = None
+        changed = True
+    elif item.cover_source == "embedded" and item.cover_path and Path(item.cover_path).exists():
         return
 
     cover = extract_embedded_cover(file_path, item.id)
     if cover:
         item.cover_path = cover["cover_path"]
         item.cover_source = cover["cover_source"]
+        changed = True
+    elif force_refresh and item.cover_source != "user":
+        if item.cover_path or item.cover_source:
+            _delete_managed_cover_file(item.cover_path)
+            item.cover_path = None
+            item.cover_source = None
+            changed = True
+
+    if changed:
         item.updated_at = now_iso()
         session.add(item)
         session.commit()
@@ -261,6 +295,23 @@ def _touch_existing_without_metadata(existing: AudioItem, root_id: int) -> bool:
     return changed
 
 
+def _collect_audio_candidates(root_path: Path) -> list[Path]:
+    candidates: list[Path] = []
+
+    try:
+        for p in root_path.rglob("*"):
+            try:
+                if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS:
+                    candidates.append(p)
+            except Exception as e:
+                logger.warning("Failed to inspect scan candidate %s: %s", p, e)
+
+    except Exception as e:
+        logger.warning("Failed to enumerate library root %s: %s", root_path, e)
+
+    return candidates
+
+
 def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int] = None) -> dict:
     root = session.get(LibraryRoot, root_id)
     if not root:
@@ -277,11 +328,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
             "missing": 0,
         }
 
-    candidates = [
-        p
-        for p in root_path.rglob("*")
-        if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS
-    ]
+    candidates = _collect_audio_candidates(root_path)
 
     imported = 0
     updated = 0
@@ -316,14 +363,30 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
             )
             break
 
-        resolved = str(file_path.resolve())
-        found_paths.add(resolved)
+        try:
+            resolved = str(file_path.resolve())
+            stat = file_path.stat()
+        except Exception as e:
+            logger.warning("Skipping unavailable audio file %s: %s", file_path, e)
+            processed += 1
 
+            if processed % SCAN_PROGRESS_INTERVAL == 0:
+                _update_scan_task(
+                    session,
+                    scan_task_id,
+                    processed_files=processed,
+                    imported=imported,
+                    updated=updated,
+                    missing=missing,
+                )
+
+            continue
+
+        found_paths.add(resolved)
         existing = session.exec(
             select(AudioItem).where(AudioItem.file_path == resolved)
         ).first()
 
-        stat = file_path.stat()
         mtime = datetime.utcfromtimestamp(stat.st_mtime).isoformat()
 
         if existing:
@@ -341,7 +404,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
                 session.add(existing)
                 session.commit()
 
-                _ensure_cover(session, existing, file_path)
+                _ensure_cover(session, existing, file_path, force_refresh=True)
                 rebuild_audio_search_index(session, existing.id)
 
                 updated += 1
@@ -457,6 +520,34 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
         "updated": updated,
         "missing": missing,
     }
+
+
+def recover_interrupted_scan_tasks() -> int:
+    """
+    FastAPI BackgroundTasks are in-process. If backend exits during a scan,
+    pending/running scan_tasks cannot resume automatically, so mark them failed
+    with an explicit recovery message.
+    """
+    recovered = 0
+
+    with Session(engine) as session:
+        tasks = session.exec(
+            select(ScanTask).where(ScanTask.status.in_(list(INTERRUPTED_SCAN_STATUSES)))
+        ).all()
+
+        for task in tasks:
+            task.status = "failed"
+            task.error_message = task.error_message or "Scan interrupted by backend restart"
+            task.finished_at = task.finished_at or now_iso()
+            task.updated_at = now_iso()
+            session.add(task)
+            recovered += 1
+
+        if recovered:
+            session.commit()
+            logger.warning("Recovered interrupted scan tasks count=%s", recovered)
+
+    return recovered
 
 
 def scan_library_root_task(root_id: int, scan_task_id: int):

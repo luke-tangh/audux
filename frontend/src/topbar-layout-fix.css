@@ -1,0 +1,319 @@
+/*
+  TopBar Layout Fix
+
+  解决：
+  - 资料库卡片下搜索框、筛选器、按钮在不同缩放比例下挤在一起
+  - 搜索框与筛选工具条同排导致宽度不足
+  - select / button 被拉成长条或互相覆盖
+
+  策略：
+  - 搜索框永远独占一行
+  - 筛选器与操作按钮放入下一行工具条
+  - 工具条根据自身宽度重排，而不是只根据窗口宽度重排
+  - 使用后置 CSS 覆盖，避免继续修改已有 styles.css 造成 patch 冲突
+*/
+
+.top-command-bar {
+  container-name: library-topbar;
+  container-type: inline-size;
+  overflow: visible;
+}
+
+.top-command-bar .top-title-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.top-command-bar .top-title-block > div:first-child {
+  min-width: 0;
+}
+
+.top-command-bar .top-title-block h1,
+.top-command-bar .top-title-block p {
+  min-width: 0;
+}
+
+.top-command-bar .top-count-card {
+  width: auto;
+  min-width: 82px;
+  justify-self: end;
+  text-align: right;
+}
+
+/*
+  关键修复：
+  强制搜索区纵向布局。即使旧 CSS / v2 CSS 里写了 grid 或 flex-wrap，
+  这里都让搜索框独占第一行，工具条进入第二行。
+*/
+.top-command-bar .top-action-row {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+  min-width: 0;
+}
+
+.top-command-bar .global-search {
+  width: 100%;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.top-command-bar .global-search input {
+  width: 100%;
+  height: 44px;
+  border-radius: 16px;
+}
+
+.top-command-bar .search-clear-button {
+  flex: 0 0 auto;
+}
+
+/*
+  工具条：默认在足够宽时：
+  [筛选器....................] [批量按钮]
+
+  小于容器阈值时自动变成：
+  [筛选器....................]
+  [批量按钮..................]
+*/
+.top-command-bar .top-toolbar-controls {
+  width: 100%;
+  min-width: 0;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.13);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.032), rgba(255, 255, 255, 0.012)),
+    rgba(2, 6, 23, 0.2);
+}
+
+.top-command-bar .top-toolbar-controls .filter-group {
+  min-width: 0 !important;
+  width: 100%;
+  display: grid !important;
+  grid-template-columns: minmax(88px, 0.72fr) minmax(128px, 1fr) minmax(128px, 1fr);
+  align-items: center;
+  gap: 8px;
+  flex: initial !important;
+}
+
+.top-command-bar .top-toolbar-controls .filter-chip {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 36px;
+  justify-content: center;
+  padding: 0 10px;
+  overflow: hidden;
+  color: var(--text-soft);
+}
+
+.top-command-bar .top-toolbar-controls .filter-chip input {
+  flex: 0 0 auto;
+}
+
+.top-command-bar .select-filter {
+  width: 100%;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 36px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px 0 11px;
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.32);
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    box-shadow var(--transition);
+}
+
+.top-command-bar .select-filter:hover {
+  border-color: var(--border-strong);
+  background: rgba(15, 23, 42, 0.56);
+}
+
+.top-command-bar .select-filter:focus-within {
+  border-color: rgba(56, 189, 248, 0.62);
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.11);
+}
+
+.top-command-bar .select-filter span {
+  min-width: max-content;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.top-command-bar .select-filter select {
+  width: 100%;
+  min-width: 0;
+  height: 27px;
+  padding: 0 24px 0 8px;
+  color: var(--text);
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.42);
+  box-shadow: none;
+}
+
+.top-command-bar .select-filter select:hover,
+.top-command-bar .select-filter select:focus {
+  border: none;
+  background: rgba(15, 23, 42, 0.62);
+  box-shadow: none;
+}
+
+.top-command-bar .top-toolbar-controls .top-buttons {
+  min-width: 0;
+  display: flex !important;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  flex: initial !important;
+}
+
+.top-command-bar .top-toolbar-controls .top-buttons button {
+  width: auto !important;
+  min-height: 36px;
+  height: 36px;
+  flex: 0 0 auto !important;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.top-command-bar .top-toolbar-controls .top-buttons .icon-soft-button {
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px;
+  padding: 0;
+}
+
+/*
+  中等宽度：筛选器和按钮分两行。
+  这是截图中最容易挤压的场景。
+*/
+@container library-topbar (max-width: 760px) {
+  .top-command-bar .top-toolbar-controls {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .top-command-bar .top-toolbar-controls .filter-group {
+    grid-template-columns: minmax(88px, 0.7fr) minmax(124px, 1fr) minmax(124px, 1fr);
+  }
+
+  .top-command-bar .top-toolbar-controls .top-buttons {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+/*
+  更窄：筛选器变两列，缺描述独占一行；
+  按钮也变两列，避免横向挤压。
+*/
+@container library-topbar (max-width: 560px) {
+  .top-command-bar .top-title-block {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-command-bar .top-count-card {
+    width: 100%;
+    justify-self: stretch;
+    text-align: left;
+  }
+
+  .top-command-bar .top-toolbar-controls .filter-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .top-command-bar .top-toolbar-controls .filter-chip {
+    grid-column: 1 / -1;
+  }
+
+  .top-command-bar .top-toolbar-controls .top-buttons {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .top-command-bar .top-toolbar-controls .top-buttons button,
+  .top-command-bar .top-toolbar-controls .top-buttons .icon-soft-button {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+/*
+  极窄 / 高缩放：全部纵向稳定排列。
+*/
+@container library-topbar (max-width: 420px) {
+  .top-command-bar .top-toolbar-controls .filter-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-command-bar .select-filter span {
+    display: none;
+  }
+
+  .top-command-bar .top-toolbar-controls .top-buttons {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/*
+  窗口高度不足时压缩垂直空间，但不改变横向布局规则。
+*/
+@media (max-height: 760px) {
+  .top-command-bar {
+    gap: 10px;
+    padding-block: 12px;
+  }
+
+  .top-command-bar .top-title-block h1 {
+    font-size: 24px;
+  }
+
+  .top-command-bar .top-title-block p {
+    display: none;
+  }
+
+  .top-command-bar .top-action-row {
+    gap: 8px !important;
+  }
+
+  .top-command-bar .global-search input {
+    height: 40px;
+  }
+
+  .top-command-bar .top-toolbar-controls {
+    padding: 6px;
+  }
+
+  .top-command-bar .top-toolbar-controls .filter-chip,
+  .top-command-bar .select-filter,
+  .top-command-bar .top-toolbar-controls .top-buttons button {
+    min-height: 33px;
+    height: 33px;
+  }
+
+  .top-command-bar .select-filter select {
+    height: 25px;
+  }
+}

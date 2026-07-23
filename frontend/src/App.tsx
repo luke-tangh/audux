@@ -600,8 +600,37 @@ export default function App() {
     }
   }
 
-  function handleAudioDeleted() {
-    setSelected(null);
+  function handleAudioDeleted(audioId: number) {
+    setSelected((prev) => (prev?.id === audioId ? null : prev));
+
+    const removedIndex = playbackQueue.findIndex((item) => item.id === audioId);
+    const currentWasDeleted =
+      playing?.id === audioId ||
+      (playingIndex >= 0 && playbackQueue[playingIndex]?.id === audioId);
+
+    if (removedIndex >= 0) {
+      const nextQueue = playbackQueue.filter((item) => item.id !== audioId);
+
+      setPlaybackQueue(nextQueue);
+
+      if (currentWasDeleted) {
+        setPlaying(null);
+        setPlayingIndex(-1);
+      } else {
+        setPlayingIndex((prevIndex) => {
+          if (prevIndex < 0) return -1;
+          if (removedIndex < prevIndex) return prevIndex - 1;
+          if (prevIndex >= nextQueue.length) return nextQueue.length - 1;
+          return prevIndex;
+        });
+      }
+    }
+
+    if (playing?.id === audioId) {
+      setPlaying(null);
+      setPlayingIndex(-1);
+    }
+
     refresh();
   }
 

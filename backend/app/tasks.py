@@ -221,6 +221,9 @@ def recover_interrupted_tasks() -> int:
                 final_status,
             )
 
+            if final_status == "done":
+                rebuild_audio_search_index(session, task.audio_id, commit=False)
+
             recovered += 1
 
         if recovered:
@@ -448,9 +451,9 @@ async def handle_transcribe_task(session: Session, task: AITask):
     audio.transcript_status = "done"
     audio.updated_at = now_iso()
     session.add(audio)
+    session.flush()
+    rebuild_audio_search_index(session, audio_id, commit=False)
     session.commit()
-
-    rebuild_audio_search_index(session, audio_id)
 
 
 async def handle_analyze_task(session: Session, task: AITask):
@@ -627,9 +630,9 @@ transcript 结束
         task_row.updated_at = now_iso()
         session.add(task_row)
 
+    session.flush()
+    rebuild_audio_search_index(session, audio_id, commit=False)
     session.commit()
-
-    rebuild_audio_search_index(session, audio_id)
 
 
 def start_worker_once():

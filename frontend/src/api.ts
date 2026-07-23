@@ -131,6 +131,11 @@ export async function ensureLocalApiToken(): Promise<string> {
   return localApiTokenPromise;
 }
 
+function resetLocalApiToken() {
+  localApiToken = null;
+  localApiTokenPromise = null;
+}
+
 function authQuery(): string {
   if (!localApiToken) return "";
   return `${LOCAL_AUDIO_TOKEN_QUERY}=${encodeURIComponent(localApiToken)}`;
@@ -163,7 +168,11 @@ function appendAccessToken(url: string): string {
   return `${url}${url.includes("?") ? "&" : "?"}${tokenQuery}`;
 }
 
-async function request<T = any>(path: string, options?: RequestInit): Promise<T> {
+async function request<T = any>(
+  path: string,
+  options?: RequestInit,
+  retryOnUnauthorized = true
+): Promise<T> {
   const body = options?.body;
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
@@ -185,6 +194,12 @@ async function request<T = any>(path: string, options?: RequestInit): Promise<T>
     ...options,
     headers
   });
+
+  if (resp.status === 401 && retryOnUnauthorized && !isTokenFreePath(path)) {
+    resetLocalApiToken();
+    await ensureLocalApiToken();
+    return request<T>(path, options, false);
+  }
 
   if (!resp.ok) {
     throw await parseErrorResponse(resp);
@@ -209,9 +224,11 @@ export function isProbablyLocalEndpoint(endpoint: string): boolean {
 
     return (
       host === "localhost" ||
+      host.endsWith(".localhost") ||
       host === "127.0.0.1" ||
+      host.startsWith("127.") ||
       host === "::1" ||
-      host.endsWith(".localhost")
+      host === "[::1]"
     );
   } catch {
     return false;

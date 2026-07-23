@@ -42,6 +42,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [llmTimeout, setLlmTimeout] = useState("60");
   const [llmMaxTokens, setLlmMaxTokens] = useState("800");
   const [llmTemperature, setLlmTemperature] = useState("0.2");
+  const [llmAllowRemoteEndpoint, setLlmAllowRemoteEndpoint] = useState(false);
 
   const [llmTestResult, setLlmTestResult] = useState("");
   const [backendStatus, setBackendStatus] = useState("checking");
@@ -51,6 +52,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const scanInitializedRef = useRef(false);
 
   function applyScanTasks(rows: ScanTask[], allowNotify = true) {
+    let shouldRefresh = false;
+
     if (allowNotify && scanInitializedRef.current) {
       for (const task of rows) {
         const previous = scanStatusRef.current[task.id];
@@ -70,6 +73,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
           if (task.status === "canceled") {
             notify?.(`扫描任务 #${task.id} 已取消`, "info");
           }
+
+          shouldRefresh = true;
         }
       }
     }
@@ -82,6 +87,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     scanStatusRef.current = nextStatus;
     scanInitializedRef.current = true;
     setScanTasks(rows);
+
+    if (shouldRefresh) {
+      refresh();
+    }
   }
 
   async function loadScanTasks() {
@@ -126,6 +135,13 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       setLlmTimeout(settings.find((s) => s.key === "llm.timeout")?.value || "60");
       setLlmMaxTokens(settings.find((s) => s.key === "llm.max_tokens")?.value || "800");
       setLlmTemperature(settings.find((s) => s.key === "llm.temperature")?.value || "0.2");
+      setLlmAllowRemoteEndpoint(
+        ["1", "true", "yes", "on"].includes(
+          (
+            settings.find((s) => s.key === "llm.allow_remote_endpoint")?.value || ""
+          ).toLowerCase()
+        )
+      );
     } catch (err) {
       console.error(err);
       setBackendStatus("failed");
@@ -239,9 +255,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function saveLlm() {
     const warning = endpointPrivacyWarning(llmEndpoint);
-    if (warning) {
-      const ok = window.confirm(`${warning}\n\n确认保存该 endpoint？`);
-      if (!ok) return;
+    if (warning && !llmAllowRemoteEndpoint) {
+      notify?.("如需使用非本机 LLM endpoint，请先勾选明确允许远程 / 内网 endpoint。", "error");
+      return;
     }
 
     try {
@@ -251,6 +267,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.setSetting("llm.timeout", llmTimeout.trim() || "60");
       await api.setSetting("llm.max_tokens", llmMaxTokens.trim() || "800");
       await api.setSetting("llm.temperature", llmTemperature.trim() || "0.2");
+      await api.setSetting(
+        "llm.allow_remote_endpoint",
+        llmAllowRemoteEndpoint ? "true" : "false"
+      );
 
       notify?.("LLM 设置已保存", "success");
     } catch (err) {
@@ -260,8 +280,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function testLlm() {
     const warning = endpointPrivacyWarning(llmEndpoint);
-    if (warning) {
-      const ok = window.confirm(`${warning}\n\n确认继续测试连接？`);
+    if (warning && !llmAllowRemoteEndpoint) {
+      const ok = window.confirm(`${warning}\n\n当前尚未勾选允许远程 endpoint。仅继续测试连接？`);
       if (!ok) return;
     }
 
@@ -590,6 +610,16 @@ export default function SettingsPanel({ refresh, notify }: Props) {
                   onChange={(e) => setLlmTemperature(e.target.value)}
                   placeholder="0.2"
                 />
+              </label>
+
+              <label className="checkbox-row wide">
+                <input
+                  type="checkbox"
+                  checked={llmAllowRemoteEndpoint}
+                  onChange={(e) => setLlmAllowRemoteEndpoint(e.target.checked)}
+                />
+                允许非本机 / 内网 LLM endpoint。启用后，AI 分析会把 metadata 和 transcript
+                发送到该 endpoint，请只用于你信任的模型服务。
               </label>
             </div>
 

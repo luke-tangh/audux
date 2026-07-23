@@ -40,6 +40,8 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
   const initializedRef = useRef(false);
 
   function applyTasks(rows: AITask[]) {
+    let shouldRefreshLibrary = false;
+
     if (initializedRef.current) {
       for (const task of rows) {
         const previous = taskStatusRef.current[task.id];
@@ -56,6 +58,8 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
           if (task.status === "canceled") {
             notify?.(`任务 #${task.id} 已取消`, "info");
           }
+
+          shouldRefreshLibrary = true;
         }
       }
     }
@@ -68,6 +72,10 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
     taskStatusRef.current = nextStatus;
     initializedRef.current = true;
     setTasks(rows);
+
+    if (shouldRefreshLibrary) {
+      onTaskChanged?.();
+    }
   }
 
   async function load() {

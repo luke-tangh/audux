@@ -109,3 +109,18 @@ def read_log_tail(lines: int = 300) -> str:
         content = f.readlines()
 
     return redact_sensitive_text("".join(content[-lines:]))
+
+
+def read_log_file_redacted(max_bytes: int = 10 * 1024 * 1024) -> str:
+    path = Path(LOG_FILE)
+    if not path.exists():
+        return ""
+
+    max_bytes = max(1, min(max_bytes, 20 * 1024 * 1024))
+
+    with path.open("rb") as f:
+        data = f.read(max_bytes + 1)
+
+    text = data[:max_bytes].decode("utf-8", errors="ignore")
+
+    return redact_sensitive_text(text)

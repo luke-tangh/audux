@@ -13,7 +13,7 @@ type Props = {
   onPlay: (a: AudioItem) => void;
   playlists: Playlist[];
   selectedPlaylistId?: number | null;
-  onDeleted: () => void;
+  onDeleted: (audioId: number) => void;
   notify?: (message: string, type?: ToastType) => void;
 };
 
@@ -385,7 +385,7 @@ export default function DetailPanel({
     try {
       await api.deleteAudio(audio!.id, false);
       notify?.("音频条目已从数据库移除", "success");
-      onDeleted();
+      onDeleted(audio!.id);
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }

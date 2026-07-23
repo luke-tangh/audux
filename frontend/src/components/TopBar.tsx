@@ -75,6 +75,7 @@ export default function TopBar({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="搜索标题、作者、标签、描述或 transcript"
+            aria-label="搜索标题、作者、标签、描述或 transcript"
           />
 
           {q.trim() && (
@@ -84,59 +85,71 @@ export default function TopBar({
           )}
         </div>
 
-        <div className="filter-group">
-          <label className={missingDescriptionOnly ? "filter-chip active" : "filter-chip"}>
-            <input
-              type="checkbox"
-              checked={missingDescriptionOnly}
-              onChange={(e) => setMissingDescriptionOnly(e.target.checked)}
-            />
-            缺描述
-          </label>
+        <div className="top-toolbar-controls">
+          <div className="filter-group" aria-label="资料库筛选">
+            <label className={missingDescriptionOnly ? "filter-chip active" : "filter-chip"}>
+              <input
+                type="checkbox"
+                checked={missingDescriptionOnly}
+                onChange={(e) => setMissingDescriptionOnly(e.target.checked)}
+              />
+              缺描述
+            </label>
 
-          <select
-            value={hasTranscriptFilter}
-            onChange={(e) => setHasTranscriptFilter(e.target.value as TranscriptFilter)}
-            title="按 transcript 状态筛选"
-          >
-            <option value="all">全部转写</option>
-            <option value="yes">已有 transcript</option>
-            <option value="no">未完成 transcript</option>
-          </select>
+            <label className="select-filter" title="按 transcript 状态筛选">
+              <span>转写</span>
+              <select
+                value={hasTranscriptFilter}
+                onChange={(e) => setHasTranscriptFilter(e.target.value as TranscriptFilter)}
+                aria-label="按 transcript 状态筛选"
+              >
+                <option value="all">全部转写</option>
+                <option value="yes">已有 transcript</option>
+                <option value="no">未完成 transcript</option>
+              </select>
+            </label>
 
-          <select
-            value={missingFilter}
-            onChange={(e) => setMissingFilter(e.target.value as MissingFilter)}
-            title="按文件状态筛选"
-          >
-            <option value="all">全部文件</option>
-            <option value="available">仅可播放</option>
-            <option value="missing">仅缺失</option>
-          </select>
-        </div>
+            <label className="select-filter" title="按文件状态筛选">
+              <span>文件</span>
+              <select
+                value={missingFilter}
+                onChange={(e) => setMissingFilter(e.target.value as MissingFilter)}
+                aria-label="按文件状态筛选"
+              >
+                <option value="all">全部文件</option>
+                <option value="available">仅可播放</option>
+                <option value="missing">仅缺失</option>
+              </select>
+            </label>
+          </div>
 
-        <div className="top-buttons">
-          {hasActiveFilter && (
-            <button className="ghost-button" onClick={onClearFilters}>
-              清空
+          <div className="top-buttons">
+            {hasActiveFilter && (
+              <button className="ghost-button" onClick={onClearFilters}>
+                清空
+              </button>
+            )}
+
+            <button
+              className="ghost-button"
+              onClick={onBatchTranscribe}
+              disabled={totalCount === 0}
+            >
+              批量转写
             </button>
-          )}
 
-          <button className="ghost-button" onClick={onBatchTranscribe} disabled={totalCount === 0}>
-            批量转写
-          </button>
+            <button
+              className="primary-button"
+              onClick={onBatchAnalyze}
+              disabled={totalCount === 0}
+            >
+              批量 AI
+            </button>
 
-          <button
-            className="primary-button"
-            onClick={onBatchAnalyze}
-            disabled={totalCount === 0}
-          >
-            批量 AI
-          </button>
-
-          <button className="icon-soft-button" onClick={onOpenSettings} title="设置">
-            ⚙
-          </button>
+            <button className="icon-soft-button" onClick={onOpenSettings} title="设置">
+              ⚙
+            </button>
+          </div>
         </div>
       </div>
     </header>

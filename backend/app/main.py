@@ -4,12 +4,13 @@ import json
 import mimetypes
 import os
 import ipaddress
+import re
 import secrets
 import hmac
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from fastapi import (
     FastAPI,
@@ -27,7 +28,7 @@ from sqlmodel import Session, select
 from sqlalchemy import func, or_, and_, text
 
 from .db import create_db_and_tables, get_session, COVERS_DIR, APP_DATA_DIR
-from .logger import setup_logging, get_logger, read_log_tail, LOG_FILE
+from .logger import setup_logging, get_logger, read_log_tail, read_log_file_redacted, LOG_FILE
 from .models import (
     LibraryRoot,
     AudioItem,
@@ -61,6 +62,7 @@ from .schemas import (
 from .scanner import (
     scan_library_root,
     scan_library_root_task,
+    recover_interrupted_scan_tasks,
     SUPPORTED_EXTS,
     read_audio_metadata,
     extract_embedded_cover,
@@ -275,6 +277,12 @@ async def local_request_guard(request: Request, call_next):
 async def on_startup():
     create_db_and_tables()
     _get_or_create_local_api_token()
+
+    try:
+        recover_interrupted_scan_tasks()
+    except Exception:
+        logger.exception("Failed to recover interrupted scan tasks")
+
     start_worker_once()
     logger.info("Local Audio Library backend started")
 
@@ -330,6 +338,29 @@ def _llm_privacy_warning(endpoint: str) -> Optional[str]:
         "AI 分析会把音频 metadata 和 transcript 发送到该地址。"
         "请确认这是你信任的本地或内网模型服务。"
     )
+
+
+def _setting_truthy(value: Optional[str]) -> bool:
+    return (value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _ensure_llm_endpoint_allowed(session: Session, endpoint: str) -> Optional[str]:
+    """
+    Remote LLM endpoints are privacy-sensitive because metadata and transcript
+    are sent to them. The UI exposes this as an explicit opt-in setting.
+    """
+    warning = _llm_privacy_warning(endpoint)
+    if not warning:
+        return None
+
+    allow_remote = session.get(Setting, "llm.allow_remote_endpoint")
+    if not allow_remote or not _setting_truthy(allow_remote.value):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{warning} 如需继续，请在设置中启用允许非本机 LLM endpoint。",
+        )
+
+    return warning
 
 
 def _apply_enabled_roots_filter(
@@ -423,13 +454,19 @@ def _parse_task_output_payload(value: Optional[str]) -> dict:
     return {}
 
 
+SAFE_DOWNLOAD_NAME_PATTERN = re.compile(r'[\r\n\\/"<>|:*?]+')
+
+
 def _safe_download_name(name: str) -> str:
-    return name.replace("/", "_").replace("\\", "_").replace('"', "_")
+    safe = SAFE_DOWNLOAD_NAME_PATTERN.sub("_", name).strip()
+    return (safe or "download")[:180]
 
 
 def _attachment_headers(filename: str) -> dict:
     filename = _safe_download_name(filename)
-    return {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+    }
 
 
 def _srt_time(seconds: float) -> str:
@@ -447,6 +484,18 @@ def _cover_media_type(path: Path) -> str:
     return guessed or "image/jpeg"
 
 
+def _delete_managed_cover_file(path_value: Optional[str]):
+    if not path_value:
+        return
+
+    try:
+        cover_path = Path(path_value)
+        if cover_path.exists() and cover_path.parent.resolve() == COVERS_DIR.resolve():
+            cover_path.unlink()
+    except Exception:
+        pass
+
+
 def _tags_for_audio(session: Session, audio_id: int) -> list[Tag]:
     return session.exec(
         select(Tag)
@@ -454,6 +503,56 @@ def _tags_for_audio(session: Session, audio_id: int) -> list[Tag]:
         .where(AudioTag.audio_id == audio_id)
         .order_by(Tag.name)
     ).all()
+
+
+def _tags_by_audio_id(session: Session, audio_ids: list[int]) -> dict[int, list[Tag]]:
+    if not audio_ids:
+        return {}
+
+    result: dict[int, list[Tag]] = {audio_id: [] for audio_id in audio_ids}
+
+    rows = session.exec(
+        select(AudioTag.audio_id, Tag)
+        .join(Tag, AudioTag.tag_id == Tag.id)
+        .where(AudioTag.audio_id.in_(audio_ids))
+        .order_by(AudioTag.audio_id, Tag.name)
+    ).all()
+
+    for audio_id, tag in rows:
+        result.setdefault(int(audio_id), []).append(tag)
+
+    return result
+
+
+def _transcripts_and_segments_by_audio_ids(
+    session: Session,
+    audio_ids: list[int],
+) -> tuple[dict[int, Transcript], dict[int, list[TranscriptSegment]]]:
+    if not audio_ids:
+        return {}, {}
+
+    transcripts = session.exec(
+        select(Transcript).where(Transcript.audio_id.in_(audio_ids))
+    ).all()
+
+    transcript_by_audio_id = {int(t.audio_id): t for t in transcripts}
+    transcript_ids = [int(t.id) for t in transcripts if t.id is not None]
+
+    segments_by_transcript_id: dict[int, list[TranscriptSegment]] = {
+        transcript_id: [] for transcript_id in transcript_ids
+    }
+
+    if transcript_ids:
+        segments = session.exec(
+            select(TranscriptSegment)
+            .where(TranscriptSegment.transcript_id.in_(transcript_ids))
+            .order_by(TranscriptSegment.transcript_id, TranscriptSegment.segment_index)
+        ).all()
+
+        for segment in segments:
+            segments_by_transcript_id.setdefault(int(segment.transcript_id), []).append(segment)
+
+    return transcript_by_audio_id, segments_by_transcript_id
 
 
 def _query_tokens(q: Optional[str]) -> list[str]:
@@ -545,6 +644,9 @@ def _search_hits_for_audio(
     audio: AudioItem,
     q: Optional[str],
     tags: Optional[list[Tag]] = None,
+    transcript: Optional[Transcript] = None,
+    segments: Optional[list[TranscriptSegment]] = None,
+    transcript_prefetched: bool = False,
 ) -> list[dict]:
     tokens = _query_tokens(q)
     if not tokens or audio.id is None:
@@ -578,22 +680,24 @@ def _search_hits_for_audio(
     tag_text = " ".join(tag.name for tag in tag_rows)
     _add_search_hit(hits, "tags", "标签", tag_text, tokens)
 
-    transcript = session.exec(
-        select(Transcript).where(Transcript.audio_id == audio.id)
-    ).first()
+    if not transcript_prefetched:
+        transcript = session.exec(
+            select(Transcript).where(Transcript.audio_id == audio.id)
+        ).first()
 
     if not transcript:
         return hits[:6]
 
-    segments = session.exec(
-        select(TranscriptSegment)
-        .where(TranscriptSegment.transcript_id == transcript.id)
-        .order_by(TranscriptSegment.segment_index)
-    ).all()
+    if segments is None:
+        segments = session.exec(
+            select(TranscriptSegment)
+            .where(TranscriptSegment.transcript_id == transcript.id)
+            .order_by(TranscriptSegment.segment_index)
+        ).all()
 
     segment_hit_count = 0
 
-    for seg in segments:
+    for seg in segments or []:
         if segment_hit_count >= 3:
             break
 
@@ -644,6 +748,55 @@ def _audio_with_tags_dict(
         if search_query
         else [],
     }
+
+
+def _audio_rows_with_tags_dicts(
+    session: Session,
+    rows: list[AudioItem],
+    search_query: Optional[str] = None,
+) -> list[dict]:
+    audio_ids = [int(audio.id) for audio in rows if audio.id is not None]
+    tags_by_id = _tags_by_audio_id(session, audio_ids)
+
+    transcript_by_audio_id: dict[int, Transcript] = {}
+    segments_by_transcript_id: dict[int, list[TranscriptSegment]] = {}
+
+    if search_query:
+        transcript_by_audio_id, segments_by_transcript_id = (
+            _transcripts_and_segments_by_audio_ids(session, audio_ids)
+        )
+
+    result = []
+
+    for audio in rows:
+        audio_id = int(audio.id) if audio.id is not None else None
+        tags = tags_by_id.get(audio_id, []) if audio_id is not None else []
+        transcript = transcript_by_audio_id.get(audio_id) if audio_id is not None else None
+        segments = (
+            segments_by_transcript_id.get(int(transcript.id), [])
+            if transcript and transcript.id is not None
+            else []
+        )
+
+        result.append(
+            {
+                **audio.model_dump(),
+                "tags": [tag.model_dump() for tag in tags],
+                "search_hits": _search_hits_for_audio(
+                    session,
+                    audio,
+                    search_query,
+                    tags=tags,
+                    transcript=transcript,
+                    segments=segments,
+                    transcript_prefetched=True,
+                )
+                if search_query
+                else [],
+            }
+        )
+
+    return result
 
 
 def _audio_to_export_dict(session: Session, audio: AudioItem) -> dict:
@@ -903,7 +1056,7 @@ def list_audio_items(
     rows = session.exec(stmt).all()
 
     return {
-        "items": [_audio_with_tags_dict(session, item, search_query=q) for item in rows],
+        "items": _audio_rows_with_tags_dicts(session, rows, search_query=q),
         "total": int(total or 0),
         "limit": limit,
         "offset": offset,
@@ -967,7 +1120,7 @@ def batch_analyze(
     if not endpoint or not endpoint.value or not model_name or not model_name.value:
         raise HTTPException(status_code=400, detail="LLM endpoint or model_name is not configured")
 
-    warning = _llm_privacy_warning(endpoint.value)
+    warning = _ensure_llm_endpoint_allowed(session, endpoint.value)
     if warning:
         logger.warning("Batch analyze uses non-local LLM endpoint: %s", endpoint.value)
 
@@ -1087,12 +1240,7 @@ def delete_audio_item(
         session.delete(transcript)
 
     if item.cover_path:
-        try:
-            cover_path = Path(item.cover_path)
-            if cover_path.exists() and cover_path.parent == COVERS_DIR:
-                cover_path.unlink()
-        except Exception:
-            pass
+        _delete_managed_cover_file(item.cover_path)
 
     session.execute(
         text("DELETE FROM search_index WHERE audio_id = :audio_id"),
@@ -1149,6 +1297,10 @@ def relocate_audio_item(
         setattr(item, key, value)
 
     if item.cover_source != "user":
+        if item.cover_source == "embedded":
+            _delete_managed_cover_file(item.cover_path)
+        item.cover_path = None
+        item.cover_source = None
         cover = extract_embedded_cover(new_path, item.id)
         if cover:
             item.cover_path = cover["cover_path"]
@@ -1291,12 +1443,7 @@ def delete_audio_cover(audio_id: int, session: Session = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Audio item not found")
 
     if item.cover_path:
-        try:
-            path = Path(item.cover_path)
-            if path.exists() and path.parent == COVERS_DIR:
-                path.unlink()
-        except Exception:
-            pass
+        _delete_managed_cover_file(item.cover_path)
 
     item.cover_path = None
     item.cover_source = None
@@ -1524,12 +1671,15 @@ def get_playlist(playlist_id: int, session: Session = Depends(get_session)):
         .order_by(PlaylistItem.order_index)
     ).all()
 
+    audio_dicts = _audio_rows_with_tags_dicts(session, [audio for _, audio in items])
+    audio_by_id = {row["id"]: row for row in audio_dicts}
+
     return {
         "playlist": playlist,
         "items": [
             {
                 "playlist_item": pi,
-                "audio": _audio_with_tags_dict(session, audio),
+                "audio": audio_by_id.get(audio.id) or _audio_with_tags_dict(session, audio),
             }
             for pi, audio in items
         ],
@@ -1890,7 +2040,7 @@ def enqueue_analyze(audio_id: int, session: Session = Depends(get_session)):
     if not endpoint or not endpoint.value or not model_name or not model_name.value:
         raise HTTPException(status_code=400, detail="LLM endpoint or model_name is not configured")
 
-    warning = _llm_privacy_warning(endpoint.value)
+    warning = _ensure_llm_endpoint_allowed(session, endpoint.value)
     if warning:
         logger.warning("Analyze uses non-local LLM endpoint: %s", endpoint.value)
 
@@ -2077,7 +2227,8 @@ def search(
     )
 
     rows = session.exec(stmt).all()
-    row_by_id = {row.id: _audio_with_tags_dict(session, row, search_query=q) for row in rows}
+    row_dicts = _audio_rows_with_tags_dicts(session, rows, search_query=q)
+    row_by_id = {row["id"]: row for row in row_dicts}
 
     return [row_by_id[i] for i in ids if i in row_by_id]
 
@@ -2088,6 +2239,10 @@ def export_metadata(
     session: Session = Depends(get_session),
 ):
     items = session.exec(select(AudioItem).order_by(AudioItem.updated_at.desc())).all()
+    tags_by_audio_id = _tags_by_audio_id(
+        session,
+        [int(audio.id) for audio in items if audio.id is not None],
+    )
 
     if format == "csv":
         buf = io.StringIO()
@@ -2111,7 +2266,7 @@ def export_metadata(
         )
 
         for audio in items:
-            tags = _tags_for_audio(session, audio.id)
+            tags = tags_by_audio_id.get(int(audio.id), []) if audio.id is not None else []
 
             writer.writerow(
                 [
@@ -2136,7 +2291,16 @@ def export_metadata(
             headers=_attachment_headers("audio_library_metadata.csv"),
         )
 
-    data = [_audio_to_export_dict(session, audio) for audio in items]
+    data = [
+        {
+            **audio.model_dump(),
+            "tags": [
+                tag.model_dump()
+                for tag in (tags_by_audio_id.get(int(audio.id), []) if audio.id is not None else [])
+            ],
+        }
+        for audio in items
+    ]
 
     return Response(
         json.dumps(data, ensure_ascii=False, indent=2),
@@ -2202,4 +2366,8 @@ def get_app_log_file():
     if not LOG_FILE.exists():
         raise HTTPException(status_code=404, detail="Log file not found")
 
-    return FileResponse(str(LOG_FILE), media_type="text/plain", filename="app.log")
+    return PlainTextResponse(
+        read_log_file_redacted(),
+        media_type="text/plain; charset=utf-8",
+        headers=_attachment_headers("app.log"),
+    )

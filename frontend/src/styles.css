@@ -2633,18 +2633,39 @@ a {
 @media (max-width: 1040px) {
   .main-shell {
     grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(300px, 42vh);
   }
 
   .main-shell.settings-mode {
     grid-template-columns: 220px minmax(0, 1fr);
-  }
-
-  .inspector-panel {
-    display: none;
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .sidebar {
+    grid-row: 1 / span 2;
     padding: 12px;
+  }
+
+  .main-shell.settings-mode .sidebar {
+    grid-row: 1;
+  }
+
+  .workspace {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .inspector-panel {
+    display: flex;
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+  }
+
+  .main-shell.settings-mode .workspace {
+    grid-column: 2;
+    grid-row: 1;
   }
 }
 
@@ -2741,5 +2762,279 @@ a {
       "speed"
       "volume"
       "queue";
+  }
+}
+
+/* =========================================================
+   TopBar Toolbar Layout v2
+   目标：
+   - 资料库卡片下的搜索、筛选、操作按钮保持稳定网格排列
+   - 缩放后不再出现 select / button 被拉成长条或单列堆叠过多
+   - 在较窄视口下优先保证搜索完整，筛选以 3 列 / 2 列自适应
+   ========================================================= */
+
+.top-action-row {
+  display: grid !important;
+  grid-template-columns: minmax(300px, 1fr) minmax(0, auto);
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+
+.top-action-row .global-search {
+  flex: initial;
+  width: 100%;
+  min-width: 0;
+}
+
+.top-action-row .global-search input {
+  height: 46px;
+  border-radius: 16px;
+}
+
+.top-toolbar-controls {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(370px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01)),
+    rgba(2, 6, 23, 0.18);
+}
+
+.top-toolbar-controls .filter-group {
+  flex: initial;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(92px, 0.72fr) minmax(132px, 1fr) minmax(132px, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.top-toolbar-controls .filter-chip {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  justify-content: center;
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-toolbar-controls .filter-chip input {
+  flex: 0 0 auto;
+}
+
+.select-filter {
+  min-width: 0;
+  height: 38px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 11px;
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.3);
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    box-shadow var(--transition);
+}
+
+.select-filter:hover {
+  border-color: var(--border-strong);
+  background: rgba(15, 23, 42, 0.56);
+}
+
+.select-filter:focus-within {
+  border-color: rgba(56, 189, 248, 0.62);
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.11);
+}
+
+.select-filter span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.select-filter select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 24px 0 8px;
+  color: var(--text);
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.42);
+  box-shadow: none;
+}
+
+.select-filter select:hover,
+.select-filter select:focus {
+  border: none;
+  background: rgba(15, 23, 42, 0.62);
+  box-shadow: none;
+}
+
+.top-toolbar-controls .top-buttons {
+  flex: initial;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.top-toolbar-controls .top-buttons button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.top-toolbar-controls .top-buttons .icon-soft-button {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+}
+
+@media (max-width: 1320px) {
+  .top-action-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-toolbar-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 1040px) {
+  .top-command-bar {
+    padding: 14px;
+  }
+
+  .top-title-block {
+    align-items: flex-start;
+  }
+
+  .top-action-row {
+    gap: 9px;
+  }
+
+  .top-toolbar-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .top-toolbar-controls .filter-group {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .top-toolbar-controls .top-buttons {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 860px) {
+  .top-title-block h1 {
+    font-size: 24px;
+  }
+
+  .top-title-block p {
+    max-width: 100%;
+  }
+
+  .top-count-card {
+    width: auto;
+    min-width: 96px;
+    text-align: right;
+  }
+
+  .top-toolbar-controls {
+    padding: 7px;
+  }
+
+  .top-toolbar-controls .filter-group {
+    grid-template-columns: minmax(88px, 0.8fr) minmax(120px, 1fr) minmax(120px, 1fr);
+  }
+
+  .select-filter {
+    gap: 6px;
+    padding-left: 9px;
+  }
+
+  .select-filter span {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 760px) {
+  .top-title-block {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-count-card {
+    width: 100%;
+    text-align: left;
+  }
+
+  .top-toolbar-controls .filter-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .top-toolbar-controls .filter-chip {
+    grid-column: 1 / -1;
+  }
+
+  .top-toolbar-controls .top-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .top-toolbar-controls .top-buttons button {
+    width: 100%;
+  }
+
+  .top-toolbar-controls .top-buttons .icon-soft-button {
+    width: 100%;
+  }
+}
+
+@media (max-height: 760px) {
+  .top-command-bar {
+    gap: 10px;
+    padding-block: 12px;
+  }
+
+  .top-title-block h1 {
+    font-size: 24px;
+  }
+
+  .top-title-block p {
+    display: none;
+  }
+
+  .top-action-row .global-search input {
+    height: 42px;
+  }
+
+  .top-toolbar-controls .filter-chip,
+  .select-filter,
+  .top-toolbar-controls .top-buttons button {
+    min-height: 34px;
+    height: 34px;
+  }
+
+  .select-filter select {
+    height: 26px;
   }
 }
