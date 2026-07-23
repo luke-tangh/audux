@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, endpointPrivacyWarning } from "../api";
 import type { AISuggestions, AudioItem, Playlist, Tag, Transcript } from "../types";
 import { displayAuthor, displayDescription, displayTitle, formatDuration } from "../types";
@@ -39,6 +39,8 @@ export default function DetailPanel({
   const [relocatePath, setRelocatePath] = useState("");
   const [coverVersion, setCoverVersion] = useState(Date.now());
 
+  const lastLoadedAudioIdRef = useRef<number | null>(null);
+
   const acceptedTagNames = useMemo(() => {
     return new Set(tags.map((t) => t.name));
   }, [tags]);
@@ -53,50 +55,55 @@ export default function DetailPanel({
     async function load() {
       setTranscript(null);
       setAiSuggestions(null);
-      setRelocatePath("");
-      setSelectedExistingTag("");
-      setActiveTab("overview");
 
-      if (!audio) return;
+      if (!audio) {
+        setTags([]);
+        setAllTags([]);
+        setEditing({});
+        setRelocatePath("");
+        setSelectedExistingTag("");
+        setTagInput("");
+        setSelectedPlaylist("");
+        lastLoadedAudioIdRef.current = null;
+        return;
+      }
 
-      setCoverVersion(Date.now());
+      const audioIdChanged = lastLoadedAudioIdRef.current !== audio.id;
+      lastLoadedAudioIdRef.current = audio.id;
 
-      const [detail, tagRows] = await Promise.all([
+      if (audioIdChanged) {
+        setRelocatePath("");
+        setSelectedExistingTag("");
+        setTagInput("");
+        setSelectedPlaylist("");
+        setActiveTab("overview");
+        setCoverVersion(Date.now());
+      }
+
+      const [detail, tagRows, transcriptValue, suggestionsValue] = await Promise.all([
         api.getAudioDetail(audio.id),
-        api.listTags().catch(() => [])
+        api.listTags().catch(() => []),
+        api.getTranscript(audio.id).catch(() => null),
+        api.getAiSuggestions(audio.id).catch(() => null)
       ]);
 
       if (canceled) return;
 
       setTags(detail.tags);
       setAllTags(tagRows);
+      setTranscript(transcriptValue);
+      setAiSuggestions(suggestionsValue);
 
-      setEditing({
-        title_user: detail.audio.title_user || "",
-        author_user: detail.audio.author_user || "",
-        album_user: detail.audio.album_user || "",
-        description_user: detail.audio.description_user || "",
-        language: detail.audio.language || "",
-        is_favorite: detail.audio.is_favorite
-      });
-
-      api
-        .getTranscript(audio.id)
-        .then((value) => {
-          if (!canceled) setTranscript(value);
-        })
-        .catch(() => {
-          if (!canceled) setTranscript(null);
+      if (audioIdChanged) {
+        setEditing({
+          title_user: detail.audio.title_user || "",
+          author_user: detail.audio.author_user || "",
+          album_user: detail.audio.album_user || "",
+          description_user: detail.audio.description_user || "",
+          language: detail.audio.language || "",
+          is_favorite: detail.audio.is_favorite
         });
-
-      api
-        .getAiSuggestions(audio.id)
-        .then((value) => {
-          if (!canceled) setAiSuggestions(value);
-        })
-        .catch(() => {
-          if (!canceled) setAiSuggestions(null);
-        });
+      }
     }
 
     load().catch((err) => {
@@ -108,7 +115,12 @@ export default function DetailPanel({
     return () => {
       canceled = true;
     };
-  }, [audio?.id]);
+  }, [
+    audio?.id,
+    audio?.updated_at,
+    audio?.ai_status,
+    audio?.transcript_status
+  ]);
 
   if (!audio) {
     return (

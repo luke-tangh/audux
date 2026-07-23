@@ -1534,6 +1534,151 @@ def get_playlist(playlist_id: int, session: Session = Depends(get_session)):
     }
 
 
+
+
+@router.get("/playlists/{playlist_id}/items")
+def list_playlist_audio_items(
+    playlist_id: int,
+    q: Optional[str] = None,
+    tag: Optional[str] = None,
+    has_transcript: Optional[bool] = None,
+    transcript_status: Optional[str] = None,
+    ai_status: Optional[str] = None,
+    favorite: Optional[bool] = None,
+    missing: Optional[bool] = None,
+    missing_description: Optional[bool] = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    session: Session = Depends(get_session),
+):
+    """
+    Playlist 音频分页查询。
+
+    用于前端 playlist 视图：
+    - 支持后端搜索，包括 transcript 搜索命中
+    - 支持分页
+    - 返回 AudioItem dict，并附加 playlist_item_id / playlist_order_index
+    """
+    playlist = session.get(Playlist, playlist_id)
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+
+    search_result = search_audio_ids_with_meta(session, q) if q else None
+
+    if q and search_result and not search_result.ids:
+        return {
+            "items": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+            "has_more": False,
+            "search_limited": bool(search_result.limited),
+            "search_limit": search_result.limit,
+        }
+
+    stmt = (
+        select(PlaylistItem, AudioItem)
+        .join(AudioItem, PlaylistItem.audio_id == AudioItem.id)
+        .where(PlaylistItem.playlist_id == playlist_id)
+    )
+
+    if q and search_result:
+        stmt = stmt.where(AudioItem.id.in_(search_result.ids))
+
+    if favorite is not None:
+        stmt = stmt.where(AudioItem.is_favorite == favorite)
+
+    if missing is not None:
+        stmt = stmt.where(AudioItem.is_missing == missing)
+
+    if transcript_status:
+        stmt = stmt.where(AudioItem.transcript_status == transcript_status)
+    elif has_transcript is not None:
+        if has_transcript:
+            stmt = stmt.where(AudioItem.transcript_status == "done")
+        else:
+            stmt = stmt.where(AudioItem.transcript_status != "done")
+
+    if ai_status:
+        stmt = stmt.where(AudioItem.ai_status == ai_status)
+
+    if missing_description is not None:
+        if missing_description:
+            stmt = stmt.where(
+                and_(
+                    or_(AudioItem.description_user == None, AudioItem.description_user == ""),
+                    or_(AudioItem.description_ai == None, AudioItem.description_ai == ""),
+                    or_(AudioItem.description_original == None, AudioItem.description_original == ""),
+                )
+            )
+        else:
+            stmt = stmt.where(
+                or_(
+                    and_(AudioItem.description_user != None, AudioItem.description_user != ""),
+                    and_(AudioItem.description_ai != None, AudioItem.description_ai != ""),
+                    and_(AudioItem.description_original != None, AudioItem.description_original != ""),
+                )
+            )
+
+    if tag:
+        tag_row = session.exec(select(Tag).where(Tag.name == tag)).first()
+        if not tag_row:
+            return {
+                "items": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset,
+                "has_more": False,
+                "search_limited": bool(search_result.limited) if search_result else False,
+                "search_limit": search_result.limit if search_result else None,
+            }
+
+        audio_ids = session.exec(
+            select(AudioTag.audio_id).where(AudioTag.tag_id == tag_row.id)
+        ).all()
+
+        if not audio_ids:
+            return {
+                "items": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset,
+                "has_more": False,
+                "search_limited": bool(search_result.limited) if search_result else False,
+                "search_limit": search_result.limit if search_result else None,
+            }
+
+        stmt = stmt.where(AudioItem.id.in_(audio_ids))
+
+    total = session.execute(
+        select(func.count()).select_from(stmt.subquery())
+    ).scalar_one()
+
+    rows = session.exec(
+        stmt.order_by(PlaylistItem.order_index).offset(offset).limit(limit)
+    ).all()
+
+    audio_rows = [audio for _, audio in rows]
+    audio_dicts = _audio_rows_with_tags_dicts(session, audio_rows, search_query=q)
+
+    items = []
+    for (playlist_item, _), audio_dict in zip(rows, audio_dicts):
+        row = dict(audio_dict)
+        row["playlist_item_id"] = playlist_item.id
+        row["playlist_order_index"] = playlist_item.order_index
+        items.append(row)
+
+    return {
+        "items": items,
+        "total": int(total or 0),
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + len(rows) < int(total or 0),
+        "search_limited": bool(search_result.limited) if search_result else False,
+        "search_limit": search_result.limit if search_result else None,
+    }
+
+
 @router.post("/playlists/{playlist_id}/items")
 def add_audio_to_playlist(
     playlist_id: int,

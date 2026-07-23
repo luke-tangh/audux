@@ -19,8 +19,10 @@ export type TranscriptFilter = "all" | "yes" | "no";
 export type MissingFilter = "all" | "available" | "missing";
 
 type AudioListParams = Parameters<typeof api.listAudioItems>[0];
+type PlaylistListParams = Parameters<typeof api.listPlaylistItems>[1];
 
 const AUDIO_PAGE_LIMIT = 120;
+const AUDIO_BATCH_FETCH_LIMIT = 500;
 
 function transcriptFilterToParam(value: TranscriptFilter): boolean | undefined {
   if (value === "yes") return true;
@@ -45,6 +47,19 @@ function isSmartView(view: ViewMode): boolean {
     view === "missing" ||
     view === "aiFailed"
   );
+}
+
+function uniqueAudioItems(items: AudioItem[]): AudioItem[] {
+  const seen = new Set<number>();
+  const result: AudioItem[] = [];
+
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    result.push(item);
+  }
+
+  return result;
 }
 
 export function useLibraryController() {
@@ -112,6 +127,16 @@ export function useLibraryController() {
         view === "transcribed" ? true : transcriptFilterToParam(hasTranscriptFilter),
       missing: view === "missing" ? true : missingFilterToParam(missingFilter),
       ai_status: view === "aiFailed" ? "failed" : undefined
+    };
+  }
+
+  function buildPlaylistListParams(): PlaylistListParams {
+    return {
+      q: debouncedQ || undefined,
+      tag: selectedTag,
+      missing_description: missingDescriptionOnly || undefined,
+      has_transcript: transcriptFilterToParam(hasTranscriptFilter),
+      missing: missingFilterToParam(missingFilter)
     };
   }
 
@@ -201,7 +226,14 @@ export function useLibraryController() {
           return;
         }
 
-        const detail = await api.getPlaylist(selectedPlaylistId);
+        const [detail, page] = await Promise.all([
+          api.getPlaylist(selectedPlaylistId),
+          api.listPlaylistItems(selectedPlaylistId, {
+            ...buildPlaylistListParams(),
+            limit: AUDIO_PAGE_LIMIT,
+            offset: 0
+          })
+        ]);
 
         const rawItems: AudioItem[] = detail.items.map((x) => ({
           ...x.audio,
@@ -210,9 +242,12 @@ export function useLibraryController() {
         }));
 
         setPlaylistItemsRaw(rawItems);
-        items = applyClientFiltersForPlaylist(rawItems);
-        total = items.length;
-        hasMore = false;
+
+        items = page.items;
+        total = page.total;
+        hasMore = page.has_more;
+        nextSearchLimited = Boolean(page.search_limited);
+        nextSearchLimit = page.search_limit ?? null;
       } else {
         setPlaylistItemsRaw([]);
 
@@ -261,7 +296,11 @@ export function useLibraryController() {
   }
 
   async function loadMoreAudioItems() {
-    if (view === "playlist" || view === "settings" || loadingMore || !audioHasMore) {
+    if (view === "settings" || loadingMore || !audioHasMore) {
+      return;
+    }
+
+    if (view === "playlist" && !selectedPlaylistId) {
       return;
     }
 
@@ -270,17 +309,31 @@ export function useLibraryController() {
     try {
       await ensureBackendReady();
 
-      const page = await api.listAudioItems({
-        ...buildAudioListParams(),
-        limit: AUDIO_PAGE_LIMIT,
-        offset: audioItems.length
-      });
+      if (view === "playlist" && selectedPlaylistId) {
+        const page = await api.listPlaylistItems(selectedPlaylistId, {
+          ...buildPlaylistListParams(),
+          limit: AUDIO_PAGE_LIMIT,
+          offset: audioItems.length
+        });
 
-      setAudioItems((rows) => [...rows, ...page.items]);
-      setAudioTotal(page.total);
-      setAudioHasMore(page.has_more);
-      setSearchLimited(Boolean(page.search_limited));
-      setSearchLimit(page.search_limit ?? null);
+        setAudioItems((rows) => [...rows, ...page.items]);
+        setAudioTotal(page.total);
+        setAudioHasMore(page.has_more);
+        setSearchLimited(Boolean(page.search_limited));
+        setSearchLimit(page.search_limit ?? null);
+      } else {
+        const page = await api.listAudioItems({
+          ...buildAudioListParams(),
+          limit: AUDIO_PAGE_LIMIT,
+          offset: audioItems.length
+        });
+
+        setAudioItems((rows) => [...rows, ...page.items]);
+        setAudioTotal(page.total);
+        setAudioHasMore(page.has_more);
+        setSearchLimited(Boolean(page.search_limited));
+        setSearchLimit(page.search_limit ?? null);
+      }
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
     } finally {
@@ -302,6 +355,33 @@ export function useLibraryController() {
     hasTranscriptFilter,
     missingFilter,
     refreshToken
+  ]);
+
+  const hasBusyVisibleTask =
+    audioItems.some(
+      (item) => isBusyStatus(item.ai_status) || isBusyStatus(item.transcript_status)
+    ) ||
+    Boolean(
+      selected &&
+        (isBusyStatus(selected.ai_status) || isBusyStatus(selected.transcript_status))
+    );
+
+  useEffect(() => {
+    if (view === "settings") return;
+    if (!hasBusyVisibleTask) return;
+
+    const timer = window.setInterval(() => {
+      refresh();
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [
+    view,
+    hasBusyVisibleTask,
+    selected?.id,
+    selected?.ai_status,
+    selected?.transcript_status,
+    audioItems.length
   ]);
 
   function refresh() {
@@ -434,33 +514,72 @@ export function useLibraryController() {
     notify("播放队列已清空", "info");
   }
 
-  async function batchTranscribeCurrentList() {
-    if (audioItems.length === 0) return;
+  async function fetchAllCurrentAudioItemsForBatch(): Promise<AudioItem[]> {
+    await ensureBackendReady();
 
-    const eligible = audioItems.filter(
-      (item) => !item.is_missing && !isBusyStatus(item.transcript_status)
-    );
+    const rows: AudioItem[] = [];
+    let offset = 0;
 
-    if (eligible.length === 0) {
-      notify("当前已加载列表没有可创建转写任务的音频。缺失文件或进行中的任务会被跳过。", "info");
-      return;
+    while (true) {
+      const page =
+        view === "playlist" && selectedPlaylistId
+          ? await api.listPlaylistItems(selectedPlaylistId, {
+              ...buildPlaylistListParams(),
+              limit: AUDIO_BATCH_FETCH_LIMIT,
+              offset
+            })
+          : await api.listAudioItems({
+              ...buildAudioListParams(),
+              limit: AUDIO_BATCH_FETCH_LIMIT,
+              offset
+            });
+
+      rows.push(...page.items);
+
+      if (!page.has_more || page.items.length === 0) {
+        break;
+      }
+
+      offset += page.items.length;
     }
 
-    const skippedByClient = audioItems.length - eligible.length;
+    return uniqueAudioItems(rows);
+  }
 
-    const ok = window.confirm(
-      `将为当前已加载的 ${eligible.length} 个音频创建转写任务${
-        skippedByClient ? `，并跳过 ${skippedByClient} 个缺失文件或进行中的音频` : ""
-      }。确认继续？`
-    );
-
-    if (!ok) return;
-
+  async function batchTranscribeCurrentList() {
     try {
+      const allItems = await fetchAllCurrentAudioItemsForBatch();
+
+      if (allItems.length === 0) return;
+
+      const eligible = allItems.filter(
+        (item) => !item.is_missing && !isBusyStatus(item.transcript_status)
+      );
+
+      if (eligible.length === 0) {
+        notify("当前筛选结果没有可创建转写任务的音频。缺失文件或进行中的任务会被跳过。", "info");
+        return;
+      }
+
+      const skippedByClient = allItems.length - eligible.length;
+      const limitedNote =
+        searchLimited && debouncedQ.trim()
+          ? `\n\n注意：当前搜索结果仅包含后端返回的前 ${searchLimit || 200} 条。`
+          : "";
+
+      const ok = window.confirm(
+        `将为当前筛选结果中的 ${eligible.length} 个音频创建转写任务${
+          skippedByClient ? `，并跳过 ${skippedByClient} 个缺失文件或进行中的音频` : ""
+        }。确认继续？${limitedNote}`
+      );
+
+      if (!ok) return;
+
       const result = await api.batchTranscribe(eligible.map((x) => x.id));
       const skippedTotal = skippedByClient + result.skipped;
+      const errorText = result.errors.length ? `，错误 ${result.errors.length} 个` : "";
 
-      notify(`已创建 ${result.created} 个转写任务，跳过 ${skippedTotal} 个。`, "success");
+      notify(`已创建 ${result.created} 个转写任务，跳过 ${skippedTotal} 个${errorText}。`, "success");
       refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
@@ -468,26 +587,32 @@ export function useLibraryController() {
   }
 
   async function batchAnalyzeCurrentList() {
-    if (audioItems.length === 0) return;
-
-    const eligible = audioItems.filter((item) => !isBusyStatus(item.ai_status));
-
-    if (eligible.length === 0) {
-      notify("当前已加载列表没有可创建 AI 分析任务的音频。进行中的任务会被跳过。", "info");
-      return;
-    }
-
-    const skippedByClient = audioItems.length - eligible.length;
-
-    const ok = window.confirm(
-      `将为当前已加载的 ${eligible.length} 个音频创建 AI 分析任务${
-        skippedByClient ? `，并跳过 ${skippedByClient} 个进行中的音频` : ""
-      }。确认继续？`
-    );
-
-    if (!ok) return;
-
     try {
+      const allItems = await fetchAllCurrentAudioItemsForBatch();
+
+      if (allItems.length === 0) return;
+
+      const eligible = allItems.filter((item) => !isBusyStatus(item.ai_status));
+
+      if (eligible.length === 0) {
+        notify("当前筛选结果没有可创建 AI 分析任务的音频。进行中的任务会被跳过。", "info");
+        return;
+      }
+
+      const skippedByClient = allItems.length - eligible.length;
+      const limitedNote =
+        searchLimited && debouncedQ.trim()
+          ? `\n\n注意：当前搜索结果仅包含后端返回的前 ${searchLimit || 200} 条。`
+          : "";
+
+      const ok = window.confirm(
+        `将为当前筛选结果中的 ${eligible.length} 个音频创建 AI 分析任务${
+          skippedByClient ? `，并跳过 ${skippedByClient} 个进行中的音频` : ""
+        }。确认继续？${limitedNote}`
+      );
+
+      if (!ok) return;
+
       const result = await api.batchAnalyze(eligible.map((x) => x.id));
 
       if (result.privacy_warning) {
@@ -495,8 +620,9 @@ export function useLibraryController() {
       }
 
       const skippedTotal = skippedByClient + result.skipped;
+      const errorText = result.errors.length ? `，错误 ${result.errors.length} 个` : "";
 
-      notify(`已创建 ${result.created} 个 AI 分析任务，跳过 ${skippedTotal} 个。`, "success");
+      notify(`已创建 ${result.created} 个 AI 分析任务，跳过 ${skippedTotal} 个${errorText}。`, "success");
       refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
@@ -519,6 +645,8 @@ export function useLibraryController() {
       setAudioItems((rows) =>
         rows.filter((x) => x.playlist_item_id !== item.playlist_item_id)
       );
+
+      setAudioTotal((value) => Math.max(0, value - 1));
 
       if (selected?.id === item.id) {
         setSelected(null);
@@ -548,10 +676,13 @@ export function useLibraryController() {
     }));
 
     setPlaylistItemsRaw(normalized);
-    const filtered = applyClientFiltersForPlaylist(normalized);
-    setAudioItems(filtered);
-    setAudioTotal(filtered.length);
-    setAudioHasMore(false);
+
+    if (!debouncedQ.trim() && !missingDescriptionOnly && hasTranscriptFilter === "all" && missingFilter === "all") {
+      const firstPage = normalized.slice(0, AUDIO_PAGE_LIMIT);
+      setAudioItems(firstPage);
+      setAudioTotal(normalized.length);
+      setAudioHasMore(normalized.length > AUDIO_PAGE_LIMIT);
+    }
   }
 
   async function movePlaylistItem(item: AudioItem, direction: "up" | "down") {

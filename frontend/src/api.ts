@@ -407,6 +407,42 @@ export const api = {
 
   getPlaylist: (id: number) => request<PlaylistDetail>(`/playlists/${id}`),
 
+  listPlaylistItems: (
+    id: number,
+    params?: {
+      q?: string;
+      tag?: string;
+      favorite?: boolean;
+      missing?: boolean;
+      has_transcript?: boolean;
+      missing_description?: boolean;
+      ai_status?: string;
+      transcript_status?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ) => {
+    const sp = new URLSearchParams();
+
+    if (params?.q) sp.set("q", params.q);
+    if (params?.tag) sp.set("tag", params.tag);
+    if (params?.favorite !== undefined) sp.set("favorite", String(params.favorite));
+    if (params?.missing !== undefined) sp.set("missing", String(params.missing));
+    if (params?.has_transcript !== undefined) {
+      sp.set("has_transcript", String(params.has_transcript));
+    }
+    if (params?.missing_description !== undefined) {
+      sp.set("missing_description", String(params.missing_description));
+    }
+    if (params?.ai_status) sp.set("ai_status", params.ai_status);
+    if (params?.transcript_status) sp.set("transcript_status", params.transcript_status);
+    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
+    if (params?.offset !== undefined) sp.set("offset", String(params.offset));
+
+    const qs = sp.toString();
+    return request<PaginatedAudioItems>(`/playlists/${id}/items${qs ? `?${qs}` : ""}`);
+  },
+
   createPlaylist: (name: string, description?: string) =>
     request<Playlist>("/playlists", {
       method: "POST",
