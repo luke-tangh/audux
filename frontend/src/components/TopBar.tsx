@@ -5,6 +5,8 @@ type Props = {
   title: string;
   subtitle?: string;
   totalCount: number;
+  searchLimited?: boolean;
+  searchLimit?: number | null;
   q: string;
   setQ: (value: string) => void;
   isLoading?: boolean;
@@ -30,6 +32,8 @@ export default function TopBar({
   title,
   subtitle,
   totalCount,
+  searchLimited = false,
+  searchLimit,
   q,
   setQ,
   isLoading = false,
@@ -52,6 +56,11 @@ export default function TopBar({
           <span className="eyebrow">Local Audio Studio</span>
           <h1>{title}</h1>
           {subtitle && <p>{subtitle}</p>}
+          {searchLimited && (
+            <p className="search-limit-warning">
+              搜索命中较多，当前仅展示前 {searchLimit || 200} 条。请缩小关键词以获得更精确结果。
+            </p>
+          )}
         </div>
 
         <div className="top-count-card">

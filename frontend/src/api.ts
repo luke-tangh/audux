@@ -473,7 +473,24 @@ export const api = {
   metadataExportUrl: (format: "json" | "csv") =>
     appendAccessToken(`${API_BASE}/export/metadata?format=${encodeURIComponent(format)}`),
 
-  listTasks: () => request<AITask[]>("/ai-tasks"),
+  listTasks: (params?: {
+    status?: string;
+    task_type?: string;
+    audio_id?: number;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const sp = new URLSearchParams();
+
+    if (params?.status) sp.set("status", params.status);
+    if (params?.task_type) sp.set("task_type", params.task_type);
+    if (params?.audio_id !== undefined) sp.set("audio_id", String(params.audio_id));
+    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
+    if (params?.offset !== undefined) sp.set("offset", String(params.offset));
+
+    const qs = sp.toString();
+    return request<AITask[]>(`/ai-tasks${qs ? `?${qs}` : ""}`);
+  },
 
   retryTask: (taskId: number) =>
     request<AITask>(`/ai-tasks/${taskId}/retry`, {

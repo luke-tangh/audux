@@ -81,6 +81,8 @@ export type PaginatedAudioItems = {
   limit: number;
   offset: number;
   has_more: boolean;
+  search_limited?: boolean;
+  search_limit?: number | null;
 };
 
 export type AudioDetail = {

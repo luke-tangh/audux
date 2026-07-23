@@ -52,6 +52,8 @@ export function useLibraryController() {
   const [audioItems, setAudioItems] = useState<AudioItem[]>([]);
   const [audioTotal, setAudioTotal] = useState(0);
   const [audioHasMore, setAudioHasMore] = useState(false);
+  const [searchLimited, setSearchLimited] = useState(false);
+  const [searchLimit, setSearchLimit] = useState<number | null>(null);
   const [selected, setSelected] = useState<AudioItem | null>(null);
 
   const [playing, setPlaying] = useState<AudioItem | null>(null);
@@ -176,12 +178,16 @@ export function useLibraryController() {
         setPlaylistItemsRaw([]);
         setAudioTotal(0);
         setAudioHasMore(false);
+        setSearchLimited(false);
+        setSearchLimit(null);
         return;
       }
 
       let items: AudioItem[] = [];
       let total = 0;
       let hasMore = false;
+      let nextSearchLimited = false;
+      let nextSearchLimit: number | null = null;
 
       if (view === "playlist") {
         if (!selectedPlaylistId) {
@@ -189,6 +195,8 @@ export function useLibraryController() {
           setAudioItems([]);
           setAudioTotal(0);
           setAudioHasMore(false);
+          setSearchLimited(false);
+          setSearchLimit(null);
           setSelected(null);
           return;
         }
@@ -217,6 +225,8 @@ export function useLibraryController() {
         items = page.items;
         total = page.total;
         hasMore = page.has_more;
+        nextSearchLimited = Boolean(page.search_limited);
+        nextSearchLimit = page.search_limit ?? null;
       }
 
       if (loadSeq !== loadSeqRef.current) return;
@@ -224,6 +234,8 @@ export function useLibraryController() {
       setAudioItems(items);
       setAudioTotal(total);
       setAudioHasMore(hasMore);
+      setSearchLimited(nextSearchLimited);
+      setSearchLimit(nextSearchLimit);
 
       setSelected((prev) => {
         if (items.length === 0) return null;
@@ -267,6 +279,8 @@ export function useLibraryController() {
       setAudioItems((rows) => [...rows, ...page.items]);
       setAudioTotal(page.total);
       setAudioHasMore(page.has_more);
+      setSearchLimited(Boolean(page.search_limited));
+      setSearchLimit(page.search_limit ?? null);
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
     } finally {
@@ -677,6 +691,8 @@ export function useLibraryController() {
     audioItems,
     audioTotal,
     audioHasMore,
+    searchLimited,
+    searchLimit,
     selected,
     setSelected,
 

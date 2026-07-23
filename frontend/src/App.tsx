@@ -15,6 +15,8 @@ export default function App() {
     audioItems,
     audioTotal,
     audioHasMore,
+    searchLimited,
+    searchLimit,
     selected,
     setSelected,
 
@@ -99,6 +101,8 @@ export default function App() {
                 title={listTitle}
                 subtitle={listSubtitle}
                 totalCount={audioTotal}
+                searchLimited={searchLimited}
+                searchLimit={searchLimit}
                 q={q}
                 setQ={setQ}
                 isLoading={loading}

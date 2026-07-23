@@ -226,3 +226,11 @@
   background: rgba(15, 23, 42, 0.62);
   box-shadow: none;
 }
+
+
+.search-limit-warning {
+  margin-top: 6px !important;
+  color: #fde68a !important;
+  font-size: 12px !important;
+  line-height: 1.5;
+}

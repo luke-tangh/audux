@@ -61,7 +61,12 @@ from .scanner import (
     read_audio_metadata,
     extract_embedded_cover,
 )
-from .search import rebuild_audio_search_index, search_audio_ids
+from .search import (
+    SEARCH_RESULT_LIMIT,
+    rebuild_audio_search_index,
+    search_audio_ids,
+    search_audio_ids_with_meta,
+)
 from .tasks import create_task, get_active_task, ActiveTaskConflict
 from .ai_client import call_openai_compatible_chat, get_ai_message_content
 from .local_security import ensure_llm_endpoint_allowed, _llm_privacy_warning
@@ -262,9 +267,67 @@ def _tags_by_audio_id(session: Session, audio_ids: list[int]) -> dict[int, list[
     return result
 
 
+def _escape_sql_like_token(value: str) -> str:
+    return (
+        value
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+
+
+def _matching_transcript_segments_by_transcript_ids(
+    session: Session,
+    transcript_ids: list[int],
+    tokens: list[str],
+    per_transcript_limit: int = 3,
+) -> dict[int, list[TranscriptSegment]]:
+    """
+    PR3 搜索优化：
+    不再预取当前页所有 transcript segments，只查询可能命中关键词的 segments。
+    """
+    result: dict[int, list[TranscriptSegment]] = {
+        transcript_id: [] for transcript_id in transcript_ids
+    }
+
+    if not transcript_ids or not tokens:
+        return result
+
+    conditions = [
+        func.lower(TranscriptSegment.text).like(
+            f"%{_escape_sql_like_token(token.lower())}%",
+            escape="\\",
+        )
+        for token in tokens
+        if token
+    ]
+
+    if not conditions:
+        return result
+
+    rows = session.exec(
+        select(TranscriptSegment)
+        .where(TranscriptSegment.transcript_id.in_(transcript_ids))
+        .where(or_(*conditions))
+        .order_by(TranscriptSegment.transcript_id, TranscriptSegment.segment_index)
+    ).all()
+
+    for segment in rows:
+        transcript_id = int(segment.transcript_id)
+        bucket = result.setdefault(transcript_id, [])
+
+        if len(bucket) >= per_transcript_limit:
+            continue
+
+        bucket.append(segment)
+
+    return result
+
+
 def _transcripts_and_segments_by_audio_ids(
     session: Session,
     audio_ids: list[int],
+    q: Optional[str] = None,
 ) -> tuple[dict[int, Transcript], dict[int, list[TranscriptSegment]]]:
     if not audio_ids:
         return {}, {}
@@ -281,14 +344,24 @@ def _transcripts_and_segments_by_audio_ids(
     }
 
     if transcript_ids:
-        segments = session.exec(
-            select(TranscriptSegment)
-            .where(TranscriptSegment.transcript_id.in_(transcript_ids))
-            .order_by(TranscriptSegment.transcript_id, TranscriptSegment.segment_index)
-        ).all()
+        tokens = _query_tokens(q)
 
-        for segment in segments:
-            segments_by_transcript_id.setdefault(int(segment.transcript_id), []).append(segment)
+        if tokens:
+            segments_by_transcript_id = _matching_transcript_segments_by_transcript_ids(
+                session=session,
+                transcript_ids=transcript_ids,
+                tokens=tokens,
+                per_transcript_limit=3,
+            )
+        else:
+            segments = session.exec(
+                select(TranscriptSegment)
+                .where(TranscriptSegment.transcript_id.in_(transcript_ids))
+                .order_by(TranscriptSegment.transcript_id, TranscriptSegment.segment_index)
+            ).all()
+
+            for segment in segments:
+                segments_by_transcript_id.setdefault(int(segment.transcript_id), []).append(segment)
 
     return transcript_by_audio_id, segments_by_transcript_id
 
@@ -501,7 +574,7 @@ def _audio_rows_with_tags_dicts(
 
     if search_query:
         transcript_by_audio_id, segments_by_transcript_id = (
-            _transcripts_and_segments_by_audio_ids(session, audio_ids)
+            _transcripts_and_segments_by_audio_ids(session, audio_ids, q=search_query)
         )
 
     result = []
@@ -540,6 +613,7 @@ def _audio_rows_with_tags_dicts(
 def _build_audio_items_stmt(
     session: Session,
     q: Optional[str] = None,
+    search_ids: Optional[list[int]] = None,
     tag: Optional[str] = None,
     has_transcript: Optional[bool] = None,
     transcript_status: Optional[str] = None,
@@ -558,7 +632,7 @@ def _build_audio_items_stmt(
     )
 
     if q:
-        ids = search_audio_ids(session, q)
+        ids = search_ids if search_ids is not None else search_audio_ids(session, q)
         if not ids:
             return None
 
@@ -785,9 +859,12 @@ def list_audio_items(
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
 ):
+    search_result = search_audio_ids_with_meta(session, q) if q else None
+
     base_stmt = _build_audio_items_stmt(
         session=session,
         q=q,
+        search_ids=search_result.ids if search_result else None,
         tag=tag,
         has_transcript=has_transcript,
         transcript_status=transcript_status,
@@ -805,6 +882,8 @@ def list_audio_items(
             "limit": limit,
             "offset": offset,
             "has_more": False,
+            "search_limited": bool(search_result.limited) if search_result else False,
+            "search_limit": search_result.limit if search_result else None,
         }
 
     total = session.execute(
@@ -820,6 +899,8 @@ def list_audio_items(
         "limit": limit,
         "offset": offset,
         "has_more": offset + len(rows) < int(total or 0),
+        "search_limited": bool(search_result.limited) if search_result else False,
+        "search_limit": search_result.limit if search_result else None,
     }
 
 
@@ -1878,8 +1959,27 @@ async def test_llm_config(payload: LLMConfig):
 
 
 @router.get("/ai-tasks")
-def list_ai_tasks(session: Session = Depends(get_session)):
-    return session.exec(select(AITask).order_by(AITask.created_at.desc()).limit(100)).all()
+def list_ai_tasks(
+    status: Optional[str] = None,
+    task_type: Optional[str] = None,
+    audio_id: Optional[int] = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    session: Session = Depends(get_session),
+):
+    stmt = select(AITask)
+
+    if status:
+        stmt = stmt.where(AITask.status == status)
+
+    if task_type:
+        stmt = stmt.where(AITask.task_type == task_type)
+
+    if audio_id is not None:
+        stmt = stmt.where(AITask.audio_id == audio_id)
+
+    stmt = stmt.order_by(AITask.created_at.desc()).offset(offset).limit(limit)
+    return session.exec(stmt).all()
 
 
 @router.get("/ai-tasks/{task_id}")
