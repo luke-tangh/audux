@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { API_BASE, api } from "../api";
+import { api } from "../api";
 import type { AudioItem } from "../types";
 import { displayAuthor, displayTitle, formatDuration } from "../types";
 
@@ -116,13 +116,22 @@ export default function PlayerBar({
       }
     }
 
-    el.src = `${API_BASE}/audio-items/${currentAudio.id}/file`;
+    el.src = api.audioFileUrl(currentAudio.id);
     el.playbackRate = rate;
     el.volume = volume;
-    el.currentTime = startSeconds;
 
     setCurrent(startSeconds);
     setDuration(0);
+
+    const onLoadedMetadataOnce = () => {
+      try {
+        el.currentTime = startSeconds;
+      } catch {
+        // ignore
+      }
+    };
+
+    el.addEventListener("loadedmetadata", onLoadedMetadataOnce, { once: true });
 
     el.play()
       .then(() => setIsPlaying(true))
@@ -132,6 +141,8 @@ export default function PlayerBar({
       });
 
     return () => {
+      el.removeEventListener("loadedmetadata", onLoadedMetadataOnce);
+
       if (!currentAudio) return;
       if (endedAudioIdRef.current === currentAudio.id) return;
 

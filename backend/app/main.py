@@ -4,6 +4,8 @@ import json
 import mimetypes
 import os
 import ipaddress
+import secrets
+import hmac
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -24,7 +26,7 @@ from fastapi.responses import FileResponse, Response, PlainTextResponse, JSONRes
 from sqlmodel import Session, select
 from sqlalchemy import func, or_, and_, text
 
-from .db import create_db_and_tables, get_session, COVERS_DIR
+from .db import create_db_and_tables, get_session, COVERS_DIR, APP_DATA_DIR
 from .logger import setup_logging, get_logger, read_log_tail, LOG_FILE
 from .models import (
     LibraryRoot,
@@ -64,14 +66,14 @@ from .scanner import (
     extract_embedded_cover,
 )
 from .search import rebuild_audio_search_index, search_audio_ids
-from .tasks import create_task, start_worker_once
+from .tasks import create_task, start_worker_once, get_active_task
 from .ai_client import call_openai_compatible_chat, get_ai_message_content
 
 
 setup_logging()
 logger = get_logger(__name__)
 
-app = FastAPI(title="Local Audio Library API", version="0.4.0")
+app = FastAPI(title="Local Audio Library API", version="0.5.0")
 
 ALLOW_ALL_CORS = os.getenv("LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS", "").lower() in {
     "1",
@@ -94,6 +96,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+if ALLOW_ALL_CORS:
+    logger.warning(
+        "LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS is enabled. "
+        "This is intended for development only."
+    )
+
 AUDIO_MIME_TYPES = {
     ".mp3": "audio/mpeg",
     ".m4a": "audio/mp4",
@@ -105,10 +113,75 @@ AUDIO_MIME_TYPES = {
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
 LOCAL_CLIENT_HEADER_NAME = "X-Local-Audio-Client"
 LOCAL_CLIENT_HEADER_VALUE = "local-audio-library"
 
+LOCAL_TOKEN_HEADER_NAME = "X-Local-Audio-Token"
+LOCAL_TOKEN_QUERY_NAME = "access_token"
+LOCAL_TOKEN_FILE = APP_DATA_DIR / "local_api_token"
+
+PUBLIC_PATHS = {
+    "/health",
+    "/auth/token",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/favicon.ico",
+}
+
 BUSY_AUDIO_TASK_STATUSES = {"pending", "running", "cancel_requested"}
+
+
+def _get_or_create_local_api_token() -> str:
+    """
+    本地 API token。
+
+    目标：
+    - 防止任意网页仅靠 no-cors/form 触发敏感 API。
+    - GET 媒体/导出接口可通过 query token 使用，方便 audio/img/window.open。
+    - 不是系统级认证，无法防同机恶意进程读取本地 API。
+    """
+    try:
+        if LOCAL_TOKEN_FILE.exists():
+            token = LOCAL_TOKEN_FILE.read_text(encoding="utf-8").strip()
+            if token:
+                return token
+    except Exception:
+        logger.exception("Failed to read local API token")
+
+    token = secrets.token_urlsafe(32)
+
+    try:
+        LOCAL_TOKEN_FILE.write_text(token, encoding="utf-8")
+        try:
+            os.chmod(LOCAL_TOKEN_FILE, 0o600)
+        except Exception:
+            pass
+    except Exception:
+        logger.exception("Failed to write local API token")
+
+    return token
+
+
+def _is_public_path(path: str) -> bool:
+    if path in PUBLIC_PATHS:
+        return True
+
+    return path.startswith("/docs/") or path.startswith("/redoc/")
+
+
+def _request_has_valid_local_token(request: Request) -> bool:
+    expected = _get_or_create_local_api_token()
+
+    provided = request.headers.get(LOCAL_TOKEN_HEADER_NAME)
+    if not provided:
+        provided = request.query_params.get(LOCAL_TOKEN_QUERY_NAME)
+
+    if not provided:
+        return False
+
+    return hmac.compare_digest(provided, expected)
 
 
 def _is_allowed_request_origin(origin: str) -> bool:
@@ -145,10 +218,12 @@ def _is_allowed_request_origin(origin: str) -> bool:
 @app.middleware("http")
 async def local_request_guard(request: Request, call_next):
     """
-    本地 API CSRF 防护。
+    本地 API 防护。
 
-    CORS 只能阻止跨站读取响应，不能阻止恶意网页用 form/no-cors 触发无 body POST。
-    所有 unsafe 请求必须携带自定义 header；普通跨站 form 无法发送该 header。
+    - Origin 必须是本机 / Tauri，除非显式开启 ALLOW_ALL_CORS。
+    - unsafe method 必须携带固定本地客户端 header，防普通 CSRF form。
+    - 除 health/auth/docs 外，所有 API 需要本地 token。
+    - 媒体、封面、导出等 GET 可用 query token，方便 <audio>/<img>/window.open。
     """
     if request.method.upper() != "OPTIONS":
         origin = request.headers.get("origin")
@@ -166,12 +241,20 @@ async def local_request_guard(request: Request, call_next):
                     content={"detail": "Missing local client header"},
                 )
 
+        if not _is_public_path(request.url.path):
+            if not _request_has_valid_local_token(request):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Missing or invalid local API token"},
+                )
+
     return await call_next(request)
 
 
 @app.on_event("startup")
 async def on_startup():
     create_db_and_tables()
+    _get_or_create_local_api_token()
     start_worker_once()
     logger.info("Local Audio Library backend started")
 
@@ -179,6 +262,15 @@ async def on_startup():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/auth/token")
+def get_auth_token():
+    return {
+        "token": _get_or_create_local_api_token(),
+        "header": LOCAL_TOKEN_HEADER_NAME,
+        "query": LOCAL_TOKEN_QUERY_NAME,
+    }
 
 
 def _is_local_endpoint(endpoint: str) -> bool:
@@ -244,12 +336,6 @@ def _apply_enabled_roots_filter(
 
 
 def _find_library_root_id_for_path(session: Session, file_path: Path) -> Optional[int]:
-    """
-    根据文件路径匹配当前已有 library root。
-
-    使用最长前缀匹配，避免嵌套 root 时归到较外层目录。
-    若不属于任何 root，返回 None，表示手动定位到 root 外部。
-    """
     resolved_file = file_path.expanduser().resolve()
     roots = session.exec(select(LibraryRoot)).all()
 
@@ -520,6 +606,85 @@ def _audio_to_export_dict(session: Session, audio: AudioItem) -> dict:
     }
 
 
+def _build_audio_items_stmt(
+    session: Session,
+    q: Optional[str] = None,
+    tag: Optional[str] = None,
+    has_transcript: Optional[bool] = None,
+    transcript_status: Optional[str] = None,
+    ai_status: Optional[str] = None,
+    favorite: Optional[bool] = None,
+    missing: Optional[bool] = None,
+    missing_description: Optional[bool] = None,
+    include_disabled_roots: bool = False,
+):
+    stmt = select(AudioItem)
+
+    stmt = _apply_enabled_roots_filter(
+        stmt,
+        session,
+        include_disabled_roots=include_disabled_roots,
+    )
+
+    if q:
+        ids = search_audio_ids(session, q)
+        if not ids:
+            return None
+
+        stmt = stmt.where(AudioItem.id.in_(ids))
+
+    if favorite is not None:
+        stmt = stmt.where(AudioItem.is_favorite == favorite)
+
+    if missing is not None:
+        stmt = stmt.where(AudioItem.is_missing == missing)
+
+    if transcript_status:
+        stmt = stmt.where(AudioItem.transcript_status == transcript_status)
+    elif has_transcript is not None:
+        if has_transcript:
+            stmt = stmt.where(AudioItem.transcript_status == "done")
+        else:
+            stmt = stmt.where(AudioItem.transcript_status != "done")
+
+    if ai_status:
+        stmt = stmt.where(AudioItem.ai_status == ai_status)
+
+    if missing_description is not None:
+        if missing_description:
+            stmt = stmt.where(
+                and_(
+                    or_(AudioItem.description_user == None, AudioItem.description_user == ""),
+                    or_(AudioItem.description_ai == None, AudioItem.description_ai == ""),
+                    or_(AudioItem.description_original == None, AudioItem.description_original == ""),
+                )
+            )
+        else:
+            stmt = stmt.where(
+                or_(
+                    and_(AudioItem.description_user != None, AudioItem.description_user != ""),
+                    and_(AudioItem.description_ai != None, AudioItem.description_ai != ""),
+                    and_(AudioItem.description_original != None, AudioItem.description_original != ""),
+                )
+            )
+
+    if tag:
+        tag_row = session.exec(select(Tag).where(Tag.name == tag)).first()
+        if not tag_row:
+            return None
+
+        audio_ids = session.exec(
+            select(AudioTag.audio_id).where(AudioTag.tag_id == tag_row.id)
+        ).all()
+
+        if not audio_ids:
+            return None
+
+        stmt = stmt.where(AudioItem.id.in_(audio_ids))
+
+    return stmt
+
+
 # Library Root
 
 @app.post("/library-roots")
@@ -649,6 +814,8 @@ def list_audio_items(
     q: Optional[str] = None,
     tag: Optional[str] = None,
     has_transcript: Optional[bool] = None,
+    transcript_status: Optional[str] = None,
+    ai_status: Optional[str] = None,
     favorite: Optional[bool] = None,
     missing: Optional[bool] = None,
     missing_description: Optional[bool] = None,
@@ -657,70 +824,42 @@ def list_audio_items(
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
 ):
-    stmt = select(AudioItem)
-
-    stmt = _apply_enabled_roots_filter(
-        stmt,
-        session,
+    base_stmt = _build_audio_items_stmt(
+        session=session,
+        q=q,
+        tag=tag,
+        has_transcript=has_transcript,
+        transcript_status=transcript_status,
+        ai_status=ai_status,
+        favorite=favorite,
+        missing=missing,
+        missing_description=missing_description,
         include_disabled_roots=include_disabled_roots,
     )
-    if stmt is None:
-        return []
 
-    if q:
-        ids = search_audio_ids(session, q)
-        if not ids:
-            return []
-        stmt = stmt.where(AudioItem.id.in_(ids))
+    if base_stmt is None:
+        return {
+            "items": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+            "has_more": False,
+        }
 
-    if favorite is not None:
-        stmt = stmt.where(AudioItem.is_favorite == favorite)
+    total = session.execute(
+        select(func.count()).select_from(base_stmt.subquery())
+    ).scalar_one()
 
-    if missing is not None:
-        stmt = stmt.where(AudioItem.is_missing == missing)
-
-    if has_transcript is not None:
-        if has_transcript:
-            stmt = stmt.where(AudioItem.transcript_status == "done")
-        else:
-            stmt = stmt.where(AudioItem.transcript_status != "done")
-
-    if missing_description is not None:
-        if missing_description:
-            stmt = stmt.where(
-                and_(
-                    or_(AudioItem.description_user == None, AudioItem.description_user == ""),
-                    or_(AudioItem.description_ai == None, AudioItem.description_ai == ""),
-                    or_(AudioItem.description_original == None, AudioItem.description_original == ""),
-                )
-            )
-        else:
-            stmt = stmt.where(
-                or_(
-                    and_(AudioItem.description_user != None, AudioItem.description_user != ""),
-                    and_(AudioItem.description_ai != None, AudioItem.description_ai != ""),
-                    and_(AudioItem.description_original != None, AudioItem.description_original != ""),
-                )
-            )
-
-    if tag:
-        tag_row = session.exec(select(Tag).where(Tag.name == tag)).first()
-        if not tag_row:
-            return []
-
-        audio_ids = session.exec(
-            select(AudioTag.audio_id).where(AudioTag.tag_id == tag_row.id)
-        ).all()
-
-        if not audio_ids:
-            return []
-
-        stmt = stmt.where(AudioItem.id.in_(audio_ids))
-
-    stmt = stmt.order_by(AudioItem.updated_at.desc()).offset(offset).limit(limit)
+    stmt = base_stmt.order_by(AudioItem.updated_at.desc()).offset(offset).limit(limit)
     rows = session.exec(stmt).all()
 
-    return [_audio_with_tags_dict(session, item, search_query=q) for item in rows]
+    return {
+        "items": [_audio_with_tags_dict(session, item, search_query=q) for item in rows],
+        "total": int(total or 0),
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + len(rows) < int(total or 0),
+    }
 
 
 @app.post("/audio-items/batch/transcribe")
@@ -739,6 +878,10 @@ def batch_transcribe(
             continue
 
         if audio.transcript_status in BUSY_AUDIO_TASK_STATUSES:
+            skipped.append(audio_id)
+            continue
+
+        if get_active_task(session, audio_id, "transcribe"):
             skipped.append(audio_id)
             continue
 
@@ -786,6 +929,10 @@ def batch_analyze(
             continue
 
         if audio.ai_status in BUSY_AUDIO_TASK_STATUSES:
+            skipped.append(audio_id)
+            continue
+
+        if get_active_task(session, audio_id, "analyze"):
             skipped.append(audio_id)
             continue
 
@@ -1501,6 +1648,12 @@ def enqueue_transcribe(audio_id: int, session: Session = Depends(get_session)):
             detail="Transcribe task is already pending, running or canceling",
         )
 
+    if get_active_task(session, audio_id, "transcribe"):
+        raise HTTPException(
+            status_code=409,
+            detail="Transcribe task is already pending, running or canceling",
+        )
+
     audio.transcript_status = "pending"
     audio.updated_at = now_iso()
     session.add(audio)
@@ -1669,6 +1822,12 @@ def enqueue_analyze(audio_id: int, session: Session = Depends(get_session)):
             detail="Analyze task is already pending, running or canceling",
         )
 
+    if get_active_task(session, audio_id, "analyze"):
+        raise HTTPException(
+            status_code=409,
+            detail="Analyze task is already pending, running or canceling",
+        )
+
     endpoint = session.get(Setting, "llm.endpoint")
     model_name = session.get(Setting, "llm.model_name")
 
@@ -1752,6 +1911,9 @@ def retry_ai_task(task_id: int, session: Session = Depends(get_session)):
 
     if task.status not in ["failed", "canceled"]:
         raise HTTPException(status_code=400, detail="Only failed/canceled task can be retried")
+
+    if get_active_task(session, task.audio_id, task.task_type, exclude_task_id=task.id):
+        raise HTTPException(status_code=409, detail="Another task is already active")
 
     task.status = "pending"
     task.retry_count += 1
@@ -1858,9 +2020,6 @@ def search(
         include_disabled_roots=include_disabled_roots,
     )
 
-    if stmt is None:
-        return []
-
     rows = session.exec(stmt).all()
     row_by_id = {row.id: _audio_with_tags_dict(session, row, search_query=q) for row in rows}
 
@@ -1936,8 +2095,13 @@ def rebuild_all_search_index(session: Session = Depends(get_session)):
     count = 0
 
     for item in items:
-        rebuild_audio_search_index(session, item.id)
+        rebuild_audio_search_index(session, item.id, commit=False)
         count += 1
+
+        if count % 200 == 0:
+            session.commit()
+
+    session.commit()
 
     logger.info("Search index rebuilt count=%s", count)
     return {"ok": True, "count": count}

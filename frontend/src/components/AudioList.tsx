@@ -21,6 +21,10 @@ type Props = {
   missingFilter: MissingFilter;
   setMissingFilter: (v: MissingFilter) => void;
   items: AudioItem[];
+  totalCount?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
   selectedId?: number;
   onSelect: (item: AudioItem) => void;
   onPlay: (item: AudioItem) => void;
@@ -39,7 +43,8 @@ const STATUS_TEXT: Record<string, string> = {
   running: "进行中",
   done: "已完成",
   failed: "失败",
-  canceled: "已取消"
+  canceled: "已取消",
+  cancel_requested: "取消中"
 };
 
 function escapeRegExp(value: string): string {
@@ -276,6 +281,10 @@ export default function AudioList({
   hasTranscriptFilter,
   missingFilter,
   items,
+  totalCount,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
   selectedId,
   onSelect,
   onPlay,
@@ -460,6 +469,31 @@ export default function AudioList({
             </div>
           );
         })}
+
+        {items.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 12,
+              padding: "18px 8px 28px",
+              color: "var(--text-muted)",
+              fontSize: 13
+            }}
+          >
+            <span>
+              已加载 {items.length}
+              {typeof totalCount === "number" ? ` / ${totalCount}` : ""} 个音频
+            </span>
+
+            {hasMore && (
+              <button onClick={onLoadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? "加载中..." : "加载更多"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );

@@ -25,10 +25,9 @@ type ViewMode =
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing";
 
-const AUDIO_PAGE_LIMIT = 200;
-const MAX_AUTO_LOADED_AUDIO = 5000;
-
 type AudioListParams = Parameters<typeof api.listAudioItems>[0];
+
+const AUDIO_PAGE_LIMIT = 120;
 
 function transcriptFilterToParam(value: TranscriptFilter): boolean | undefined {
   if (value === "yes") return true;
@@ -55,35 +54,11 @@ function isSmartView(view: ViewMode): boolean {
   );
 }
 
-async function loadAllAudioItems(params: AudioListParams = {}): Promise<AudioItem[]> {
-  const result: AudioItem[] = [];
-
-  for (let offset = 0; offset < MAX_AUTO_LOADED_AUDIO; ) {
-    const page = await api.listAudioItems({
-      ...params,
-      limit: AUDIO_PAGE_LIMIT,
-      offset
-    });
-
-    result.push(...page);
-
-    if (page.length < AUDIO_PAGE_LIMIT) {
-      break;
-    }
-
-    offset += page.length;
-
-    if (result.length >= MAX_AUTO_LOADED_AUDIO) {
-      break;
-    }
-  }
-
-  return result;
-}
-
 export default function App() {
   const [view, setView] = useState<ViewMode>("library");
   const [audioItems, setAudioItems] = useState<AudioItem[]>([]);
+  const [audioTotal, setAudioTotal] = useState(0);
+  const [audioHasMore, setAudioHasMore] = useState(false);
   const [selected, setSelected] = useState<AudioItem | null>(null);
 
   const [playing, setPlaying] = useState<AudioItem | null>(null);
@@ -105,6 +80,7 @@ export default function App() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   const loadSeqRef = useRef(0);
@@ -128,6 +104,20 @@ export default function App() {
 
     setTags(tagRows);
     setPlaylists(playlistRows);
+  }
+
+  function buildAudioListParams(): AudioListParams {
+    return {
+      q: debouncedQ || undefined,
+      tag: selectedTag,
+      favorite: view === "favorites" ? true : undefined,
+      missing_description:
+        view === "missingDescription" ? true : missingDescriptionOnly || undefined,
+      has_transcript:
+        view === "transcribed" ? true : transcriptFilterToParam(hasTranscriptFilter),
+      missing: view === "missing" ? true : missingFilterToParam(missingFilter),
+      ai_status: view === "aiFailed" ? "failed" : undefined
+    };
   }
 
   function applyClientFiltersForPlaylist(items: AudioItem[]) {
@@ -170,10 +160,6 @@ export default function App() {
       result = result.filter((item) => !item.is_missing);
     }
 
-    if (view === "aiFailed") {
-      result = result.filter((item) => item.ai_status === "failed");
-    }
-
     return result;
   }
 
@@ -195,15 +181,21 @@ export default function App() {
       if (view === "settings") {
         setAudioItems([]);
         setPlaylistItemsRaw([]);
+        setAudioTotal(0);
+        setAudioHasMore(false);
         return;
       }
 
       let items: AudioItem[] = [];
+      let total = 0;
+      let hasMore = false;
 
       if (view === "playlist") {
         if (!selectedPlaylistId) {
           setPlaylistItemsRaw([]);
           setAudioItems([]);
+          setAudioTotal(0);
+          setAudioHasMore(false);
           setSelected(null);
           return;
         }
@@ -218,27 +210,27 @@ export default function App() {
 
         setPlaylistItemsRaw(rawItems);
         items = applyClientFiltersForPlaylist(rawItems);
+        total = items.length;
+        hasMore = false;
       } else {
         setPlaylistItemsRaw([]);
 
-        const params: AudioListParams = {
-          q: debouncedQ || undefined,
-          tag: selectedTag,
-          favorite: view === "favorites" ? true : undefined,
-          missing_description:
-            view === "missingDescription" ? true : missingDescriptionOnly || undefined,
-          has_transcript:
-            view === "transcribed" ? true : transcriptFilterToParam(hasTranscriptFilter),
-          missing: view === "missing" ? true : missingFilterToParam(missingFilter),
-          ai_status: view === "aiFailed" ? "failed" : undefined
-        };
+        const page = await api.listAudioItems({
+          ...buildAudioListParams(),
+          limit: AUDIO_PAGE_LIMIT,
+          offset: 0
+        });
 
-        items = await loadAllAudioItems(params);
+        items = page.items;
+        total = page.total;
+        hasMore = page.has_more;
       }
 
       if (loadSeq !== loadSeqRef.current) return;
 
       setAudioItems(items);
+      setAudioTotal(total);
+      setAudioHasMore(hasMore);
 
       setSelected((prev) => {
         if (items.length === 0) return null;
@@ -260,6 +252,32 @@ export default function App() {
       if (loadSeq === loadSeqRef.current) {
         setLoading(false);
       }
+    }
+  }
+
+  async function loadMoreAudioItems() {
+    if (view === "playlist" || view === "settings" || loadingMore || !audioHasMore) {
+      return;
+    }
+
+    setLoadingMore(true);
+
+    try {
+      await ensureBackendReady();
+
+      const page = await api.listAudioItems({
+        ...buildAudioListParams(),
+        limit: AUDIO_PAGE_LIMIT,
+        offset: audioItems.length
+      });
+
+      setAudioItems((rows) => [...rows, ...page.items]);
+      setAudioTotal(page.total);
+      setAudioHasMore(page.has_more);
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -417,14 +435,14 @@ export default function App() {
     );
 
     if (eligible.length === 0) {
-      notify("当前列表没有可创建转写任务的音频。缺失文件或进行中的任务会被跳过。", "info");
+      notify("当前已加载列表没有可创建转写任务的音频。缺失文件或进行中的任务会被跳过。", "info");
       return;
     }
 
     const skippedByClient = audioItems.length - eligible.length;
 
     const ok = window.confirm(
-      `将为 ${eligible.length} 个音频创建转写任务${
+      `将为当前已加载的 ${eligible.length} 个音频创建转写任务${
         skippedByClient ? `，并跳过 ${skippedByClient} 个缺失文件或进行中的音频` : ""
       }。确认继续？`
     );
@@ -448,14 +466,14 @@ export default function App() {
     const eligible = audioItems.filter((item) => !isBusyStatus(item.ai_status));
 
     if (eligible.length === 0) {
-      notify("当前列表没有可创建 AI 分析任务的音频。进行中的任务会被跳过。", "info");
+      notify("当前已加载列表没有可创建 AI 分析任务的音频。进行中的任务会被跳过。", "info");
       return;
     }
 
     const skippedByClient = audioItems.length - eligible.length;
 
     const ok = window.confirm(
-      `将为 ${eligible.length} 个音频创建 AI 分析任务${
+      `将为当前已加载的 ${eligible.length} 个音频创建 AI 分析任务${
         skippedByClient ? `，并跳过 ${skippedByClient} 个进行中的音频` : ""
       }。确认继续？`
     );
@@ -524,6 +542,8 @@ export default function App() {
 
     setPlaylistItemsRaw(normalized);
     setAudioItems(applyClientFiltersForPlaylist(normalized));
+    setAudioTotal(normalized.length);
+    setAudioHasMore(false);
   }
 
   async function movePlaylistItem(item: AudioItem, direction: "up" | "down") {
@@ -652,7 +672,7 @@ export default function App() {
               <TopBar
                 title={listTitle}
                 subtitle={listSubtitle}
-                totalCount={audioItems.length}
+                totalCount={audioTotal}
                 q={q}
                 setQ={setQ}
                 isLoading={loading}
@@ -684,6 +704,10 @@ export default function App() {
                 missingFilter={missingFilter}
                 setMissingFilter={setMissingFilter}
                 items={audioItems}
+                totalCount={audioTotal}
+                hasMore={audioHasMore}
+                isLoadingMore={loadingMore}
+                onLoadMore={loadMoreAudioItems}
                 selectedId={selected?.id}
                 onSelect={setSelected}
                 onPlay={(item) => playAudio(item, audioItems)}

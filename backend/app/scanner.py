@@ -15,6 +15,8 @@ logger = get_logger(__name__)
 
 SUPPORTED_EXTS = {".mp3", ".m4a", ".flac", ".wav", ".ogg"}
 
+SCAN_PROGRESS_INTERVAL = 25
+
 
 def _tag_first(tags, keys: list[str]) -> Optional[str]:
     if not tags:
@@ -108,13 +110,6 @@ def _save_cover_bytes(audio_id: int, data: bytes, mime: Optional[str]) -> Option
 
 
 def extract_embedded_cover(path: Path, audio_id: int) -> Optional[dict]:
-    """
-    尽量从常见格式中提取内嵌封面：
-    - MP3 ID3 APIC
-    - M4A covr
-    - FLAC pictures
-    - OGG/Vorbis METADATA_BLOCK_PICTURE
-    """
     try:
         audio = MutagenFile(str(path))
         if audio is None:
@@ -221,6 +216,9 @@ def _is_scan_canceled(session: Session, task_id: Optional[int]) -> bool:
 
 
 def _ensure_cover(session: Session, item: AudioItem, file_path: Path):
+    if item.id is None:
+        return
+
     if item.cover_source == "user" and item.cover_path and Path(item.cover_path).exists():
         return
 
@@ -234,6 +232,33 @@ def _ensure_cover(session: Session, item: AudioItem, file_path: Path):
         item.updated_at = now_iso()
         session.add(item)
         session.commit()
+
+
+def _audio_file_changed(existing: AudioItem, stat, mtime: str) -> bool:
+    if existing.file_size != stat.st_size:
+        return True
+
+    if existing.file_mtime != mtime:
+        return True
+
+    return False
+
+
+def _touch_existing_without_metadata(existing: AudioItem, root_id: int) -> bool:
+    changed = False
+
+    if existing.is_missing:
+        existing.is_missing = False
+        changed = True
+
+    if existing.library_root_id != root_id:
+        existing.library_root_id = root_id
+        changed = True
+
+    if changed:
+        existing.updated_at = now_iso()
+
+    return changed
 
 
 def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int] = None) -> dict:
@@ -302,23 +327,36 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
         mtime = datetime.utcfromtimestamp(stat.st_mtime).isoformat()
 
         if existing:
-            existing.file_size = stat.st_size
-            existing.file_mtime = mtime
-            existing.is_missing = False
-            existing.library_root_id = root.id
-            existing.updated_at = now_iso()
+            if _audio_file_changed(existing, stat, mtime):
+                existing.file_size = stat.st_size
+                existing.file_mtime = mtime
+                existing.is_missing = False
+                existing.library_root_id = root.id
+                existing.updated_at = now_iso()
 
-            meta = read_audio_metadata(file_path)
-            for key, value in meta.items():
-                setattr(existing, key, value)
+                meta = read_audio_metadata(file_path)
+                for key, value in meta.items():
+                    setattr(existing, key, value)
 
-            session.add(existing)
-            session.commit()
+                session.add(existing)
+                session.commit()
 
-            _ensure_cover(session, existing, file_path)
-            rebuild_audio_search_index(session, existing.id)
+                _ensure_cover(session, existing, file_path)
+                rebuild_audio_search_index(session, existing.id)
 
-            updated += 1
+                updated += 1
+            else:
+                touched = _touch_existing_without_metadata(existing, root.id)
+                if touched:
+                    session.add(existing)
+                    updated += 1
+
+                if (
+                    existing.cover_source != "user"
+                    and (not existing.cover_path or not Path(existing.cover_path).exists())
+                ):
+                    session.commit()
+                    _ensure_cover(session, existing, file_path)
 
         else:
             meta = read_audio_metadata(file_path)
@@ -343,14 +381,17 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
 
         processed += 1
 
-        _update_scan_task(
-            session,
-            scan_task_id,
-            processed_files=processed,
-            imported=imported,
-            updated=updated,
-            missing=missing,
-        )
+        if processed % SCAN_PROGRESS_INTERVAL == 0:
+            _update_scan_task(
+                session,
+                scan_task_id,
+                processed_files=processed,
+                imported=imported,
+                updated=updated,
+                missing=missing,
+            )
+
+    session.commit()
 
     if canceled or _is_scan_canceled(session, scan_task_id):
         _update_scan_task(
@@ -384,10 +425,11 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
 
     for item in items:
         if item.file_path not in found_paths:
-            item.is_missing = True
-            item.updated_at = now_iso()
-            session.add(item)
-            missing += 1
+            if not item.is_missing:
+                item.is_missing = True
+                item.updated_at = now_iso()
+                session.add(item)
+                missing += 1
 
     session.commit()
 

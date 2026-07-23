@@ -75,6 +75,14 @@ export type AudioItem = {
   playlist_order_index?: number;
 };
 
+export type PaginatedAudioItems = {
+  items: AudioItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
 export type AudioDetail = {
   audio: AudioItem;
   tags: Tag[];

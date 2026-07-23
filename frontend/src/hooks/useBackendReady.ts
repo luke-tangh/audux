@@ -16,6 +16,8 @@ export function useBackendReady() {
     for (let attempt = 0; attempt < 40; attempt += 1) {
       try {
         await api.health();
+        await api.ensureAuthToken();
+
         backendReadyRef.current = true;
         return;
       } catch (err) {

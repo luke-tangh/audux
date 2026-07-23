@@ -5,6 +5,8 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 ## 功能特性
 
 - 本地媒体库扫描：支持 MP3 / M4A / FLAC / WAV / OGG
+- 增量扫描：文件大小和修改时间未变化时跳过 metadata 重读和索引重建
+- 大资料库分页加载：前端按页加载音频，不再一次性拉取全库
 - metadata 读取：标题、作者、专辑、描述、时长、码率、采样率等
 - 内嵌封面提取与自定义封面上传
 - 播放器：播放队列、倍速、音量、播放位置记忆
@@ -24,6 +26,11 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
   - ASR / AI 任务
   - 取消、重试
   - 后端重启后自动恢复中断任务状态
+- 本地 API 加固：
+  - Origin 限制
+  - unsafe method 客户端 header
+  - 本地随机 API token
+  - 媒体、导出、日志接口也需要 token
 - Tauri 桌面封装：
   - 开发环境自动启动 Python backend
   - Release 可使用 PyInstaller 构建 backend sidecar
@@ -34,16 +41,6 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 .
 ├── backend
 │   ├── app
-│   │   ├── ai_client.py
-│   │   ├── db.py
-│   │   ├── logger.py
-│   │   ├── main.py
-│   │   ├── models.py
-│   │   ├── scanner.py
-│   │   ├── schemas.py
-│   │   ├── search.py
-│   │   ├── tasks.py
-│   │   └── transcriber.py
 │   ├── tests
 │   ├── build_backend.py
 │   ├── requirements.txt
@@ -71,7 +68,10 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 ~/.local_audio_library/covers
 ~/.local_audio_library/logs
 ~/.local_audio_library/exports
+~/.local_audio_library/local_api_token
 ```
+
+`local_api_token` 是后端自动生成的本地随机 API token，用于防止外部网页直接访问敏感接口。
 
 ## 后端开发环境
 
@@ -110,7 +110,7 @@ http://127.0.0.1:8765
 curl http://127.0.0.1:8765/health
 ```
 
-Windows PowerShell 可使用：
+Windows PowerShell：
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8765/health
@@ -134,8 +134,6 @@ http://127.0.0.1:5173
 
 ## Tauri 开发模式
 
-Tauri dev 会自动启动 Vite 和 Python backend。
-
 ```bash
 cd frontend
 npm run tauri:dev
@@ -147,8 +145,6 @@ npm run tauri:dev
 2. 当前 `VIRTUAL_ENV`
 3. Windows 使用 `python`
 4. macOS / Linux 使用 `python3`
-
-如果依赖缺失，请先进入 `backend` 安装依赖。
 
 ## ASR 设置
 
@@ -162,8 +158,6 @@ asr.device = cpu
 asr.compute_type = int8
 asr.beam_size = 5
 ```
-
-可以在设置中心修改。
 
 如果希望完全离线，建议把 `asr.model_name` 配置为本地模型路径，而不是 `small` / `medium` / `large-v3` 这类模型名称。否则首次运行可能会尝试下载模型。
 
@@ -202,14 +196,28 @@ llm.temperature
 127.0.0.1:8765
 ```
 
-并启用以下保护：
+安全机制：
 
-- CORS 默认只允许 localhost / tauri origin
-- POST / PUT / PATCH / DELETE 需要自定义 header：
+1. CORS 默认只允许 localhost / tauri origin。
+2. POST / PUT / PATCH / DELETE 需要：
 
 ```txt
 X-Local-Audio-Client: local-audio-library
 ```
+
+3. 除 `/health`、`/auth/token`、API docs 外，所有 API 都需要本地随机 token：
+
+```txt
+X-Local-Audio-Token: <token>
+```
+
+4. `<audio>`、`<img>`、导出下载等无法添加 header 的场景使用 query token：
+
+```txt
+?access_token=<token>
+```
+
+前端会自动获取并添加 token。
 
 开发环境可以通过环境变量允许所有 CORS：
 
@@ -221,7 +229,7 @@ LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS=1
 
 ## 后端测试
 
-本项目的基础测试使用 Python 标准库 `unittest`，不需要额外安装 `pytest`。
+基础测试使用 Python 标准库 `unittest`：
 
 ```bash
 cd backend
@@ -237,9 +245,7 @@ npm run build
 
 ## 构建后端 sidecar
 
-Release 打包前需要先构建 Python backend sidecar。
-
-`build_backend.py` 需要 PyInstaller。如果你当前环境没有安装 PyInstaller，可以单独安装：
+`build_backend.py` 需要 PyInstaller。如果当前环境没有安装 PyInstaller，可以单独安装：
 
 ```bash
 cd backend
@@ -257,6 +263,16 @@ python build_backend.py
 ```txt
 frontend/src-tauri/binaries/local-audio-backend-<target-triple>
 ```
+
+构建脚本会尝试收集：
+
+- faster-whisper
+- ctranslate2
+- tokenizers
+- av
+- sqlite3
+
+不同平台的 native 依赖仍建议在目标平台上实际测试。
 
 ## 构建 Tauri 应用
 
@@ -276,15 +292,28 @@ Release 构建前请确认：
 
 ## 常见问题
 
-### 后端未启动
+### API 返回 Missing or invalid local API token
 
-检查：
+前端会自动请求 `/auth/token`。如果你手动 curl 调试，需要先获取 token：
 
 ```bash
-curl http://127.0.0.1:8765/health
+curl http://127.0.0.1:8765/auth/token
 ```
 
-如果失败，手动启动：
+然后带 header：
+
+```bash
+curl http://127.0.0.1:8765/library-roots \
+  -H "X-Local-Audio-Token: <token>"
+```
+
+POST / PUT / PATCH / DELETE 还需要本地客户端 header：
+
+```bash
+-H "X-Local-Audio-Client: local-audio-library"
+```
+
+### 后端未启动
 
 ```bash
 cd backend
@@ -292,8 +321,6 @@ python run.py
 ```
 
 ### faster-whisper 未安装
-
-安装依赖：
 
 ```bash
 cd backend
@@ -324,8 +351,6 @@ python -m pip install -r requirements.txt
 
 ## 开发建议
 
-推荐常用命令：
-
 ```bash
 # backend
 cd backend
@@ -342,22 +367,3 @@ npm run tauri:dev
 ## License
 
 Private / Internal project by default.
-```
-
----
-
-执行验证：
-
-```bash
-cd backend
-python -m unittest discover -s tests
-python run.py
-```
-
-另开一个终端：
-
-```bash
-cd frontend
-npm run typecheck
-npm run build
-```

@@ -7,6 +7,7 @@ import type {
   LibraryRoot,
   LLMConfigPayload,
   LLMTestResult,
+  PaginatedAudioItems,
   Playlist,
   PlaylistDetail,
   ScanTask,
@@ -18,6 +19,12 @@ export const API_BASE = "http://127.0.0.1:8765";
 
 export const LOCAL_AUDIO_CLIENT_HEADER = "X-Local-Audio-Client";
 export const LOCAL_AUDIO_CLIENT_ID = "local-audio-library";
+
+export const LOCAL_AUDIO_TOKEN_HEADER = "X-Local-Audio-Token";
+export const LOCAL_AUDIO_TOKEN_QUERY = "access_token";
+
+let localApiToken: string | null = null;
+let localApiTokenPromise: Promise<string> | null = null;
 
 export class ApiError extends Error {
   status: number;
@@ -84,6 +91,78 @@ async function parseErrorResponse(resp: Response): Promise<ApiError> {
   }
 }
 
+function isTokenFreePath(path: string): boolean {
+  return path === "/health" || path === "/auth/token";
+}
+
+export async function ensureLocalApiToken(): Promise<string> {
+  if (localApiToken) {
+    return localApiToken;
+  }
+
+  if (localApiTokenPromise) {
+    return localApiTokenPromise;
+  }
+
+  localApiTokenPromise = fetch(`${API_BASE}/auth/token`, {
+    headers: {
+      [LOCAL_AUDIO_CLIENT_HEADER]: LOCAL_AUDIO_CLIENT_ID
+    }
+  })
+    .then(async (resp) => {
+      if (!resp.ok) {
+        throw await parseErrorResponse(resp);
+      }
+
+      const json = await resp.json();
+      const token = String(json.token || "").trim();
+
+      if (!token) {
+        throw new Error("Local API token is empty");
+      }
+
+      localApiToken = token;
+      return token;
+    })
+    .finally(() => {
+      localApiTokenPromise = null;
+    });
+
+  return localApiTokenPromise;
+}
+
+function authQuery(): string {
+  if (!localApiToken) return "";
+  return `${LOCAL_AUDIO_TOKEN_QUERY}=${encodeURIComponent(localApiToken)}`;
+}
+
+function appendQuery(url: string, params: Record<string, string | number | undefined>) {
+  const entries = Object.entries(params).filter(
+    ([, value]) => value !== undefined && value !== ""
+  );
+
+  if (entries.length === 0) {
+    return url;
+  }
+
+  const sp = new URLSearchParams();
+
+  for (const [key, value] of entries) {
+    if (value !== undefined) {
+      sp.set(key, String(value));
+    }
+  }
+
+  return `${url}${url.includes("?") ? "&" : "?"}${sp.toString()}`;
+}
+
+function appendAccessToken(url: string): string {
+  const tokenQuery = authQuery();
+  if (!tokenQuery) return url;
+
+  return `${url}${url.includes("?") ? "&" : "?"}${tokenQuery}`;
+}
+
 async function request<T = any>(path: string, options?: RequestInit): Promise<T> {
   const body = options?.body;
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
@@ -93,6 +172,10 @@ async function request<T = any>(path: string, options?: RequestInit): Promise<T>
   };
 
   headers[LOCAL_AUDIO_CLIENT_HEADER] = LOCAL_AUDIO_CLIENT_ID;
+
+  if (!isTokenFreePath(path)) {
+    headers[LOCAL_AUDIO_TOKEN_HEADER] = await ensureLocalApiToken();
+  }
 
   if (!isFormData && !headers["Content-Type"] && body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -146,6 +229,8 @@ export function endpointPrivacyWarning(endpoint: string): string | null {
 }
 
 export const api = {
+  ensureAuthToken: ensureLocalApiToken,
+
   health: () => request<{ status: string }>("/health"),
 
   listLibraryRoots: () => request<LibraryRoot[]>("/library-roots"),
@@ -214,7 +299,7 @@ export const api = {
     if (params?.offset !== undefined) sp.set("offset", String(params.offset));
 
     const qs = sp.toString();
-    return request<AudioItem[]>(`/audio-items${qs ? `?${qs}` : ""}`);
+    return request<PaginatedAudioItems>(`/audio-items${qs ? `?${qs}` : ""}`);
   },
 
   getAudioDetail: (id: number) => request<AudioDetail>(`/audio-items/${id}`),
@@ -255,9 +340,13 @@ export const api = {
     }),
 
   coverUrl: (id: number, version?: string | number) =>
-    `${API_BASE}/audio-items/${id}/cover${
-      version ? `?v=${encodeURIComponent(String(version))}` : ""
-    }`,
+    appendAccessToken(
+      appendQuery(`${API_BASE}/audio-items/${id}/cover`, {
+        v: version
+      })
+    ),
+
+  audioFileUrl: (id: number) => appendAccessToken(`${API_BASE}/audio-items/${id}/file`),
 
   updatePlaybackPosition: (id: number, last_position_seconds: number) =>
     request<{ ok: boolean }>(`/audio-items/${id}/playback-position`, {
@@ -325,7 +414,9 @@ export const api = {
     }),
 
   playlistExportUrl: (playlistId: number, format: "json" | "m3u") =>
-    `${API_BASE}/playlists/${playlistId}/export?format=${encodeURIComponent(format)}`,
+    appendAccessToken(
+      `${API_BASE}/playlists/${playlistId}/export?format=${encodeURIComponent(format)}`
+    ),
 
   transcribe: (audioId: number) =>
     request<AITask>(`/audio-items/${audioId}/transcribe`, {
@@ -358,10 +449,12 @@ export const api = {
   getTranscript: (audioId: number) => request<Transcript>(`/audio-items/${audioId}/transcript`),
 
   transcriptExportUrl: (audioId: number, format: "txt" | "json" | "srt") =>
-    `${API_BASE}/audio-items/${audioId}/transcript/export?format=${encodeURIComponent(format)}`,
+    appendAccessToken(
+      `${API_BASE}/audio-items/${audioId}/transcript/export?format=${encodeURIComponent(format)}`
+    ),
 
   metadataExportUrl: (format: "json" | "csv") =>
-    `${API_BASE}/export/metadata?format=${encodeURIComponent(format)}`,
+    appendAccessToken(`${API_BASE}/export/metadata?format=${encodeURIComponent(format)}`),
 
   listTasks: () => request<AITask[]>("/ai-tasks"),
 
@@ -395,5 +488,5 @@ export const api = {
 
   getLogs: (lines = 300) => request<{ file: string; content: string }>(`/logs/app?lines=${lines}`),
 
-  logsFileUrl: () => `${API_BASE}/logs/app/file`
+  logsFileUrl: () => appendAccessToken(`${API_BASE}/logs/app/file`)
 };
