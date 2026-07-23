@@ -1,10 +1,57 @@
 import logging
+import re
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Any
 
 from .db import LOGS_DIR
 
 LOG_FILE = LOGS_DIR / "app.log"
+
+SENSITIVE_PATTERNS = [
+    # URLs: ?access_token=xxx or &access_token=xxx
+    re.compile(r"([?&]access_token=)[^&\s]+", re.IGNORECASE),
+    # Headers, if they ever appear in logs
+    re.compile(r"(X-Local-Audio-Token:\s*)[^\s,;]+", re.IGNORECASE),
+    re.compile(r"(Authorization:\s*Bearer\s+)[^\s,;]+", re.IGNORECASE),
+]
+
+
+def redact_sensitive_text(value: str) -> str:
+    redacted = value
+
+    for pattern in SENSITIVE_PATTERNS:
+        redacted = pattern.sub(r"\1[redacted]", redacted)
+
+    return redacted
+
+
+def _redact_log_arg(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact_sensitive_text(value)
+
+    return value
+
+
+class SensitiveDataFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            if isinstance(record.msg, str):
+                record.msg = redact_sensitive_text(record.msg)
+
+            if isinstance(record.args, tuple):
+                record.args = tuple(_redact_log_arg(arg) for arg in record.args)
+            elif isinstance(record.args, dict):
+                record.args = {
+                    key: _redact_log_arg(value)
+                    for key, value in record.args.items()
+                }
+
+        except Exception:
+            # Logging filters must never break the application.
+            pass
+
+        return True
 
 
 def setup_logging():
@@ -26,6 +73,8 @@ def setup_logging():
         fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     )
 
+    sensitive_filter = SensitiveDataFilter()
+
     file_handler = RotatingFileHandler(
         LOG_FILE,
         maxBytes=2 * 1024 * 1024,
@@ -34,10 +83,12 @@ def setup_logging():
     )
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
+    file_handler.addFilter(sensitive_filter)
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
     stream_handler.setLevel(logging.INFO)
+    stream_handler.addFilter(sensitive_filter)
 
     root.addHandler(file_handler)
     root.addHandler(stream_handler)
@@ -57,4 +108,4 @@ def read_log_tail(lines: int = 300) -> str:
     with path.open("r", encoding="utf-8", errors="ignore") as f:
         content = f.readlines()
 
-    return "".join(content[-lines:])
+    return redact_sensitive_text("".join(content[-lines:]))

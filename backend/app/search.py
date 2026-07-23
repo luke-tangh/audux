@@ -15,7 +15,11 @@ def get_display_description(audio: AudioItem) -> str:
     return audio.description_user or audio.description_ai or audio.description_original or ""
 
 
-def rebuild_audio_search_index(session: Session, audio_id: int):
+def rebuild_audio_search_index(
+    session: Session,
+    audio_id: int,
+    commit: bool = True,
+):
     audio = session.get(AudioItem, audio_id)
     if not audio:
         return
@@ -53,7 +57,9 @@ def rebuild_audio_search_index(session: Session, audio_id: int):
             "transcript": transcript_text,
         },
     )
-    session.commit()
+
+    if commit:
+        session.commit()
 
 
 def _escape_fts5_phrase(value: str) -> str:
@@ -75,19 +81,37 @@ def _build_safe_fts5_query(q: str) -> str:
     return " AND ".join(_escape_fts5_phrase(token) for token in tokens)
 
 
+def _escape_like_query(value: str) -> str:
+    """
+    Escape LIKE wildcards.
+
+    SQLite LIKE uses:
+    - % as multi-character wildcard
+    - _ as single-character wildcard
+
+    We use backslash as ESCAPE char.
+    """
+    return (
+        value
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+
+
 def _like_search_audio_ids(session: Session, q: str, limit: int = 200) -> list[int]:
-    pattern = f"%{q}%"
+    pattern = f"%{_escape_like_query(q)}%"
 
     rows = session.execute(
         text(
             """
             SELECT DISTINCT audio_id
             FROM search_index
-            WHERE title LIKE :pattern
-               OR author LIKE :pattern
-               OR description LIKE :pattern
-               OR tags LIKE :pattern
-               OR transcript LIKE :pattern
+            WHERE title LIKE :pattern ESCAPE '\\'
+               OR author LIKE :pattern ESCAPE '\\'
+               OR description LIKE :pattern ESCAPE '\\'
+               OR tags LIKE :pattern ESCAPE '\\'
+               OR transcript LIKE :pattern ESCAPE '\\'
             LIMIT :limit
             """
         ),

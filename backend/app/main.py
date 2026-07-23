@@ -123,11 +123,14 @@ LOCAL_TOKEN_FILE = APP_DATA_DIR / "local_api_token"
 
 PUBLIC_PATHS = {
     "/health",
-    "/auth/token",
     "/docs",
     "/redoc",
     "/openapi.json",
     "/favicon.ico",
+}
+
+TOKEN_EXEMPT_PATHS = PUBLIC_PATHS | {
+    "/auth/token",
 }
 
 BUSY_AUDIO_TASK_STATUSES = {"pending", "running", "cancel_requested"}
@@ -166,6 +169,13 @@ def _get_or_create_local_api_token() -> str:
 
 def _is_public_path(path: str) -> bool:
     if path in PUBLIC_PATHS:
+        return True
+
+    return path.startswith("/docs/") or path.startswith("/redoc/")
+
+
+def _is_token_exempt_path(path: str) -> bool:
+    if path in TOKEN_EXEMPT_PATHS:
         return True
 
     return path.startswith("/docs/") or path.startswith("/redoc/")
@@ -226,12 +236,22 @@ async def local_request_guard(request: Request, call_next):
     - 媒体、封面、导出等 GET 可用 query token，方便 <audio>/<img>/window.open。
     """
     if request.method.upper() != "OPTIONS":
+        path = request.url.path
+
         origin = request.headers.get("origin")
         if origin and not _is_allowed_request_origin(origin):
             return JSONResponse(
                 status_code=403,
                 content={"detail": "Forbidden origin"},
             )
+
+        if path == "/auth/token":
+            client_header = request.headers.get(LOCAL_CLIENT_HEADER_NAME)
+            if client_header != LOCAL_CLIENT_HEADER_VALUE:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Missing local client header"},
+                )
 
         if request.method.upper() in UNSAFE_METHODS:
             client_header = request.headers.get(LOCAL_CLIENT_HEADER_NAME)
@@ -241,7 +261,7 @@ async def local_request_guard(request: Request, call_next):
                     content={"detail": "Missing local client header"},
                 )
 
-        if not _is_public_path(request.url.path):
+        if not _is_token_exempt_path(path):
             if not _request_has_valid_local_token(request):
                 return JSONResponse(
                     status_code=401,
@@ -358,6 +378,35 @@ def _find_library_root_id_for_path(session: Session, file_path: Path) -> Optiona
             continue
 
     return best_root_id
+
+
+def _mark_audio_missing_if_unavailable(session: Session, audio: AudioItem) -> bool:
+    """
+    返回音频文件是否可用。
+
+    若文件不存在，立即把 audio.is_missing 标记为 True。
+    若文件恢复可用，也会把 is_missing 修正回 False。
+    """
+    path = Path(audio.file_path)
+
+    if path.exists() and path.is_file():
+        if audio.is_missing:
+            audio.is_missing = False
+            audio.updated_at = now_iso()
+            session.add(audio)
+            session.commit()
+            session.refresh(audio)
+
+        return True
+
+    if not audio.is_missing:
+        audio.is_missing = True
+        audio.updated_at = now_iso()
+        session.add(audio)
+        session.commit()
+        session.refresh(audio)
+
+    return False
 
 
 def _parse_task_output_payload(value: Optional[str]) -> dict:
@@ -883,6 +932,10 @@ def batch_transcribe(
 
         if get_active_task(session, audio_id, "transcribe"):
             skipped.append(audio_id)
+            continue
+
+        if not _mark_audio_missing_if_unavailable(session, audio):
+            errors.append({"audio_id": audio_id, "error": "Audio file missing"})
             continue
 
         audio.transcript_status = "pending"
@@ -1653,6 +1706,9 @@ def enqueue_transcribe(audio_id: int, session: Session = Depends(get_session)):
             status_code=409,
             detail="Transcribe task is already pending, running or canceling",
         )
+
+    if not _mark_audio_missing_if_unavailable(session, audio):
+        raise HTTPException(status_code=400, detail="Audio file missing")
 
     audio.transcript_status = "pending"
     audio.updated_at = now_iso()

@@ -541,8 +541,9 @@ export default function App() {
     }));
 
     setPlaylistItemsRaw(normalized);
-    setAudioItems(applyClientFiltersForPlaylist(normalized));
-    setAudioTotal(normalized.length);
+    const filtered = applyClientFiltersForPlaylist(normalized);
+    setAudioItems(filtered);
+    setAudioTotal(filtered.length);
     setAudioHasMore(false);
   }
 

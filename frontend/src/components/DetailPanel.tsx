@@ -48,6 +48,8 @@ export default function DetailPanel({
   }, [allTags, acceptedTagNames]);
 
   useEffect(() => {
+    let canceled = false;
+
     async function load() {
       setTranscript(null);
       setAiSuggestions(null);
@@ -64,6 +66,8 @@ export default function DetailPanel({
         api.listTags().catch(() => [])
       ]);
 
+      if (canceled) return;
+
       setTags(detail.tags);
       setAllTags(tagRows);
 
@@ -76,14 +80,34 @@ export default function DetailPanel({
         is_favorite: detail.audio.is_favorite
       });
 
-      api.getTranscript(audio.id).then(setTranscript).catch(() => setTranscript(null));
-      api.getAiSuggestions(audio.id).then(setAiSuggestions).catch(() => setAiSuggestions(null));
+      api
+        .getTranscript(audio.id)
+        .then((value) => {
+          if (!canceled) setTranscript(value);
+        })
+        .catch(() => {
+          if (!canceled) setTranscript(null);
+        });
+
+      api
+        .getAiSuggestions(audio.id)
+        .then((value) => {
+          if (!canceled) setAiSuggestions(value);
+        })
+        .catch(() => {
+          if (!canceled) setAiSuggestions(null);
+        });
     }
 
     load().catch((err) => {
+      if (canceled) return;
       console.error(err);
       notify?.(err instanceof Error ? err.message : String(err), "error");
     });
+
+    return () => {
+      canceled = true;
+    };
   }, [audio?.id]);
 
   if (!audio) {

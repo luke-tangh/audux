@@ -143,11 +143,47 @@ def _set_audio_task_status_no_commit(
     session.add(audio)
 
 
+def _task_has_completed_output(session: Session, task: AITask) -> bool:
+    """
+    Backend 异常退出后恢复 running/cancel_requested 任务时使用。
+
+    如果业务结果已经完整落库，则可恢复为 done，避免：
+    - transcript 已生成但 task/audio 被恢复为 failed
+    - AI 描述已写入但 task/audio 被恢复为 failed
+    """
+    if task.task_type == "transcribe":
+        transcript = session.exec(
+            select(Transcript).where(Transcript.audio_id == task.audio_id)
+        ).first()
+
+        return bool(transcript and transcript.status == "done")
+
+    if task.task_type == "analyze":
+        audio = session.get(AudioItem, task.audio_id)
+
+        if audio and audio.ai_status == "done" and audio.description_ai:
+            return True
+
+        payload = {}
+        if task.output_payload:
+            try:
+                parsed = json.loads(task.output_payload)
+                if isinstance(parsed, dict):
+                    payload = parsed
+            except Exception:
+                payload = {}
+
+        return bool(payload.get("description"))
+
+    return False
+
+
 def recover_interrupted_tasks() -> int:
     """
     恢复 backend 非正常退出前遗留的任务状态。
 
     in-process worker 无法跨进程恢复正在执行的模型调用：
+    - 如果业务结果已经完整落库，恢复为 done
     - running：视为被 backend 重启中断，标记 failed，可在 UI 中 retry
     - cancel_requested：标记 canceled
     """
@@ -162,7 +198,10 @@ def recover_interrupted_tasks() -> int:
             if task.id is None:
                 continue
 
-            if task.status == "cancel_requested":
+            if _task_has_completed_output(session, task):
+                final_status = "done"
+                error_message = None
+            elif task.status == "cancel_requested":
                 final_status = "canceled"
                 error_message = task.error_message
             else:
@@ -271,10 +310,9 @@ async def worker_loop():
                 if not fresh:
                     continue
 
-                if fresh.status in CANCEL_REQUEST_STATUSES:
-                    finalize_canceled_task(session, task_id)
-                    continue
-
+                # 如果 handler 正常返回，说明业务结果已经完成。
+                # 即使此时 UI 刚好请求 cancel，也应让 done 赢，
+                # 避免“结果已落库但任务显示 canceled”。
                 fresh.status = "done"
                 fresh.finished_at = now_iso()
                 fresh.updated_at = now_iso()
@@ -356,7 +394,6 @@ async def handle_transcribe_task(session: Session, task: AITask):
     )
 
     if is_task_canceled(session, task_id):
-        set_audio_task_status(session, audio_id, "transcribe", "canceled")
         raise TaskCanceled()
 
     old = session.exec(
@@ -402,7 +439,6 @@ async def handle_transcribe_task(session: Session, task: AITask):
         session.add(row)
 
     if is_task_canceled(session, task_id):
-        set_audio_task_status(session, audio_id, "transcribe", "canceled")
         raise TaskCanceled()
 
     audio = session.get(AudioItem, audio_id)
@@ -527,7 +563,6 @@ transcript 结束
         session.commit()
 
     if is_task_canceled(session, task_id):
-        set_audio_task_status(session, audio_id, "analyze", "canceled")
         raise TaskCanceled()
 
     try:
@@ -566,7 +601,6 @@ transcript 结束
             normalized_tags.append(name)
 
     if is_task_canceled(session, task_id):
-        set_audio_task_status(session, audio_id, "analyze", "canceled")
         raise TaskCanceled()
 
     audio = session.get(AudioItem, audio_id)
