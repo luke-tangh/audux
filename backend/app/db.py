@@ -150,3 +150,18 @@ def run_migrations():
         if not _migration_applied(conn, 3):
             create_fts_tables()
             _mark_migration_applied(conn, 3, "ensure_fts5_search_index")
+
+        if not _migration_applied(conn, 4):
+            # 用于扫描时通过 hash 识别文件移动。
+            # 旧库中 file_hash 可能为空，扫描会逐步回填。
+            conn.execute(
+                text(
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_audio_items_file_hash
+                    ON audio_items(file_hash)
+                    WHERE file_hash IS NOT NULL;
+                    """
+                )
+            )
+
+            _mark_migration_applied(conn, 4, "index_audio_items_file_hash")

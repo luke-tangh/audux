@@ -1,4 +1,5 @@
 import base64
+import hashlib
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -17,6 +18,7 @@ SUPPORTED_EXTS = {".mp3", ".m4a", ".flac", ".wav", ".ogg"}
 
 SCAN_PROGRESS_INTERVAL = 25
 MAX_COVER_BYTES = 10 * 1024 * 1024
+HASH_CHUNK_SIZE = 1024 * 1024
 INTERRUPTED_SCAN_STATUSES = {"pending", "running"}
 
 
@@ -36,6 +38,51 @@ def _tag_first(tags, keys: list[str]) -> Optional[str]:
             return str(value)
 
     return None
+
+
+def calculate_file_hash(path: Path) -> str:
+    """
+    计算音频文件内容 SHA-256。
+
+    用途：
+    - 新文件导入时保存 file_hash
+    - 文件内容变化时刷新 file_hash
+    - 扫描时根据 file_hash 识别“同一文件被移动到新路径”
+    """
+    digest = hashlib.sha256()
+
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(HASH_CHUNK_SIZE)
+            if not chunk:
+                break
+
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def _safe_calculate_file_hash(path: Path) -> Optional[str]:
+    try:
+        return calculate_file_hash(path)
+    except Exception as e:
+        logger.warning("Failed to calculate file hash for %s: %s", path, e)
+        return None
+
+
+def _same_audio_path(left: str, right: str) -> bool:
+    try:
+        return Path(left).expanduser().resolve() == Path(right).expanduser().resolve()
+    except Exception:
+        return left == right
+
+
+def _path_points_to_available_file(path_value: str) -> bool:
+    try:
+        path = Path(path_value)
+        return path.exists() and path.is_file()
+    except Exception:
+        return False
 
 
 def read_audio_metadata(path: Path) -> dict:
@@ -312,6 +359,120 @@ def _collect_audio_candidates(root_path: Path) -> list[Path]:
     return candidates
 
 
+def _find_moved_audio_by_hash(
+    session: Session,
+    file_hash: Optional[str],
+    resolved_path: str,
+    root_id: int,
+    file_size: int,
+) -> Optional[AudioItem]:
+    """
+    根据 file_hash 查找可能被移动的旧记录。
+
+    只匹配“旧路径当前不可用”的记录，避免把正常存在的重复文件误判为移动。
+    典型场景：
+    - 旧记录：/old/path/a.mp3，file_hash = xxx，但该路径已不存在
+    - 新扫描：/new/path/a.mp3，hash 同为 xxx
+    - 结果：更新旧记录 file_path，而不是创建新 AudioItem
+    """
+    if not file_hash:
+        return None
+
+    rows = session.exec(
+        select(AudioItem).where(AudioItem.file_hash == file_hash)
+    ).all()
+
+    candidates: list[AudioItem] = []
+
+    for item in rows:
+        if item.id is None:
+            continue
+
+        if _same_audio_path(item.file_path, resolved_path):
+            continue
+
+        # hash 相同理论上已足够；size 作为额外保护，避免脏数据或极端碰撞。
+        if item.file_size is not None and item.file_size != file_size:
+            continue
+
+        # 如果旧路径还存在，视为重复副本，不当作移动。
+        if _path_points_to_available_file(item.file_path):
+            continue
+
+        candidates.append(item)
+
+    if not candidates:
+        return None
+
+    candidates.sort(
+        key=lambda item: (
+            0 if item.library_root_id == root_id else 1,
+            0 if item.is_missing else 1,
+            item.updated_at or "",
+        )
+    )
+
+    return candidates[0]
+
+
+def _relocate_audio_item_by_hash(
+    session: Session,
+    item: AudioItem,
+    resolved_path: str,
+    file_path: Path,
+    stat,
+    mtime: str,
+    root_id: int,
+    file_hash: str,
+):
+    """
+    将旧 AudioItem 记录迁移到新路径。
+
+    保留：
+    - 用户编辑字段
+    - tags
+    - playlist 关系
+    - transcript
+    - AI task 历史
+    - 播放计数和播放位置
+    """
+    old_path = item.file_path
+
+    item.file_path = resolved_path
+    item.file_name = file_path.name
+    item.file_ext = file_path.suffix.lower()
+    item.file_size = stat.st_size
+    item.file_mtime = mtime
+    item.file_hash = file_hash
+    item.library_root_id = root_id
+    item.is_missing = False
+
+    meta = read_audio_metadata(file_path)
+    for key, value in meta.items():
+        setattr(item, key, value)
+
+    item.updated_at = now_iso()
+
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+
+    # 同一 hash 通常表示同一文件，封面无需强制刷新；
+    # 但如果旧封面缺失，则尝试重新提取。
+    _ensure_cover(session, item, file_path, force_refresh=False)
+
+    if item.id is not None:
+        rebuild_audio_search_index(session, item.id)
+
+    logger.info(
+        "Detected moved audio by file_hash id=%s old_path=%s new_path=%s hash=%s",
+        item.id,
+        old_path,
+        resolved_path,
+        file_hash[:16],
+    )
+
+
 def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int] = None) -> dict:
     root = session.get(LibraryRoot, root_id)
     if not root:
@@ -390,9 +551,17 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
         mtime = datetime.utcfromtimestamp(stat.st_mtime).isoformat()
 
         if existing:
-            if _audio_file_changed(existing, stat, mtime):
+            file_changed = _audio_file_changed(existing, stat, mtime)
+
+            if file_changed or not existing.file_hash:
+                file_hash = _safe_calculate_file_hash(file_path)
+            else:
+                file_hash = existing.file_hash
+
+            if file_changed:
                 existing.file_size = stat.st_size
                 existing.file_mtime = mtime
+                existing.file_hash = file_hash
                 existing.is_missing = False
                 existing.library_root_id = root.id
                 existing.updated_at = now_iso()
@@ -403,6 +572,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
 
                 session.add(existing)
                 session.commit()
+                session.refresh(existing)
 
                 _ensure_cover(session, existing, file_path, force_refresh=True)
                 rebuild_audio_search_index(session, existing.id)
@@ -410,37 +580,68 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
                 updated += 1
             else:
                 touched = _touch_existing_without_metadata(existing, root.id)
+
+                if not existing.file_hash and file_hash:
+                    existing.file_hash = file_hash
+                    existing.updated_at = now_iso()
+                    touched = True
+
                 if touched:
                     session.add(existing)
+                    session.commit()
                     updated += 1
 
                 if (
                     existing.cover_source != "user"
                     and (not existing.cover_path or not Path(existing.cover_path).exists())
                 ):
-                    session.commit()
                     _ensure_cover(session, existing, file_path)
 
         else:
-            meta = read_audio_metadata(file_path)
+            file_hash = _safe_calculate_file_hash(file_path)
 
-            item = AudioItem(
-                file_path=resolved,
-                file_name=file_path.name,
-                file_ext=file_path.suffix.lower(),
+            moved_item = _find_moved_audio_by_hash(
+                session=session,
+                file_hash=file_hash,
+                resolved_path=resolved,
+                root_id=root.id,
                 file_size=stat.st_size,
-                file_mtime=mtime,
-                library_root_id=root.id,
-                **meta,
             )
-            session.add(item)
-            session.commit()
-            session.refresh(item)
 
-            _ensure_cover(session, item, file_path)
-            rebuild_audio_search_index(session, item.id)
+            if moved_item and file_hash:
+                _relocate_audio_item_by_hash(
+                    session=session,
+                    item=moved_item,
+                    resolved_path=resolved,
+                    file_path=file_path,
+                    stat=stat,
+                    mtime=mtime,
+                    root_id=root.id,
+                    file_hash=file_hash,
+                )
 
-            imported += 1
+                updated += 1
+            else:
+                meta = read_audio_metadata(file_path)
+
+                item = AudioItem(
+                    file_path=resolved,
+                    file_name=file_path.name,
+                    file_ext=file_path.suffix.lower(),
+                    file_size=stat.st_size,
+                    file_mtime=mtime,
+                    file_hash=file_hash,
+                    library_root_id=root.id,
+                    **meta,
+                )
+                session.add(item)
+                session.commit()
+                session.refresh(item)
+
+                _ensure_cover(session, item, file_path)
+                rebuild_audio_search_index(session, item.id)
+
+                imported += 1
 
         processed += 1
 
