@@ -87,7 +87,7 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 BUSY_AUDIO_TASK_STATUSES = {"pending", "running", "cancel_requested"}
 
-ACTIVE_SCAN_TASK_STATUSES = {"pending", "running"}
+ACTIVE_SCAN_TASK_STATUSES = {"pending", "running", "cancel_requested"}
 
 SAFE_DOWNLOAD_NAME_PATTERN = re.compile(r'[\r\n\\/"<>|:*?]+')
 
@@ -165,6 +165,34 @@ def _mark_audio_missing_if_unavailable(session: Session, audio: AudioItem) -> bo
         session.add(audio)
         session.commit()
         session.refresh(audio)
+
+    return False
+
+
+def _mark_audio_missing_if_unavailable_no_commit(
+    session: Session,
+    audio: AudioItem,
+) -> bool:
+    """
+    Batch variant of _mark_audio_missing_if_unavailable.
+
+    It updates AudioItem.is_missing in the current transaction without committing,
+    so batch task creation can commit once at the end.
+    """
+    path = Path(audio.file_path)
+
+    if path.exists() and path.is_file():
+        if audio.is_missing:
+            audio.is_missing = False
+            audio.updated_at = now_iso()
+            session.add(audio)
+
+        return True
+
+    if not audio.is_missing:
+        audio.is_missing = True
+        audio.updated_at = now_iso()
+        session.add(audio)
 
     return False
 
@@ -831,14 +859,24 @@ def cancel_scan_task(task_id: int, session: Session = Depends(get_session)):
     if task.status in ["done", "failed", "canceled"]:
         raise HTTPException(status_code=400, detail="Scan task cannot be canceled")
 
-    task.status = "canceled"
-    task.finished_at = now_iso()
+    if task.status == "cancel_requested":
+        return task
+
     task.updated_at = now_iso()
+
+    if task.status == "running":
+        task.status = "cancel_requested"
+    else:
+        # pending task may not have started yet. Mark it terminal immediately;
+        # the background worker will no-op when it observes canceled.
+        task.status = "canceled"
+        task.finished_at = now_iso()
+
     session.add(task)
     session.commit()
     session.refresh(task)
 
-    logger.info("Scan task canceled id=%s", task.id)
+    logger.info("Scan task cancel requested id=%s status=%s", task.id, task.status)
     return task
 
 
@@ -909,47 +947,70 @@ def batch_transcribe(
     payload: BatchAudioRequest,
     session: Session = Depends(get_session),
 ):
-    created = []
-    skipped = []
-    errors = []
+    created_task_ids: list[int] = []
+    skipped: list[int] = []
+    errors: list[dict] = []
+    seen_audio_ids: set[int] = set()
 
     for audio_id in payload.audio_ids:
-        audio = session.get(AudioItem, audio_id)
-        if not audio:
-            errors.append({"audio_id": audio_id, "error": "Audio not found"})
-            continue
-
-        if audio.transcript_status in BUSY_AUDIO_TASK_STATUSES:
+        if audio_id in seen_audio_ids:
             skipped.append(audio_id)
             continue
 
-        if get_active_task(session, audio_id, "transcribe"):
-            skipped.append(audio_id)
-            continue
-
-        if not _mark_audio_missing_if_unavailable(session, audio):
-            errors.append({"audio_id": audio_id, "error": "Audio file missing"})
-            continue
-
-        audio.transcript_status = "pending"
-        audio.updated_at = now_iso()
-        session.add(audio)
-        session.commit()
+        seen_audio_ids.add(audio_id)
 
         try:
-            task = create_task(session, audio_id, "transcribe")
-            created.append(task)
-        except ActiveTaskConflict:
-            skipped.append(audio_id)
-            continue
+            with session.begin_nested():
+                audio = session.get(AudioItem, audio_id)
+                if not audio:
+                    errors.append({"audio_id": audio_id, "error": "Audio not found"})
+                    continue
 
-    logger.info("Batch transcribe created=%s skipped=%s", len(created), len(skipped))
+                if audio.transcript_status in BUSY_AUDIO_TASK_STATUSES:
+                    skipped.append(audio_id)
+                    continue
+
+                if get_active_task(session, audio_id, "transcribe"):
+                    skipped.append(audio_id)
+                    continue
+
+                if not _mark_audio_missing_if_unavailable_no_commit(session, audio):
+                    errors.append({"audio_id": audio_id, "error": "Audio file missing"})
+                    continue
+
+                audio.transcript_status = "pending"
+                audio.updated_at = now_iso()
+                session.add(audio)
+
+                task = AITask(
+                    audio_id=audio_id,
+                    task_type="transcribe",
+                    status="pending",
+                    input_payload=json.dumps({}, ensure_ascii=False),
+                    updated_at=now_iso(),
+                )
+                session.add(task)
+                session.flush()
+
+                if task.id is not None:
+                    created_task_ids.append(int(task.id))
+
+        except IntegrityError as e:
+            if _is_unique_constraint_error(e):
+                skipped.append(audio_id)
+                continue
+
+            raise
+
+    session.commit()
+
+    logger.info("Batch transcribe created=%s skipped=%s", len(created_task_ids), len(skipped))
 
     return {
-        "created": len(created),
+        "created": len(created_task_ids),
         "skipped": len(skipped),
         "errors": errors,
-        "tasks": created,
+        "task_ids": created_task_ids,
     }
 
 
@@ -968,44 +1029,67 @@ def batch_analyze(
     if warning:
         logger.warning("Batch analyze uses non-local LLM endpoint: %s", endpoint.value)
 
-    created = []
-    skipped = []
-    errors = []
+    created_task_ids: list[int] = []
+    skipped: list[int] = []
+    errors: list[dict] = []
+    seen_audio_ids: set[int] = set()
 
     for audio_id in payload.audio_ids:
-        audio = session.get(AudioItem, audio_id)
-        if not audio:
-            errors.append({"audio_id": audio_id, "error": "Audio not found"})
-            continue
-
-        if audio.ai_status in BUSY_AUDIO_TASK_STATUSES:
+        if audio_id in seen_audio_ids:
             skipped.append(audio_id)
             continue
 
-        if get_active_task(session, audio_id, "analyze"):
-            skipped.append(audio_id)
-            continue
-
-        audio.ai_status = "pending"
-        audio.updated_at = now_iso()
-        session.add(audio)
-        session.commit()
+        seen_audio_ids.add(audio_id)
 
         try:
-            task = create_task(session, audio_id, "analyze")
-            created.append(task)
-        except ActiveTaskConflict:
-            skipped.append(audio_id)
-            continue
+            with session.begin_nested():
+                audio = session.get(AudioItem, audio_id)
+                if not audio:
+                    errors.append({"audio_id": audio_id, "error": "Audio not found"})
+                    continue
 
-    logger.info("Batch analyze created=%s skipped=%s", len(created), len(skipped))
+                if audio.ai_status in BUSY_AUDIO_TASK_STATUSES:
+                    skipped.append(audio_id)
+                    continue
+
+                if get_active_task(session, audio_id, "analyze"):
+                    skipped.append(audio_id)
+                    continue
+
+                audio.ai_status = "pending"
+                audio.updated_at = now_iso()
+                session.add(audio)
+
+                task = AITask(
+                    audio_id=audio_id,
+                    task_type="analyze",
+                    status="pending",
+                    input_payload=json.dumps({}, ensure_ascii=False),
+                    updated_at=now_iso(),
+                )
+                session.add(task)
+                session.flush()
+
+                if task.id is not None:
+                    created_task_ids.append(int(task.id))
+
+        except IntegrityError as e:
+            if _is_unique_constraint_error(e):
+                skipped.append(audio_id)
+                continue
+
+            raise
+
+    session.commit()
+
+    logger.info("Batch analyze created=%s skipped=%s", len(created_task_ids), len(skipped))
 
     return {
-        "created": len(created),
+        "created": len(created_task_ids),
         "skipped": len(skipped),
         "privacy_warning": warning,
         "errors": errors,
-        "tasks": created,
+        "task_ids": created_task_ids,
     }
 
 
@@ -1507,17 +1591,28 @@ def list_playlists(session: Session = Depends(get_session)):
 
 
 @router.get("/playlists/{playlist_id}")
-def get_playlist(playlist_id: int, session: Session = Depends(get_session)):
+def get_playlist(
+    playlist_id: int,
+    include_disabled_roots: bool = False,
+    session: Session = Depends(get_session),
+):
     playlist = session.get(Playlist, playlist_id)
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
 
-    items = session.exec(
+    stmt = (
         select(PlaylistItem, AudioItem)
         .join(AudioItem, PlaylistItem.audio_id == AudioItem.id)
         .where(PlaylistItem.playlist_id == playlist_id)
-        .order_by(PlaylistItem.order_index)
-    ).all()
+    )
+
+    stmt = _apply_enabled_roots_filter(
+        stmt,
+        session,
+        include_disabled_roots=include_disabled_roots,
+    )
+
+    items = session.exec(stmt.order_by(PlaylistItem.order_index)).all()
 
     audio_dicts = _audio_rows_with_tags_dicts(session, [audio for _, audio in items])
     audio_by_id = {row["id"]: row for row in audio_dicts}
@@ -1547,6 +1642,7 @@ def list_playlist_audio_items(
     favorite: Optional[bool] = None,
     missing: Optional[bool] = None,
     missing_description: Optional[bool] = None,
+    include_disabled_roots: bool = False,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
@@ -1580,6 +1676,12 @@ def list_playlist_audio_items(
         select(PlaylistItem, AudioItem)
         .join(AudioItem, PlaylistItem.audio_id == AudioItem.id)
         .where(PlaylistItem.playlist_id == playlist_id)
+    )
+
+    stmt = _apply_enabled_roots_filter(
+        stmt,
+        session,
+        include_disabled_roots=include_disabled_roots,
     )
 
     if q and search_result:
@@ -1785,18 +1887,26 @@ def remove_playlist_item(
 def export_playlist(
     playlist_id: int,
     format: str = "json",
+    include_disabled_roots: bool = False,
     session: Session = Depends(get_session),
 ):
     playlist = session.get(Playlist, playlist_id)
     if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
 
-    rows = session.exec(
+    stmt = (
         select(PlaylistItem, AudioItem)
         .join(AudioItem, PlaylistItem.audio_id == AudioItem.id)
         .where(PlaylistItem.playlist_id == playlist_id)
-        .order_by(PlaylistItem.order_index)
-    ).all()
+    )
+
+    stmt = _apply_enabled_roots_filter(
+        stmt,
+        session,
+        include_disabled_roots=include_disabled_roots,
+    )
+
+    rows = session.exec(stmt.order_by(PlaylistItem.order_index)).all()
 
     if format == "m3u":
         lines = ["#EXTM3U"]

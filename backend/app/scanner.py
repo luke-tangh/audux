@@ -26,7 +26,7 @@ SAMPLED_HASH_PREFIX = "sampled:v1:"
 SAMPLED_HASH_CHUNK_SIZE = 1024 * 1024
 SUPPORTED_HASH_STRATEGIES = {"sampled", "full"}
 
-INTERRUPTED_SCAN_STATUSES = {"pending", "running"}
+INTERRUPTED_SCAN_STATUSES = {"pending", "running", "cancel_requested"}
 
 
 def _tag_first(tags, keys: list[str]) -> Optional[str]:
@@ -357,6 +357,17 @@ def _update_scan_task(session: Session, task_id: Optional[int], **kwargs):
     if not task:
         return
 
+    next_status = kwargs.get("status")
+
+    # Do not let a stale worker overwrite a user cancel request back to running.
+    if next_status == "running" and task.status in {
+        "canceled",
+        "cancel_requested",
+        "done",
+        "failed",
+    }:
+        return
+
     for key, value in kwargs.items():
         setattr(task, key, value)
 
@@ -371,7 +382,7 @@ def _is_scan_canceled(session: Session, task_id: Optional[int]) -> bool:
 
     session.expire_all()
     task = session.get(ScanTask, task_id)
-    return bool(task and task.status == "canceled")
+    return bool(task and task.status in {"canceled", "cancel_requested"})
 
 
 def _ensure_cover(session: Session, item: AudioItem, file_path: Path, force_refresh: bool = False):
@@ -436,21 +447,33 @@ def _touch_existing_without_metadata(existing: AudioItem, root_id: int) -> bool:
     return changed
 
 
-def _collect_audio_candidates(root_path: Path) -> list[Path]:
-    candidates: list[Path] = []
+def _iter_audio_candidates(root_path: Path):
+    """
+    Streaming audio candidate iterator.
 
+    Avoids materializing the whole library tree before processing. This reduces
+    memory usage on large libraries and lets scan cancellation be observed while
+    enumeration is still in progress.
+    """
     try:
         for p in root_path.rglob("*"):
             try:
                 if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS:
-                    candidates.append(p)
+                    yield p
             except Exception as e:
                 logger.warning("Failed to inspect scan candidate %s: %s", p, e)
 
     except Exception as e:
         logger.warning("Failed to enumerate library root %s: %s", root_path, e)
 
-    return candidates
+
+def _collect_audio_candidates(root_path: Path) -> list[Path]:
+    """
+    Compatibility helper for callers/tests that need a list.
+
+    scan_library_root uses _iter_audio_candidates directly.
+    """
+    return list(_iter_audio_candidates(root_path))
 
 
 def _find_moved_audio_by_hash(
@@ -661,13 +684,18 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
         raise ValueError("Invalid library root path")
 
     if _is_scan_canceled(session, scan_task_id):
+        _update_scan_task(
+            session,
+            scan_task_id,
+            status="canceled",
+            finished_at=now_iso(),
+        )
         return {
             "imported": 0,
             "updated": 0,
             "missing": 0,
         }
 
-    candidates = _collect_audio_candidates(root_path)
     hash_strategy = _get_scan_hash_strategy(session)
     backfill_missing_hash = _get_scan_backfill_missing_hash(session)
 
@@ -675,15 +703,18 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
     updated = 0
     missing = 0
     processed = 0
-    found_paths = set()
+    discovered = 0
+    found_paths: set[str] = set()
     canceled = False
 
+    # Set running before filesystem enumeration so a cancel request made during
+    # large-directory walking cannot be overwritten later.
     _update_scan_task(
         session,
         scan_task_id,
         status="running",
         started_at=now_iso(),
-        total_files=len(candidates),
+        total_files=0,
         processed_files=0,
         imported=0,
         updated=0,
@@ -692,22 +723,34 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
     )
 
     logger.info(
-        "Scanning root %s, files=%s hash_strategy=%s backfill_missing_hash=%s",
+        "Scanning root %s, hash_strategy=%s backfill_missing_hash=%s",
         root.path,
-        len(candidates),
         hash_strategy,
         backfill_missing_hash,
     )
 
-    for file_path in candidates:
+    def update_progress(force: bool = False):
+        if not scan_task_id:
+            return
+
+        if not force and processed % SCAN_PROGRESS_INTERVAL != 0:
+            return
+
+        _update_scan_task(
+            session,
+            scan_task_id,
+            total_files=discovered,
+            processed_files=processed,
+            imported=imported,
+            updated=updated,
+            missing=missing,
+        )
+
+    for file_path in _iter_audio_candidates(root_path):
+        discovered += 1
+
         if _is_scan_canceled(session, scan_task_id):
             canceled = True
-            _update_scan_task(
-                session,
-                scan_task_id,
-                status="canceled",
-                finished_at=now_iso(),
-            )
             break
 
         try:
@@ -716,17 +759,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
         except Exception as e:
             logger.warning("Skipping unavailable audio file %s: %s", file_path, e)
             processed += 1
-
-            if processed % SCAN_PROGRESS_INTERVAL == 0:
-                _update_scan_task(
-                    session,
-                    scan_task_id,
-                    processed_files=processed,
-                    imported=imported,
-                    updated=updated,
-                    missing=missing,
-                )
-
+            update_progress()
             continue
 
         found_paths.add(resolved)
@@ -855,16 +888,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
                 imported += 1
 
         processed += 1
-
-        if processed % SCAN_PROGRESS_INTERVAL == 0:
-            _update_scan_task(
-                session,
-                scan_task_id,
-                processed_files=processed,
-                imported=imported,
-                updated=updated,
-                missing=missing,
-            )
+        update_progress()
 
     session.commit()
 
@@ -873,6 +897,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
             session,
             scan_task_id,
             status="canceled",
+            total_files=discovered,
             processed_files=processed,
             imported=imported,
             updated=updated,
@@ -898,7 +923,11 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
         select(AudioItem).where(AudioItem.library_root_id == root.id)
     ).all()
 
-    for item in items:
+    for index, item in enumerate(items):
+        if index % SCAN_PROGRESS_INTERVAL == 0 and _is_scan_canceled(session, scan_task_id):
+            canceled = True
+            break
+
         if item.file_path not in found_paths:
             if not item.is_missing:
                 item.is_missing = True
@@ -906,12 +935,42 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
                 session.add(item)
                 missing += 1
 
+    if canceled:
+        session.rollback()
+
+        _update_scan_task(
+            session,
+            scan_task_id,
+            status="canceled",
+            total_files=discovered,
+            processed_files=processed,
+            imported=imported,
+            updated=updated,
+            missing=missing,
+            finished_at=now_iso(),
+        )
+
+        logger.info(
+            "Scan canceled during missing reconciliation root=%s imported=%s updated=%s missing=%s",
+            root.path,
+            imported,
+            updated,
+            missing,
+        )
+
+        return {
+            "imported": imported,
+            "updated": updated,
+            "missing": missing,
+        }
+
     session.commit()
 
     _update_scan_task(
         session,
         scan_task_id,
         status="done",
+        total_files=discovered,
         processed_files=processed,
         imported=imported,
         updated=updated,
@@ -920,8 +979,9 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
     )
 
     logger.info(
-        "Scan done root=%s imported=%s updated=%s missing=%s",
+        "Scan done root=%s files=%s imported=%s updated=%s missing=%s",
         root.path,
+        discovered,
         imported,
         updated,
         missing,
@@ -948,8 +1008,12 @@ def recover_interrupted_scan_tasks() -> int:
         ).all()
 
         for task in tasks:
-            task.status = "failed"
-            task.error_message = task.error_message or "Scan interrupted by backend restart"
+            if task.status == "cancel_requested":
+                task.status = "canceled"
+            else:
+                task.status = "failed"
+                task.error_message = task.error_message or "Scan interrupted by backend restart"
+
             task.finished_at = task.finished_at or now_iso()
             task.updated_at = now_iso()
             session.add(task)

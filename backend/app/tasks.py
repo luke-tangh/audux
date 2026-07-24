@@ -420,6 +420,18 @@ def _mark_task_done(task_id: int):
         fresh.finished_at = now_iso()
         fresh.updated_at = now_iso()
         session.add(fresh)
+
+        # Keep task/audio status in the same transaction. This fixes the race:
+        # handler commits business output -> UI requests cancel -> worker marks
+        # task done. Without this, task may be done while audio remains
+        # cancel_requested.
+        _set_audio_task_status_no_commit(
+            session,
+            fresh.audio_id,
+            fresh.task_type,
+            "done",
+        )
+
         session.commit()
 
 

@@ -405,7 +405,16 @@ export const api = {
 
   listPlaylists: () => request<Playlist[]>("/playlists"),
 
-  getPlaylist: (id: number) => request<PlaylistDetail>(`/playlists/${id}`),
+  getPlaylist: (id: number, params?: { include_disabled_roots?: boolean }) => {
+    const sp = new URLSearchParams();
+
+    if (params?.include_disabled_roots !== undefined) {
+      sp.set("include_disabled_roots", String(params.include_disabled_roots));
+    }
+
+    const qs = sp.toString();
+    return request<PlaylistDetail>(`/playlists/${id}${qs ? `?${qs}` : ""}`);
+  },
 
   listPlaylistItems: (
     id: number,

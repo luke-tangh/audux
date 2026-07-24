@@ -201,7 +201,12 @@ export type BatchTaskResult = {
     audio_id: number;
     error: string;
   }[];
-  tasks: AITask[];
+  task_ids?: number[];
+  /**
+   * Kept optional for compatibility with older backend responses.
+   * New batch endpoints return task_ids only to avoid huge responses.
+   */
+  tasks?: AITask[];
 };
 
 export function displayTitle(a: AudioItem): string {

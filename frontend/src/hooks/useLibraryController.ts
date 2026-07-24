@@ -227,7 +227,7 @@ export function useLibraryController() {
         }
 
         const [detail, page] = await Promise.all([
-          api.getPlaylist(selectedPlaylistId),
+          api.getPlaylist(selectedPlaylistId, { include_disabled_roots: true }),
           api.listPlaylistItems(selectedPlaylistId, {
             ...buildPlaylistListParams(),
             limit: AUDIO_PAGE_LIMIT,
@@ -677,12 +677,29 @@ export function useLibraryController() {
 
     setPlaylistItemsRaw(normalized);
 
-    if (!debouncedQ.trim() && !missingDescriptionOnly && hasTranscriptFilter === "all" && missingFilter === "all") {
-      const firstPage = normalized.slice(0, AUDIO_PAGE_LIMIT);
-      setAudioItems(firstPage);
-      setAudioTotal(normalized.length);
-      setAudioHasMore(normalized.length > AUDIO_PAGE_LIMIT);
-    }
+    const orderByPlaylistItemId = new Map<number, number>();
+
+    normalized.forEach((item, index) => {
+      if (typeof item.playlist_item_id === "number") {
+        orderByPlaylistItemId.set(item.playlist_item_id, index);
+      }
+    });
+
+    setAudioItems((rows) =>
+      [...rows].sort((a, b) => {
+        const left =
+          typeof a.playlist_item_id === "number"
+            ? orderByPlaylistItemId.get(a.playlist_item_id) ?? Number.MAX_SAFE_INTEGER
+            : Number.MAX_SAFE_INTEGER;
+
+        const right =
+          typeof b.playlist_item_id === "number"
+            ? orderByPlaylistItemId.get(b.playlist_item_id) ?? Number.MAX_SAFE_INTEGER
+            : Number.MAX_SAFE_INTEGER;
+
+        return left - right;
+      })
+    );
   }
 
   async function movePlaylistItem(item: AudioItem, direction: "up" | "down") {

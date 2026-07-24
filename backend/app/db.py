@@ -161,11 +161,11 @@ def _dedupe_active_scan_tasks(conn):
                 error_message = COALESCE(error_message, :message),
                 finished_at = COALESCE(finished_at, :now),
                 updated_at = :now
-            WHERE status IN ('pending', 'running')
+            WHERE status IN ('pending', 'running', 'cancel_requested')
               AND id NOT IN (
                   SELECT MIN(id)
                   FROM scan_tasks
-                  WHERE status IN ('pending', 'running')
+                  WHERE status IN ('pending', 'running', 'cancel_requested')
                   GROUP BY root_id
               )
             """
@@ -258,7 +258,7 @@ def run_migrations():
                     )
                 )
 
-            # 防止同一个 library root 同时存在多个 pending/running 扫描任务。
+            # 防止同一个 library root 同时存在多个 pending/running/cancel_requested 扫描任务。
             if _table_exists(conn, "scan_tasks"):
                 _dedupe_active_scan_tasks(conn)
 
@@ -267,11 +267,69 @@ def run_migrations():
                         """
                         CREATE UNIQUE INDEX IF NOT EXISTS ux_scan_tasks_active_root
                         ON scan_tasks(root_id)
-                        WHERE status IN ('pending', 'running');
+                        WHERE status IN ('pending', 'running', 'cancel_requested');
                         """
                     )
                 )
 
             _mark_migration_applied(
                 conn, 5, "unique_active_ai_and_scan_tasks"
+            )
+
+        if not _migration_applied(conn, 6):
+            # v6:
+            # - scan task cancel_requested 也应视为 active，避免取消中的扫描与新扫描并发。
+            # - 为常用 AudioItem 查询字段补充索引，改善分页、筛选和排序性能。
+            if _table_exists(conn, "scan_tasks"):
+                _dedupe_active_scan_tasks(conn)
+
+                conn.execute(text("DROP INDEX IF EXISTS ux_scan_tasks_active_root"))
+
+                conn.execute(
+                    text(
+                        """
+                        CREATE UNIQUE INDEX IF NOT EXISTS ux_scan_tasks_active_root
+                        ON scan_tasks(root_id)
+                        WHERE status IN ('pending', 'running', 'cancel_requested');
+                        """
+                    )
+                )
+
+            if _table_exists(conn, "audio_items"):
+                audio_item_indexes = [
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_audio_items_updated_at
+                    ON audio_items(updated_at);
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_audio_items_transcript_status
+                    ON audio_items(transcript_status);
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_audio_items_ai_status
+                    ON audio_items(ai_status);
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_audio_items_is_missing
+                    ON audio_items(is_missing);
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_audio_items_is_favorite
+                    ON audio_items(is_favorite);
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_audio_items_library_root_id
+                    ON audio_items(library_root_id);
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_audio_items_library_root_updated_at
+                    ON audio_items(library_root_id, updated_at);
+                    """,
+                ]
+
+                for ddl in audio_item_indexes:
+                    conn.execute(text(ddl))
+
+            _mark_migration_applied(
+                conn, 6, "scan_cancel_requested_and_audio_query_indexes"
             )

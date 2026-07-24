@@ -207,12 +207,16 @@ def search_audio_ids_with_meta(
             # 下面仍会使用 LIKE 作为兜底。
             pass
 
-    try:
-        like_ids, like_limited = _like_search_audio_ids(session, q, limit)
-        limited = limited or like_limited
-        add_ids(like_ids)
-    except Exception:
-        pass
+    # LIKE fallback is useful for substring/CJK cases, but scanning the
+    # transcript column with %query% can be expensive on large libraries.
+    # Only run it when FTS did not already fill the requested result window.
+    if len(result) < limit:
+        try:
+            like_ids, like_limited = _like_search_audio_ids(session, q, limit)
+            limited = limited or like_limited
+            add_ids(like_ids)
+        except Exception:
+            pass
 
     return SearchResult(
         ids=result[:limit],
