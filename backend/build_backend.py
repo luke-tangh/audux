@@ -1,8 +1,10 @@
+import importlib.util
+import os
 import platform
-import subprocess
-from pathlib import Path
 import shutil
+import subprocess
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = ROOT.parent
@@ -48,14 +50,41 @@ def ensure_pyinstaller_available():
         ) from e
 
 
-def main():
-    ensure_pyinstaller_available()
+def _env_truthy(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
 
-    name = "local-audio-backend"
-    target = tauri_target_triple()
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
-    dist_dir = ROOT / "dist"
 
+def _env_falsey(value: str | None) -> bool:
+    return bool(value and value.strip().lower() in {"0", "false", "no", "off"})
+
+
+def build_with_asr() -> bool:
+    """
+    Whether to include faster-whisper and native ASR dependencies in the
+    PyInstaller sidecar.
+
+    Default: true, because release builds should keep existing full functionality.
+
+    To create a lite/smoke build without faster-whisper:
+
+        LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 python build_backend.py
+    """
+    value = os.getenv("LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR")
+
+    if _env_falsey(value):
+        return False
+
+    return _env_truthy(value, default=True)
+
+
+def module_available(module_name: str) -> bool:
+    return importlib.util.find_spec(module_name) is not None
+
+
+def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
     cmd = [
         sys.executable,
         "-m",
@@ -65,20 +94,62 @@ def main():
         "--onefile",
         "--name",
         name,
-        "--collect-all",
-        "faster_whisper",
-        "--collect-submodules",
-        "ctranslate2",
-        "--collect-submodules",
-        "tokenizers",
-        "--collect-submodules",
-        "av",
-        "--hidden-import",
-        "sqlite3",
-        "run.py",
     ]
 
+    if include_asr:
+        if not module_available("faster_whisper"):
+            raise RuntimeError(
+                "LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR is enabled, but faster-whisper "
+                "is not installed.\n\n"
+                "For full release build:\n"
+                "  python -m pip install -r requirements.txt\n\n"
+                "For a lite build without ASR:\n"
+                "  LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 python build_backend.py"
+            )
+
+        cmd.extend(
+            [
+                "--collect-all",
+                "faster_whisper",
+                "--collect-submodules",
+                "ctranslate2",
+                "--collect-submodules",
+                "tokenizers",
+                "--collect-submodules",
+                "av",
+            ]
+        )
+    else:
+        print(
+            "Building backend sidecar WITHOUT faster-whisper / ASR support. "
+            "Transcribe tasks will fail at runtime until faster-whisper is installed "
+            "or a full ASR-enabled sidecar is built."
+        )
+
+    cmd.extend(
+        [
+            "--hidden-import",
+            "sqlite3",
+            "run.py",
+        ]
+    )
+
+    return cmd
+
+
+def main():
+    ensure_pyinstaller_available()
+
+    name = "local-audio-backend"
+    target = tauri_target_triple()
+    include_asr = build_with_asr()
+
+    dist_dir = ROOT / "dist"
+
+    cmd = build_pyinstaller_command(name, include_asr=include_asr)
+
     print("Building backend sidecar...")
+    print(f"include_asr={include_asr}")
     print(" ".join(cmd))
 
     subprocess.check_call(cmd, cwd=ROOT)
