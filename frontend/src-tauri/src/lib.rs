@@ -1,13 +1,61 @@
+use std::net::TcpListener;
 use std::sync::Mutex;
 
 use tauri::Manager;
 #[cfg(not(debug_assertions))]
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
+const BACKEND_API_HOST: &str = "127.0.0.1";
+const BACKEND_PORT_ENV: &str = "LOCAL_AUDIO_LIBRARY_API_PORT";
+const DEFAULT_BACKEND_PORT: u16 = 8765;
+
 struct BackendProcess(Mutex<Option<std::process::Child>>);
+
+struct BackendConfig {
+    port: u16,
+    base_url: String,
+}
 
 #[cfg(not(debug_assertions))]
 struct BackendSidecarProcess(Mutex<Option<CommandChild>>);
+
+impl BackendConfig {
+    fn new() -> Self {
+        let port = choose_backend_port();
+
+        Self {
+            port,
+            base_url: format!("http://{BACKEND_API_HOST}:{port}"),
+        }
+    }
+}
+
+fn requested_backend_port() -> u16 {
+    std::env::var(BACKEND_PORT_ENV)
+        .ok()
+        .and_then(|value| value.trim().parse::<u16>().ok())
+        .filter(|port| *port > 0)
+        .unwrap_or(DEFAULT_BACKEND_PORT)
+}
+
+fn is_port_available(port: u16) -> bool {
+    TcpListener::bind((BACKEND_API_HOST, port)).is_ok()
+}
+
+fn random_available_port() -> Option<u16> {
+    let listener = TcpListener::bind((BACKEND_API_HOST, 0)).ok()?;
+    Some(listener.local_addr().ok()?.port())
+}
+
+fn choose_backend_port() -> u16 {
+    let requested = requested_backend_port();
+
+    if is_port_available(requested) {
+        return requested;
+    }
+
+    random_available_port().unwrap_or(requested)
+}
 
 #[tauri::command]
 async fn pick_audio_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
@@ -36,7 +84,21 @@ async fn backend_health() -> Result<bool, String> {
     Ok(true)
 }
 
+#[tauri::command]
+async fn backend_base_url(app: tauri::AppHandle) -> Result<String, String> {
+    let config = app.state::<BackendConfig>();
+    Ok(config.base_url.clone())
+}
+
 fn start_backend_sidecar(app: &tauri::AppHandle) {
+    let config = app.state::<BackendConfig>();
+
+    // Child processes inherit the current process environment. This lets both
+    // dev Python backend and release sidecar bind to the Tauri-selected port.
+    std::env::set_var(BACKEND_PORT_ENV, config.port.to_string());
+
+    println!("Backend API base URL: {}", config.base_url);
+
     #[cfg(debug_assertions)]
     {
         start_backend_in_dev(app);
@@ -153,6 +215,11 @@ fn start_backend_in_dev(app: &tauri::AppHandle) {
     println!("  python: {}", python.display());
     println!("  script: {}", backend_script.display());
     println!("  cwd: {}", backend_dir.display());
+    println!(
+        "  {}: {}",
+        BACKEND_PORT_ENV,
+        std::env::var(BACKEND_PORT_ENV).unwrap_or_default()
+    );
 
     let child = Command::new(&python)
         .arg(&backend_script)
@@ -224,7 +291,10 @@ fn start_backend_in_release(app: &tauri::AppHandle) {
 }
 
 pub fn run() {
+    let backend_config = BackendConfig::new();
+
     let builder = tauri::Builder::default()
+        .manage(backend_config)
         .manage(BackendProcess(Mutex::new(None)))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -237,7 +307,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             pick_audio_folder,
             pick_audio_file,
-            backend_health
+            backend_health,
+            backend_base_url
         ])
         .setup(|app| {
             let handle = app.handle().clone();

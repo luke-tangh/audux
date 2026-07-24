@@ -15,7 +15,53 @@ import type {
   Transcript
 } from "./types";
 
-export const API_BASE = "http://127.0.0.1:8765";
+export const DEFAULT_API_BASE = "http://127.0.0.1:8765";
+export let API_BASE = DEFAULT_API_BASE;
+
+let apiBaseResolved = false;
+let apiBasePromise: Promise<string> | null = null;
+
+function isTauriRuntimeSync(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+async function resolveApiBase(): Promise<string> {
+  if (apiBaseResolved) {
+    return API_BASE;
+  }
+
+  if (apiBasePromise) {
+    return apiBasePromise;
+  }
+
+  apiBasePromise = (async () => {
+    try {
+      if (isTauriRuntimeSync()) {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const value = await invoke<string>("backend_base_url");
+        const normalized = String(value || "").trim().replace(/\/+$/, "");
+
+        if (normalized) {
+          API_BASE = normalized;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to resolve Tauri backend base URL; using default", err);
+    } finally {
+      apiBaseResolved = true;
+    }
+
+    return API_BASE;
+  })().finally(() => {
+    apiBasePromise = null;
+  });
+
+  return apiBasePromise;
+}
+
+export async function ensureApiBase(): Promise<string> {
+  return resolveApiBase();
+}
 
 export const LOCAL_AUDIO_CLIENT_HEADER = "X-Local-Audio-Client";
 export const LOCAL_AUDIO_CLIENT_ID = "local-audio-library";
@@ -104,7 +150,9 @@ export async function ensureLocalApiToken(): Promise<string> {
     return localApiTokenPromise;
   }
 
-  localApiTokenPromise = fetch(`${API_BASE}/auth/token`, {
+  const base = await resolveApiBase();
+
+  localApiTokenPromise = fetch(`${base}/auth/token`, {
     headers: {
       [LOCAL_AUDIO_CLIENT_HEADER]: LOCAL_AUDIO_CLIENT_ID
     }
@@ -190,7 +238,9 @@ async function request<T = any>(
     headers["Content-Type"] = "application/json";
   }
 
-  const resp = await fetch(`${API_BASE}${path}`, {
+  const base = await resolveApiBase();
+
+  const resp = await fetch(`${base}${path}`, {
     ...options,
     headers
   });

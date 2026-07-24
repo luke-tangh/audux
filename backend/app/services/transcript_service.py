@@ -1,15 +1,17 @@
 import json
 
 from fastapi.responses import PlainTextResponse, Response
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from ..models import AudioItem, Transcript, TranscriptSegment, now_iso
+from ..models import AITask, AudioItem, Transcript, TranscriptSegment, now_iso
 from ..search import rebuild_audio_search_index
-from ..tasks import ActiveTaskConflict, create_task, get_active_task
+from ..tasks import get_active_task
 from .common import (
     BUSY_AUDIO_TASK_STATUSES,
     ServiceError,
     _attachment_headers,
+    _is_unique_constraint_error,
     _mark_audio_missing_if_unavailable,
     _srt_time,
 )
@@ -29,16 +31,34 @@ def enqueue_transcribe(session: Session, audio_id: int):
     if not _mark_audio_missing_if_unavailable(session, audio):
         raise ServiceError(400, "Audio file missing")
 
+    task = AITask(
+        audio_id=audio_id,
+        task_type="transcribe",
+        status="pending",
+        input_payload=json.dumps({}, ensure_ascii=False),
+        updated_at=now_iso(),
+    )
+
     audio.transcript_status = "pending"
     audio.updated_at = now_iso()
+
     session.add(audio)
-    session.commit()
+    session.add(task)
 
     try:
-        task = create_task(session, audio_id, "transcribe")
-    except ActiveTaskConflict as e:
-        raise ServiceError(409, "Transcribe task is already pending, running or canceling") from e
+        session.commit()
+    except IntegrityError as e:
+        session.rollback()
 
+        if _is_unique_constraint_error(e):
+            raise ServiceError(
+                409,
+                "Transcribe task is already pending, running or canceling",
+            ) from e
+
+        raise
+
+    session.refresh(task)
     return task
 
 

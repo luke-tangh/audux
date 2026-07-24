@@ -25,7 +25,7 @@ from .local_security import (
 setup_logging()
 logger = get_logger(__name__)
 
-app = FastAPI(title="Local Audio Library API", version="0.5.0")
+app = FastAPI(title="Local Audio Library API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

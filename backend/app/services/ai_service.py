@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
@@ -7,7 +8,7 @@ from ..ai_client import call_openai_compatible_chat, get_ai_message_content
 from ..local_security import _llm_privacy_warning, ensure_llm_endpoint_allowed
 from ..logger import get_logger
 from ..models import AITask, AudioItem, Setting, now_iso
-from ..tasks import ActiveTaskConflict, create_task, get_active_task
+from ..tasks import get_active_task
 from .common import BUSY_AUDIO_TASK_STATUSES, ServiceError, _is_unique_constraint_error
 
 
@@ -35,15 +36,34 @@ def enqueue_analyze(session: Session, audio_id: int) -> dict:
     if warning:
         logger.warning("Analyze uses non-local LLM endpoint: %s", endpoint.value)
 
+    task = AITask(
+        audio_id=audio_id,
+        task_type="analyze",
+        status="pending",
+        input_payload=json.dumps({}, ensure_ascii=False),
+        updated_at=now_iso(),
+    )
+
     audio.ai_status = "pending"
     audio.updated_at = now_iso()
+
     session.add(audio)
-    session.commit()
+    session.add(task)
 
     try:
-        task = create_task(session, audio_id, "analyze")
-    except ActiveTaskConflict as e:
-        raise ServiceError(409, "Analyze task is already pending, running or canceling") from e
+        session.commit()
+    except IntegrityError as e:
+        session.rollback()
+
+        if _is_unique_constraint_error(e):
+            raise ServiceError(
+                409,
+                "Analyze task is already pending, running or canceling",
+            ) from e
+
+        raise
+
+    session.refresh(task)
 
     return {
         **task.model_dump(),

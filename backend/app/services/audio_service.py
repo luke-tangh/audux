@@ -22,7 +22,13 @@ from ..models import (
     TranscriptSegment,
     now_iso,
 )
-from ..scanner import SUPPORTED_EXTS, extract_embedded_cover, read_audio_metadata
+from ..scanner import (
+    SUPPORTED_EXTS,
+    SUPPORTED_HASH_STRATEGIES,
+    calculate_file_fingerprint,
+    extract_embedded_cover,
+    read_audio_metadata,
+)
 from ..search import rebuild_audio_search_index, search_audio_ids_with_meta
 from ..tasks import get_active_task
 from .common import (
@@ -43,6 +49,32 @@ from .common import (
 
 
 logger = get_logger(__name__)
+
+
+def _get_file_hash_strategy(session: Session) -> str:
+    row = session.get(Setting, "scanner.hash_strategy")
+    value = (row.value if row else "sampled").strip().lower()
+
+    if value not in SUPPORTED_HASH_STRATEGIES:
+        return "sampled"
+
+    return value
+
+
+def _calculate_audio_item_file_hash(
+    session: Session,
+    file_path: Path,
+    file_size: Optional[int] = None,
+) -> Optional[str]:
+    try:
+        return calculate_file_fingerprint(
+            file_path,
+            strategy=_get_file_hash_strategy(session),
+            file_size=file_size,
+        )
+    except Exception as e:
+        logger.warning("Failed to calculate relocated file hash for %s: %s", file_path, e)
+        return None
 
 
 def list_audio_items(
@@ -360,6 +392,7 @@ def relocate_audio_item(
         raise ServiceError(409, "Another audio item already uses this file path")
 
     stat = new_path.stat()
+    file_hash = _calculate_audio_item_file_hash(session, new_path, stat.st_size)
     meta = read_audio_metadata(new_path)
 
     item.file_path = str(new_path)
@@ -367,6 +400,7 @@ def relocate_audio_item(
     item.file_ext = new_path.suffix.lower()
     item.file_size = stat.st_size
     item.file_mtime = datetime.utcfromtimestamp(stat.st_mtime).isoformat()
+    item.file_hash = file_hash
     item.library_root_id = _find_library_root_id_for_path(session, new_path)
     item.is_missing = False
 

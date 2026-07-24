@@ -54,11 +54,42 @@ class SensitiveDataFilter(logging.Filter):
         return True
 
 
+def _handler_has_sensitive_filter(handler: logging.Handler) -> bool:
+    return any(
+        isinstance(filter_obj, SensitiveDataFilter)
+        for filter_obj in handler.filters
+    )
+
+
+def _add_sensitive_filter_once(
+    handler: logging.Handler,
+    sensitive_filter: SensitiveDataFilter,
+):
+    if not _handler_has_sensitive_filter(handler):
+        handler.addFilter(sensitive_filter)
+
+
+def _install_sensitive_filter_on_existing_handlers(
+    sensitive_filter: SensitiveDataFilter,
+):
+    # Uvicorn may install handlers on these loggers before FastAPI imports
+    # app.main and calls setup_logging(). Attach the same redaction filter to
+    # them so access_token / Authorization values are not printed to sidecar
+    # stdout/stderr or inherited logs.
+    for logger_name in ["", "uvicorn", "uvicorn.error", "uvicorn.access"]:
+        target_logger = logging.getLogger(logger_name)
+        for handler in target_logger.handlers:
+            _add_sensitive_filter_once(handler, sensitive_filter)
+
+
 def setup_logging():
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)
+
+    sensitive_filter = SensitiveDataFilter()
+    _install_sensitive_filter_on_existing_handlers(sensitive_filter)
 
     exists = any(
         isinstance(handler, RotatingFileHandler)
@@ -72,8 +103,6 @@ def setup_logging():
     formatter = logging.Formatter(
         fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     )
-
-    sensitive_filter = SensitiveDataFilter()
 
     file_handler = RotatingFileHandler(
         LOG_FILE,

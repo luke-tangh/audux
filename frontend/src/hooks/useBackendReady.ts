@@ -13,7 +13,9 @@ export function useBackendReady() {
 
     let lastError: unknown = null;
 
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    // PyInstaller onefile sidecar can take noticeably longer on first launch,
+    // especially with native ASR dependencies bundled. Wait up to ~60s.
+    for (let attempt = 0; attempt < 120; attempt += 1) {
       try {
         await api.health();
         await api.ensureAuthToken();
