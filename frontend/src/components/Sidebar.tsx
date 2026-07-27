@@ -1,3 +1,4 @@
+import { Button, MaterialIcon } from "./ui";
 import type { Playlist, Tag } from "../types";
 
 type ViewMode =
@@ -19,7 +20,7 @@ type Props = {
   playlists: Playlist[];
   selectedPlaylistId: number | null;
   setSelectedPlaylistId: (id: number | null) => void;
-  refresh: () => void;
+  refresh?: () => void;
 };
 
 export default function Sidebar(props: Props) {
@@ -47,7 +48,9 @@ export default function Sidebar(props: Props) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-orb">♪</div>
+        <div className="brand-orb" aria-hidden="true">
+          <MaterialIcon name="library_music" size={28} />
+        </div>
 
         <div className="brand-copy">
           <h2>Local Audio</h2>
@@ -56,75 +59,87 @@ export default function Sidebar(props: Props) {
       </div>
 
       <nav className="sidebar-nav">
-        <button
+        <Button preserveChildren
+          type="button"
           className={navClass(allAudioActive)}
+          aria-current={allAudioActive ? "page" : undefined}
           onClick={() => {
             props.setView("library");
             props.setSelectedTag(undefined);
             props.setSelectedPlaylistId(null);
           }}
         >
-          <span className="nav-symbol">⌂</span>
+          <span className="nav-symbol"><MaterialIcon name="home" size={22} /></span>
           <span>
             <strong>资料库</strong>
             <em>全部音频</em>
           </span>
-        </button>
+        </Button>
 
-        <button
+        <Button preserveChildren
+          type="button"
           className={navClass(favoriteActive)}
+          aria-current={favoriteActive ? "page" : undefined}
           onClick={() => openView("favorites")}
         >
-          <span className="nav-symbol">★</span>
+          <span className="nav-symbol"><MaterialIcon name="star" size={22} /></span>
           <span>
             <strong>收藏</strong>
             <em>常听内容</em>
           </span>
-        </button>
+        </Button>
 
-        <button
+        <Button preserveChildren
+          type="button"
           className={navClass(props.view === "missingDescription")}
+          aria-current={props.view === "missingDescription" ? "page" : undefined}
           onClick={() => openView("missingDescription")}
         >
-          <span className="nav-symbol">✎</span>
+          <span className="nav-symbol"><MaterialIcon name="edit_note" size={22} /></span>
           <span>
             <strong>缺少描述</strong>
             <em>需要整理</em>
           </span>
-        </button>
+        </Button>
 
-        <button
+        <Button preserveChildren
+          type="button"
           className={navClass(props.view === "transcribed")}
+          aria-current={props.view === "transcribed" ? "page" : undefined}
           onClick={() => openView("transcribed")}
         >
-          <span className="nav-symbol">¶</span>
+          <span className="nav-symbol"><MaterialIcon name="article" size={22} /></span>
           <span>
             <strong>已转写</strong>
             <em>可全文检索</em>
           </span>
-        </button>
+        </Button>
 
-        <button
+        <Button preserveChildren
+          type="button"
           className={navClass(props.view === "missing")}
+          aria-current={props.view === "missing" ? "page" : undefined}
           onClick={() => openView("missing")}
         >
-          <span className="nav-symbol">!</span>
+          <span className="nav-symbol"><MaterialIcon name="report" size={22} /></span>
           <span>
             <strong>文件缺失</strong>
             <em>需要重新定位</em>
           </span>
-        </button>
+        </Button>
 
-        <button
+        <Button preserveChildren
+          type="button"
           className={navClass(props.view === "aiFailed")}
+          aria-current={props.view === "aiFailed" ? "page" : undefined}
           onClick={() => openView("aiFailed")}
         >
-          <span className="nav-symbol">⚡</span>
+          <span className="nav-symbol"><MaterialIcon name="bolt" size={22} /></span>
           <span>
             <strong>AI 失败</strong>
             <em>重试分析</em>
           </span>
-        </button>
+        </Button>
       </nav>
 
       <div className="sidebar-section">
@@ -143,8 +158,14 @@ export default function Sidebar(props: Props) {
 
         <div className="sidebar-scroll-area">
           {props.playlists.map((playlist) => (
-            <button
+            <Button preserveChildren
               key={playlist.id}
+              type="button"
+              aria-current={
+                props.view === "playlist" && props.selectedPlaylistId === playlist.id
+                  ? "page"
+                  : undefined
+              }
               className={
                 props.view === "playlist" && props.selectedPlaylistId === playlist.id
                   ? "playlist-row active"
@@ -157,9 +178,9 @@ export default function Sidebar(props: Props) {
                 props.setSelectedPlaylistId(playlist.id);
               }}
             >
-              <span>▸</span>
+              <MaterialIcon name="chevron_right" size={18} />
               <strong>{playlist.name}</strong>
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -171,8 +192,10 @@ export default function Sidebar(props: Props) {
         </div>
 
         <div className="tag-cloud-nav">
-          <button
+          <Button preserveChildren
+            type="button"
             className={pillClass(allAudioActive)}
+            aria-pressed={allAudioActive}
             onClick={() => {
               props.setView("library");
               props.setSelectedTag(undefined);
@@ -180,12 +203,14 @@ export default function Sidebar(props: Props) {
             }}
           >
             全部标签
-          </button>
+          </Button>
 
           {props.tags.map((tag) => (
-            <button
+            <Button preserveChildren
               key={tag.id}
+              type="button"
               className={pillClass(props.selectedTag === tag.name)}
+              aria-pressed={props.selectedTag === tag.name}
               onClick={() => {
                 props.setView("library");
                 props.setSelectedPlaylistId(null);
@@ -194,22 +219,25 @@ export default function Sidebar(props: Props) {
               title={`查看标签：${tag.name}`}
             >
               #{tag.name}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
 
       <div className="sidebar-footer">
-        <button
+        <Button preserveChildren
+          type="button"
           className={settingsActive ? "settings-nav active" : "settings-nav"}
+          aria-current={settingsActive ? "page" : undefined}
           onClick={() => {
             props.setView("settings");
+            props.setSelectedTag(undefined);
             props.setSelectedPlaylistId(null);
           }}
         >
-          <span>⚙</span>
+          <MaterialIcon name="settings" size={20} />
           <strong>设置中心</strong>
-        </button>
+        </Button>
 
         <div className="privacy-card">
           <strong>本地优先</strong>

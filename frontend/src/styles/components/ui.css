@@ -1,0 +1,856 @@
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+}
+
+/* MD3 component primitives */
+
+.ui-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--md-sys-shape-corner-full);
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.ui-button-sm {
+  min-height: 32px;
+  padding-inline: 12px;
+  font-size: 12px;
+}
+
+.ui-button-md {
+  min-height: 40px;
+}
+
+.ui-button-full-width {
+  width: 100%;
+}
+
+.ui-button-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-button-inline-icon {
+  display: inline-grid;
+  place-items: center;
+  line-height: 0;
+}
+
+.ui-button-text {
+  color: var(--md-sys-color-primary);
+  background: transparent;
+}
+
+.ui-button-text:hover {
+  background: rgba(208, 188, 255, 0.08);
+}
+
+.ui-button-filled {
+  color: var(--md-sys-color-on-primary);
+  background: var(--md-sys-color-primary);
+  box-shadow: var(--md-sys-elevation-1);
+}
+
+.ui-button-filled:hover {
+  color: var(--md-sys-color-on-primary);
+  background: var(--md-sys-color-primary);
+  box-shadow: var(--md-sys-elevation-2);
+}
+
+.ui-button-outlined {
+  color: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-outline);
+  background: transparent;
+}
+
+.ui-button-outlined:hover {
+  background: rgba(208, 188, 255, 0.08);
+}
+
+.ui-button-tonal {
+  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-secondary-container);
+}
+
+.ui-button-tonal:hover {
+  background: var(--md-sys-color-secondary-container);
+}
+
+.ui-button-danger {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.ui-button-danger:hover {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.ui-button:disabled {
+  cursor: not-allowed;
+  color: rgba(230, 224, 233, 0.38);
+  background: rgba(230, 224, 233, 0.12);
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.ui-icon-button {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  box-shadow: none;
+}
+
+.ui-icon-button > span {
+  pointer-events: none;
+}
+
+.ui-icon-button-sm {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+}
+
+.ui-icon-button-md {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+}
+
+.ui-icon-button-lg {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  min-height: 48px;
+}
+
+.ui-icon-button-plain {
+  color: var(--md-sys-color-primary);
+  background: transparent;
+}
+
+.ui-icon-button-plain:hover {
+  background: rgba(208, 188, 255, 0.08);
+}
+
+.ui-icon-button-soft {
+  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-secondary-container);
+}
+
+.ui-icon-button-soft:hover {
+  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-secondary-container);
+}
+
+.ui-icon-button-danger {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.ui-icon-button-danger:hover {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.ui-filter-chip {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+  font-weight: 760;
+  white-space: nowrap;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  transition:
+    color var(--transition),
+    border-color var(--transition),
+    background var(--transition),
+    opacity var(--transition);
+}
+
+.ui-filter-chip:hover {
+  border-color: var(--md-sys-color-outline);
+  background: rgba(208, 188, 255, 0.08);
+}
+
+.ui-filter-chip-selected {
+  color: var(--md-sys-color-on-secondary-container);
+  border-color: transparent;
+  background: var(--md-sys-color-secondary-container);
+}
+
+.ui-filter-chip-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.ui-filter-chip input {
+  width: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.ui-filter-chip span {
+  min-width: 0;
+}
+
+.ui-search-field {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.ui-search-field-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.ui-search-field-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.ui-search-field-input {
+  width: 100%;
+  height: 56px;
+  min-height: 56px;
+  padding-left: 48px;
+  padding-right: 48px;
+  border: none;
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: none;
+}
+
+.ui-search-field-input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.ui-search-field-input:focus {
+  border: none;
+  box-shadow: 0 0 0 2px var(--md-sys-color-primary);
+}
+
+.ui-search-field-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.ui-search-field-clear:hover,
+.ui-search-field-clear:active {
+  transform: translateY(-50%);
+}
+
+.ui-panel-card {
+  padding: 16px;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.ui-panel-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ui-panel-card-header h3 {
+  margin: 0;
+  color: var(--md-sys-color-on-surface);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.ui-panel-card-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ui-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+/* MD3 custom SelectField: start */
+/*
+  Custom MD3 exposed dropdown.
+
+  This intentionally does not use native <select>, because native select popups
+  are rendered by the operating system/browser and cannot be reliably themed as
+  Material Design 3.
+*/
+
+.ui-select-field {
+  --ui-select-height: 56px;
+  --ui-select-horizontal-padding: 16px;
+  --ui-select-trailing-space: 44px;
+
+  box-sizing: border-box;
+  position: relative;
+  min-width: 184px;
+  min-height: var(--ui-select-height);
+  display: block;
+  overflow: visible;
+  isolation: isolate;
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: none;
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition),
+    opacity var(--transition);
+}
+
+.ui-select-field-filled {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.ui-select-field-outlined {
+  background: transparent;
+}
+
+.ui-select-field:hover {
+  border-color: var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.ui-select-field:focus-within,
+.ui-select-field-open {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-highest);
+  box-shadow: 0 0 0 1px var(--md-sys-color-primary);
+}
+
+.ui-select-field-invalid {
+  border-color: var(--md-sys-color-error);
+  box-shadow: 0 0 0 1px var(--md-sys-color-error);
+}
+
+.ui-select-field-disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.ui-select-field::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  z-index: 3;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--md-sys-color-on-surface-variant);
+  border-bottom: 2px solid var(--md-sys-color-on-surface-variant);
+  pointer-events: none;
+  transform: translateY(-65%) rotate(45deg);
+  transition:
+    border-color var(--transition),
+    transform var(--transition);
+}
+
+.ui-select-field-open::after {
+  border-color: var(--md-sys-color-primary);
+  transform: translateY(-35%) rotate(225deg);
+}
+
+.ui-select-field-label {
+  position: absolute;
+  top: 8px;
+  left: var(--ui-select-horizontal-padding);
+  right: var(--ui-select-trailing-space);
+  z-index: 2;
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 11px;
+  font-weight: 780;
+  line-height: 1.2;
+  letter-spacing: 0.015em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transition: color var(--transition);
+}
+
+.ui-select-field:focus-within .ui-select-field-label,
+.ui-select-field-open .ui-select-field-label {
+  color: var(--md-sys-color-primary);
+}
+
+.ui-select-field-invalid .ui-select-field-label {
+  color: var(--md-sys-color-error);
+}
+
+.ui-select-field-hide-label .ui-select-field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip: rect(0, 0, 0, 0);
+}
+
+.ui-select-field-button,
+.ui-select-field-button:hover,
+.ui-select-field-button:active,
+.ui-select-field-button:focus {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  padding:
+    22px
+    var(--ui-select-trailing-space)
+    8px
+    var(--ui-select-horizontal-padding);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.2;
+  text-align: left;
+  border: none !important;
+  border-radius: inherit;
+  outline: none;
+  background: transparent !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  appearance: none;
+  transform: none;
+}
+
+.ui-select-field-button:disabled {
+  cursor: not-allowed;
+}
+
+.ui-select-field-button:focus-visible {
+  outline: none;
+}
+
+.ui-select-field-value {
+  min-width: 0;
+  max-width: 100%;
+  display: block;
+  overflow: hidden;
+  color: inherit;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ui-select-field-no-label .ui-select-field-button,
+.ui-select-field-hide-label .ui-select-field-button {
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.ui-select-field-compact {
+  --ui-select-height: 44px;
+  --ui-select-horizontal-padding: 14px;
+  --ui-select-trailing-space: 40px;
+
+  min-height: var(--ui-select-height);
+  border-radius: var(--md-sys-shape-corner-large);
+}
+
+.ui-select-field-compact .ui-select-field-label {
+  top: 5px;
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.ui-select-field-compact .ui-select-field-button {
+  align-items: flex-end;
+  padding-top: 17px;
+  padding-bottom: 5px;
+  font-size: 13px;
+}
+
+.ui-select-field-compact.ui-select-field-no-label .ui-select-field-button,
+.ui-select-field-compact.ui-select-field-hide-label .ui-select-field-button {
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.ui-select-field-compact::after {
+  right: 16px;
+  width: 7px;
+  height: 7px;
+}
+
+.ui-select-field-menu {
+  position: fixed;
+  z-index: 1400;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 8px 0;
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--md-sys-color-surface-container-highest);
+  box-shadow: var(--md-sys-elevation-3);
+  scrollbar-width: thin;
+  scrollbar-color:
+    var(--md-sys-color-outline)
+    var(--md-sys-color-surface-container-highest);
+  animation: ui-select-menu-in 120ms ease-out;
+}
+
+@keyframes ui-select-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ui-select-field-option {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  color: var(--md-sys-color-on-surface);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    color var(--transition),
+    background var(--transition),
+    opacity var(--transition);
+}
+
+.ui-select-field-menu-compact .ui-select-field-option {
+  min-height: 44px;
+  font-size: 13px;
+}
+
+.ui-select-field-option:hover,
+.ui-select-field-option-active {
+  background: rgba(208, 188, 255, 0.08);
+}
+
+.ui-select-field-option-selected {
+  color: var(--md-sys-color-on-secondary-container);
+  background: rgba(208, 188, 255, 0.14);
+}
+
+.ui-select-field-option-selected.ui-select-field-option-active,
+.ui-select-field-option-selected:hover {
+  background: rgba(208, 188, 255, 0.2);
+}
+
+.ui-select-field-option-disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.ui-select-field-option-check {
+  width: 24px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--md-sys-color-primary);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.ui-select-field-option-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.inline-form .ui-select-field {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+/* MD3 custom SelectField: end */
+
+/* Light theme component contrast adjustments: start */
+:root[data-theme="light"] .ui-button:disabled,
+:root[data-theme="light"] .ui-icon-button:disabled {
+  color: rgba(28, 27, 31, 0.38);
+  background: rgba(28, 27, 31, 0.12);
+}
+
+:root[data-theme="light"] .ui-select-field-option:hover,
+:root[data-theme="light"] .ui-select-field-option-active {
+  background: rgba(103, 80, 164, 0.08);
+}
+
+:root[data-theme="light"] .ui-select-field-option-selected {
+  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-secondary-container);
+}
+
+:root[data-theme="light"] .ui-select-field-option-selected.ui-select-field-option-active,
+:root[data-theme="light"] .ui-select-field-option-selected:hover {
+  background: var(--md-sys-color-secondary-container);
+}
+/* Light theme component contrast adjustments: end */
+
+/* Compact ASR Device SelectField: start */
+/*
+  Compact ASR Device SelectField.
+
+  Device only has short values like cpu/cuda, so the default comfortable
+  SelectField size is visually too large in the ASR settings form.
+*/
+
+.settings-device-select.ui-select-field {
+  --ui-select-height: 42px;
+  --ui-select-horizontal-padding: 12px;
+  --ui-select-trailing-space: 34px;
+
+  flex: 0 1 148px !important;
+  width: min(100%, 148px) !important;
+  min-width: 128px !important;
+  max-width: 148px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  border-radius: 16px;
+  align-self: end;
+}
+
+.settings-device-select .ui-select-field-label {
+  top: 5px !important;
+  left: 12px !important;
+  right: 34px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  letter-spacing: 0.025em;
+}
+
+.settings-device-select .ui-select-field-button {
+  padding: 15px 32px 4px 12px !important;
+  font-size: 13px !important;
+  font-weight: 780 !important;
+}
+
+.settings-device-select::after {
+  right: 13px !important;
+  width: 7px !important;
+  height: 7px !important;
+}
+
+.settings-device-menu.ui-select-field-menu {
+  width: 148px !important;
+  min-width: 128px !important;
+  max-width: 148px !important;
+  border-radius: 18px;
+}
+
+.settings-device-menu .ui-select-field-option {
+  min-height: 40px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  padding-inline: 10px;
+  font-size: 13px;
+}
+
+.settings-device-menu .ui-select-field-option-check {
+  width: 18px;
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .settings-device-select.ui-select-field {
+    flex-basis: 136px !important;
+    width: min(100%, 136px) !important;
+    min-width: 120px !important;
+    max-width: 136px !important;
+  }
+
+  .settings-device-menu.ui-select-field-menu {
+    width: 136px !important;
+    min-width: 120px !important;
+    max-width: 136px !important;
+  }
+}
+/* Compact ASR Device SelectField: end */
+
+/* Material icons and form fields: start */
+.material-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: currentColor;
+  line-height: 0;
+  vertical-align: -0.16em;
+}
+
+.material-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.ui-field-group {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.ui-field-group-wide {
+  grid-column: 1 / -1;
+}
+
+.ui-field-group-disabled {
+  opacity: 0.58;
+}
+
+.ui-field-label {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-large-font-size, 13px);
+  line-height: var(--md-sys-typescale-label-large-line-height, 20px);
+  font-weight: 760;
+}
+
+.ui-field-group-hide-label .ui-field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+}
+
+.ui-field-helper,
+.ui-field-error {
+  font-size: var(--md-sys-typescale-label-small-font-size, 12px);
+  line-height: 1.45;
+}
+
+.ui-field-helper {
+  color: var(--text-muted);
+}
+
+.ui-field-error {
+  color: var(--md-sys-color-error);
+  font-weight: 700;
+}
+
+.ui-text-field,
+.ui-textarea-field {
+  width: 100%;
+}
+
+.ui-checkbox-field {
+  min-width: 0;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-medium-font-size, 14px);
+  line-height: var(--md-sys-typescale-body-medium-line-height, 20px);
+  cursor: pointer;
+}
+
+.ui-checkbox-field-wide {
+  grid-column: 1 / -1;
+}
+
+.ui-checkbox-field-disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.ui-checkbox-field-input {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.ui-checkbox-field-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.ui-checkbox-field-label {
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 700;
+}
+
+.ui-checkbox-field-description {
+  color: var(--text-muted);
+  font-size: var(--md-sys-typescale-label-small-font-size, 12px);
+  line-height: 1.5;
+}
+
+.inline-form .ui-field-group,
+.inline-form .inline-field {
+  flex: 1 1 180px;
+  min-width: 160px;
+  margin-top: 0;
+}
+/* Material icons and form fields: end */

@@ -1,3 +1,5 @@
+import { Button, IconButton, SearchField, SelectField, MaterialIcon } from "./ui";
+
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing";
 
@@ -28,6 +30,18 @@ type Props = {
   onOpenSettings: () => void;
 };
 
+const TRANSCRIPT_FILTER_OPTIONS = [
+  { value: "all", label: "全部转写" },
+  { value: "yes", label: "已有 transcript" },
+  { value: "no", label: "未完成 transcript" }
+];
+
+const FILE_FILTER_OPTIONS = [
+  { value: "all", label: "全部文件" },
+  { value: "available", label: "仅可播放" },
+  { value: "missing", label: "仅缺失" }
+];
+
 export default function TopBar({
   title,
   subtitle,
@@ -49,6 +63,8 @@ export default function TopBar({
   onBatchAnalyze,
   onOpenSettings
 }: Props) {
+  const hasItems = totalCount > 0;
+
   return (
     <header className="top-command-bar">
       <div className="top-title-block">
@@ -70,95 +86,110 @@ export default function TopBar({
       </div>
 
       <div className="top-action-row">
-        <div className="global-search">
-          <span className="global-search-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path
-                d="M10.5 4.75a5.75 5.75 0 1 0 0 11.5 5.75 5.75 0 0 0 0-11.5ZM3.25 10.5a7.25 7.25 0 1 1 12.78 4.67l4.15 4.15a.75.75 0 1 1-1.06 1.06l-4.15-4.15A7.25 7.25 0 0 1 3.25 10.5Z"
-                fill="currentColor"
-              />
-            </svg>
-          </span>
-
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="搜索标题、作者、标签、描述或 transcript"
-            aria-label="搜索标题、作者、标签、描述或 transcript"
-          />
-
-          {q.trim() && (
-            <button className="search-clear-button" onClick={() => setQ("")}>
-              ×
-            </button>
-          )}
-        </div>
+        <SearchField
+          wrapperClassName="top-command-search"
+          value={q}
+          onValueChange={setQ}
+          placeholder="搜索标题、作者、标签、描述或 transcript"
+          aria-label="搜索标题、作者、标签、描述或 transcript"
+        />
 
         <div className="top-toolbar-controls">
-          <div className="filter-group" aria-label="资料库筛选">
-            <label className={missingDescriptionOnly ? "filter-chip active" : "filter-chip"}>
-              <input
-                type="checkbox"
-                checked={missingDescriptionOnly}
-                onChange={(e) => setMissingDescriptionOnly(e.target.checked)}
-              />
+          <div
+            className="filter-group top-filter-controls"
+            role="group"
+            aria-label="资料库筛选"
+          >
+            <SelectField
+              density="compact"
+              wrapperClassName="topbar-select-field top-transcript-filter"
+              label="转写"
+              value={hasTranscriptFilter}
+              options={TRANSCRIPT_FILTER_OPTIONS}
+              aria-label="按 transcript 状态筛选"
+              title="按 transcript 状态筛选"
+              onValueChange={(value) => setHasTranscriptFilter(value as TranscriptFilter)}
+            />
+
+            <SelectField
+              density="compact"
+              wrapperClassName="topbar-select-field top-file-filter"
+              label="文件"
+              value={missingFilter}
+              options={FILE_FILTER_OPTIONS}
+              aria-label="按文件状态筛选"
+              title="按文件状态筛选"
+              onValueChange={(value) => setMissingFilter(value as MissingFilter)}
+            />
+
+            <Button
+              variant={missingDescriptionOnly ? "tonal" : "outlined"}
+              className="top-quick-action top-missing-description-action"
+              aria-pressed={missingDescriptionOnly}
+              title={
+                missingDescriptionOnly
+                  ? "关闭缺描述筛选"
+                  : "只看缺少描述的音频"
+              }
+              onClick={() => setMissingDescriptionOnly(!missingDescriptionOnly)}
+            >
               缺描述
-            </label>
-
-            <label className="select-filter" title="按 transcript 状态筛选">
-              <span>转写</span>
-              <select
-                value={hasTranscriptFilter}
-                onChange={(e) => setHasTranscriptFilter(e.target.value as TranscriptFilter)}
-                aria-label="按 transcript 状态筛选"
-              >
-                <option value="all">全部转写</option>
-                <option value="yes">已有 transcript</option>
-                <option value="no">未完成 transcript</option>
-              </select>
-            </label>
-
-            <label className="select-filter" title="按文件状态筛选">
-              <span>文件</span>
-              <select
-                value={missingFilter}
-                onChange={(e) => setMissingFilter(e.target.value as MissingFilter)}
-                aria-label="按文件状态筛选"
-              >
-                <option value="all">全部文件</option>
-                <option value="available">仅可播放</option>
-                <option value="missing">仅缺失</option>
-              </select>
-            </label>
+            </Button>
           </div>
 
-          <div className="top-buttons">
+          <div
+            className="top-toolbar-actions"
+            role="group"
+            aria-label="快捷操作"
+          >
+            <div
+              className="top-batch-group"
+              role="group"
+              aria-label="批处理"
+            >
+              <Button
+                variant="outlined"
+                className="top-quick-action top-batch-action top-batch-transcribe-action"
+                aria-label="批量转写当前筛选结果"
+                title="批量转写当前筛选结果"
+                onClick={onBatchTranscribe}
+                disabled={!hasItems}
+              >
+                转写
+              </Button>
+
+              <Button
+                variant="filled"
+                className="top-quick-action top-batch-action top-batch-ai-action"
+                aria-label="批量 AI 分析当前筛选结果"
+                title="批量 AI 分析当前筛选结果"
+                onClick={onBatchAnalyze}
+                disabled={!hasItems}
+              >
+                AI
+              </Button>
+            </div>
+
             {hasActiveFilter && (
-              <button className="ghost-button" onClick={onClearFilters}>
-                清空
-              </button>
+              <Button
+                variant="text"
+                className="top-clear-filter-button"
+                title="清空所有筛选条件"
+                onClick={onClearFilters}
+              >
+                重置
+              </Button>
             )}
-
-            <button
-              className="ghost-button"
-              onClick={onBatchTranscribe}
-              disabled={totalCount === 0}
-            >
-              批量转写
-            </button>
-
-            <button
-              className="primary-button"
-              onClick={onBatchAnalyze}
-              disabled={totalCount === 0}
-            >
-              批量 AI
-            </button>
-
-            <button className="icon-soft-button" onClick={onOpenSettings} title="设置">
-              ⚙
-            </button>
           </div>
+
+          <IconButton
+            className="top-settings-button"
+            variant="soft"
+            label="打开设置"
+            onClick={onOpenSettings}
+          >
+            <MaterialIcon name="settings" size={20} />
+          </IconButton>
         </div>
       </div>
     </header>

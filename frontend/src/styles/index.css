@@ -13,6 +13,7 @@
 @import "./tokens.css";
 @import "./base.css";
 @import "./layout.css";
+@import "./components/ui.css";
 
 @import "./components/sidebar.css";
 @import "./components/topbar.css";
@@ -22,6 +23,7 @@
 @import "./components/task-panel.css";
 @import "./components/player-bar.css";
 @import "./components/toast.css";
+@import "./components/dialog.css";
 
 @import "./responsive.css";
 

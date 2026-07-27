@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import type { AudioItem } from "../types";
 import { displayAuthor, displayTitle, formatDuration } from "../types";
+import { useDialog } from "./dialog/UnifiedDialog";
+import { Button, MaterialIcon, SelectField } from "./ui";
 
 type Props = {
   audio: AudioItem | null;
@@ -16,6 +18,11 @@ type Props = {
   onQueueClear: () => void;
   onPositionSaved: (audioId: number, position: number) => void;
 };
+
+const PLAYBACK_RATE_OPTIONS = [0.75, 1, 1.25, 1.5, 2].map((value) => ({
+  value: String(value),
+  label: `${value}x`
+}));
 
 function shouldPromptRestart(audio: AudioItem): boolean {
   const saved = audio.last_position_seconds || 0;
@@ -43,6 +50,8 @@ export default function PlayerBar({
   onQueueClear,
   onPositionSaved
 }: Props) {
+  const dialog = useDialog();
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastSavedRef = useRef<{ audioId: number; position: number } | null>(null);
   const endedAudioIdRef = useRef<number | null>(null);
@@ -101,27 +110,10 @@ export default function PlayerBar({
       return;
     }
 
-    endedAudioIdRef.current = null;
-
+    let canceled = false;
     let startSeconds = currentAudio.last_position_seconds || 0;
 
-    if (shouldPromptRestart(currentAudio)) {
-      const ok = window.confirm(
-        "上次播放位置已接近结尾，是否从头播放？\n\n确定：从头播放\n取消：从上次位置继续"
-      );
-
-      if (ok) {
-        startSeconds = 0;
-        void savePositionFor(currentAudio.id, 0).catch(console.error);
-      }
-    }
-
-    el.src = api.audioFileUrl(currentAudio.id);
-    el.playbackRate = rate;
-    el.volume = volume;
-
-    setCurrent(startSeconds);
-    setDuration(0);
+    endedAudioIdRef.current = null;
 
     const onLoadedMetadataOnce = () => {
       try {
@@ -131,16 +123,50 @@ export default function PlayerBar({
       }
     };
 
-    el.addEventListener("loadedmetadata", onLoadedMetadataOnce, { once: true });
+    async function prepareAndPlay() {
+      if (shouldPromptRestart(currentAudio)) {
+        const restart = await dialog.confirm({
+          title: "从头播放？",
+          message:
+            "上次播放位置已接近结尾，是否从头播放？\n\n选择「从头播放」会把记忆位置重置为 0；选择「继续播放」会从上次位置继续。",
+          confirmLabel: "从头播放",
+          cancelLabel: "继续播放",
+          tone: "warning"
+        });
 
-    el.play()
-      .then(() => setIsPlaying(true))
-      .catch((err) => {
-        console.error(err);
-        setIsPlaying(false);
-      });
+        if (canceled) return;
+
+        if (restart) {
+          startSeconds = 0;
+          void savePositionFor(currentAudio.id, 0).catch(console.error);
+        }
+      }
+
+      if (canceled) return;
+
+      el.src = api.audioFileUrl(currentAudio.id);
+      el.playbackRate = rate;
+      el.volume = volume;
+
+      setCurrent(startSeconds);
+      setDuration(0);
+
+      el.addEventListener("loadedmetadata", onLoadedMetadataOnce, { once: true });
+
+      el.play()
+        .then(() => {
+          if (!canceled) setIsPlaying(true);
+        })
+        .catch((err) => {
+          console.error(err);
+          if (!canceled) setIsPlaying(false);
+        });
+    }
+
+    void prepareAndPlay();
 
     return () => {
+      canceled = true;
       el.removeEventListener("loadedmetadata", onLoadedMetadataOnce);
 
       if (!currentAudio) return;
@@ -149,7 +175,7 @@ export default function PlayerBar({
       const latestPosition = Number.isFinite(el.currentTime) ? el.currentTime : startSeconds;
       void savePositionFor(currentAudio.id, latestPosition).catch(console.error);
     };
-  }, [audio?.id]);
+  }, [audio?.id, dialog]);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -193,19 +219,6 @@ export default function PlayerBar({
 
     el.currentTime = value;
     setCurrent(value);
-  }
-
-  function stopAndReset() {
-    const el = audioRef.current;
-    if (!el) return;
-
-    el.pause();
-    el.currentTime = 0;
-    setCurrent(0);
-
-    if (audio) {
-      void savePositionFor(audio.id, 0).catch(console.error);
-    }
   }
 
   async function handleEnded() {
@@ -257,7 +270,7 @@ export default function PlayerBar({
               }}
             />
           ) : (
-            <span>♪</span>
+            <MaterialIcon name="music_note" size={24} />
           )}
         </div>
 
@@ -269,22 +282,41 @@ export default function PlayerBar({
       </div>
 
       <div className="player-center">
-        <div className="player-controls">
-          <button className="icon-button" onClick={onPrevious} disabled={!audio || !canPrevious}>
-            ‹
-          </button>
+        <div className="player-controls" aria-label="播放器控制">
+          <Button preserveChildren
+            type="button"
+            className="icon-button"
+            onClick={onPrevious}
+            disabled={!audio || !canPrevious}
+            aria-label="播放上一条"
+            title="播放上一条"
+          >
+            <MaterialIcon name="skip_previous" size={24} />
+          </Button>
 
-          <button className="play-toggle" onClick={toggle} disabled={!audio}>
-            {isPlaying ? "暂停" : "播放"}
-          </button>
+          <Button preserveChildren
+            type="button"
+            className="play-toggle"
+            onClick={toggle}
+            disabled={!audio}
+            aria-label={isPlaying ? "暂停播放" : "开始播放"}
+            title={isPlaying ? "暂停" : "播放"}
+          >
+            <span className="play-toggle-icon" aria-hidden="true">
+              {isPlaying ? <MaterialIcon name="pause" size={26} /> : <MaterialIcon name="play_arrow" size={28} />}
+            </span>
+          </Button>
 
-          <button className="icon-button" onClick={onNext} disabled={!audio || !canNext}>
-            ›
-          </button>
-
-          <button className="stop-button" onClick={stopAndReset} disabled={!audio}>
-            停止
-          </button>
+          <Button preserveChildren
+            type="button"
+            className="icon-button"
+            onClick={onNext}
+            disabled={!audio || !canNext}
+            aria-label="播放下一条"
+            title="播放下一条"
+          >
+            <MaterialIcon name="skip_next" size={24} />
+          </Button>
         </div>
 
         <div className="player-progress">
@@ -297,7 +329,7 @@ export default function PlayerBar({
             value={Math.min(current, safeDuration || current || 0)}
             onChange={(e) => seek(Number(e.target.value))}
             style={{
-              background: `linear-gradient(90deg, #38bdf8 0%, #8b5cf6 ${progress}%, rgba(51, 65, 85, 0.9) ${progress}%, rgba(51, 65, 85, 0.9) 100%)`
+              background: `linear-gradient(90deg, var(--md-sys-color-primary) 0%, var(--md-sys-color-tertiary) ${progress}%, var(--md-sys-color-surface-container-highest) ${progress}%, var(--md-sys-color-surface-container-highest) 100%)`
             }}
           />
 
@@ -306,19 +338,26 @@ export default function PlayerBar({
       </div>
 
       <div className="player-options">
-        <label>
-          <span>速度</span>
-          <select value={rate} onChange={(e) => setRate(Number(e.target.value))}>
-            {[0.75, 1, 1.25, 1.5, 2].map((r) => (
-              <option key={r} value={r}>
-                {r}x
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField
+          density="compact"
+          wrapperClassName="player-rate-select"
+          menuClassName="player-rate-menu"
+          menuWidth="control"
+          menuMinWidth={92}
+          label="速度"
+          value={String(rate)}
+          options={PLAYBACK_RATE_OPTIONS}
+          aria-label="播放速度"
+          title="播放速度"
+          onValueChange={(value) => setRate(Number(value))}
+        />
 
-        <label>
-          <span>音量</span>
+        <label className="player-volume-control">
+          <span className="player-volume-icon" aria-hidden="true">
+            <MaterialIcon name="volume_up" size={18} />
+          </span>
+
+          <span className="sr-only">音量</span>
           <input
             type="range"
             min={0}
@@ -330,20 +369,38 @@ export default function PlayerBar({
         </label>
 
         <div className="queue-control">
-          <button
+          <Button preserveChildren
+            type="button"
             className="queue-toggle-button"
+            aria-label="打开播放队列"
+            aria-haspopup="dialog"
+            aria-expanded={queueOpen}
+            aria-controls="player-queue-popover"
             onClick={() => setQueueOpen((v) => !v)}
             disabled={queue.length === 0}
           >
             队列 {queue.length > 0 ? `${queueIndex + 1}/${queue.length}` : ""}
-          </button>
+          </Button>
 
           {queueOpen && (
-            <div className="queue-popover">
+            <div
+              id="player-queue-popover"
+              className="queue-popover"
+              role="dialog"
+              aria-label="播放队列"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  setQueueOpen(false);
+                }
+              }}
+            >
               <div className="queue-popover-header">
                 <strong>播放队列</strong>
 
-                <button
+                <Button preserveChildren
+                  type="button"
+                  aria-label="清空播放队列"
                   onClick={() => {
                     onQueueClear();
                     setQueueOpen(false);
@@ -351,37 +408,42 @@ export default function PlayerBar({
                   disabled={queue.length === 0}
                 >
                   清空
-                </button>
+                </Button>
               </div>
 
               {queue.length === 0 && <div className="queue-empty">空队列</div>}
 
               {queue.length > 0 && (
-                <div className="queue-list">
+                <div className="queue-list" role="list">
                   {queue.map((item, index) => (
                     <div
                       key={`${item.id}-${index}`}
                       className={`queue-row ${index === queueIndex ? "active" : ""}`}
+                      role="listitem"
                     >
-                      <button
+                      <Button preserveChildren
+                        type="button"
                         className="queue-row-main"
+                        aria-current={index === queueIndex ? "true" : undefined}
                         onClick={() => selectQueueItem(index)}
                         title={displayTitle(item)}
                       >
                         <span className="queue-index">
-                          {index === queueIndex ? "▶" : index + 1}
+                          {index === queueIndex ? <MaterialIcon name="play_arrow" size={14} /> : index + 1}
                         </span>
 
                         <span className="queue-title">{displayTitle(item)}</span>
-                      </button>
+                      </Button>
 
-                      <button
+                      <Button preserveChildren
+                        type="button"
                         className="queue-remove"
+                        aria-label={`从队列移除 ${displayTitle(item)}`}
                         onClick={() => onQueueRemove(index)}
                         title="从队列移除"
                       >
-                        ×
-                      </button>
+                        <MaterialIcon name="close" size={16} />
+                      </Button>
                     </div>
                   ))}
                 </div>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import type { AudioItem, Playlist, Tag } from "../types";
-import { displayAuthor, displayDescription, displayTitle } from "../types";
+import { displayTitle } from "../types";
+import { useDialog } from "../components/dialog/UnifiedDialog";
 import { useBackendReady } from "./useBackendReady";
 import { useToast } from "./useToast";
 
@@ -96,6 +97,7 @@ export function useLibraryController() {
   const loadSeqRef = useRef(0);
 
   const { ensureBackendReady } = useBackendReady();
+  const dialog = useDialog();
   const { toasts, notify, closeToast } = useToast();
 
   useEffect(() => {
@@ -138,49 +140,6 @@ export function useLibraryController() {
       has_transcript: transcriptFilterToParam(hasTranscriptFilter),
       missing: missingFilterToParam(missingFilter)
     };
-  }
-
-  function applyClientFiltersForPlaylist(items: AudioItem[]) {
-    let result = [...items];
-
-    const keyword = debouncedQ.trim().toLowerCase();
-    if (keyword) {
-      result = result.filter((item) => {
-        const text = [
-          displayTitle(item),
-          displayAuthor(item),
-          displayDescription(item),
-          item.file_name,
-          ...(item.tags || []).map((tag) => tag.name)
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        return text.includes(keyword);
-      });
-    }
-
-    if (missingDescriptionOnly) {
-      result = result.filter((item) => !displayDescription(item).trim());
-    }
-
-    if (hasTranscriptFilter === "yes") {
-      result = result.filter((item) => item.transcript_status === "done");
-    }
-
-    if (hasTranscriptFilter === "no") {
-      result = result.filter((item) => item.transcript_status !== "done");
-    }
-
-    if (missingFilter === "missing") {
-      result = result.filter((item) => item.is_missing);
-    }
-
-    if (missingFilter === "available") {
-      result = result.filter((item) => !item.is_missing);
-    }
-
-    return result;
   }
 
   async function load() {
@@ -502,10 +461,17 @@ export function useLibraryController() {
     notify("已从播放队列移除", "success");
   }
 
-  function clearQueue() {
+  async function clearQueue() {
     if (playbackQueue.length === 0) return;
 
-    const ok = window.confirm("确认清空播放队列并停止播放？");
+    const ok = await dialog.confirm({
+      title: "清空播放队列？",
+      message: "确认清空播放队列并停止播放？",
+      confirmLabel: "清空队列",
+      cancelLabel: "取消",
+      tone: "warning"
+    });
+
     if (!ok) return;
 
     setPlaybackQueue([]);
@@ -567,11 +533,15 @@ export function useLibraryController() {
           ? `\n\n注意：当前搜索结果仅包含后端返回的前 ${searchLimit || 200} 条。`
           : "";
 
-      const ok = window.confirm(
-        `将为当前筛选结果中的 ${eligible.length} 个音频创建转写任务${
+      const ok = await dialog.confirm({
+        title: "批量创建转写任务？",
+        message: `将为当前筛选结果中的 ${eligible.length} 个音频创建转写任务${
           skippedByClient ? `，并跳过 ${skippedByClient} 个缺失文件或进行中的音频` : ""
-        }。确认继续？${limitedNote}`
-      );
+        }。确认继续？${limitedNote}`,
+        confirmLabel: "创建转写任务",
+        cancelLabel: "取消",
+        tone: "warning"
+      });
 
       if (!ok) return;
 
@@ -605,11 +575,15 @@ export function useLibraryController() {
           ? `\n\n注意：当前搜索结果仅包含后端返回的前 ${searchLimit || 200} 条。`
           : "";
 
-      const ok = window.confirm(
-        `将为当前筛选结果中的 ${eligible.length} 个音频创建 AI 分析任务${
+      const ok = await dialog.confirm({
+        title: "批量创建 AI 分析任务？",
+        message: `将为当前筛选结果中的 ${eligible.length} 个音频创建 AI 分析任务${
           skippedByClient ? `，并跳过 ${skippedByClient} 个进行中的音频` : ""
-        }。确认继续？${limitedNote}`
-      );
+        }。确认继续？${limitedNote}`,
+        confirmLabel: "创建 AI 任务",
+        cancelLabel: "取消",
+        tone: "warning"
+      });
 
       if (!ok) return;
 
@@ -632,7 +606,14 @@ export function useLibraryController() {
   async function removeFromCurrentPlaylist(item: AudioItem) {
     if (!selectedPlaylistId || !item.playlist_item_id) return;
 
-    const ok = window.confirm(`确认从当前 playlist 移除「${displayTitle(item)}」？`);
+    const ok = await dialog.confirm({
+      title: "从当前 Playlist 移除？",
+      message: `确认从当前 playlist 移除「${displayTitle(item)}」？`,
+      confirmLabel: "移除",
+      cancelLabel: "取消",
+      tone: "warning"
+    });
+
     if (!ok) return;
 
     try {

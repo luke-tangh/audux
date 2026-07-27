@@ -12,9 +12,8 @@
 .task-table-wrap {
   overflow: auto;
   margin-top: 12px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(2, 6, 23, 0.26);
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container);
 }
 
 .task-table {
@@ -26,27 +25,28 @@
 
 .task-table th,
 .task-table td {
-  padding: 10px;
+  padding: 12px 10px;
   text-align: left;
   vertical-align: top;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .task-table th {
   position: sticky;
   top: 0;
   z-index: 1;
-  color: var(--text-soft);
-  background: rgba(15, 23, 42, 0.94);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  font-weight: 800;
 }
 
 .task-table tr:hover td {
-  background: rgba(30, 41, 59, 0.38);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .task-error {
   max-width: 260px;
-  color: #fecaca;
+  color: var(--md-sys-color-error);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

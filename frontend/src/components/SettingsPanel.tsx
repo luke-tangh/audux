@@ -3,6 +3,9 @@ import { api, endpointPrivacyWarning } from "../api";
 import type { LibraryRoot, ScanTask, Tag } from "../types";
 import { pickAudioFolder } from "../tauri";
 import TaskPanel from "./TaskPanel";
+import { Button, SelectField, Tabs, CheckboxField, MaterialIcon, TextField } from "./ui";
+import { useDialog } from "./dialog/UnifiedDialog";
+import { useTheme } from "../theme";
 
 type ToastType = "info" | "success" | "error";
 type SettingsTab = "library" | "asr" | "llm" | "tasks" | "maintenance" | "logs";
@@ -21,7 +24,25 @@ function terminalStatus(status: string): boolean {
   return status === "done" || status === "failed" || status === "canceled";
 }
 
+const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+  { id: "library", label: "媒体库" },
+  { id: "asr", label: "ASR" },
+  { id: "llm", label: "LLM" },
+  { id: "tasks", label: "任务" },
+  { id: "maintenance", label: "维护" },
+  { id: "logs", label: "日志" }
+];
+
+const THEME_OPTIONS = [
+  { value: "system", label: "跟随系统" },
+  { value: "dark", label: "深色" },
+  { value: "light", label: "浅色" }
+] as const;
+
 export default function SettingsPanel({ refresh, notify }: Props) {
+  const dialog = useDialog();
+  const { themeMode, setThemeMode, resolvedTheme } = useTheme();
+
   const [activeTab, setActiveTab] = useState<SettingsTab>("library");
 
   const [roots, setRoots] = useState<LibraryRoot[]>([]);
@@ -213,7 +234,15 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   }
 
   async function cancelScan(task: ScanTask) {
-    if (!window.confirm(`确认取消扫描任务 #${task.id}？`)) return;
+    const ok = await dialog.confirm({
+      title: "取消扫描任务？",
+      message: `确认取消扫描任务 #${task.id}？`,
+      confirmLabel: "取消扫描",
+      cancelLabel: "继续扫描",
+      tone: "warning"
+    });
+
+    if (!ok) return;
 
     try {
       await api.cancelScanTask(task.id);
@@ -281,7 +310,14 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   async function testLlm() {
     const warning = endpointPrivacyWarning(llmEndpoint);
     if (warning && !llmAllowRemoteEndpoint) {
-      const ok = window.confirm(`${warning}\n\n当前尚未勾选允许远程 endpoint。仅继续测试连接？`);
+      const ok = await dialog.confirm({
+        title: "仅测试非本机 LLM endpoint？",
+        message: `${warning}\n\n当前尚未勾选允许远程 endpoint。仅继续测试连接？`,
+        confirmLabel: "继续测试",
+        cancelLabel: "取消",
+        tone: "privacy"
+      });
+
       if (!ok) return;
     }
 
@@ -311,7 +347,14 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   }
 
   async function rebuildSearch() {
-    const ok = window.confirm("确认重建所有音频的搜索索引？");
+    const ok = await dialog.confirm({
+      title: "重建搜索索引？",
+      message: "确认重建所有音频的搜索索引？这可能需要一些时间。",
+      confirmLabel: "重建索引",
+      cancelLabel: "取消",
+      tone: "warning"
+    });
+
     if (!ok) return;
 
     try {
@@ -323,8 +366,26 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   }
 
   async function renameTag(tag: Tag) {
-    const name = window.prompt("输入新的标签名称：", tag.name);
-    if (!name || !name.trim() || name.trim() === tag.name) return;
+    const name = await dialog.prompt({
+      title: "重命名标签",
+      message: `为 #${tag.name} 输入新的标签名称。`,
+      inputLabel: "标签名称",
+      defaultValue: tag.name,
+      placeholder: "输入新的标签名称",
+      required: true,
+      confirmLabel: "保存",
+      cancelLabel: "取消",
+      validate: (value) => {
+        const trimmed = value.trim();
+
+        if (!trimmed) return "标签名称不能为空";
+        if (trimmed === tag.name) return "请输入不同的标签名称";
+
+        return null;
+      }
+    });
+
+    if (name === null) return;
 
     try {
       await api.updateTag(tag.id, { name: name.trim() });
@@ -337,9 +398,14 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   }
 
   async function deleteTag(tag: Tag) {
-    const ok = window.confirm(
-      `确认删除标签 #${tag.name}？\n\n如果该标签仍被音频使用，默认不会删除。`
-    );
+    const ok = await dialog.confirm({
+      title: "删除标签？",
+      message: `确认删除标签 #${tag.name}？\n\n如果该标签仍被音频使用，默认不会删除。`,
+      confirmLabel: "删除标签",
+      cancelLabel: "取消",
+      tone: "danger",
+      destructive: true
+    });
 
     if (!ok) return;
 
@@ -354,7 +420,14 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   }
 
   async function cleanupTags() {
-    const ok = window.confirm("确认清理所有没有关联音频的 orphan tags？");
+    const ok = await dialog.confirm({
+      title: "清理未使用标签？",
+      message: "确认清理所有没有关联音频的 orphan tags？",
+      confirmLabel: "清理标签",
+      cancelLabel: "取消",
+      tone: "warning"
+    });
+
     if (!ok) return;
 
     try {
@@ -378,54 +451,59 @@ export default function SettingsPanel({ refresh, notify }: Props) {
           <p>管理媒体库、ASR、LLM、任务、维护和日志。</p>
         </div>
 
-        <div className={`backend-status ${backendStatus}`}>
-          <span />
-          {backendStatus === "checking" && "检查中"}
-          {backendStatus === "ok" && "后端正常"}
-          {backendStatus === "failed" && "后端未连接"}
+        <div className="settings-header-actions">
+          <SelectField
+            wrapperClassName="settings-theme-select"
+            density="compact"
+            label="主题"
+            value={themeMode}
+            options={THEME_OPTIONS}
+            title={`当前实际主题：${resolvedTheme === "light" ? "浅色" : "深色"}`}
+            onValueChange={(value) => setThemeMode(value as typeof themeMode)}
+          />
+
+          <div className={`backend-status ${backendStatus}`}>
+            <span />
+            {backendStatus === "checking" && "检查中"}
+            {backendStatus === "ok" && "后端正常"}
+            {backendStatus === "failed" && "后端未连接"}
+          </div>
         </div>
       </header>
 
-      <div className="settings-tabs">
-        <button className={activeTab === "library" ? "active" : ""} onClick={() => setActiveTab("library")}>
-          媒体库
-        </button>
-        <button className={activeTab === "asr" ? "active" : ""} onClick={() => setActiveTab("asr")}>
-          ASR
-        </button>
-        <button className={activeTab === "llm" ? "active" : ""} onClick={() => setActiveTab("llm")}>
-          LLM
-        </button>
-        <button className={activeTab === "tasks" ? "active" : ""} onClick={() => setActiveTab("tasks")}>
-          任务
-        </button>
-        <button
-          className={activeTab === "maintenance" ? "active" : ""}
-          onClick={() => setActiveTab("maintenance")}
-        >
-          维护
-        </button>
-        <button className={activeTab === "logs" ? "active" : ""} onClick={() => setActiveTab("logs")}>
-          日志
-        </button>
-      </div>
+      <Tabs
+        className="settings-tabs"
+        items={SETTINGS_TABS}
+        activeId={activeTab}
+        onChange={setActiveTab}
+        ariaLabel="设置分类"
+        idPrefix="settings"
+      />
 
-      <div className="settings-content">
+      <div
+        className="settings-content"
+        role="tabpanel"
+        id={`settings-panel-${activeTab}`}
+        aria-labelledby={`settings-tab-${activeTab}`}
+      >
         {activeTab === "library" && (
           <div className="settings-grid-layout">
             <section className="panel-card">
               <h3>媒体库目录</h3>
 
               <div className="inline-form">
-                <input
+                <TextField
+                  wrapperClassName="inline-field"
+                  hideLabel
+                  label="媒体库路径"
                   value={path}
-                  onChange={(e) => setPath(e.target.value)}
                   placeholder="输入或选择本地目录路径"
+                  onValueChange={setPath}
                 />
-                <button onClick={chooseFolder}>选择文件夹</button>
-                <button className="primary-button" onClick={addRoot}>
+                <Button variant="outlined" onClick={chooseFolder}>选择文件夹</Button>
+                <Button variant="filled" onClick={addRoot}>
                   添加目录
-                </button>
+                </Button>
               </div>
 
               {roots.length === 0 && <p className="muted">暂无媒体库目录。</p>}
@@ -437,16 +515,14 @@ export default function SettingsPanel({ refresh, notify }: Props) {
                     <span>{root.is_enabled ? "启用中" : "已禁用"}</span>
                   </div>
 
-                  <label className="root-toggle">
-                    <input
-                      type="checkbox"
-                      checked={root.is_enabled}
-                      onChange={(e) => toggleRoot(root, e.target.checked)}
-                    />
-                    {root.is_enabled ? "启用" : "禁用"}
-                  </label>
+                  <CheckboxField
+                    wrapperClassName="root-toggle"
+                    label={root.is_enabled ? "启用" : "禁用"}
+                    checked={root.is_enabled}
+                    onCheckedChange={(checked) => toggleRoot(root, checked)}
+                  />
 
-                  <button onClick={() => scan(root.id)}>扫描</button>
+                  <Button variant="text" onClick={() => scan(root.id)}>扫描</Button>
                 </div>
               ))}
 
@@ -466,7 +542,14 @@ export default function SettingsPanel({ refresh, notify }: Props) {
                     <span className={`status-pill ${task.status}`}>{task.status}</span>
                   </div>
 
-                  <div className="progress-line">
+                  <div
+                    className="progress-line"
+                    role="progressbar"
+                    aria-label={`扫描任务 #${task.id} 进度`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={scanProgress(task)}
+                  >
                     <div style={{ width: `${scanProgress(task)}%` }} />
                   </div>
 
@@ -478,7 +561,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
                   {task.error_message && <div className="task-error">{task.error_message}</div>}
 
                   {(task.status === "pending" || task.status === "running") && (
-                    <button onClick={() => cancelScan(task)}>取消</button>
+                    <Button variant="text" onClick={() => cancelScan(task)}>取消</Button>
                   )}
                 </div>
               ))}
@@ -488,14 +571,17 @@ export default function SettingsPanel({ refresh, notify }: Props) {
               <h3>创建 Playlist</h3>
 
               <div className="inline-form">
-                <input
+                <TextField
+                  wrapperClassName="inline-field"
+                  hideLabel
+                  label="Playlist 名称"
                   value={playlistName}
-                  onChange={(e) => setPlaylistName(e.target.value)}
                   placeholder="Playlist 名称"
+                  onValueChange={setPlaylistName}
                 />
-                <button className="primary-button" onClick={createPlaylist}>
+                <Button variant="filled" onClick={createPlaylist}>
                   创建
-                </button>
+                </Button>
               </div>
             </section>
           </div>
@@ -506,45 +592,44 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             <h3>本地 ASR 设置 faster-whisper</h3>
 
             <div className="settings-form-grid">
-              <label>
-                Model Name / Path
-                <input
-                  value={asrModelName}
-                  onChange={(e) => setAsrModelName(e.target.value)}
-                  placeholder="small 或本地模型路径"
-                />
-              </label>
+              <TextField
+                label="Model Name / Path"
+                value={asrModelName}
+                placeholder="small 或本地模型路径"
+                onValueChange={setAsrModelName}
+              />
 
-              <label>
-                Device
-                <select value={asrDevice} onChange={(e) => setAsrDevice(e.target.value)}>
-                  <option value="cpu">cpu</option>
-                  <option value="cuda">cuda</option>
-                </select>
-              </label>
+              <SelectField
+                label="Device"
+                menuClassName="settings-device-menu"
+                wrapperClassName="settings-device-select"
+                density="compact"
+                value={asrDevice}
+                options={[
+                  { value: "cpu", label: "cpu" },
+                  { value: "cuda", label: "cuda" }
+                ]}
+                onValueChange={setAsrDevice}
+              />
 
-              <label>
-                Compute Type
-                <input
-                  value={asrComputeType}
-                  onChange={(e) => setAsrComputeType(e.target.value)}
-                  placeholder="int8 / float16 / float32"
-                />
-              </label>
+              <TextField
+                label="Compute Type"
+                value={asrComputeType}
+                placeholder="int8 / float16 / float32"
+                onValueChange={setAsrComputeType}
+              />
 
-              <label>
-                Beam Size
-                <input
-                  value={asrBeamSize}
-                  onChange={(e) => setAsrBeamSize(e.target.value)}
-                  placeholder="5"
-                />
-              </label>
+              <TextField
+                label="Beam Size"
+                value={asrBeamSize}
+                placeholder="5"
+                onValueChange={setAsrBeamSize}
+              />
             </div>
 
-            <button className="primary-button" onClick={saveAsr}>
+            <Button variant="filled" onClick={saveAsr}>
               保存 ASR 设置
-            </button>
+            </Button>
 
             <p className="muted">
               需要后端环境安装 faster-whisper。若希望完全离线，请优先填写本地模型路径；
@@ -558,78 +643,64 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             <h3>本地 LLM 设置</h3>
 
             <div className="settings-form-grid">
-              <label>
-                Endpoint
-                <input
-                  value={llmEndpoint}
-                  onChange={(e) => setLlmEndpoint(e.target.value)}
-                  placeholder="http://127.0.0.1:1234/v1"
-                />
-              </label>
+              <TextField
+                label="Endpoint"
+                value={llmEndpoint}
+                placeholder="http://127.0.0.1:1234/v1"
+                onValueChange={setLlmEndpoint}
+              />
 
-              <label>
-                Model Name
-                <input
-                  value={llmModel}
-                  onChange={(e) => setLlmModel(e.target.value)}
-                  placeholder="local-model"
-                />
-              </label>
+              <TextField
+                label="Model Name"
+                value={llmModel}
+                placeholder="local-model"
+                onValueChange={setLlmModel}
+              />
 
-              <label>
-                API Key，可为空
-                <input
-                  value={llmApiKey}
-                  onChange={(e) => setLlmApiKey(e.target.value)}
-                  placeholder="可为空"
-                />
-              </label>
+              <TextField
+                label="API Key，可为空"
+                value={llmApiKey}
+                placeholder="可为空"
+                onValueChange={setLlmApiKey}
+              />
 
-              <label>
-                Timeout 秒
-                <input
-                  value={llmTimeout}
-                  onChange={(e) => setLlmTimeout(e.target.value)}
-                  placeholder="60"
-                />
-              </label>
+              <TextField
+                label="Timeout 秒"
+                value={llmTimeout}
+                placeholder="60"
+                onValueChange={setLlmTimeout}
+              />
 
-              <label>
-                Max Tokens
-                <input
-                  value={llmMaxTokens}
-                  onChange={(e) => setLlmMaxTokens(e.target.value)}
-                  placeholder="800"
-                />
-              </label>
+              <TextField
+                label="Max Tokens"
+                value={llmMaxTokens}
+                placeholder="800"
+                onValueChange={setLlmMaxTokens}
+              />
 
-              <label>
-                Temperature
-                <input
-                  value={llmTemperature}
-                  onChange={(e) => setLlmTemperature(e.target.value)}
-                  placeholder="0.2"
-                />
-              </label>
+              <TextField
+                label="Temperature"
+                value={llmTemperature}
+                placeholder="0.2"
+                onValueChange={setLlmTemperature}
+              />
 
-              <label className="checkbox-row wide">
-                <input
-                  type="checkbox"
-                  checked={llmAllowRemoteEndpoint}
-                  onChange={(e) => setLlmAllowRemoteEndpoint(e.target.checked)}
-                />
-                允许非本机 / 内网 LLM endpoint。启用后，AI 分析会把 metadata 和 transcript
-                发送到该 endpoint，请只用于你信任的模型服务。
-              </label>
+              <CheckboxField
+                wrapperClassName="wide"
+                label="允许非本机 / 内网 LLM endpoint"
+                description="启用后，AI 分析会把 metadata 和 transcript 发送到该 endpoint，请只用于你信任的模型服务。"
+                checked={llmAllowRemoteEndpoint}
+                onCheckedChange={setLlmAllowRemoteEndpoint}
+              />
             </div>
 
             {llmWarning && <p className="privacy-warning">隐私提醒：{llmWarning}</p>}
 
             <div className="section-actions">
-              <button className="primary-button" onClick={saveLlm}>
+              <Button variant="filled" onClick={saveLlm}>
                 保存 LLM 设置
-              </button>
-              <button onClick={testLlm}>测试连接</button>
+              </Button>
+              <Button variant="outlined" onClick={testLlm}>测试连接</Button>
             </div>
 
             {llmTestResult && <p className="test-result">{llmTestResult}</p>}
@@ -648,15 +719,15 @@ export default function SettingsPanel({ refresh, notify }: Props) {
               <h3>导出与索引</h3>
 
               <div className="section-actions">
-                <button onClick={() => window.open(api.metadataExportUrl("json"), "_blank")}>
+                <Button variant="outlined" onClick={() => window.open(api.metadataExportUrl("json"), "_blank")}>
                   导出 Metadata JSON
-                </button>
+                </Button>
 
-                <button onClick={() => window.open(api.metadataExportUrl("csv"), "_blank")}>
+                <Button variant="outlined" onClick={() => window.open(api.metadataExportUrl("csv"), "_blank")}>
                   导出 Metadata CSV
-                </button>
+                </Button>
 
-                <button onClick={rebuildSearch}>重建搜索索引</button>
+                <Button variant="outlined" onClick={rebuildSearch}>重建搜索索引</Button>
               </div>
             </section>
 
@@ -666,8 +737,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
               <p className="muted">可重命名标签，或清理没有关联任何音频的 orphan tags。</p>
 
               <div className="section-actions">
-                <button onClick={cleanupTags}>清理未使用标签</button>
-                <button onClick={loadTags}>刷新标签</button>
+                <Button variant="outlined" onClick={cleanupTags}>清理未使用标签</Button>
+                <Button variant="outlined" onClick={loadTags}>刷新标签</Button>
               </div>
 
               {maintenanceTags.length === 0 && <p className="muted">暂无标签</p>}
@@ -676,8 +747,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
                 {maintenanceTags.map((tag) => (
                   <span key={tag.id} className="tag">
                     #{tag.name}
-                    <button onClick={() => renameTag(tag)}>重命名</button>
-                    <button onClick={() => deleteTag(tag)}>删除</button>
+                    <Button preserveChildren className="tag-text-action" size="sm" variant="text" onClick={() => renameTag(tag)}>重命名</Button>
+                    <Button preserveChildren className="tag-text-action" size="sm" variant="danger" onClick={() => deleteTag(tag)}>删除</Button>
                   </span>
                 ))}
               </div>
@@ -690,9 +761,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             <h3>日志</h3>
 
             <div className="section-actions">
-              <button onClick={loadLogs}>刷新日志</button>
-              <button onClick={() => window.open(api.logsFileUrl(), "_blank")}>下载日志文件</button>
-              <button onClick={load}>重新检查后端</button>
+              <Button variant="outlined" onClick={loadLogs}>刷新日志</Button>
+              <Button variant="outlined" onClick={() => window.open(api.logsFileUrl(), "_blank")}>下载日志文件</Button>
+              <Button variant="outlined" onClick={load}>重新检查后端</Button>
             </div>
 
             <pre className="log-viewer">{logs || "暂无日志"}</pre>

@@ -1,0 +1,161 @@
+.unified-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.56);
+  backdrop-filter: blur(8px);
+}
+
+.unified-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 48px));
+  overflow: auto;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 18px;
+  padding: 24px;
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--md-sys-elevation-4);
+  animation: unified-dialog-enter 160ms var(--md-sys-motion-easing-standard);
+}
+
+@keyframes unified-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.unified-dialog-tone-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: var(--md-sys-color-on-primary-container);
+  font-size: 22px;
+  font-weight: 900;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-primary-container);
+}
+
+.unified-dialog-danger .unified-dialog-tone-icon {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.unified-dialog-warning .unified-dialog-tone-icon {
+  color: var(--md-sys-color-on-warning-container);
+  background: var(--md-sys-color-warning-container);
+}
+
+.unified-dialog-privacy .unified-dialog-tone-icon {
+  color: var(--md-sys-color-on-tertiary-container);
+  background: var(--md-sys-color-tertiary-container);
+}
+
+.unified-dialog-success .unified-dialog-tone-icon {
+  color: var(--md-sys-color-on-success-container);
+  background: var(--md-sys-color-success-container);
+}
+
+.unified-dialog-content {
+  min-width: 0;
+}
+
+.unified-dialog-content h2 {
+  margin: 0;
+  color: var(--md-sys-color-on-surface);
+  font-size: 22px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.unified-dialog-message {
+  margin-top: 10px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.unified-dialog-details {
+  margin-top: 12px;
+  padding: 12px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+  line-height: 1.6;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container);
+}
+
+.unified-dialog-prompt {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.unified-dialog-input-label {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.unified-dialog-prompt input,
+.unified-dialog-prompt textarea {
+  width: 100%;
+}
+
+.unified-dialog-input-error {
+  color: var(--md-sys-color-error);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.unified-dialog-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.unified-dialog-actions button {
+  min-width: 88px;
+}
+
+@media (max-width: 560px) {
+  .unified-dialog-backdrop {
+    padding: 16px;
+  }
+
+  .unified-dialog {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 20px;
+  }
+
+  .unified-dialog-tone-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .unified-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .unified-dialog-actions button {
+    width: 100%;
+  }
+}

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import type { AITask } from "../types";
+import { Button, StatusPill } from "./ui";
+import { useDialog } from "./dialog/UnifiedDialog";
 
 type ToastType = "info" | "success" | "error";
 
@@ -19,20 +21,14 @@ function formatTime(value?: string): string {
   }
 }
 
-function statusClass(status: string): string {
-  if (status === "done") return "done";
-  if (status === "failed") return "failed";
-  if (status === "running") return "running";
-  if (status === "pending") return "pending";
-  if (status === "canceled") return "canceled";
-  return "";
-}
 
 function terminalStatus(status: string): boolean {
   return status === "done" || status === "failed" || status === "canceled";
 }
 
 export default function TaskPanel({ onTaskChanged, notify }: Props) {
+  const dialog = useDialog();
+
   const [tasks, setTasks] = useState<AITask[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -115,11 +111,16 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
   }
 
   async function cancel(task: AITask) {
-    const ok = window.confirm(
-      task.status === "running"
-        ? "running 任务无法立即中断底层模型调用，但会在当前处理阶段结束后标记取消。确认取消？"
-        : "确认取消该任务？"
-    );
+    const ok = await dialog.confirm({
+      title: "取消任务？",
+      message:
+        task.status === "running"
+          ? "running 任务无法立即中断底层模型调用，但会在当前处理阶段结束后标记取消。确认取消？"
+          : "确认取消该任务？",
+      confirmLabel: "取消任务",
+      cancelLabel: "继续等待",
+      tone: "warning"
+    });
 
     if (!ok) return;
 
@@ -137,7 +138,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
     <div className="task-panel">
       <div className="task-panel-header">
         <h3>AI / ASR 任务队列</h3>
-        <button onClick={load}>{loading ? "刷新中..." : "刷新"}</button>
+        <Button variant="outlined" onClick={load}>{loading ? "刷新中..." : "刷新"}</Button>
       </div>
 
       {tasks.length === 0 && <p className="muted">暂无任务</p>}
@@ -145,6 +146,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
       {tasks.length > 0 && (
         <div className="task-table-wrap">
           <table className="task-table">
+            <caption className="sr-only">AI / ASR 任务队列</caption>
             <thead>
               <tr>
                 <th>ID</th>
@@ -166,9 +168,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
                   <td>{task.audio_id}</td>
                   <td>{task.task_type}</td>
                   <td>
-                    <span className={`status-pill ${statusClass(task.status)}`}>
-                      {task.status}
-                    </span>
+                    <StatusPill value={task.status} />
                   </td>
                   <td>{task.retry_count}</td>
                   <td>{formatTime(task.created_at)}</td>
@@ -179,11 +179,25 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
                   <td>
                     <div className="task-actions">
                       {(task.status === "failed" || task.status === "canceled") && (
-                        <button onClick={() => retry(task)}>重试</button>
+                        <Button
+                          type="button"
+                          variant="text"
+                          aria-label={`重试任务 #${task.id}`}
+                          onClick={() => retry(task)}
+                        >
+                          重试
+                        </Button>
                       )}
 
                       {(task.status === "pending" || task.status === "running") && (
-                        <button onClick={() => cancel(task)}>取消</button>
+                        <Button
+                          type="button"
+                          variant="text"
+                          aria-label={`取消任务 #${task.id}`}
+                          onClick={() => cancel(task)}
+                        >
+                          取消
+                        </Button>
                       )}
                     </div>
                   </td>

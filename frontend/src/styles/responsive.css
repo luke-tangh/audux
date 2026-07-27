@@ -1,43 +1,31 @@
 @media (max-width: 1280px) {
+  :root {
+    --app-sidebar-width: 244px;
+    --app-inspector-width: 388px;
+  }
+
   .main-shell {
-    grid-template-columns: 232px minmax(0, 1fr) minmax(340px, 380px);
-    gap: 12px;
-    padding: 12px 12px 10px;
-  }
-
-  .main-shell.settings-mode {
-    grid-template-columns: 232px minmax(0, 1fr);
-  }
-
-  .top-action-row {
-    grid-template-columns: 1fr;
-  }
-
-  .filter-group,
-  .top-buttons {
-    flex-wrap: wrap;
-  }
-
-  .filter-group select {
-    flex: 1 1 140px;
+    gap: 10px;
+    padding: 10px 10px 8px;
   }
 
   .player-dock {
-    grid-template-columns: minmax(220px, 280px) minmax(280px, 1fr) minmax(240px, 290px);
+    grid-template-columns: minmax(220px, 280px) minmax(280px, 1fr) minmax(240px, 300px);
   }
 }
 
 @media (max-width: 1080px) {
   :root {
-    --player-height: 98px;
+    --player-height: 102px;
+    --app-sidebar-width: 224px;
   }
 
   .main-shell {
-    grid-template-columns: 220px minmax(0, 1fr) 340px;
+    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr) 340px;
   }
 
   .main-shell.settings-mode {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
   }
 
   .settings-grid-layout,
@@ -50,23 +38,21 @@
   }
 
   .audio-row {
-    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-columns: 58px minmax(0, 1fr);
   }
 
   .row-actions {
     grid-column: 1 / -1;
     justify-content: flex-start;
     opacity: 1;
+    padding-left: 72px;
   }
 
   .player-dock {
-    grid-template-columns: minmax(190px, 240px) minmax(250px, 1fr) minmax(220px, 250px);
+    grid-template-columns: minmax(190px, 240px) minmax(250px, 1fr) minmax(220px, 260px);
     gap: 10px;
   }
 
-  .player-options {
-    grid-template-columns: 76px minmax(0, 1fr);
-  }
 
   .queue-popover {
     width: min(380px, 54vw);
@@ -74,9 +60,13 @@
 }
 
 @media (max-height: 760px) {
+  :root {
+    --player-height: 88px;
+  }
+
   .sidebar {
     gap: 10px;
-    padding: 12px;
+    padding: 10px;
   }
 
   .brand {
@@ -84,9 +74,9 @@
   }
 
   .brand-orb {
-    width: 38px;
-    height: 38px;
-    border-radius: 14px;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--md-sys-shape-corner-large);
   }
 
   .brand-copy h2 {
@@ -98,12 +88,13 @@
   }
 
   .nav-card {
-    padding: 8px;
+    min-height: 48px;
+    padding-block: 6px;
   }
 
   .nav-symbol {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
   }
 
   .nav-card em {
@@ -116,6 +107,22 @@
 
   .privacy-card {
     display: none;
+  }
+
+  .top-command-bar {
+    padding-block: 12px;
+  }
+
+  .top-title-block h1 {
+    font-size: 24px;
+  }
+
+  .top-title-block p:not(.search-limit-warning) {
+    display: none;
+  }
+
+  .global-search input {
+    height: 48px;
   }
 }
 
@@ -131,18 +138,17 @@
 
 @media (max-width: 1040px) {
   .main-shell {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(300px, 42vh);
   }
 
   .main-shell.settings-mode {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
   }
 
   .sidebar {
     grid-row: 1 / span 2;
-    padding: 12px;
   }
 
   .main-shell.settings-mode .sidebar {
@@ -175,8 +181,6 @@
 
   .player-options {
     grid-column: 1 / -1;
-    grid-template-columns: 100px minmax(0, 1fr) minmax(180px, 240px);
-    grid-template-areas: "speed volume queue";
   }
 
   .queue-control {
@@ -185,25 +189,25 @@
 }
 
 @media (max-width: 860px) {
-  .main-shell,
-  .main-shell.settings-mode {
-    grid-template-columns: 196px minmax(0, 1fr);
-    gap: 10px;
-    padding: 10px;
+  :root {
+    --app-sidebar-width: 204px;
   }
 
-  .sidebar {
-    border-radius: 18px;
+  .main-shell,
+  .main-shell.settings-mode {
+    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
   }
 
   .nav-card {
-    grid-template-columns: 30px minmax(0, 1fr);
+    grid-template-columns: 32px minmax(0, 1fr);
     gap: 8px;
   }
 
   .nav-symbol {
-    width: 30px;
-    height: 30px;
+    width: 32px;
+    height: 32px;
   }
 
   .nav-card strong {
@@ -221,6 +225,19 @@
     -webkit-box-orient: vertical;
   }
 
+  .top-title-block {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-count-card {
+    width: 100%;
+    text-align: left;
+  }
+
+  .filter-group {
+    flex: 0 0 auto;
+  }
+
   .player-dock {
     grid-template-columns: 1fr;
   }
@@ -231,24 +248,28 @@
     grid-column: 1;
   }
 
-  .player-options {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "speed"
-      "volume"
-      "queue";
+
+  .queue-popover {
+    width: min(380px, calc(100vw - 24px));
   }
 }
 
-@media (max-width: 1180px) {
-  .audio-row {
-    grid-template-columns: 56px minmax(0, 1fr);
+@media (max-width: 720px) {
+  :root {
+    --app-sidebar-width: 188px;
   }
 
-  .row-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    opacity: 1;
-    padding-left: 68px;
+  .brand-copy p,
+  .nav-card em {
+    display: none;
+  }
+
+  .settings-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .inline-form {
+    flex-direction: column;
   }
 }

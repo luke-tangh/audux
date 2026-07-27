@@ -1,104 +1,28 @@
 /*
-  Final TopBar layout override.
+  Final MD3 TopBar layout layer.
 
-  目标：
-  - 搜索框仍独占一行，保证可输入空间。
-  - 筛选器与批量按钮全部压缩到同一行：
-    缺描述 / 转写 / 文件 / 批量转写 / 批量 AI / 设置
-  - 缩小控件高度、间距、字号，节约垂直空间。
-  - 宽度极窄时保持单行，并允许横向滚动，而不是自动换成两行。
+  Wide:
+  转写筛选 → 文件筛选 → 缺描述 → 批量转写 → AI                  设置
+
+  Narrow:
+  row 1: filters
+  row 2: batch actions left, settings pinned right
 */
 
 .top-command-bar {
   container-name: library-topbar;
   container-type: inline-size;
-  overflow: visible;
-  gap: 10px;
-  padding: 14px 16px;
 }
 
-.top-command-bar .top-title-block {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 14px;
-}
-
-.top-command-bar .top-title-block > div:first-child {
-  min-width: 0;
-}
-
-.top-command-bar .top-title-block h1,
-.top-command-bar .top-title-block p {
-  min-width: 0;
-}
-
-.top-command-bar .top-count-card {
-  width: auto;
-  min-width: 76px;
-  justify-self: end;
-  text-align: right;
-  padding: 8px 11px;
-  border-radius: 15px;
-}
-
-.top-command-bar .top-count-card strong {
-  font-size: 18px;
-}
-
-.top-command-bar .top-count-card span {
-  font-size: 11px;
-}
-
-/*
-  搜索区纵向布局：
-  第一行搜索框，第二行紧凑工具条。
-*/
-.top-command-bar .top-action-row {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  gap: 8px !important;
-  min-width: 0;
-}
-
-.top-command-bar .global-search {
-  width: 100%;
-  min-width: 0 !important;
-  flex: 0 0 auto !important;
-}
-
-.top-command-bar .global-search input {
-  width: 100%;
-  height: 39px;
-  border-radius: 15px;
-}
-
-.top-command-bar .search-clear-button {
-  flex: 0 0 auto;
-}
-
-/*
-  工具条强制单行：
-  [缺描述] [转写 全部转写] [文件 全部文件] [批量转写] [批量 AI] [⚙]
-*/
 .top-command-bar .top-toolbar-controls {
   width: 100%;
-  min-width: 0;
-  min-height: 38px;
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
-  padding: 5px;
+  justify-content: flex-start;
+  gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.13);
-  border-radius: 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.032), rgba(255, 255, 255, 0.012)),
-    rgba(2, 6, 23, 0.2);
   scrollbar-width: none;
 }
 
@@ -106,297 +30,234 @@
   display: none;
 }
 
-.top-command-bar .top-toolbar-controls .filter-group {
-  min-width: 0 !important;
+.top-command-bar .top-filter-controls {
+  order: 1;
+  flex: 0 1 auto;
   width: auto;
-  flex: 1 1 auto;
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
+  min-width: 0;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  overflow: visible;
-}
-
-/* 缺描述 */
-.top-command-bar .top-toolbar-controls .filter-chip {
-  width: auto !important;
-  min-width: 76px !important;
-  max-width: none !important;
-  height: 30px;
-  min-height: 30px;
-  flex: 0 0 auto !important;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  gap: 5px;
-  padding: 0 8px;
-  overflow: hidden;
-  color: var(--text-soft);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.top-command-bar .top-toolbar-controls .filter-chip input {
-  flex: 0 0 auto;
-  width: 13px;
-  height: 13px;
+  gap: 8px;
   margin: 0;
+  overflow: visible;
+  padding-bottom: 0;
 }
 
-/* 转写 / 文件 select 外壳 */
-.top-command-bar .select-filter {
+.top-command-bar .top-toolbar-actions {
+  order: 2;
+  flex: 0 0 auto;
   width: auto;
-  min-width: 112px !important;
-  max-width: 150px !important;
-  height: 30px;
-  min-height: 30px;
-  flex: 1 1 118px !important;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 5px;
-  padding: 0 6px 0 8px;
-  color: var(--text-soft);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(2, 6, 23, 0.32);
-  transition:
-    border-color var(--transition),
-    background var(--transition),
-    box-shadow var(--transition);
-}
-
-.top-command-bar .select-filter:hover {
-  border-color: var(--border-strong);
-  background: rgba(15, 23, 42, 0.56);
-}
-
-.top-command-bar .select-filter:focus-within {
-  border-color: rgba(56, 189, 248, 0.62);
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
-}
-
-.top-command-bar .select-filter span {
-  min-width: max-content;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 760;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.top-command-bar .select-filter select {
-  width: 100%;
   min-width: 0;
-  height: 23px;
-  padding: 0 22px 0 7px;
-  color: var(--text);
-  font-size: 12px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.42);
-  box-shadow: none;
-}
-
-.top-command-bar .select-filter select:hover,
-.top-command-bar .select-filter select:focus {
-  border: none;
-  background: rgba(15, 23, 42, 0.62);
-  box-shadow: none;
-}
-
-/* 批量按钮组 */
-.top-command-bar .top-toolbar-controls .top-buttons {
-  min-width: max-content;
-  flex: 0 0 auto !important;
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
+  display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
+  justify-content: flex-start;
+  gap: 6px;
+  margin-left: 0;
 }
 
-.top-command-bar .top-toolbar-controls .top-buttons button {
-  width: auto !important;
-  min-width: 0;
-  min-height: 30px;
-  height: 30px;
-  flex: 0 0 auto !important;
-  padding: 0 8px;
-  white-space: nowrap;
-  font-size: 12px;
-  border-radius: 10px;
+.top-command-bar .top-settings-button {
+  order: 3;
+  flex: 0 0 auto;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  margin-left: auto;
+  align-self: center;
 }
 
-.top-command-bar .top-toolbar-controls .top-buttons .icon-soft-button {
-  width: 30px !important;
-  min-width: 30px !important;
-  height: 30px;
-  padding: 0;
-  border-radius: 10px;
+.top-command-bar .top-transcript-filter.ui-select-field {
+  order: 1;
+  flex: 0 0 152px;
+  width: 152px;
+  min-width: 152px;
+  height: 48px;
+  min-height: 48px;
+  border-radius: 18px;
 }
 
-/*
-  中等宽度也不换行。
-  只进一步缩小间距和按钮宽度。
-*/
-@container library-topbar (max-width: 760px) {
+.top-command-bar .top-file-filter.ui-select-field {
+  order: 2;
+  flex: 0 0 136px;
+  width: 136px;
+  min-width: 136px;
+  height: 48px;
+  min-height: 48px;
+  border-radius: 18px;
+}
+
+.top-command-bar .topbar-select-field .ui-select-field-label {
+  display: block;
+  top: 6px;
+  font-size: 10px;
+  font-weight: 820;
+  letter-spacing: 0.025em;
+}
+
+.top-command-bar .topbar-select-field .ui-select-field-button {
+  padding: 18px 34px 6px 14px;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.top-command-bar .topbar-select-field::after {
+  right: 15px;
+}
+
+.top-command-bar .top-missing-description-action.ui-button {
+  order: 3;
+}
+
+.top-command-bar .top-batch-group {
+  order: 4;
+  flex: 0 0 auto;
+}
+
+.top-command-bar .top-clear-filter-button {
+  order: 5;
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+@container library-topbar (max-width: 720px) {
+  .top-command-bar .top-transcript-filter.ui-select-field {
+    flex-basis: 148px;
+    width: 148px;
+    min-width: 148px;
+  }
+
+  .top-command-bar .top-file-filter.ui-select-field {
+    flex-basis: 132px;
+    width: 132px;
+    min-width: 132px;
+  }
+
+  .top-command-bar .top-missing-description-action.ui-button {
+    min-width: 72px;
+    padding-inline: 10px;
+  }
+
+  .top-command-bar .top-batch-group {
+    gap: 5px;
+  }
+
+  .top-command-bar .top-batch-action.ui-button {
+    padding-inline: 11px;
+  }
+}
+
+@container library-topbar (max-width: 620px) {
   .top-command-bar .top-toolbar-controls {
-    gap: 5px;
-    padding: 4px;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
-  .top-command-bar .top-toolbar-controls .filter-group {
-    gap: 5px;
+  .top-command-bar .top-filter-controls {
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
   }
 
-  .top-command-bar .top-toolbar-controls .filter-chip {
-    min-width: 70px !important;
-    padding: 0 7px;
+  .top-command-bar .top-filter-controls::-webkit-scrollbar {
+    display: none;
   }
 
-  .top-command-bar .select-filter {
-    min-width: 104px !important;
-    max-width: 136px !important;
-    flex-basis: 108px !important;
-    gap: 4px;
-    padding-left: 7px;
-    padding-right: 5px;
+  .top-command-bar .top-toolbar-actions {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
   }
 
-  .top-command-bar .select-filter span {
-    font-size: 11px;
-  }
-
-  .top-command-bar .select-filter select {
-    font-size: 12px;
-    padding-left: 6px;
-    padding-right: 20px;
-  }
-
-  .top-command-bar .top-toolbar-controls .top-buttons {
-    gap: 4px;
-  }
-
-  .top-command-bar .top-toolbar-controls .top-buttons button {
-    padding: 0 7px;
+  .top-command-bar .top-settings-button {
+    margin-left: auto;
   }
 }
 
-/*
-  更窄时仍保持单行。
-  隐藏 select 前的小标签“转写 / 文件”，只保留选项文字，继续节约横向空间。
-*/
 @container library-topbar (max-width: 560px) {
-  .top-command-bar .top-title-block {
+  .top-title-block {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .top-command-bar .top-count-card {
+  .top-count-card {
     width: 100%;
     justify-self: stretch;
     text-align: left;
   }
-
-  .top-command-bar .select-filter {
-    min-width: 92px !important;
-    max-width: 116px !important;
-    flex-basis: 96px !important;
-    grid-template-columns: minmax(0, 1fr);
-    padding-left: 5px;
-  }
-
-  .top-command-bar .select-filter span {
-    display: none;
-  }
-
-  .top-command-bar .top-toolbar-controls .filter-chip {
-    min-width: 66px !important;
-  }
-
-  .top-command-bar .top-toolbar-controls .top-buttons button {
-    padding: 0 6px;
-  }
-
-  .top-command-bar .top-toolbar-controls .top-buttons .icon-soft-button {
-    width: 29px !important;
-    min-width: 29px !important;
-  }
 }
 
-/*
-  极窄 / 高缩放：
-  保持单行 + 横向滚动，不再把工具条拆成多行。
-*/
-@container library-topbar (max-width: 420px) {
+@container library-topbar (max-width: 520px) {
   .top-command-bar .top-toolbar-controls {
-    overflow-x: auto;
+    gap: 7px;
   }
 
-  .top-command-bar .top-toolbar-controls .filter-group {
-    flex: 0 0 auto;
+  .top-command-bar .top-filter-controls {
+    gap: 6px;
   }
 
-  .top-command-bar .select-filter {
-    min-width: 88px !important;
-    max-width: 104px !important;
+  .top-command-bar .top-toolbar-actions {
+    gap: 5px;
   }
 
-  .top-command-bar .top-toolbar-controls .filter-chip {
-    min-width: 62px !important;
+  .top-command-bar .top-transcript-filter.ui-select-field {
+    flex-basis: 142px;
+    width: 142px;
+    min-width: 142px;
   }
 
-  .top-command-bar .top-toolbar-controls .top-buttons button {
-    font-size: 11px;
-  }
-}
-
-/*
-  窗口高度不足时进一步压缩垂直空间。
-*/
-@media (max-height: 760px) {
-  .top-command-bar {
-    gap: 8px;
-    padding-block: 11px;
+  .top-command-bar .top-file-filter.ui-select-field {
+    flex-basis: 126px;
+    width: 126px;
+    min-width: 126px;
   }
 
-  .top-command-bar .top-title-block h1 {
-    font-size: 24px;
+  .top-command-bar .topbar-select-field .ui-select-field-button {
+    padding-left: 12px;
+    padding-right: 31px;
+    font-size: 12px;
   }
 
-  .top-command-bar .top-title-block p {
-    display: none;
+  .top-command-bar .topbar-select-field::after {
+    right: 13px;
   }
 
-  .top-command-bar .top-action-row {
-    gap: 7px !important;
+  .top-command-bar .top-missing-description-action.ui-button {
+    min-width: 68px;
+    padding-inline: 9px;
+    font-size: 12px;
   }
 
-  .top-command-bar .global-search input {
-    height: 37px;
+  .top-command-bar .top-batch-action.ui-button {
+    height: 38px;
+    min-height: 38px;
+    font-size: 12px;
   }
 
-  .top-command-bar .top-toolbar-controls {
-    min-height: 34px;
-    padding: 4px;
+  .top-command-bar .top-batch-transcribe-action.ui-button {
+    min-width: 54px;
+    padding-inline: 10px;
   }
 
-  .top-command-bar .top-toolbar-controls .filter-chip,
-  .top-command-bar .select-filter,
-  .top-command-bar .top-toolbar-controls .top-buttons button {
-    min-height: 28px;
-    height: 28px;
+  .top-command-bar .top-batch-ai-action.ui-button {
+    min-width: 42px;
+    padding-inline: 11px;
   }
 
-  .top-command-bar .select-filter select {
-    height: 22px;
+  .top-command-bar .top-clear-filter-button.ui-button {
+    min-width: 46px;
+    padding-inline: 8px;
+    font-size: 12px;
   }
 
-  .top-command-bar .top-toolbar-controls .top-buttons .icon-soft-button {
-    width: 28px !important;
-    min-width: 28px !important;
-    height: 28px;
+  .top-command-bar .top-settings-button {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
   }
 }

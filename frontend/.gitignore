@@ -1,5 +1,7 @@
 dist
 node_modules
+test-results
+tests
 src-tauri/.cargo
 src-tauri/binaries
 src-tauri/target

@@ -11,13 +11,13 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr) minmax(360px, 420px);
-  gap: 14px;
-  padding: 14px 14px 10px;
+  grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr) minmax(360px, var(--app-inspector-width));
+  gap: 12px;
+  padding: 12px 12px 8px;
 }
 
 .main-shell.settings-mode {
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
 }
 
 .workspace {
@@ -35,6 +35,19 @@
 .audio-list-panel,
 .top-command-bar,
 .inspector-panel,
-.settings-panel {
+.settings-panel,
+.sidebar {
   min-width: 0;
+}
+
+/* Shared MD3 container treatment */
+.sidebar,
+.top-command-bar,
+.audio-list-panel,
+.inspector-panel,
+.settings-panel {
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  box-shadow: var(--md-sys-elevation-1);
 }

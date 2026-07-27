@@ -3,9 +3,18 @@ import { api, endpointPrivacyWarning } from "../api";
 import type { AISuggestions, AudioItem, Playlist, Tag, Transcript } from "../types";
 import { displayAuthor, displayDescription, displayTitle, formatDuration } from "../types";
 import { pickAudioFile } from "../tauri";
+import { Button, IconButton, SelectField, StatusPill, Tabs, CheckboxField, MaterialIcon, TextareaField, TextField } from "./ui";
+import { useDialog } from "./dialog/UnifiedDialog";
 
 type ToastType = "info" | "success" | "error";
 type InspectorTab = "overview" | "ai" | "transcript" | "file";
+
+const INSPECTOR_TABS: { id: InspectorTab; label: string }[] = [
+  { id: "overview", label: "概览" },
+  { id: "ai", label: "AI" },
+  { id: "transcript", label: "Transcript" },
+  { id: "file", label: "文件" }
+];
 
 type Props = {
   audio: AudioItem | null;
@@ -26,6 +35,8 @@ export default function DetailPanel({
   onDeleted,
   notify
 }: Props) {
+  const dialog = useDialog();
+
   const [activeTab, setActiveTab] = useState<InspectorTab>("overview");
 
   const [tags, setTags] = useState<Tag[]>([]);
@@ -126,7 +137,7 @@ export default function DetailPanel({
     return (
       <aside className="inspector-panel empty-inspector">
         <div className="empty-detail-card">
-          <div className="empty-detail-icon">♪</div>
+          <div className="empty-detail-icon"><MaterialIcon name="music_note" size={38} /></div>
 
           <span className="eyebrow">Inspector</span>
 
@@ -253,7 +264,14 @@ export default function DetailPanel({
 
       const warning = endpointPrivacyWarning(endpoint);
       if (warning) {
-        const ok = window.confirm(`${warning}\n\n确认继续发起 AI 分析？`);
+        const ok = await dialog.confirm({
+          title: "确认使用非本机 LLM endpoint？",
+          message: `${warning}\n\n确认继续发起 AI 分析？`,
+          confirmLabel: "继续分析",
+          cancelLabel: "取消",
+          tone: "privacy"
+        });
+
         if (!ok) return;
       }
 
@@ -356,7 +374,15 @@ export default function DetailPanel({
   }
 
   async function deleteCover() {
-    const ok = window.confirm("确认删除当前封面？");
+    const ok = await dialog.confirm({
+      title: "删除当前封面？",
+      message: "确认删除当前封面？此操作会移除应用管理的封面文件。",
+      confirmLabel: "删除封面",
+      cancelLabel: "取消",
+      tone: "danger",
+      destructive: true
+    });
+
     if (!ok) return;
 
     try {
@@ -391,7 +417,15 @@ export default function DetailPanel({
   }
 
   async function deleteFromDatabase() {
-    const ok = window.confirm("确认从应用数据库中移除该条目？不会删除本地音频文件。");
+    const ok = await dialog.confirm({
+      title: "从数据库移除音频？",
+      message: "确认从应用数据库中移除该条目？不会删除本地音频文件。",
+      confirmLabel: "移除条目",
+      cancelLabel: "取消",
+      tone: "danger",
+      destructive: true
+    });
+
     if (!ok) return;
 
     try {
@@ -428,7 +462,7 @@ export default function DetailPanel({
               }}
             />
           ) : (
-            <span>♪</span>
+            <MaterialIcon name="music_note" size={50} />
           )}
         </div>
 
@@ -441,19 +475,17 @@ export default function DetailPanel({
           <div className="detail-meta-strip">
             <span>{audio.file_ext || "audio"}</span>
             <span>{audio.is_missing ? "文件缺失" : "文件可用"}</span>
-            <span className={`status-pill ${audio.transcript_status}`}>
-              转写 {audio.transcript_status}
-            </span>
-            <span className={`status-pill ${audio.ai_status}`}>AI {audio.ai_status}</span>
+            <StatusPill label="转写" value={audio.transcript_status} />
+            <StatusPill label="AI" value={audio.ai_status} />
           </div>
         </div>
 
         <div className="inspector-actions">
-          <button className="primary-button" onClick={() => onPlay(audio)}>
+          <Button variant="filled" onClick={() => onPlay(audio)}>
             播放
-          </button>
-          <button onClick={transcribe}>转写</button>
-          <button onClick={analyze}>AI 分析</button>
+          </Button>
+          <Button variant="text" onClick={transcribe}>转写</Button>
+          <Button variant="text" onClick={analyze}>AI 分析</Button>
           <label className="upload-button">
             封面
             <input
@@ -465,101 +497,74 @@ export default function DetailPanel({
         </div>
       </div>
 
-      <div className="inspector-tabs">
-        <button
-          className={activeTab === "overview" ? "active" : ""}
-          onClick={() => setActiveTab("overview")}
-        >
-          概览
-        </button>
+      <Tabs
+        className="inspector-tabs"
+        items={INSPECTOR_TABS}
+        activeId={activeTab}
+        onChange={setActiveTab}
+        ariaLabel="音频详情分类"
+        idPrefix="inspector"
+      />
 
-        <button
-          className={activeTab === "ai" ? "active" : ""}
-          onClick={() => setActiveTab("ai")}
-        >
-          AI
-        </button>
-
-        <button
-          className={activeTab === "transcript" ? "active" : ""}
-          onClick={() => setActiveTab("transcript")}
-        >
-          Transcript
-        </button>
-
-        <button
-          className={activeTab === "file" ? "active" : ""}
-          onClick={() => setActiveTab("file")}
-        >
-          文件
-        </button>
-      </div>
-
-      <div className="inspector-body">
+      <div
+        className="inspector-body"
+        role="tabpanel"
+        id={`inspector-panel-${activeTab}`}
+        aria-labelledby={`inspector-tab-${activeTab}`}
+      >
         {activeTab === "overview" && (
           <div className="inspector-section-stack">
             <section className="panel-card">
               <h3>Metadata</h3>
 
               <div className="field-grid">
-                <label>
-                  用户标题
-                  <input
-                    value={(editing.title_user as string) || ""}
-                    onChange={(e) => setEditing({ ...editing, title_user: e.target.value })}
-                  />
-                </label>
+                <TextField
+                  label="用户标题"
+                  value={(editing.title_user as string) || ""}
+                  onValueChange={(value) => setEditing({ ...editing, title_user: value })}
+                />
 
-                <label>
-                  作者
-                  <input
-                    value={(editing.author_user as string) || ""}
-                    onChange={(e) => setEditing({ ...editing, author_user: e.target.value })}
-                  />
-                </label>
+                <TextField
+                  label="作者"
+                  value={(editing.author_user as string) || ""}
+                  onValueChange={(value) => setEditing({ ...editing, author_user: value })}
+                />
 
-                <label>
-                  专辑
-                  <input
-                    value={(editing.album_user as string) || ""}
-                    onChange={(e) => setEditing({ ...editing, album_user: e.target.value })}
-                  />
-                </label>
+                <TextField
+                  label="专辑"
+                  value={(editing.album_user as string) || ""}
+                  onValueChange={(value) => setEditing({ ...editing, album_user: value })}
+                />
 
-                <label>
-                  语言
-                  <input
-                    value={(editing.language as string) || ""}
-                    onChange={(e) => setEditing({ ...editing, language: e.target.value })}
-                  />
-                </label>
+                <TextField
+                  label="语言"
+                  value={(editing.language as string) || ""}
+                  onValueChange={(value) => setEditing({ ...editing, language: value })}
+                />
 
-                <label className="checkbox-row wide">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(editing.is_favorite)}
-                    onChange={(e) =>
-                      setEditing({ ...editing, is_favorite: e.target.checked })
-                    }
-                  />
-                  收藏
-                </label>
+                <CheckboxField
+                  wide
+                  label="收藏"
+                  checked={Boolean(editing.is_favorite)}
+                  onCheckedChange={(checked) =>
+                    setEditing({ ...editing, is_favorite: checked })
+                  }
+                />
 
-                <label className="wide">
-                  用户描述
-                  <textarea
-                    value={(editing.description_user as string) || ""}
-                    onChange={(e) =>
-                      setEditing({ ...editing, description_user: e.target.value })
-                    }
-                  />
-                </label>
+                <TextareaField
+                  wide
+                  label="用户描述"
+                  value={(editing.description_user as string) || ""}
+                  onValueChange={(value) =>
+                    setEditing({ ...editing, description_user: value })
+                  }
+                />
               </div>
 
               <div className="section-actions">
-                <button className="primary-button" onClick={save}>
+                <Button variant="filled" onClick={save}>
                   保存 metadata
-                </button>
+                </Button>
               </div>
             </section>
 
@@ -570,37 +575,43 @@ export default function DetailPanel({
                 {tags.map((tag) => (
                   <span className="tag" key={tag.id}>
                     #{tag.name}
-                    <button onClick={() => removeTag(tag.id)}>×</button>
+                    <IconButton label={`移除标签 ${tag.name}`} onClick={() => removeTag(tag.id)}>
+                      <MaterialIcon name="close" size={16} />
+                    </IconButton>
                   </span>
                 ))}
               </div>
 
               <div className="inline-form">
-                <input
+                <TextField
+                  wrapperClassName="inline-field"
+                  hideLabel
+                  label="新标签"
                   value={tagInput}
                   placeholder="新标签，可用逗号分隔"
-                  onChange={(e) => setTagInput(e.target.value)}
+                  onValueChange={setTagInput}
                 />
-                <button onClick={addTags}>添加</button>
+                <Button variant="text" onClick={addTags}>添加</Button>
               </div>
 
               <div className="inline-form">
-                <select
-                  value={selectedExistingTag}
-                  onChange={(e) =>
-                    setSelectedExistingTag(e.target.value ? Number(e.target.value) : "")
+                <SelectField
+                  value={selectedExistingTag === "" ? "" : String(selectedExistingTag)}
+                  aria-label="选择已有标签"
+                  options={[
+                    { value: "", label: "选择已有标签" },
+                    ...availableExistingTags.map((tag) => ({
+                      value: String(tag.id),
+                      label: `#${tag.name}`
+                    }))
+                  ]}
+                  onValueChange={(value) =>
+                    setSelectedExistingTag(value ? Number(value) : "")
                   }
-                >
-                  <option value="">选择已有标签</option>
-                  {availableExistingTags.map((tag) => (
-                    <option key={tag.id} value={tag.id}>
-                      #{tag.name}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={addExistingTag} disabled={!selectedExistingTag}>
+                />
+                <Button variant="text" onClick={addExistingTag} disabled={!selectedExistingTag}>
                   添加已有标签
-                </button>
+                </Button>
               </div>
             </section>
 
@@ -608,27 +619,28 @@ export default function DetailPanel({
               <h3>Playlist</h3>
 
               <div className="inline-form">
-                <select
-                  value={selectedPlaylist}
-                  onChange={(e) =>
-                    setSelectedPlaylist(e.target.value ? Number(e.target.value) : "")
+                <SelectField
+                  value={selectedPlaylist === "" ? "" : String(selectedPlaylist)}
+                  aria-label="选择 playlist"
+                  options={[
+                    { value: "", label: "选择 playlist" },
+                    ...playlists.map((p) => ({
+                      value: String(p.id),
+                      label: p.name
+                    }))
+                  ]}
+                  onValueChange={(value) =>
+                    setSelectedPlaylist(value ? Number(value) : "")
                   }
-                >
-                  <option value="">选择 playlist</option>
-                  {playlists.map((p) => (
-                    <option value={p.id} key={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                />
 
-                <button onClick={addToPlaylist}>加入</button>
+                <Button variant="text" onClick={addToPlaylist}>加入</Button>
               </div>
 
               {selectedPlaylistId && (
                 <div className="section-actions">
-                  <button onClick={() => exportPlaylist("json")}>导出当前 JSON</button>
-                  <button onClick={() => exportPlaylist("m3u")}>导出当前 M3U</button>
+                  <Button variant="outlined" onClick={() => exportPlaylist("json")}>导出当前 JSON</Button>
+                  <Button variant="outlined" onClick={() => exportPlaylist("m3u")}>导出当前 M3U</Button>
                 </div>
               )}
             </section>
@@ -645,15 +657,15 @@ export default function DetailPanel({
             <section className="panel-card ai-card">
               <div className="card-heading-row">
                 <h3>AI 建议描述</h3>
-                <button onClick={analyze}>重新分析</button>
+                <Button variant="text" onClick={analyze}>重新分析</Button>
               </div>
 
               {hasAiDescription ? (
                 <>
                   <p>{aiSuggestions?.description || audio.description_ai}</p>
-                  <button className="primary-button" onClick={acceptAiDescription}>
+                  <Button variant="filled" onClick={acceptAiDescription}>
                     接受为用户描述
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <div className="soft-empty">
@@ -666,7 +678,7 @@ export default function DetailPanel({
               <div className="card-heading-row">
                 <h3>AI 标签建议</h3>
                 {aiTags.length > 0 && (
-                  <button onClick={acceptAllAiTags}>接受全部未添加标签</button>
+                  <Button variant="text" onClick={acceptAllAiTags}>接受全部未添加标签</Button>
                 )}
               </div>
 
@@ -686,7 +698,7 @@ export default function DetailPanel({
                         {accepted ? (
                           <em>已接受</em>
                         ) : (
-                          <button onClick={() => acceptAiTag(tagName)}>接受</button>
+                          <Button preserveChildren className="tag-text-action" size="sm" variant="text" onClick={() => acceptAiTag(tagName)}>接受</Button>
                         )}
                       </span>
                     );
@@ -714,9 +726,9 @@ export default function DetailPanel({
 
                 {transcript && (
                   <div className="compact-actions">
-                    <button onClick={() => exportTranscript("txt")}>TXT</button>
-                    <button onClick={() => exportTranscript("json")}>JSON</button>
-                    <button onClick={() => exportTranscript("srt")}>SRT</button>
+                    <Button variant="outlined" size="sm" onClick={() => exportTranscript("txt")}>TXT</Button>
+                    <Button variant="outlined" size="sm" onClick={() => exportTranscript("json")}>JSON</Button>
+                    <Button variant="outlined" size="sm" onClick={() => exportTranscript("srt")}>SRT</Button>
                   </div>
                 )}
               </div>
@@ -724,9 +736,9 @@ export default function DetailPanel({
               {!transcript && (
                 <div className="transcript-empty">
                   <p>暂无 transcript。</p>
-                  <button className="primary-button" onClick={transcribe}>
+                  <Button variant="filled" onClick={transcribe}>
                     开始转写
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -735,9 +747,13 @@ export default function DetailPanel({
                   {transcript.segments.length > 0 ? (
                     transcript.segments.map((seg) => (
                       <div key={seg.id} className="segment">
-                        <button onClick={() => jumpToSegment(seg.start_seconds)}>
+                        <Button preserveChildren
+                          type="button"
+                          aria-label={`从 ${formatDuration(seg.start_seconds)} 开始播放`}
+                          onClick={() => jumpToSegment(seg.start_seconds)}
+                        >
                           {formatDuration(seg.start_seconds)}
-                        </button>
+                        </Button>
                         <span>{seg.text}</span>
                       </div>
                     ))
@@ -798,17 +814,20 @@ export default function DetailPanel({
               <h3>重新定位</h3>
 
               <div className="inline-form">
-                <input
+                <TextField
+                  wrapperClassName="inline-field"
+                  hideLabel
+                  label="新的音频文件路径"
                   value={relocatePath}
-                  onChange={(e) => setRelocatePath(e.target.value)}
                   placeholder="新的音频文件路径"
+                  onValueChange={setRelocatePath}
                 />
-                <button onClick={chooseRelocateFile}>选择</button>
+                <Button variant="outlined" onClick={chooseRelocateFile}>选择</Button>
               </div>
 
-              <button className="section-button" onClick={relocate}>
+              <Button className="section-button" variant="filled" onClick={relocate}>
                 重新定位文件
-              </button>
+              </Button>
             </section>
 
             <section className="panel-card danger-zone">
@@ -816,13 +835,13 @@ export default function DetailPanel({
               <p>这些操作会影响数据库记录或封面文件，请谨慎使用。</p>
 
               <div className="section-actions">
-                <button onClick={deleteCover} disabled={!audio.cover_path}>
+                <Button preserveChildren variant="outlined" onClick={deleteCover} disabled={!audio.cover_path}>
                   删除封面
-                </button>
+                </Button>
 
-                <button className="danger-button" onClick={deleteFromDatabase}>
+                <Button variant="danger" onClick={deleteFromDatabase}>
                   从数据库移除
-                </button>
+                </Button>
               </div>
             </section>
           </div>

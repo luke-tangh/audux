@@ -1,4 +1,5 @@
 import type { Toast } from "../hooks/useToast";
+import { IconButton, MaterialIcon } from "./ui";
 
 type Props = {
   toasts: Toast[];
@@ -9,15 +10,27 @@ export default function ToastStack({ toasts, onClose }: Props) {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toast-stack">
+    <div
+      className="toast-stack"
+      aria-live="polite"
+      aria-relevant="additions removals"
+    >
       {toasts.map((toast) => (
-        <div key={toast.id} className={`toast toast-${toast.type}`}>
+        <div
+          key={toast.id}
+          className={`toast toast-${toast.type}`}
+          role={toast.type === "error" ? "alert" : "status"}
+        >
           <div className="toast-content">
             <div className="toast-message">{toast.message}</div>
 
-            <button className="toast-close" onClick={() => onClose(toast.id)}>
-              ×
-            </button>
+            <IconButton
+              className="toast-close"
+              label="关闭通知"
+              onClick={() => onClose(toast.id)}
+            >
+                <MaterialIcon name="close" size={18} />
+              </IconButton>
           </div>
         </div>
       ))}
