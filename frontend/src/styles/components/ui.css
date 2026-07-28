@@ -386,8 +386,8 @@
   - controlHeight
   - controlRadius
 
-  Page styles should no longer target selectors such as
-  .player-rate-select.ui-select-field or .top-transcript-filter.ui-select-field.
+  Page-specific sizing should be passed through props instead of one-off CSS
+  aliases.
 */
 
 .ui-select-field {
@@ -464,10 +464,10 @@
 
 .ui-select-field-control-mini {
   --ui-select-height: 40px;
-  --ui-select-min-width: 88px;
+  --ui-select-min-width: 108px;
   --ui-select-radius: var(--md-sys-shape-corner-full);
-  --ui-select-horizontal-padding: 12px;
-  --ui-select-trailing-space: 32px;
+  --ui-select-horizontal-padding: 10px;
+  --ui-select-trailing-space: 28px;
   --ui-select-label-top: 5px;
   --ui-select-label-font-size: 9px;
   --ui-select-label-line-height: 1;
@@ -476,7 +476,7 @@
   --ui-select-button-padding-bottom: 4px;
   --ui-select-button-font-size: 13px;
   --ui-select-button-font-weight: 820;
-  --ui-select-arrow-right: 13px;
+  --ui-select-arrow-right: 12px;
   --ui-select-arrow-size: 7px;
 }
 

@@ -48,12 +48,12 @@ export default function PlayerOptions({
       <SelectField
         density="compact"
         controlSize="mini"
-        controlWidth={92}
-        controlMinWidth={88}
-        controlMaxWidth={104}
+        controlWidth={118}
+        controlMinWidth={112}
+        controlMaxWidth={132}
         controlRadius="var(--md-sys-shape-corner-full)"
         menuWidth="control"
-        menuMinWidth={92}
+        menuMinWidth={118}
         label="速度"
         value={String(rate)}
         options={PLAYBACK_RATE_OPTIONS}

@@ -184,10 +184,8 @@
   separate final override file. This keeps TopBar's effective cascade local and
   easier to maintain.
 
-  Select dimensions are controlled by SelectField props instead of
-  page-specific selectors such as:
-  - .top-transcript-filter.ui-select-field
-  - .top-file-filter.ui-select-field
+  Select dimensions are controlled by SelectField props, keeping page CSS
+  focused on layout rather than per-control sizing aliases.
 */
 
 .top-command-bar {

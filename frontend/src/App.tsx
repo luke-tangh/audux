@@ -122,17 +122,13 @@ export default function App() {
               <AudioList
                 title={listTitle}
                 q={q}
-                setQ={setQ}
                 isLoading={loading}
                 loadError={loadError}
                 onOpenSettings={openSettings}
                 onClearFilters={clearFilters}
                 missingDescriptionOnly={missingDescriptionOnly}
-                setMissingDescriptionOnly={setMissingDescriptionOnly}
                 hasTranscriptFilter={hasTranscriptFilter}
-                setHasTranscriptFilter={setHasTranscriptFilter}
                 missingFilter={missingFilter}
-                setMissingFilter={setMissingFilter}
                 items={audioItems}
                 totalCount={audioTotal}
                 hasMore={audioHasMore}
@@ -142,8 +138,6 @@ export default function App() {
                 onSelect={setSelected}
                 onPlay={(item) => playAudio(item, audioItems)}
                 onPlayAt={(item, seconds) => playAudioAt(item, seconds, audioItems)}
-                onBatchTranscribe={batchTranscribeCurrentList}
-                onBatchAnalyze={batchAnalyzeCurrentList}
                 isPlaylistView={view === "playlist"}
                 onRemoveFromPlaylist={
                   view === "playlist" ? removeFromCurrentPlaylist : undefined

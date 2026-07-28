@@ -10,7 +10,7 @@
   }
 
   .player-dock {
-    grid-template-columns: minmax(220px, 280px) minmax(280px, 1fr) minmax(240px, 300px);
+    grid-template-columns: minmax(220px, 280px) minmax(280px, 1fr) minmax(260px, 330px);
   }
 }
 
@@ -49,7 +49,7 @@
   }
 
   .player-dock {
-    grid-template-columns: minmax(190px, 240px) minmax(250px, 1fr) minmax(220px, 260px);
+    grid-template-columns: minmax(190px, 240px) minmax(250px, 1fr) minmax(240px, 300px);
     gap: 10px;
   }
 
@@ -119,10 +119,6 @@
 
   .top-title-block p:not(.search-limit-warning) {
     display: none;
-  }
-
-  .global-search input {
-    height: 48px;
   }
 }
 

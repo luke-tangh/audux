@@ -10,17 +10,13 @@ type MissingFilter = "all" | "available" | "missing";
 type Props = {
   title: string;
   q: string;
-  setQ: (q: string) => void;
   isLoading?: boolean;
   loadError?: string;
   onOpenSettings: () => void;
   onClearFilters: () => void;
   missingDescriptionOnly: boolean;
-  setMissingDescriptionOnly: (v: boolean) => void;
   hasTranscriptFilter: TranscriptFilter;
-  setHasTranscriptFilter: (v: TranscriptFilter) => void;
   missingFilter: MissingFilter;
-  setMissingFilter: (v: MissingFilter) => void;
   items: AudioItem[];
   totalCount?: number;
   hasMore?: boolean;
@@ -30,14 +26,11 @@ type Props = {
   onSelect: (item: AudioItem) => void;
   onPlay: (item: AudioItem) => void;
   onPlayAt: (item: AudioItem, startSeconds: number) => void;
-  onBatchTranscribe: () => void;
-  onBatchAnalyze: () => void;
   isPlaylistView?: boolean;
   onRemoveFromPlaylist?: (item: AudioItem) => void;
   onMovePlaylistItem?: (item: AudioItem, direction: "up" | "down") => void;
   onMovePlaylistItemTo?: (source: AudioItem, target: AudioItem) => void;
 };
-
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
