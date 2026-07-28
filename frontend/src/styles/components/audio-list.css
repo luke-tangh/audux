@@ -213,58 +213,6 @@
   background: var(--md-sys-color-primary);
 }
 
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 26px;
-  padding: 2px 10px;
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 12px;
-  font-weight: 760;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-high);
-}
-
-.status-pill span {
-  opacity: 0.72;
-  font-weight: 700;
-}
-
-.status-pill.none {
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.status-pill.pending {
-  color: var(--md-sys-color-on-warning-container);
-  background: var(--md-sys-color-warning-container);
-}
-
-.status-pill.running {
-  color: var(--md-sys-color-on-primary-container);
-  background: var(--md-sys-color-primary-container);
-}
-
-.status-pill.done {
-  color: var(--md-sys-color-on-success-container);
-  background: var(--md-sys-color-success-container);
-}
-
-.status-pill.failed {
-  color: var(--md-sys-color-on-error-container);
-  background: var(--md-sys-color-error-container);
-}
-
-.status-pill.canceled {
-  color: var(--md-sys-color-on-surface-variant);
-  background: var(--md-sys-color-surface-container-highest);
-}
-
-.status-pill.cancel_requested {
-  color: var(--md-sys-color-on-warning-container);
-  background: var(--md-sys-color-warning-container);
-}
-
 .search-hits {
   display: grid;
   gap: 6px;

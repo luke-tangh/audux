@@ -224,6 +224,61 @@
   min-width: 0;
 }
 
+/* StatusPill primitive: start */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 2px 10px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
+  font-weight: 760;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.status-pill span {
+  opacity: 0.72;
+  font-weight: 700;
+}
+
+.status-pill.none {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.status-pill.pending {
+  color: var(--md-sys-color-on-warning-container);
+  background: var(--md-sys-color-warning-container);
+}
+
+.status-pill.running {
+  color: var(--md-sys-color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+}
+
+.status-pill.done {
+  color: var(--md-sys-color-on-success-container);
+  background: var(--md-sys-color-success-container);
+}
+
+.status-pill.failed {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.status-pill.canceled {
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.status-pill.cancel_requested {
+  color: var(--md-sys-color-on-warning-container);
+  background: var(--md-sys-color-warning-container);
+}
+/* StatusPill primitive: end */
+
+
 .ui-search-field {
   position: relative;
   min-width: 0;
@@ -803,12 +858,6 @@
   line-height: 1.5;
 }
 
-.inline-form .ui-field-group,
-.inline-form .inline-field {
-  flex: 1 1 180px;
-  min-width: 160px;
-  margin-top: 0;
-}
 /* Material icons and form fields: end */
 
 /* Unified PanelCard usage: start */
@@ -829,7 +878,151 @@
   margin-bottom: 0;
 }
 
-.ui-panel-card .compact-actions {
+/* Unified PanelCard usage: end */
+
+/* Scoped shared app utilities: start */
+/*
+  These helper class names are intentionally shared by inspector/settings
+  screens, but scoped to panel roots so they do not leak into unrelated
+  surfaces when global CSS is bundled.
+*/
+
+.inspector-panel .inline-form,
+.settings-panel .inline-form {
+  display: flex;
+  gap: 9px;
+  margin-top: 11px;
+}
+
+.inspector-panel .inline-form input,
+.inspector-panel .inline-form select,
+.settings-panel .inline-form input,
+.settings-panel .inline-form select {
+  flex: 1;
+}
+
+.inspector-panel .inline-form button,
+.settings-panel .inline-form button {
+  white-space: nowrap;
+}
+
+.inspector-panel .inline-form .ui-field-group,
+.inspector-panel .inline-form .inline-field,
+.settings-panel .inline-form .ui-field-group,
+.settings-panel .inline-form .inline-field {
+  flex: 1 1 180px;
+  min-width: 160px;
   margin-top: 0;
 }
-/* Unified PanelCard usage: end */
+
+.settings-panel .wide {
+  grid-column: 1 / -1;
+}
+
+.inspector-panel .section-actions,
+.settings-panel .section-actions,
+.inspector-panel .compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.inspector-panel .ui-panel-card-actions .compact-actions {
+  margin-top: 0;
+}
+
+.inspector-panel .tag-list,
+.settings-panel .tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inspector-panel .tag,
+.settings-panel .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  color: var(--md-sys-color-on-secondary-container);
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--md-sys-color-secondary-container);
+  border-radius: var(--md-sys-shape-corner-full);
+  padding: 4px 10px;
+}
+
+.inspector-panel .tag.suggestion {
+  color: var(--md-sys-color-on-tertiary-container);
+  background: var(--md-sys-color-tertiary-container);
+}
+
+.inspector-panel .tag.accepted {
+  color: var(--md-sys-color-on-success-container);
+  background: var(--md-sys-color-success-container);
+}
+
+.inspector-panel .tag em,
+.settings-panel .tag em {
+  font-style: normal;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.inspector-panel .tag button,
+.settings-panel .tag button {
+  min-width: 24px;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  color: currentColor;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.inspector-panel .tag .tag-text-action.ui-button,
+.settings-panel .tag .tag-text-action.ui-button {
+  width: auto;
+  min-width: auto;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  color: currentColor;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.inspector-panel .tag .tag-text-action.ui-button:hover,
+.settings-panel .tag .tag-text-action.ui-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.inspector-panel .tag .tag-text-action.ui-button-danger,
+.settings-panel .tag .tag-text-action.ui-button-danger {
+  color: var(--md-sys-color-on-error-container);
+  background: rgba(242, 184, 181, 0.18);
+}
+
+:root[data-theme="light"] .inspector-panel .tag button,
+:root[data-theme="light"] .settings-panel .tag button,
+:root[data-theme="light"] .inspector-panel .tag .tag-text-action.ui-button,
+:root[data-theme="light"] .settings-panel .tag .tag-text-action.ui-button {
+  background: rgba(29, 25, 43, 0.08);
+}
+
+:root[data-theme="light"] .inspector-panel .tag button:hover,
+:root[data-theme="light"] .settings-panel .tag button:hover,
+:root[data-theme="light"] .inspector-panel .tag .tag-text-action.ui-button:hover,
+:root[data-theme="light"] .settings-panel .tag .tag-text-action.ui-button:hover {
+  background: rgba(29, 25, 43, 0.12);
+}
+
+:root[data-theme="light"] .inspector-panel .tag .tag-text-action.ui-button-danger,
+:root[data-theme="light"] .settings-panel .tag .tag-text-action.ui-button-danger {
+  color: var(--md-sys-color-error);
+  background: rgba(186, 26, 26, 0.1);
+}
+/* Scoped shared app utilities: end */
+

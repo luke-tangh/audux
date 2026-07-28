@@ -28,12 +28,12 @@
     grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
   }
 
-  .settings-grid-layout,
-  .settings-form-grid {
+  .settings-panel .settings-grid-layout,
+  .settings-panel .settings-form-grid {
     grid-template-columns: 1fr;
   }
 
-  .settings-grid-layout > .ui-panel-card:first-child {
+  .settings-panel .settings-grid-layout > .ui-panel-card:first-child {
     grid-column: auto;
   }
 
@@ -234,7 +234,7 @@
     text-align: left;
   }
 
-  .filter-group {
+  .top-command-bar .filter-group {
     flex: 0 0 auto;
   }
 
@@ -264,12 +264,13 @@
     display: none;
   }
 
-  .settings-header {
+  .settings-panel .settings-header {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .inline-form {
+  .inspector-panel .inline-form,
+  .settings-panel .inline-form {
     flex-direction: column;
   }
 }
