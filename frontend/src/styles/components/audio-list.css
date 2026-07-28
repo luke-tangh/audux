@@ -41,6 +41,15 @@
   background: var(--md-sys-color-secondary-container);
 }
 
+.audio-row:focus-visible {
+  outline: 3px solid rgba(208, 188, 255, 0.62);
+  outline-offset: 2px;
+}
+
+:root[data-theme="light"] .audio-row:focus-visible {
+  outline-color: rgba(103, 80, 164, 0.58);
+}
+
 .cover-thumb {
   width: 58px;
   height: 58px;

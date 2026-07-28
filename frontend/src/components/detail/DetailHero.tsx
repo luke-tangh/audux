@@ -25,8 +25,12 @@ export default function DetailHero({
       <div className="inspector-cover">
         {audio.cover_path ? (
           <img
+            key={`${audio.id}-${coverVersion}`}
             src={api.coverUrl(audio.id, coverVersion)}
             alt=""
+            onLoad={(e) => {
+              e.currentTarget.style.display = "";
+            }}
             onError={(e) => {
               e.currentTarget.style.display = "none";
             }}

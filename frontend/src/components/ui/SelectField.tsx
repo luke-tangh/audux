@@ -551,9 +551,12 @@ export default function SelectField({
           disabled={disabled}
           title={title}
           autoFocus={autoFocus}
-          aria-label={controlLabel}
+          role="combobox"
+          aria-label={ariaLabel || (!label ? controlLabel : undefined)}
+          aria-labelledby={!ariaLabel && label ? `${labelId} ${valueId}` : undefined}
           aria-haspopup="listbox"
           aria-expanded={open}
+          aria-autocomplete="none"
           aria-controls={open ? listboxId : undefined}
           aria-activedescendant={activeOptionId}
           aria-describedby={ariaDescribedBy}

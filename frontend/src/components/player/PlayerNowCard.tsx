@@ -13,8 +13,12 @@ export default function PlayerNowCard({ audio }: PlayerNowCardProps) {
       <div className="player-cover">
         {audio?.cover_path ? (
           <img
+            key={`${audio.id}-${audio.updated_at}`}
             src={api.coverUrl(audio.id, audio.updated_at)}
             alt=""
+            onLoad={(e) => {
+              e.currentTarget.style.display = "";
+            }}
             onError={(e) => {
               e.currentTarget.style.display = "none";
             }}
