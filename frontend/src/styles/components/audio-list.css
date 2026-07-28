@@ -42,12 +42,12 @@
 }
 
 .audio-row:focus-visible {
-  outline: 3px solid rgba(208, 188, 255, 0.62);
+  outline: 3px solid var(--md-state-primary-focus-ring);
   outline-offset: 2px;
 }
 
 :root[data-theme="light"] .audio-row:focus-visible {
-  outline-color: rgba(103, 80, 164, 0.58);
+  outline-color: var(--md-state-primary-focus-ring);
 }
 
 .cover-thumb {
@@ -203,6 +203,7 @@
 }
 
 .audio-row:hover .row-actions,
+.audio-row:focus-within .row-actions,
 .audio-row.selected .row-actions {
   opacity: 1;
 }
@@ -223,7 +224,7 @@
 }
 
 .audio-row.selected .search-hits {
-  background: rgba(0, 0, 0, 0.16);
+  background: var(--md-state-scrim-subtle);
 }
 
 .search-hit {
@@ -408,7 +409,7 @@
   position: absolute;
   inset: 0;
   transform: translateX(-110%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  background: linear-gradient(90deg, transparent, var(--md-state-current-pressed), transparent);
   animation: skeleton-shimmer 1.35s infinite;
 }
 

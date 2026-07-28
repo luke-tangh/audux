@@ -157,7 +157,7 @@
 }
 
 .upload-button:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .upload-button input {

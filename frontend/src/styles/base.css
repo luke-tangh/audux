@@ -78,12 +78,12 @@ button {
 }
 
 button:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 button:active {
   transform: scale(0.985);
-  background: rgba(208, 188, 255, 0.14);
+  background: var(--md-state-primary-pressed);
 }
 
 button:focus-visible,
@@ -91,7 +91,7 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 3px solid rgba(208, 188, 255, 0.62);
+  outline: 3px solid var(--md-state-primary-focus-ring);
   outline-offset: 2px;
 }
 
@@ -281,7 +281,7 @@ select option:disabled {
 :root[data-theme="light"] body::before {
   opacity: 0.22;
   background:
-    radial-gradient(circle at 25% 25%, rgba(103, 80, 164, 0.08), transparent 18rem),
+    radial-gradient(circle at 25% 25%, var(--md-state-primary-hover), transparent 18rem),
     linear-gradient(rgba(103, 80, 164, 0.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(103, 80, 164, 0.035) 1px, transparent 1px);
 }

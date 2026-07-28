@@ -50,17 +50,17 @@
   padding: 0;
   color: currentColor;
   border-radius: var(--md-sys-shape-corner-full);
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--md-state-current-pressed);
   box-shadow: none;
 }
 
 /* Light theme toast contrast adjustments: start */
 :root[data-theme="light"] .toast-close {
-  background: rgba(29, 25, 43, 0.08);
+  background: var(--md-state-current-hover);
 }
 
 :root[data-theme="light"] .toast-close:hover {
-  background: rgba(29, 25, 43, 0.12);
+  background: var(--md-state-current-pressed);
 }
 /* Light theme toast contrast adjustments: end */
 

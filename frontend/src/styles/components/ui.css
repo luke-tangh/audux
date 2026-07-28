@@ -61,7 +61,7 @@
 }
 
 .ui-button-text:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-button-filled {
@@ -83,7 +83,7 @@
 }
 
 .ui-button-outlined:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-button-tonal {
@@ -153,7 +153,7 @@
 }
 
 .ui-icon-button-plain:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-icon-button-soft {
@@ -198,7 +198,7 @@
 
 .ui-filter-chip:hover {
   border-color: var(--md-sys-color-outline);
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-filter-chip-selected {
@@ -683,17 +683,17 @@
 
 .ui-select-field-option:hover,
 .ui-select-field-option-active {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-select-field-option-selected {
   color: var(--md-sys-color-on-secondary-container);
-  background: rgba(208, 188, 255, 0.14);
+  background: var(--md-state-primary-pressed);
 }
 
 .ui-select-field-option-selected.ui-select-field-option-active,
 .ui-select-field-option-selected:hover {
-  background: rgba(208, 188, 255, 0.2);
+  background: var(--md-state-primary-focus);
 }
 
 .ui-select-field-option-disabled {
@@ -732,7 +732,7 @@
 
 :root[data-theme="light"] .ui-select-field-option:hover,
 :root[data-theme="light"] .ui-select-field-option-active {
-  background: rgba(103, 80, 164, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 :root[data-theme="light"] .ui-select-field-option-selected {
@@ -978,7 +978,7 @@
   min-height: 24px;
   padding: 0;
   color: currentColor;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--md-state-current-pressed);
 }
 
 .inspector-panel .tag .tag-text-action.ui-button,
@@ -990,39 +990,39 @@
   padding: 0 8px;
   color: currentColor;
   border-radius: var(--md-sys-shape-corner-full);
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--md-state-current-pressed);
   box-shadow: none;
 }
 
 .inspector-panel .tag .tag-text-action.ui-button:hover,
 .settings-panel .tag .tag-text-action.ui-button:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--md-state-current-focus);
 }
 
 .inspector-panel .tag .tag-text-action.ui-button-danger,
 .settings-panel .tag .tag-text-action.ui-button-danger {
   color: var(--md-sys-color-on-error-container);
-  background: rgba(242, 184, 181, 0.18);
+  background: var(--md-state-error-focus);
 }
 
 :root[data-theme="light"] .inspector-panel .tag button,
 :root[data-theme="light"] .settings-panel .tag button,
 :root[data-theme="light"] .inspector-panel .tag .tag-text-action.ui-button,
 :root[data-theme="light"] .settings-panel .tag .tag-text-action.ui-button {
-  background: rgba(29, 25, 43, 0.08);
+  background: var(--md-state-current-hover);
 }
 
 :root[data-theme="light"] .inspector-panel .tag button:hover,
 :root[data-theme="light"] .settings-panel .tag button:hover,
 :root[data-theme="light"] .inspector-panel .tag .tag-text-action.ui-button:hover,
 :root[data-theme="light"] .settings-panel .tag .tag-text-action.ui-button:hover {
-  background: rgba(29, 25, 43, 0.12);
+  background: var(--md-state-current-pressed);
 }
 
 :root[data-theme="light"] .inspector-panel .tag .tag-text-action.ui-button-danger,
 :root[data-theme="light"] .settings-panel .tag .tag-text-action.ui-button-danger {
   color: var(--md-sys-color-error);
-  background: rgba(186, 26, 26, 0.1);
+  background: var(--md-state-error-hover);
 }
 /* Scoped shared app utilities: end */
 

@@ -94,6 +94,29 @@
   --md-sys-motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --md-sys-motion-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
 
+  /*
+    MD3 state layer tokens.
+
+    Use these instead of hard-coded rgba() values for hover / focus / pressed
+    states so light and dark themes are derived from the active color roles.
+  */
+  --md-state-primary-hover: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
+  --md-state-primary-pressed: color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent);
+  --md-state-primary-selected: color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent);
+  --md-state-primary-focus: color-mix(in srgb, var(--md-sys-color-primary) 24%, transparent);
+  --md-state-primary-focus-ring: color-mix(in srgb, var(--md-sys-color-primary) 62%, transparent);
+
+  --md-state-current-hover: color-mix(in srgb, currentColor 8%, transparent);
+  --md-state-current-pressed: color-mix(in srgb, currentColor 12%, transparent);
+  --md-state-current-focus: color-mix(in srgb, currentColor 20%, transparent);
+
+  --md-state-on-surface-hover: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+  --md-state-on-surface-pressed: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
+
+  --md-state-error-hover: color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
+  --md-state-error-focus: color-mix(in srgb, var(--md-sys-color-error) 18%, transparent);
+  --md-state-scrim-subtle: color-mix(in srgb, var(--md-sys-color-scrim) 16%, transparent);
+
   --app-sidebar-width: 264px;
   --app-inspector-width: 420px;
   --app-player-height: 96px;
@@ -232,9 +255,9 @@
     0 2px 6px 2px rgba(0, 0, 0, 0.09);
   --md-sys-elevation-3:
     0 4px 8px 3px rgba(0, 0, 0, 0.09),
-    0 1px 3px rgba(0, 0, 0, 0.16);
+    0 1px 3px var(--md-state-scrim-subtle);
   --md-sys-elevation-4:
     0 6px 10px 4px rgba(0, 0, 0, 0.09),
-    0 2px 3px rgba(0, 0, 0, 0.16);
+    0 2px 3px var(--md-state-scrim-subtle);
 }
 /* Typography tokens and theme modes: end */

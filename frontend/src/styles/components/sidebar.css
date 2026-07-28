@@ -69,7 +69,7 @@
 }
 
 .nav-card:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .nav-card.active {
@@ -211,7 +211,7 @@
 
 .playlist-row:hover,
 .sidebar-pill:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .tag-section .sidebar-pill {
