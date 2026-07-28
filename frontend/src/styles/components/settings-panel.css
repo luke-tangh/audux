@@ -211,48 +211,13 @@
   background: var(--md-sys-color-surface-container-lowest);
 }
 
-/* Settings theme selector: start */
+/* Settings header controls: start */
 .settings-header-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 10px;
-}
-
-.settings-theme-select.ui-select-field {
-  --ui-select-height: 42px;
-  --ui-select-horizontal-padding: 12px;
-  --ui-select-trailing-space: 34px;
-
-  flex: 0 0 154px;
-  width: 154px;
-  min-width: 154px;
-  max-width: 154px;
-  height: 42px;
-  min-height: 42px;
-  border-radius: 16px;
-}
-
-.settings-theme-select .ui-select-field-label {
-  top: 5px;
-  left: 12px;
-  right: 34px;
-  font-size: 10px;
-  line-height: 1;
-  letter-spacing: 0.025em;
-}
-
-.settings-theme-select .ui-select-field-button {
-  padding: 15px 32px 4px 12px;
-  font-size: 13px;
-  font-weight: 780;
-}
-
-.settings-theme-select::after {
-  right: 13px;
-  width: 7px;
-  height: 7px;
 }
 
 .root-toggle.ui-checkbox-field {
@@ -278,4 +243,4 @@
     justify-content: flex-start;
   }
 }
-/* Settings theme selector: end */
+/* Settings header controls: end */

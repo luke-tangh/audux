@@ -43,9 +43,14 @@ export default function AsrSettingsTab({
 
         <SelectField
           label="Device"
-          menuClassName="settings-device-menu"
-          wrapperClassName="settings-device-select"
           density="compact"
+          controlSize="compact"
+          controlHeight={42}
+          controlWidth={148}
+          controlMinWidth={128}
+          controlMaxWidth={148}
+          menuWidth="control"
+          menuMinWidth={128}
           value={asrDevice}
           options={[
             { value: "cpu", label: "cpu" },

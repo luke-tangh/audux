@@ -25,8 +25,13 @@ export default function SettingsHeader({
 
       <div className="settings-header-actions">
         <SelectField
-          wrapperClassName="settings-theme-select"
           density="compact"
+          controlSize="compact"
+          controlHeight={42}
+          controlWidth={154}
+          controlMinWidth={154}
+          controlMaxWidth={154}
+          controlRadius={16}
           label="主题"
           value={themeMode}
           options={THEME_OPTIONS}

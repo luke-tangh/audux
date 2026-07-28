@@ -166,61 +166,6 @@
   min-width: 0;
 }
 
-/* Player SelectField: start */
-.player-rate-select.ui-select-field {
-  --ui-select-height: 40px;
-  --ui-select-horizontal-padding: 12px;
-  --ui-select-trailing-space: 32px;
-
-  flex: 0 0 92px;
-  width: 92px;
-  min-width: 88px;
-  max-width: 104px;
-  height: 40px;
-  min-height: 40px;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-high);
-}
-
-.player-rate-select .ui-select-field-label {
-  top: 5px;
-  left: 12px;
-  right: 32px;
-  font-size: 9px;
-  line-height: 1;
-  letter-spacing: 0.03em;
-}
-
-.player-rate-select .ui-select-field-button {
-  padding: 15px 30px 4px 12px;
-  font-size: 13px;
-  font-weight: 820;
-}
-
-.player-rate-select::after {
-  right: 13px;
-  width: 7px;
-  height: 7px;
-}
-
-.player-rate-menu.ui-select-field-menu {
-  border-radius: 18px;
-}
-
-.player-rate-menu .ui-select-field-option {
-  min-height: 40px;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 8px;
-  padding-inline: 10px;
-  font-size: 13px;
-}
-
-.player-rate-menu .ui-select-field-option-check {
-  width: 20px;
-  font-size: 13px;
-}
-/* Player SelectField: end */
-
 .player-volume-control {
   flex: 0 0 92px;
   width: 92px;

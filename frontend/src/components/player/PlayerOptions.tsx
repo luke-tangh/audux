@@ -47,8 +47,11 @@ export default function PlayerOptions({
     <div className="player-options">
       <SelectField
         density="compact"
-        wrapperClassName="player-rate-select"
-        menuClassName="player-rate-menu"
+        controlSize="mini"
+        controlWidth={92}
+        controlMinWidth={88}
+        controlMaxWidth={104}
+        controlRadius="var(--md-sys-shape-corner-full)"
         menuWidth="control"
         menuMinWidth={92}
         label="速度"

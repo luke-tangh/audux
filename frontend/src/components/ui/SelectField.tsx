@@ -13,6 +13,13 @@ export type SelectFieldOption = {
   disabled?: boolean;
 };
 
+export type SelectFieldControlSize = "default" | "compact" | "toolbar" | "mini";
+
+type CssLength = number | string;
+
+type SelectFieldStyle = CSSProperties &
+  Record<`--${string}`, string | number | undefined>;
+
 type SelectFieldProps = Omit<
   SelectHTMLAttributes<HTMLSelectElement>,
   "children" | "onChange" | "value" | "size" | "multiple"
@@ -22,12 +29,27 @@ type SelectFieldProps = Omit<
   options: readonly SelectFieldOption[];
   onValueChange: (value: string) => void;
   density?: "comfortable" | "compact";
+  /**
+   * Visual size of the closed control.
+   *
+   * - default: standard 56px text-field-like control
+   * - compact: 44px compact control
+   * - toolbar: 48px command-bar control
+   * - mini: 40px pill control, used by media/tool surfaces
+   */
+  controlSize?: SelectFieldControlSize;
+  controlWidth?: CssLength;
+  controlMinWidth?: CssLength;
+  controlMaxWidth?: CssLength;
+  controlHeight?: CssLength;
+  controlRadius?: CssLength;
   hideLabel?: boolean;
   wrapperClassName?: string;
   variant?: "filled" | "outlined";
   menuClassName?: string;
   menuMinWidth?: number;
   menuWidth?: number | "control";
+  style?: CSSProperties;
 };
 
 function readableLabel(label: ReactNode): string | undefined {
@@ -45,12 +67,35 @@ function isTypingKey(event: KeyboardEvent<HTMLButtonElement>) {
   );
 }
 
+function cssLength(value: CssLength | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === "number" ? `${value}px` : value;
+}
+
+function setCssVar(
+  style: SelectFieldStyle,
+  key: `--${string}`,
+  value: CssLength | undefined
+) {
+  const resolved = cssLength(value);
+
+  if (resolved !== undefined) {
+    style[key] = resolved;
+  }
+}
+
 export default function SelectField({
   label,
   value,
   options,
   onValueChange,
   density = "comfortable",
+  controlSize,
+  controlWidth,
+  controlMinWidth,
+  controlMaxWidth,
+  controlHeight,
+  controlRadius,
   hideLabel = false,
   wrapperClassName = "",
   className = "",
@@ -64,6 +109,7 @@ export default function SelectField({
   required,
   title,
   autoFocus,
+  style,
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid
@@ -89,6 +135,19 @@ export default function SelectField({
       : firstEnabledIndex >= 0
         ? firstEnabledIndex
         : 0;
+
+  const resolvedControlSize =
+    controlSize || (density === "compact" ? "compact" : "default");
+
+  const rootStyle: SelectFieldStyle = {
+    ...(style as SelectFieldStyle | undefined)
+  };
+
+  setCssVar(rootStyle, "--ui-select-width", controlWidth);
+  setCssVar(rootStyle, "--ui-select-min-width", controlMinWidth);
+  setCssVar(rootStyle, "--ui-select-max-width", controlMaxWidth);
+  setCssVar(rootStyle, "--ui-select-height", controlHeight);
+  setCssVar(rootStyle, "--ui-select-radius", controlRadius);
 
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(safeActiveIndex);
@@ -133,7 +192,6 @@ export default function SelectField({
 
     return -1;
   }
-
 
   function updateMenuPosition() {
     const root = rootRef.current;
@@ -396,7 +454,8 @@ export default function SelectField({
   const rootClassName = [
     "ui-select-field",
     `ui-select-field-${variant}`,
-    `ui-select-field-${density}`,
+    `ui-select-field-density-${density}`,
+    `ui-select-field-control-${resolvedControlSize}`,
     open ? "ui-select-field-open" : "",
     label ? "" : "ui-select-field-no-label",
     hideLabel ? "ui-select-field-hide-label" : "",
@@ -476,6 +535,7 @@ export default function SelectField({
         id={rootId}
         className={rootClassName}
         data-open={open ? "true" : "false"}
+        style={Object.keys(rootStyle).length > 0 ? rootStyle : undefined}
       >
         {label && (
           <span id={labelId} className="ui-select-field-label">

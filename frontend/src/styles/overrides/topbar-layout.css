@@ -1,12 +1,10 @@
 /*
   Final MD3 TopBar layout layer.
 
-  Wide:
-  转写筛选 → 文件筛选 → 缺描述 → 批量转写 → AI                  设置
-
-  Narrow:
-  row 1: filters
-  row 2: batch actions left, settings pinned right
+  Select dimensions are now controlled by SelectField props instead of
+  page-specific selectors such as:
+  - .top-transcript-filter.ui-select-field
+  - .top-file-filter.ui-select-field
 */
 
 .top-command-bar {
@@ -43,6 +41,10 @@
   padding-bottom: 0;
 }
 
+.top-command-bar .topbar-select-field {
+  flex: 0 0 auto;
+}
+
 .top-command-bar .top-toolbar-actions {
   order: 2;
   flex: 0 0 auto;
@@ -66,44 +68,6 @@
   align-self: center;
 }
 
-.top-command-bar .top-transcript-filter.ui-select-field {
-  order: 1;
-  flex: 0 0 152px;
-  width: 152px;
-  min-width: 152px;
-  height: 48px;
-  min-height: 48px;
-  border-radius: 18px;
-}
-
-.top-command-bar .top-file-filter.ui-select-field {
-  order: 2;
-  flex: 0 0 136px;
-  width: 136px;
-  min-width: 136px;
-  height: 48px;
-  min-height: 48px;
-  border-radius: 18px;
-}
-
-.top-command-bar .topbar-select-field .ui-select-field-label {
-  display: block;
-  top: 6px;
-  font-size: 10px;
-  font-weight: 820;
-  letter-spacing: 0.025em;
-}
-
-.top-command-bar .topbar-select-field .ui-select-field-button {
-  padding: 18px 34px 6px 14px;
-  font-size: 13px;
-  font-weight: 780;
-}
-
-.top-command-bar .topbar-select-field::after {
-  right: 15px;
-}
-
 .top-command-bar .top-missing-description-action.ui-button {
   order: 3;
 }
@@ -120,18 +84,6 @@
 }
 
 @container library-topbar (max-width: 720px) {
-  .top-command-bar .top-transcript-filter.ui-select-field {
-    flex-basis: 148px;
-    width: 148px;
-    min-width: 148px;
-  }
-
-  .top-command-bar .top-file-filter.ui-select-field {
-    flex-basis: 132px;
-    width: 132px;
-    min-width: 132px;
-  }
-
   .top-command-bar .top-missing-description-action.ui-button {
     min-width: 72px;
     padding-inline: 10px;
@@ -202,28 +154,6 @@
 
   .top-command-bar .top-toolbar-actions {
     gap: 5px;
-  }
-
-  .top-command-bar .top-transcript-filter.ui-select-field {
-    flex-basis: 142px;
-    width: 142px;
-    min-width: 142px;
-  }
-
-  .top-command-bar .top-file-filter.ui-select-field {
-    flex-basis: 126px;
-    width: 126px;
-    min-width: 126px;
-  }
-
-  .top-command-bar .topbar-select-field .ui-select-field-button {
-    padding-left: 12px;
-    padding-right: 31px;
-    font-size: 12px;
-  }
-
-  .top-command-bar .topbar-select-field::after {
-    right: 13px;
   }
 
   .top-command-bar .top-missing-description-action.ui-button {
