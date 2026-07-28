@@ -177,3 +177,201 @@
 .top-command-bar .top-settings-button {
   flex: 0 0 auto;
 }
+
+/* TopBar integrated layout rules: start */
+/*
+  Layout refinements for TopBar live in this component stylesheet instead of a
+  separate final override file. This keeps TopBar's effective cascade local and
+  easier to maintain.
+
+  Select dimensions are controlled by SelectField props instead of
+  page-specific selectors such as:
+  - .top-transcript-filter.ui-select-field
+  - .top-file-filter.ui-select-field
+*/
+
+.top-command-bar {
+  container-name: library-topbar;
+  container-type: inline-size;
+}
+
+.top-command-bar .top-toolbar-controls {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.top-command-bar .top-toolbar-controls::-webkit-scrollbar {
+  display: none;
+}
+
+.top-command-bar .top-filter-controls {
+  order: 1;
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  overflow: visible;
+  padding-bottom: 0;
+}
+
+.top-command-bar .topbar-select-field {
+  flex: 0 0 auto;
+}
+
+.top-command-bar .top-toolbar-actions {
+  order: 2;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  margin-left: 0;
+}
+
+.top-command-bar .top-settings-button {
+  order: 3;
+  flex: 0 0 auto;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  margin-left: auto;
+  align-self: center;
+}
+
+.top-command-bar .top-missing-description-action.ui-button {
+  order: 3;
+}
+
+.top-command-bar .top-batch-group {
+  order: 4;
+  flex: 0 0 auto;
+}
+
+.top-command-bar .top-clear-filter-button {
+  order: 5;
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+@container library-topbar (max-width: 720px) {
+  .top-command-bar .top-missing-description-action.ui-button {
+    min-width: 72px;
+    padding-inline: 10px;
+  }
+
+  .top-command-bar .top-batch-group {
+    gap: 5px;
+  }
+
+  .top-command-bar .top-batch-action.ui-button {
+    padding-inline: 11px;
+  }
+}
+
+@container library-topbar (max-width: 620px) {
+  .top-command-bar .top-toolbar-controls {
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .top-command-bar .top-filter-controls {
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .top-command-bar .top-filter-controls::-webkit-scrollbar {
+    display: none;
+  }
+
+  .top-command-bar .top-toolbar-actions {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .top-command-bar .top-settings-button {
+    margin-left: auto;
+  }
+}
+
+@container library-topbar (max-width: 560px) {
+  .top-title-block {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-count-card {
+    width: 100%;
+    justify-self: stretch;
+    text-align: left;
+  }
+}
+
+@container library-topbar (max-width: 520px) {
+  .top-command-bar .top-toolbar-controls {
+    gap: 7px;
+  }
+
+  .top-command-bar .top-filter-controls {
+    gap: 6px;
+  }
+
+  .top-command-bar .top-toolbar-actions {
+    gap: 5px;
+  }
+
+  .top-command-bar .top-missing-description-action.ui-button {
+    min-width: 68px;
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+
+  .top-command-bar .top-batch-action.ui-button {
+    height: 38px;
+    min-height: 38px;
+    font-size: 12px;
+  }
+
+  .top-command-bar .top-batch-transcribe-action.ui-button {
+    min-width: 54px;
+    padding-inline: 10px;
+  }
+
+  .top-command-bar .top-batch-ai-action.ui-button {
+    min-width: 42px;
+    padding-inline: 11px;
+  }
+
+  .top-command-bar .top-clear-filter-button.ui-button {
+    min-width: 46px;
+    padding-inline: 8px;
+    font-size: 12px;
+  }
+
+  .top-command-bar .top-settings-button {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
+  }
+}
+/* TopBar integrated layout rules: end */

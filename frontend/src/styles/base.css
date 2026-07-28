@@ -103,51 +103,6 @@ button:disabled {
   transform: none;
 }
 
-.primary-button {
-  min-height: 40px;
-  color: var(--md-sys-color-on-primary);
-  background: var(--md-sys-color-primary);
-  box-shadow: var(--md-sys-elevation-1);
-}
-
-.primary-button:hover {
-  color: var(--md-sys-color-on-primary);
-  background: var(--md-sys-color-primary);
-  box-shadow: var(--md-sys-elevation-2);
-}
-
-.ghost-button {
-  color: var(--md-sys-color-primary);
-  background: transparent;
-  border: 1px solid var(--md-sys-color-outline);
-}
-
-.ghost-button:hover {
-  background: rgba(208, 188, 255, 0.08);
-}
-
-.icon-soft-button {
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
-  border-radius: var(--md-sys-shape-corner-full);
-  color: var(--md-sys-color-on-secondary-container);
-  background: var(--md-sys-color-secondary-container);
-}
-
-.danger-button {
-  color: var(--md-sys-color-on-error-container);
-  background: var(--md-sys-color-error-container);
-}
-
-.danger-button:hover {
-  color: var(--md-sys-color-on-error-container);
-  background: var(--md-sys-color-error-container);
-}
-
 input,
 textarea,
 select {

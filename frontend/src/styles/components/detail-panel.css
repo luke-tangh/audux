@@ -229,13 +229,6 @@
   font-weight: 700;
 }
 
-.checkbox-row {
-  display: flex !important;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-}
-
 .wide {
   grid-column: 1 / -1;
 }
@@ -322,13 +315,24 @@
   color: currentColor;
 }
 
-.ai-card button:not(.primary-button) {
+.ai-card .ui-button-text,
+.ai-card .ui-button-outlined {
   color: currentColor;
 }
 
-.ai-card .primary-button {
+.ai-card .ui-button-outlined {
+  border-color: currentColor;
+}
+
+.ai-card .ui-button-filled {
   color: var(--md-sys-color-on-primary);
   background: var(--md-sys-color-primary);
+}
+
+.ai-card .ui-button-filled:hover {
+  color: var(--md-sys-color-on-primary);
+  background: var(--md-sys-color-primary);
+  box-shadow: var(--md-sys-elevation-2);
 }
 
 .soft-empty,
