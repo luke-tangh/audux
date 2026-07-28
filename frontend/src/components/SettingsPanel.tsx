@@ -3,41 +3,22 @@ import { api, endpointPrivacyWarning } from "../api";
 import type { LibraryRoot, ScanTask, Tag } from "../types";
 import { pickAudioFolder } from "../tauri";
 import TaskPanel from "./TaskPanel";
-import { Button, SelectField, Tabs, CheckboxField, MaterialIcon, TextField } from "./ui";
+import { Tabs } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
 import { useTheme } from "../theme";
-
-type ToastType = "info" | "success" | "error";
-type SettingsTab = "library" | "asr" | "llm" | "tasks" | "maintenance" | "logs";
+import AsrSettingsTab from "./settings/AsrSettingsTab";
+import LibrarySettingsTab from "./settings/LibrarySettingsTab";
+import LlmSettingsTab from "./settings/LlmSettingsTab";
+import LogsSettingsTab from "./settings/LogsSettingsTab";
+import MaintenanceSettingsTab from "./settings/MaintenanceSettingsTab";
+import SettingsHeader from "./settings/SettingsHeader";
+import { SETTINGS_TABS, type SettingsTab, type ToastType } from "./settings/types";
+import { terminalStatus } from "./settings/settingsUtils";
 
 type Props = {
   refresh: () => void;
   notify?: (message: string, type?: ToastType) => void;
 };
-
-function scanProgress(task: ScanTask): number {
-  if (!task.total_files) return 0;
-  return Math.round((task.processed_files / task.total_files) * 100);
-}
-
-function terminalStatus(status: string): boolean {
-  return status === "done" || status === "failed" || status === "canceled";
-}
-
-const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
-  { id: "library", label: "媒体库" },
-  { id: "asr", label: "ASR" },
-  { id: "llm", label: "LLM" },
-  { id: "tasks", label: "任务" },
-  { id: "maintenance", label: "维护" },
-  { id: "logs", label: "日志" }
-];
-
-const THEME_OPTIONS = [
-  { value: "system", label: "跟随系统" },
-  { value: "dark", label: "深色" },
-  { value: "light", label: "浅色" }
-] as const;
 
 export default function SettingsPanel({ refresh, notify }: Props) {
   const dialog = useDialog();
@@ -145,21 +126,21 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       applyScanTasks(scanRows, false);
       setMaintenanceTags(tagRows);
 
-      setAsrModelName(settings.find((s) => s.key === "asr.model_name")?.value || "small");
-      setAsrDevice(settings.find((s) => s.key === "asr.device")?.value || "cpu");
-      setAsrComputeType(settings.find((s) => s.key === "asr.compute_type")?.value || "int8");
-      setAsrBeamSize(settings.find((s) => s.key === "asr.beam_size")?.value || "5");
+      setAsrModelName(settings.find((setting) => setting.key === "asr.model_name")?.value || "small");
+      setAsrDevice(settings.find((setting) => setting.key === "asr.device")?.value || "cpu");
+      setAsrComputeType(settings.find((setting) => setting.key === "asr.compute_type")?.value || "int8");
+      setAsrBeamSize(settings.find((setting) => setting.key === "asr.beam_size")?.value || "5");
 
-      setLlmEndpoint(settings.find((s) => s.key === "llm.endpoint")?.value || "");
-      setLlmModel(settings.find((s) => s.key === "llm.model_name")?.value || "");
-      setLlmApiKey(settings.find((s) => s.key === "llm.api_key")?.value || "");
-      setLlmTimeout(settings.find((s) => s.key === "llm.timeout")?.value || "60");
-      setLlmMaxTokens(settings.find((s) => s.key === "llm.max_tokens")?.value || "800");
-      setLlmTemperature(settings.find((s) => s.key === "llm.temperature")?.value || "0.2");
+      setLlmEndpoint(settings.find((setting) => setting.key === "llm.endpoint")?.value || "");
+      setLlmModel(settings.find((setting) => setting.key === "llm.model_name")?.value || "");
+      setLlmApiKey(settings.find((setting) => setting.key === "llm.api_key")?.value || "");
+      setLlmTimeout(settings.find((setting) => setting.key === "llm.timeout")?.value || "60");
+      setLlmMaxTokens(settings.find((setting) => setting.key === "llm.max_tokens")?.value || "800");
+      setLlmTemperature(settings.find((setting) => setting.key === "llm.temperature")?.value || "0.2");
       setLlmAllowRemoteEndpoint(
         ["1", "true", "yes", "on"].includes(
           (
-            settings.find((s) => s.key === "llm.allow_remote_endpoint")?.value || ""
+            settings.find((setting) => setting.key === "llm.allow_remote_endpoint")?.value || ""
           ).toLowerCase()
         )
       );
@@ -444,32 +425,12 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   return (
     <section className="settings-panel">
-      <header className="settings-header">
-        <div>
-          <span className="eyebrow">Control Center</span>
-          <h2>设置中心</h2>
-          <p>管理媒体库、ASR、LLM、任务、维护和日志。</p>
-        </div>
-
-        <div className="settings-header-actions">
-          <SelectField
-            wrapperClassName="settings-theme-select"
-            density="compact"
-            label="主题"
-            value={themeMode}
-            options={THEME_OPTIONS}
-            title={`当前实际主题：${resolvedTheme === "light" ? "浅色" : "深色"}`}
-            onValueChange={(value) => setThemeMode(value as typeof themeMode)}
-          />
-
-          <div className={`backend-status ${backendStatus}`}>
-            <span />
-            {backendStatus === "checking" && "检查中"}
-            {backendStatus === "ok" && "后端正常"}
-            {backendStatus === "failed" && "后端未连接"}
-          </div>
-        </div>
-      </header>
+      <SettingsHeader
+        themeMode={themeMode}
+        resolvedTheme={resolvedTheme}
+        onThemeModeChange={setThemeMode}
+        backendStatus={backendStatus}
+      />
 
       <Tabs
         className="settings-tabs"
@@ -487,224 +448,58 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         aria-labelledby={`settings-tab-${activeTab}`}
       >
         {activeTab === "library" && (
-          <div className="settings-grid-layout">
-            <section className="panel-card">
-              <h3>媒体库目录</h3>
-
-              <div className="inline-form">
-                <TextField
-                  wrapperClassName="inline-field"
-                  hideLabel
-                  label="媒体库路径"
-                  value={path}
-                  placeholder="输入或选择本地目录路径"
-                  onValueChange={setPath}
-                />
-                <Button variant="outlined" onClick={chooseFolder}>选择文件夹</Button>
-                <Button variant="filled" onClick={addRoot}>
-                  添加目录
-                </Button>
-              </div>
-
-              {roots.length === 0 && <p className="muted">暂无媒体库目录。</p>}
-
-              {roots.map((root) => (
-                <div key={root.id} className={`root-card ${root.is_enabled ? "" : "disabled"}`}>
-                  <div>
-                    <strong>{root.path}</strong>
-                    <span>{root.is_enabled ? "启用中" : "已禁用"}</span>
-                  </div>
-
-                  <CheckboxField
-                    wrapperClassName="root-toggle"
-                    label={root.is_enabled ? "启用" : "禁用"}
-                    checked={root.is_enabled}
-                    onCheckedChange={(checked) => toggleRoot(root, checked)}
-                  />
-
-                  <Button variant="text" onClick={() => scan(root.id)}>扫描</Button>
-                </div>
-              ))}
-
-              {scanResult && <p className="test-result">{scanResult}</p>}
-            </section>
-
-            <section className="panel-card">
-              <h3>扫描任务</h3>
-
-              {scanTasks.length === 0 && <p className="muted">暂无扫描任务</p>}
-
-              {scanTasks.map((task) => (
-                <div key={task.id} className="scan-task-row">
-                  <div className="scan-task-top">
-                    <strong>#{task.id}</strong>
-                    <span>root: {task.root_id}</span>
-                    <span className={`status-pill ${task.status}`}>{task.status}</span>
-                  </div>
-
-                  <div
-                    className="progress-line"
-                    role="progressbar"
-                    aria-label={`扫描任务 #${task.id} 进度`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={scanProgress(task)}
-                  >
-                    <div style={{ width: `${scanProgress(task)}%` }} />
-                  </div>
-
-                  <div className="scan-task-meta">
-                    {task.processed_files}/{task.total_files} · imported {task.imported} · updated{" "}
-                    {task.updated} · missing {task.missing}
-                  </div>
-
-                  {task.error_message && <div className="task-error">{task.error_message}</div>}
-
-                  {(task.status === "pending" || task.status === "running") && (
-                    <Button variant="text" onClick={() => cancelScan(task)}>取消</Button>
-                  )}
-                </div>
-              ))}
-            </section>
-
-            <section className="panel-card">
-              <h3>创建 Playlist</h3>
-
-              <div className="inline-form">
-                <TextField
-                  wrapperClassName="inline-field"
-                  hideLabel
-                  label="Playlist 名称"
-                  value={playlistName}
-                  placeholder="Playlist 名称"
-                  onValueChange={setPlaylistName}
-                />
-                <Button variant="filled" onClick={createPlaylist}>
-                  创建
-                </Button>
-              </div>
-            </section>
-          </div>
+          <LibrarySettingsTab
+            roots={roots}
+            scanTasks={scanTasks}
+            path={path}
+            scanResult={scanResult}
+            playlistName={playlistName}
+            onPathChange={setPath}
+            onChooseFolder={chooseFolder}
+            onAddRoot={addRoot}
+            onToggleRoot={toggleRoot}
+            onScan={scan}
+            onCancelScan={cancelScan}
+            onPlaylistNameChange={setPlaylistName}
+            onCreatePlaylist={createPlaylist}
+          />
         )}
 
         {activeTab === "asr" && (
-          <section className="panel-card max-form-card">
-            <h3>本地 ASR 设置 faster-whisper</h3>
-
-            <div className="settings-form-grid">
-              <TextField
-                label="Model Name / Path"
-                value={asrModelName}
-                placeholder="small 或本地模型路径"
-                onValueChange={setAsrModelName}
-              />
-
-              <SelectField
-                label="Device"
-                menuClassName="settings-device-menu"
-                wrapperClassName="settings-device-select"
-                density="compact"
-                value={asrDevice}
-                options={[
-                  { value: "cpu", label: "cpu" },
-                  { value: "cuda", label: "cuda" }
-                ]}
-                onValueChange={setAsrDevice}
-              />
-
-              <TextField
-                label="Compute Type"
-                value={asrComputeType}
-                placeholder="int8 / float16 / float32"
-                onValueChange={setAsrComputeType}
-              />
-
-              <TextField
-                label="Beam Size"
-                value={asrBeamSize}
-                placeholder="5"
-                onValueChange={setAsrBeamSize}
-              />
-            </div>
-
-            <Button variant="filled" onClick={saveAsr}>
-              保存 ASR 设置
-            </Button>
-
-            <p className="muted">
-              需要后端环境安装 faster-whisper。若希望完全离线，请优先填写本地模型路径；
-              如果填写 small / medium / large-v3 等模型名称，首次运行可能尝试下载模型。
-            </p>
-          </section>
+          <AsrSettingsTab
+            asrModelName={asrModelName}
+            asrDevice={asrDevice}
+            asrComputeType={asrComputeType}
+            asrBeamSize={asrBeamSize}
+            onAsrModelNameChange={setAsrModelName}
+            onAsrDeviceChange={setAsrDevice}
+            onAsrComputeTypeChange={setAsrComputeType}
+            onAsrBeamSizeChange={setAsrBeamSize}
+            onSaveAsr={saveAsr}
+          />
         )}
 
         {activeTab === "llm" && (
-          <section className="panel-card max-form-card">
-            <h3>本地 LLM 设置</h3>
-
-            <div className="settings-form-grid">
-              <TextField
-                label="Endpoint"
-                value={llmEndpoint}
-                placeholder="http://127.0.0.1:1234/v1"
-                onValueChange={setLlmEndpoint}
-              />
-
-              <TextField
-                label="Model Name"
-                value={llmModel}
-                placeholder="local-model"
-                onValueChange={setLlmModel}
-              />
-
-              <TextField
-                label="API Key，可为空"
-                value={llmApiKey}
-                placeholder="可为空"
-                onValueChange={setLlmApiKey}
-              />
-
-              <TextField
-                label="Timeout 秒"
-                value={llmTimeout}
-                placeholder="60"
-                onValueChange={setLlmTimeout}
-              />
-
-              <TextField
-                label="Max Tokens"
-                value={llmMaxTokens}
-                placeholder="800"
-                onValueChange={setLlmMaxTokens}
-              />
-
-              <TextField
-                label="Temperature"
-                value={llmTemperature}
-                placeholder="0.2"
-                onValueChange={setLlmTemperature}
-              />
-
-              <CheckboxField
-                wrapperClassName="wide"
-                label="允许非本机 / 内网 LLM endpoint"
-                description="启用后，AI 分析会把 metadata 和 transcript 发送到该 endpoint，请只用于你信任的模型服务。"
-                checked={llmAllowRemoteEndpoint}
-                onCheckedChange={setLlmAllowRemoteEndpoint}
-              />
-            </div>
-
-            {llmWarning && <p className="privacy-warning">隐私提醒：{llmWarning}</p>}
-
-            <div className="section-actions">
-              <Button variant="filled" onClick={saveLlm}>
-                保存 LLM 设置
-              </Button>
-              <Button variant="outlined" onClick={testLlm}>测试连接</Button>
-            </div>
-
-            {llmTestResult && <p className="test-result">{llmTestResult}</p>}
-          </section>
+          <LlmSettingsTab
+            llmEndpoint={llmEndpoint}
+            llmModel={llmModel}
+            llmApiKey={llmApiKey}
+            llmTimeout={llmTimeout}
+            llmMaxTokens={llmMaxTokens}
+            llmTemperature={llmTemperature}
+            llmAllowRemoteEndpoint={llmAllowRemoteEndpoint}
+            llmWarning={llmWarning}
+            llmTestResult={llmTestResult}
+            onLlmEndpointChange={setLlmEndpoint}
+            onLlmModelChange={setLlmModel}
+            onLlmApiKeyChange={setLlmApiKey}
+            onLlmTimeoutChange={setLlmTimeout}
+            onLlmMaxTokensChange={setLlmMaxTokens}
+            onLlmTemperatureChange={setLlmTemperature}
+            onLlmAllowRemoteEndpointChange={setLlmAllowRemoteEndpoint}
+            onSaveLlm={saveLlm}
+            onTestLlm={testLlm}
+          />
         )}
 
         {activeTab === "tasks" && (
@@ -714,60 +509,22 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         )}
 
         {activeTab === "maintenance" && (
-          <div className="settings-grid-layout">
-            <section className="panel-card">
-              <h3>导出与索引</h3>
-
-              <div className="section-actions">
-                <Button variant="outlined" onClick={() => window.open(api.metadataExportUrl("json"), "_blank")}>
-                  导出 Metadata JSON
-                </Button>
-
-                <Button variant="outlined" onClick={() => window.open(api.metadataExportUrl("csv"), "_blank")}>
-                  导出 Metadata CSV
-                </Button>
-
-                <Button variant="outlined" onClick={rebuildSearch}>重建搜索索引</Button>
-              </div>
-            </section>
-
-            <section className="panel-card">
-              <h3>标签维护</h3>
-
-              <p className="muted">可重命名标签，或清理没有关联任何音频的 orphan tags。</p>
-
-              <div className="section-actions">
-                <Button variant="outlined" onClick={cleanupTags}>清理未使用标签</Button>
-                <Button variant="outlined" onClick={loadTags}>刷新标签</Button>
-              </div>
-
-              {maintenanceTags.length === 0 && <p className="muted">暂无标签</p>}
-
-              <div className="tag-list">
-                {maintenanceTags.map((tag) => (
-                  <span key={tag.id} className="tag">
-                    #{tag.name}
-                    <Button preserveChildren className="tag-text-action" size="sm" variant="text" onClick={() => renameTag(tag)}>重命名</Button>
-                    <Button preserveChildren className="tag-text-action" size="sm" variant="danger" onClick={() => deleteTag(tag)}>删除</Button>
-                  </span>
-                ))}
-              </div>
-            </section>
-          </div>
+          <MaintenanceSettingsTab
+            maintenanceTags={maintenanceTags}
+            onRebuildSearch={rebuildSearch}
+            onCleanupTags={cleanupTags}
+            onLoadTags={loadTags}
+            onRenameTag={renameTag}
+            onDeleteTag={deleteTag}
+          />
         )}
 
         {activeTab === "logs" && (
-          <section className="panel-card">
-            <h3>日志</h3>
-
-            <div className="section-actions">
-              <Button variant="outlined" onClick={loadLogs}>刷新日志</Button>
-              <Button variant="outlined" onClick={() => window.open(api.logsFileUrl(), "_blank")}>下载日志文件</Button>
-              <Button variant="outlined" onClick={load}>重新检查后端</Button>
-            </div>
-
-            <pre className="log-viewer">{logs || "暂无日志"}</pre>
-          </section>
+          <LogsSettingsTab
+            logs={logs}
+            onLoadLogs={loadLogs}
+            onReloadBackend={load}
+          />
         )}
       </div>
     </section>
