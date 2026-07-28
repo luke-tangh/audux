@@ -1,4 +1,4 @@
-import { Button, SelectField, TextField } from "../ui";
+import { Button, PanelCard, SelectField, TextField } from "../ui";
 
 type AsrSettingsTabProps = {
   asrModelName: string;
@@ -24,9 +24,15 @@ export default function AsrSettingsTab({
   onSaveAsr
 }: AsrSettingsTabProps) {
   return (
-    <section className="panel-card max-form-card">
-      <h3>本地 ASR 设置 faster-whisper</h3>
-
+    <PanelCard
+      title="本地 ASR 设置 faster-whisper"
+      className="max-form-card"
+      actions={
+        <Button variant="filled" onClick={onSaveAsr}>
+          保存 ASR 设置
+        </Button>
+      }
+    >
       <div className="settings-form-grid">
         <TextField
           label="Model Name / Path"
@@ -63,14 +69,10 @@ export default function AsrSettingsTab({
         />
       </div>
 
-      <Button variant="filled" onClick={onSaveAsr}>
-        保存 ASR 设置
-      </Button>
-
       <p className="muted">
         需要后端环境安装 faster-whisper。若希望完全离线，请优先填写本地模型路径；
         如果填写 small / medium / large-v3 等模型名称，首次运行可能尝试下载模型。
       </p>
-    </section>
+    </PanelCard>
   );
 }

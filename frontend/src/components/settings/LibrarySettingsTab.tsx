@@ -1,5 +1,5 @@
 import type { LibraryRoot, ScanTask } from "../../types";
-import { Button, CheckboxField, TextField } from "../ui";
+import { Button, CheckboxField, PanelCard, TextField } from "../ui";
 import { scanProgress } from "./settingsUtils";
 
 type LibrarySettingsTabProps = {
@@ -35,9 +35,7 @@ export default function LibrarySettingsTab({
 }: LibrarySettingsTabProps) {
   return (
     <div className="settings-grid-layout">
-      <section className="panel-card">
-        <h3>媒体库目录</h3>
-
+      <PanelCard title="媒体库目录">
         <div className="inline-form">
           <TextField
             wrapperClassName="inline-field"
@@ -78,11 +76,9 @@ export default function LibrarySettingsTab({
         ))}
 
         {scanResult && <p className="test-result">{scanResult}</p>}
-      </section>
+      </PanelCard>
 
-      <section className="panel-card">
-        <h3>扫描任务</h3>
-
+      <PanelCard title="扫描任务">
         {scanTasks.length === 0 && <p className="muted">暂无扫描任务</p>}
 
         {scanTasks.map((task) => (
@@ -118,11 +114,9 @@ export default function LibrarySettingsTab({
             )}
           </div>
         ))}
-      </section>
+      </PanelCard>
 
-      <section className="panel-card">
-        <h3>创建 Playlist</h3>
-
+      <PanelCard title="创建 Playlist">
         <div className="inline-form">
           <TextField
             wrapperClassName="inline-field"
@@ -136,7 +130,7 @@ export default function LibrarySettingsTab({
             创建
           </Button>
         </div>
-      </section>
+      </PanelCard>
     </div>
   );
 }

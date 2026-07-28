@@ -96,7 +96,7 @@
   gap: 14px;
 }
 
-.settings-grid-layout > .panel-card:first-child {
+.settings-grid-layout > .ui-panel-card:first-child {
   grid-column: 1 / -1;
 }
 

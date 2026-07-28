@@ -33,7 +33,7 @@
     grid-template-columns: 1fr;
   }
 
-  .settings-grid-layout > .panel-card:first-child {
+  .settings-grid-layout > .ui-panel-card:first-child {
     grid-column: auto;
   }
 

@@ -1,6 +1,6 @@
 import type { Transcript } from "../../types";
 import { formatDuration } from "../../types";
-import { Button } from "../ui";
+import { Button, PanelCard } from "../ui";
 
 type TranscriptTabProps = {
   transcript: Transcript | null;
@@ -17,11 +17,10 @@ export default function TranscriptTab({
 }: TranscriptTabProps) {
   return (
     <div className="inspector-section-stack">
-      <section className="panel-card">
-        <div className="card-heading-row">
-          <h3>Transcript</h3>
-
-          {transcript && (
+      <PanelCard
+        title="Transcript"
+        actions={
+          transcript ? (
             <div className="compact-actions">
               <Button variant="outlined" size="sm" onClick={() => onExportTranscript("txt")}>
                 TXT
@@ -33,9 +32,9 @@ export default function TranscriptTab({
                 SRT
               </Button>
             </div>
-          )}
-        </div>
-
+          ) : null
+        }
+      >
         {!transcript && (
           <div className="transcript-empty">
             <p>暂无 transcript。</p>
@@ -66,7 +65,7 @@ export default function TranscriptTab({
             )}
           </div>
         )}
-      </section>
+      </PanelCard>
     </div>
   );
 }

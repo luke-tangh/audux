@@ -1,6 +1,15 @@
 import type { AudioItem, Playlist, Tag } from "../../types";
 import { displayDescription } from "../../types";
-import { Button, CheckboxField, IconButton, MaterialIcon, SelectField, TextareaField, TextField } from "../ui";
+import {
+  Button,
+  CheckboxField,
+  IconButton,
+  MaterialIcon,
+  PanelCard,
+  SelectField,
+  TextareaField,
+  TextField
+} from "../ui";
 import type { EditingPatch, NumericSelection } from "./types";
 
 type OverviewTabProps = {
@@ -50,9 +59,14 @@ export default function OverviewTab({
 }: OverviewTabProps) {
   return (
     <div className="inspector-section-stack">
-      <section className="panel-card">
-        <h3>Metadata</h3>
-
+      <PanelCard
+        title="Metadata"
+        actions={
+          <Button variant="filled" onClick={onSave}>
+            保存 metadata
+          </Button>
+        }
+      >
         <div className="field-grid">
           <TextField
             label="用户标题"
@@ -92,17 +106,9 @@ export default function OverviewTab({
             onValueChange={(value) => onEditingChange({ description_user: value })}
           />
         </div>
+      </PanelCard>
 
-        <div className="section-actions">
-          <Button variant="filled" onClick={onSave}>
-            保存 metadata
-          </Button>
-        </div>
-      </section>
-
-      <section className="panel-card">
-        <h3>Tags</h3>
-
+      <PanelCard title="Tags">
         <div className="tag-list">
           {tags.map((tag) => (
             <span className="tag" key={tag.id}>
@@ -147,11 +153,9 @@ export default function OverviewTab({
             添加已有标签
           </Button>
         </div>
-      </section>
+      </PanelCard>
 
-      <section className="panel-card">
-        <h3>Playlist</h3>
-
+      <PanelCard title="Playlist">
         <div className="inline-form">
           <SelectField
             value={selectedPlaylist === "" ? "" : String(selectedPlaylist)}
@@ -181,12 +185,11 @@ export default function OverviewTab({
             </Button>
           </div>
         )}
-      </section>
+      </PanelCard>
 
-      <section className="panel-card">
-        <h3>当前描述</h3>
+      <PanelCard title="当前描述">
         <p>{displayDescription(audio) || "暂无描述"}</p>
-      </section>
+      </PanelCard>
     </div>
   );
 }

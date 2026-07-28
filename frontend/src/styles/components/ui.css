@@ -854,3 +854,26 @@
   margin-top: 0;
 }
 /* Material icons and form fields: end */
+
+/* Unified PanelCard usage: start */
+.ui-panel-card-with-header .ui-panel-card-header {
+  margin-bottom: 12px;
+}
+
+.ui-panel-card p {
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.65;
+}
+
+.ui-panel-card > p:first-child {
+  margin-top: 0;
+}
+
+.ui-panel-card > p:last-child {
+  margin-bottom: 0;
+}
+
+.ui-panel-card .compact-actions {
+  margin-top: 0;
+}
+/* Unified PanelCard usage: end */

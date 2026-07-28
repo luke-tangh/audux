@@ -6,23 +6,36 @@ type PanelCardProps = {
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
+  headerClassName?: string;
 };
 
 export default function PanelCard({
   title,
   actions,
   children,
-  className = ""
+  className = "",
+  headerClassName = ""
 }: PanelCardProps) {
   const titleId = useId();
+  const hasHeader = Boolean(title || actions);
 
   return (
     <section
-      className={["ui-panel-card", className].filter(Boolean).join(" ")}
+      className={[
+        "ui-panel-card",
+        hasHeader ? "ui-panel-card-with-header" : "",
+        className
+      ]
+        .filter(Boolean)
+        .join(" ")}
       aria-labelledby={title ? titleId : undefined}
     >
-      {(title || actions) && (
-        <div className="ui-panel-card-header">
+      {hasHeader && (
+        <div
+          className={["ui-panel-card-header", headerClassName]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {title && <h3 id={titleId}>{title}</h3>}
           {actions && <div className="ui-panel-card-actions">{actions}</div>}
         </div>

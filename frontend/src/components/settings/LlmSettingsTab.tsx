@@ -1,4 +1,4 @@
-import { Button, CheckboxField, TextField } from "../ui";
+import { Button, CheckboxField, PanelCard, TextField } from "../ui";
 
 type LlmSettingsTabProps = {
   llmEndpoint: string;
@@ -42,9 +42,7 @@ export default function LlmSettingsTab({
   onTestLlm
 }: LlmSettingsTabProps) {
   return (
-    <section className="panel-card max-form-card">
-      <h3>本地 LLM 设置</h3>
-
+    <PanelCard title="本地 LLM 设置" className="max-form-card">
       <div className="settings-form-grid">
         <TextField
           label="Endpoint"
@@ -109,6 +107,6 @@ export default function LlmSettingsTab({
       </div>
 
       {llmTestResult && <p className="test-result">{llmTestResult}</p>}
-    </section>
+    </PanelCard>
   );
 }

@@ -1,6 +1,6 @@
 import type { AudioItem } from "../../types";
 import { formatDuration } from "../../types";
-import { Button, TextField } from "../ui";
+import { Button, PanelCard, TextField } from "../ui";
 
 type FileTabProps = {
   audio: AudioItem;
@@ -23,9 +23,7 @@ export default function FileTab({
 }: FileTabProps) {
   return (
     <div className="inspector-section-stack">
-      <section className="panel-card file-info-card">
-        <h3>文件信息</h3>
-
+      <PanelCard title="文件信息" className="file-info-card">
         <dl>
           <dt>文件名</dt>
           <dd>{audio.file_name}</dd>
@@ -63,11 +61,9 @@ export default function FileTab({
           <dt>上次播放</dt>
           <dd>{audio.last_played_at || "-"}</dd>
         </dl>
-      </section>
+      </PanelCard>
 
-      <section className="panel-card">
-        <h3>重新定位</h3>
-
+      <PanelCard title="重新定位">
         <div className="inline-form">
           <TextField
             wrapperClassName="inline-field"
@@ -85,10 +81,9 @@ export default function FileTab({
         <Button className="section-button" variant="filled" onClick={onRelocate}>
           重新定位文件
         </Button>
-      </section>
+      </PanelCard>
 
-      <section className="panel-card danger-zone">
-        <h3>危险操作</h3>
+      <PanelCard title="危险操作" className="danger-zone">
         <p>这些操作会影响数据库记录或封面文件，请谨慎使用。</p>
 
         <div className="section-actions">
@@ -105,7 +100,7 @@ export default function FileTab({
             从数据库移除
           </Button>
         </div>
-      </section>
+      </PanelCard>
     </div>
   );
 }

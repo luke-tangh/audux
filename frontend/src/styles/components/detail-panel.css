@@ -199,20 +199,7 @@
   gap: 12px;
 }
 
-.panel-card {
-  padding: 16px;
-  border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-surface-container-high);
-}
-
-.panel-card h3 {
-  margin: 0 0 12px;
-  color: var(--md-sys-color-on-surface);
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.panel-card p {
+.ui-panel-card p {
   color: var(--md-sys-color-on-surface-variant);
   line-height: 1.65;
 }

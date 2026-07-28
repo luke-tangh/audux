@@ -3,7 +3,7 @@ import { api, endpointPrivacyWarning } from "../api";
 import type { LibraryRoot, ScanTask, Tag } from "../types";
 import { pickAudioFolder } from "../tauri";
 import TaskPanel from "./TaskPanel";
-import { Tabs } from "./ui";
+import { PanelCard, Tabs } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
 import { useTheme } from "../theme";
 import AsrSettingsTab from "./settings/AsrSettingsTab";
@@ -503,9 +503,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         )}
 
         {activeTab === "tasks" && (
-          <section className="panel-card">
+          <PanelCard>
             <TaskPanel onTaskChanged={refresh} notify={notify} />
-          </section>
+          </PanelCard>
         )}
 
         {activeTab === "maintenance" && (

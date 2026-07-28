@@ -1,4 +1,4 @@
-import { Button } from "../ui";
+import { Button, PanelCard } from "../ui";
 
 type AiTabProps = {
   description?: string;
@@ -25,14 +25,15 @@ export default function AiTab({
 
   return (
     <div className="inspector-section-stack">
-      <section className="panel-card ai-card">
-        <div className="card-heading-row">
-          <h3>AI 建议描述</h3>
+      <PanelCard
+        className="ai-card"
+        title="AI 建议描述"
+        actions={
           <Button variant="text" onClick={onAnalyze}>
             重新分析
           </Button>
-        </div>
-
+        }
+      >
         {hasAiDescription ? (
           <>
             <p>{description}</p>
@@ -45,18 +46,18 @@ export default function AiTab({
             暂无 AI 建议。点击「AI 分析」后，会根据 metadata 和 transcript 生成描述。
           </div>
         )}
-      </section>
+      </PanelCard>
 
-      <section className="panel-card">
-        <div className="card-heading-row">
-          <h3>AI 标签建议</h3>
-          {aiTags.length > 0 && (
+      <PanelCard
+        title="AI 标签建议"
+        actions={
+          aiTags.length > 0 ? (
             <Button variant="text" onClick={onAcceptAllTags}>
               接受全部未添加标签
             </Button>
-          )}
-        </div>
-
+          ) : null
+        }
+      >
         {aiTags.length === 0 && <div className="soft-empty">暂无 AI 标签建议</div>}
 
         {aiTags.length > 0 && (
@@ -88,15 +89,15 @@ export default function AiTab({
             })}
           </div>
         )}
-      </section>
+      </PanelCard>
 
       {rawContent && (
-        <section className="panel-card">
+        <PanelCard>
           <details>
             <summary>查看原始 AI 输出</summary>
             <pre className="raw-ai-output">{rawContent}</pre>
           </details>
-        </section>
+        </PanelCard>
       )}
     </div>
   );
