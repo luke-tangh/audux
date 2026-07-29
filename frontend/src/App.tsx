@@ -87,7 +87,6 @@ export default function App() {
           playlists={playlists}
           selectedPlaylistId={selectedPlaylistId}
           setSelectedPlaylistId={setSelectedPlaylistId}
-          refresh={refresh}
         />
 
         {view === "settings" ? (

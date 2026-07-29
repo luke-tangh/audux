@@ -20,7 +20,6 @@ type Props = {
   playlists: Playlist[];
   selectedPlaylistId: number | null;
   setSelectedPlaylistId: (id: number | null) => void;
-  refresh?: () => void;
 };
 
 export default function Sidebar(props: Props) {

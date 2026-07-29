@@ -199,17 +199,6 @@
   gap: 12px;
 }
 
-.inspector-panel .card-heading-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.inspector-panel .card-heading-row h3 {
-  margin-bottom: 0;
-}
-
 .inspector-panel .field-grid {
   display: grid;
   gap: 12px;

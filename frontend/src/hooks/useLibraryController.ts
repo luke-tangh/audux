@@ -306,7 +306,6 @@ export function useLibraryController() {
     audioItems,
     setAudioItems,
     setPlaylistItemsRaw,
-    selected,
     setSelected,
     notify
   });
