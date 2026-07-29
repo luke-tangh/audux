@@ -6,7 +6,7 @@
   flex-direction: column;
 }
 
-.settings-header {
+.settings-panel .settings-header {
   flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
@@ -16,7 +16,7 @@
   background: var(--md-sys-color-surface-container-low);
 }
 
-.settings-header h2 {
+.settings-panel .settings-header h2 {
   margin: 0;
   color: var(--md-sys-color-on-surface);
   font-size: 30px;
@@ -24,12 +24,12 @@
   letter-spacing: -0.03em;
 }
 
-.settings-header p {
+.settings-panel .settings-header p {
   margin: 7px 0 0;
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.backend-status {
+.settings-panel .backend-status {
   height: 40px;
   display: inline-flex;
   align-items: center;
@@ -43,24 +43,24 @@
   font-weight: 800;
 }
 
-.backend-status span {
+.settings-panel .backend-status span {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: currentColor;
 }
 
-.backend-status.ok {
+.settings-panel .backend-status.ok {
   color: var(--md-sys-color-on-success-container);
   background: var(--md-sys-color-success-container);
 }
 
-.backend-status.failed {
+.settings-panel .backend-status.failed {
   color: var(--md-sys-color-on-error-container);
   background: var(--md-sys-color-error-container);
 }
 
-.settings-tabs {
+.settings-panel .settings-tabs {
   flex: 0 0 auto;
   display: flex;
   gap: 8px;
@@ -70,7 +70,7 @@
   background: var(--md-sys-color-surface-container-low);
 }
 
-.settings-tabs button {
+.settings-panel .settings-tabs button {
   min-height: 40px;
   border-radius: var(--md-sys-shape-corner-full);
   color: var(--md-sys-color-on-surface-variant);
@@ -78,40 +78,40 @@
   box-shadow: none;
 }
 
-.settings-tabs button.active {
+.settings-panel .settings-tabs button.active {
   color: var(--md-sys-color-on-secondary-container);
   background: var(--md-sys-color-secondary-container);
 }
 
-.settings-content {
+.settings-panel .settings-content {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 16px;
 }
 
-.settings-grid-layout {
+.settings-panel .settings-grid-layout {
   display: grid;
   grid-template-columns: repeat(2, minmax(260px, 1fr));
   gap: 14px;
 }
 
-.settings-grid-layout > .panel-card:first-child {
+.settings-panel .settings-grid-layout > .ui-panel-card:first-child {
   grid-column: 1 / -1;
 }
 
-.max-form-card {
+.settings-panel .max-form-card {
   max-width: 780px;
 }
 
-.settings-form-grid {
+.settings-panel .settings-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(220px, 1fr));
   gap: 13px;
   margin-bottom: 14px;
 }
 
-.root-card {
+.settings-panel .root-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 10px;
@@ -122,25 +122,25 @@
   background: var(--md-sys-color-surface-container);
 }
 
-.root-card.disabled {
+.settings-panel .root-card.disabled {
   opacity: 0.58;
 }
 
-.root-card strong {
+.settings-panel .root-card strong {
   display: block;
   min-width: 0;
   color: var(--md-sys-color-on-surface);
   word-break: break-all;
 }
 
-.root-card span {
+.settings-panel .root-card span {
   display: block;
   margin-top: 4px;
   color: var(--md-sys-color-on-surface-variant);
   font-size: 12px;
 }
 
-.root-toggle {
+.settings-panel .root-toggle {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -150,21 +150,21 @@
   font-weight: 700;
 }
 
-.scan-task-row {
+.settings-panel .scan-task-row {
   margin-top: 10px;
   padding: 14px;
   border-radius: var(--md-sys-shape-corner-large);
   background: var(--md-sys-color-surface-container);
 }
 
-.scan-task-top {
+.settings-panel .scan-task-top {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.progress-line {
+.settings-panel .progress-line {
   height: 10px;
   margin: 10px 0;
   overflow: hidden;
@@ -172,18 +172,18 @@
   background: var(--md-sys-color-surface-container-highest);
 }
 
-.progress-line div {
+.settings-panel .progress-line div {
   height: 100%;
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-primary);
 }
 
-.scan-task-meta {
+.settings-panel .scan-task-meta {
   color: var(--md-sys-color-on-surface-variant);
   font-size: 13px;
 }
 
-.privacy-warning {
+.settings-panel .privacy-warning {
   padding: 14px;
   color: var(--md-sys-color-on-error-container);
   line-height: 1.6;
@@ -191,7 +191,7 @@
   background: var(--md-sys-color-error-container);
 }
 
-.test-result {
+.settings-panel .test-result {
   padding: 14px;
   color: var(--md-sys-color-on-surface-variant);
   white-space: pre-wrap;
@@ -199,7 +199,7 @@
   background: var(--md-sys-color-surface-container);
 }
 
-.log-viewer {
+.settings-panel .log-viewer {
   max-height: 560px;
   overflow: auto;
   padding: 14px;
@@ -211,8 +211,8 @@
   background: var(--md-sys-color-surface-container-lowest);
 }
 
-/* Settings theme selector: start */
-.settings-header-actions {
+/* Settings header controls: start */
+.settings-panel .settings-header-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -220,42 +220,7 @@
   gap: 10px;
 }
 
-.settings-theme-select.ui-select-field {
-  --ui-select-height: 42px;
-  --ui-select-horizontal-padding: 12px;
-  --ui-select-trailing-space: 34px;
-
-  flex: 0 0 154px;
-  width: 154px;
-  min-width: 154px;
-  max-width: 154px;
-  height: 42px;
-  min-height: 42px;
-  border-radius: 16px;
-}
-
-.settings-theme-select .ui-select-field-label {
-  top: 5px;
-  left: 12px;
-  right: 34px;
-  font-size: 10px;
-  line-height: 1;
-  letter-spacing: 0.025em;
-}
-
-.settings-theme-select .ui-select-field-button {
-  padding: 15px 32px 4px 12px;
-  font-size: 13px;
-  font-weight: 780;
-}
-
-.settings-theme-select::after {
-  right: 13px;
-  width: 7px;
-  height: 7px;
-}
-
-.root-toggle.ui-checkbox-field {
+.settings-panel .root-toggle.ui-checkbox-field {
   align-items: center;
   gap: 7px;
   white-space: nowrap;
@@ -264,18 +229,18 @@
   font-weight: 700;
 }
 
-.root-toggle .ui-checkbox-field-input {
+.settings-panel .root-toggle .ui-checkbox-field-input {
   margin-top: 0;
 }
 
-.root-toggle .ui-checkbox-field-label {
+.settings-panel .root-toggle .ui-checkbox-field-label {
   font-size: 13px;
   font-weight: 700;
 }
 
 @media (max-width: 720px) {
-  .settings-header-actions {
+  .settings-panel .settings-header-actions {
     justify-content: flex-start;
   }
 }
-/* Settings theme selector: end */
+/* Settings header controls: end */

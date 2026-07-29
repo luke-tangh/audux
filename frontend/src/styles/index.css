@@ -7,7 +7,8 @@
   3. app layout
   4. component styles
   5. responsive cross-component layout rules
-  6. final topbar override migrated from topbar-layout-fix.css
+
+  TopBar layout refinements are colocated in components/topbar.css.
 */
 
 @import "./tokens.css";
@@ -26,6 +27,3 @@
 @import "./components/dialog.css";
 
 @import "./responsive.css";
-
-/* Keep final TopBar override last to preserve previous cascade behavior. */
-@import "./overrides/topbar-layout.css";

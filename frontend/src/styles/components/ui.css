@@ -61,7 +61,7 @@
 }
 
 .ui-button-text:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-button-filled {
@@ -83,7 +83,7 @@
 }
 
 .ui-button-outlined:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-button-tonal {
@@ -153,7 +153,7 @@
 }
 
 .ui-icon-button-plain:hover {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-icon-button-soft {
@@ -198,7 +198,7 @@
 
 .ui-filter-chip:hover {
   border-color: var(--md-sys-color-outline);
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-filter-chip-selected {
@@ -223,6 +223,61 @@
 .ui-filter-chip span {
   min-width: 0;
 }
+
+/* StatusPill primitive: start */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 2px 10px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
+  font-weight: 760;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.status-pill span {
+  opacity: 0.72;
+  font-weight: 700;
+}
+
+.status-pill.none {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.status-pill.pending {
+  color: var(--md-sys-color-on-warning-container);
+  background: var(--md-sys-color-warning-container);
+}
+
+.status-pill.running {
+  color: var(--md-sys-color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+}
+
+.status-pill.done {
+  color: var(--md-sys-color-on-success-container);
+  background: var(--md-sys-color-success-container);
+}
+
+.status-pill.failed {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.status-pill.canceled {
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.status-pill.cancel_requested {
+  color: var(--md-sys-color-on-warning-container);
+  background: var(--md-sys-color-warning-container);
+}
+/* StatusPill primitive: end */
+
 
 .ui-search-field {
   position: relative;
@@ -325,26 +380,48 @@
 /*
   Custom MD3 exposed dropdown.
 
-  This intentionally does not use native <select>, because native select popups
-  are rendered by the operating system/browser and cannot be reliably themed as
-  Material Design 3.
+  Runtime sizing is controlled by SelectField props via CSS variables:
+  - controlSize
+  - controlWidth / controlMinWidth / controlMaxWidth
+  - controlHeight
+  - controlRadius
+
+  Page-specific sizing should be passed through props instead of one-off CSS
+  aliases.
 */
 
 .ui-select-field {
   --ui-select-height: 56px;
+  --ui-select-width: auto;
+  --ui-select-min-width: 184px;
+  --ui-select-max-width: none;
+  --ui-select-radius: var(--md-sys-shape-corner-large);
   --ui-select-horizontal-padding: 16px;
   --ui-select-trailing-space: 44px;
+  --ui-select-label-top: 8px;
+  --ui-select-label-font-size: 11px;
+  --ui-select-label-line-height: 1.2;
+  --ui-select-label-letter-spacing: 0.015em;
+  --ui-select-button-padding-top: 22px;
+  --ui-select-button-padding-bottom: 8px;
+  --ui-select-button-font-size: 14px;
+  --ui-select-button-font-weight: 760;
+  --ui-select-arrow-right: 18px;
+  --ui-select-arrow-size: 8px;
 
   box-sizing: border-box;
   position: relative;
-  min-width: 184px;
+  width: var(--ui-select-width);
+  min-width: var(--ui-select-min-width);
+  max-width: var(--ui-select-max-width);
+  height: var(--ui-select-height);
   min-height: var(--ui-select-height);
   display: block;
   overflow: visible;
   isolation: isolate;
   color: var(--md-sys-color-on-surface);
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-large);
+  border-radius: var(--ui-select-radius);
   background: var(--md-sys-color-surface-container-high);
   box-shadow: none;
   transition:
@@ -352,6 +429,55 @@
     border-color var(--transition),
     box-shadow var(--transition),
     opacity var(--transition);
+}
+
+.ui-select-field-control-compact {
+  --ui-select-height: 44px;
+  --ui-select-radius: var(--md-sys-shape-corner-large);
+  --ui-select-horizontal-padding: 14px;
+  --ui-select-trailing-space: 40px;
+  --ui-select-label-top: 5px;
+  --ui-select-label-font-size: 10px;
+  --ui-select-label-line-height: 1.1;
+  --ui-select-button-padding-top: 17px;
+  --ui-select-button-padding-bottom: 5px;
+  --ui-select-button-font-size: 13px;
+  --ui-select-arrow-right: 16px;
+  --ui-select-arrow-size: 7px;
+}
+
+.ui-select-field-control-toolbar {
+  --ui-select-height: 48px;
+  --ui-select-radius: 18px;
+  --ui-select-horizontal-padding: 14px;
+  --ui-select-trailing-space: 34px;
+  --ui-select-label-top: 6px;
+  --ui-select-label-font-size: 10px;
+  --ui-select-label-letter-spacing: 0.025em;
+  --ui-select-button-padding-top: 18px;
+  --ui-select-button-padding-bottom: 6px;
+  --ui-select-button-font-size: 13px;
+  --ui-select-button-font-weight: 780;
+  --ui-select-arrow-right: 15px;
+  --ui-select-arrow-size: 7px;
+}
+
+.ui-select-field-control-mini {
+  --ui-select-height: 40px;
+  --ui-select-min-width: 108px;
+  --ui-select-radius: var(--md-sys-shape-corner-full);
+  --ui-select-horizontal-padding: 10px;
+  --ui-select-trailing-space: 28px;
+  --ui-select-label-top: 5px;
+  --ui-select-label-font-size: 9px;
+  --ui-select-label-line-height: 1;
+  --ui-select-label-letter-spacing: 0.03em;
+  --ui-select-button-padding-top: 15px;
+  --ui-select-button-padding-bottom: 4px;
+  --ui-select-button-font-size: 13px;
+  --ui-select-button-font-weight: 820;
+  --ui-select-arrow-right: 12px;
+  --ui-select-arrow-size: 7px;
 }
 
 .ui-select-field-filled {
@@ -387,11 +513,11 @@
 .ui-select-field::after {
   content: "";
   position: absolute;
-  right: 18px;
+  right: var(--ui-select-arrow-right);
   top: 50%;
   z-index: 3;
-  width: 8px;
-  height: 8px;
+  width: var(--ui-select-arrow-size);
+  height: var(--ui-select-arrow-size);
   border-right: 2px solid var(--md-sys-color-on-surface-variant);
   border-bottom: 2px solid var(--md-sys-color-on-surface-variant);
   pointer-events: none;
@@ -408,16 +534,16 @@
 
 .ui-select-field-label {
   position: absolute;
-  top: 8px;
+  top: var(--ui-select-label-top);
   left: var(--ui-select-horizontal-padding);
   right: var(--ui-select-trailing-space);
   z-index: 2;
   overflow: hidden;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 11px;
+  font-size: var(--ui-select-label-font-size);
   font-weight: 780;
-  line-height: 1.2;
-  letter-spacing: 0.015em;
+  line-height: var(--ui-select-label-line-height);
+  letter-spacing: var(--ui-select-label-letter-spacing);
   white-space: nowrap;
   text-overflow: ellipsis;
   pointer-events: none;
@@ -456,14 +582,14 @@
   align-items: flex-end;
   justify-content: flex-start;
   padding:
-    22px
+    var(--ui-select-button-padding-top)
     var(--ui-select-trailing-space)
-    8px
+    var(--ui-select-button-padding-bottom)
     var(--ui-select-horizontal-padding);
   color: var(--md-sys-color-on-surface);
   font: inherit;
-  font-size: 14px;
-  font-weight: 760;
+  font-size: var(--ui-select-button-font-size);
+  font-weight: var(--ui-select-button-font-weight);
   line-height: 1.2;
   text-align: left;
   border: none !important;
@@ -499,41 +625,6 @@
   align-items: center;
   padding-top: 0;
   padding-bottom: 0;
-}
-
-.ui-select-field-compact {
-  --ui-select-height: 44px;
-  --ui-select-horizontal-padding: 14px;
-  --ui-select-trailing-space: 40px;
-
-  min-height: var(--ui-select-height);
-  border-radius: var(--md-sys-shape-corner-large);
-}
-
-.ui-select-field-compact .ui-select-field-label {
-  top: 5px;
-  font-size: 10px;
-  line-height: 1.1;
-}
-
-.ui-select-field-compact .ui-select-field-button {
-  align-items: flex-end;
-  padding-top: 17px;
-  padding-bottom: 5px;
-  font-size: 13px;
-}
-
-.ui-select-field-compact.ui-select-field-no-label .ui-select-field-button,
-.ui-select-field-compact.ui-select-field-hide-label .ui-select-field-button {
-  align-items: center;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-.ui-select-field-compact::after {
-  right: 16px;
-  width: 7px;
-  height: 7px;
 }
 
 .ui-select-field-menu {
@@ -592,17 +683,17 @@
 
 .ui-select-field-option:hover,
 .ui-select-field-option-active {
-  background: rgba(208, 188, 255, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 .ui-select-field-option-selected {
   color: var(--md-sys-color-on-secondary-container);
-  background: rgba(208, 188, 255, 0.14);
+  background: var(--md-state-primary-pressed);
 }
 
 .ui-select-field-option-selected.ui-select-field-option-active,
 .ui-select-field-option-selected:hover {
-  background: rgba(208, 188, 255, 0.2);
+  background: var(--md-state-primary-focus);
 }
 
 .ui-select-field-option-disabled {
@@ -627,8 +718,8 @@
 }
 
 .inline-form .ui-select-field {
-  flex: 1 1 180px;
-  min-width: 160px;
+  flex: 1 1 var(--ui-select-min-width);
+  min-width: min(100%, var(--ui-select-min-width));
 }
 /* MD3 custom SelectField: end */
 
@@ -641,7 +732,7 @@
 
 :root[data-theme="light"] .ui-select-field-option:hover,
 :root[data-theme="light"] .ui-select-field-option-active {
-  background: rgba(103, 80, 164, 0.08);
+  background: var(--md-state-primary-hover);
 }
 
 :root[data-theme="light"] .ui-select-field-option-selected {
@@ -654,86 +745,6 @@
   background: var(--md-sys-color-secondary-container);
 }
 /* Light theme component contrast adjustments: end */
-
-/* Compact ASR Device SelectField: start */
-/*
-  Compact ASR Device SelectField.
-
-  Device only has short values like cpu/cuda, so the default comfortable
-  SelectField size is visually too large in the ASR settings form.
-*/
-
-.settings-device-select.ui-select-field {
-  --ui-select-height: 42px;
-  --ui-select-horizontal-padding: 12px;
-  --ui-select-trailing-space: 34px;
-
-  flex: 0 1 148px !important;
-  width: min(100%, 148px) !important;
-  min-width: 128px !important;
-  max-width: 148px !important;
-  height: 42px !important;
-  min-height: 42px !important;
-  border-radius: 16px;
-  align-self: end;
-}
-
-.settings-device-select .ui-select-field-label {
-  top: 5px !important;
-  left: 12px !important;
-  right: 34px !important;
-  font-size: 10px !important;
-  line-height: 1 !important;
-  letter-spacing: 0.025em;
-}
-
-.settings-device-select .ui-select-field-button {
-  padding: 15px 32px 4px 12px !important;
-  font-size: 13px !important;
-  font-weight: 780 !important;
-}
-
-.settings-device-select::after {
-  right: 13px !important;
-  width: 7px !important;
-  height: 7px !important;
-}
-
-.settings-device-menu.ui-select-field-menu {
-  width: 148px !important;
-  min-width: 128px !important;
-  max-width: 148px !important;
-  border-radius: 18px;
-}
-
-.settings-device-menu .ui-select-field-option {
-  min-height: 40px;
-  grid-template-columns: 18px minmax(0, 1fr);
-  gap: 8px;
-  padding-inline: 10px;
-  font-size: 13px;
-}
-
-.settings-device-menu .ui-select-field-option-check {
-  width: 18px;
-  font-size: 13px;
-}
-
-@media (max-width: 760px) {
-  .settings-device-select.ui-select-field {
-    flex-basis: 136px !important;
-    width: min(100%, 136px) !important;
-    min-width: 120px !important;
-    max-width: 136px !important;
-  }
-
-  .settings-device-menu.ui-select-field-menu {
-    width: 136px !important;
-    min-width: 120px !important;
-    max-width: 136px !important;
-  }
-}
-/* Compact ASR Device SelectField: end */
 
 /* Material icons and form fields: start */
 .material-icon {
@@ -847,10 +858,171 @@
   line-height: 1.5;
 }
 
-.inline-form .ui-field-group,
-.inline-form .inline-field {
+/* Material icons and form fields: end */
+
+/* Unified PanelCard usage: start */
+.ui-panel-card-with-header .ui-panel-card-header {
+  margin-bottom: 12px;
+}
+
+.ui-panel-card p {
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.65;
+}
+
+.ui-panel-card > p:first-child {
+  margin-top: 0;
+}
+
+.ui-panel-card > p:last-child {
+  margin-bottom: 0;
+}
+
+/* Unified PanelCard usage: end */
+
+/* Scoped shared app utilities: start */
+/*
+  These helper class names are intentionally shared by inspector/settings
+  screens, but scoped to panel roots so they do not leak into unrelated
+  surfaces when global CSS is bundled.
+*/
+
+.inspector-panel .inline-form,
+.settings-panel .inline-form {
+  display: flex;
+  gap: 9px;
+  margin-top: 11px;
+}
+
+.inspector-panel .inline-form input,
+.inspector-panel .inline-form select,
+.settings-panel .inline-form input,
+.settings-panel .inline-form select {
+  flex: 1;
+}
+
+.inspector-panel .inline-form button,
+.settings-panel .inline-form button {
+  white-space: nowrap;
+}
+
+.inspector-panel .inline-form .ui-field-group,
+.inspector-panel .inline-form .inline-field,
+.settings-panel .inline-form .ui-field-group,
+.settings-panel .inline-form .inline-field {
   flex: 1 1 180px;
   min-width: 160px;
   margin-top: 0;
 }
-/* Material icons and form fields: end */
+
+.settings-panel .wide {
+  grid-column: 1 / -1;
+}
+
+.inspector-panel .section-actions,
+.settings-panel .section-actions,
+.inspector-panel .compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.inspector-panel .ui-panel-card-actions .compact-actions {
+  margin-top: 0;
+}
+
+.inspector-panel .tag-list,
+.settings-panel .tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inspector-panel .tag,
+.settings-panel .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  color: var(--md-sys-color-on-secondary-container);
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--md-sys-color-secondary-container);
+  border-radius: var(--md-sys-shape-corner-full);
+  padding: 4px 10px;
+}
+
+.inspector-panel .tag.suggestion {
+  color: var(--md-sys-color-on-tertiary-container);
+  background: var(--md-sys-color-tertiary-container);
+}
+
+.inspector-panel .tag.accepted {
+  color: var(--md-sys-color-on-success-container);
+  background: var(--md-sys-color-success-container);
+}
+
+.inspector-panel .tag em,
+.settings-panel .tag em {
+  font-style: normal;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.inspector-panel .tag button,
+.settings-panel .tag button {
+  min-width: 24px;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  color: currentColor;
+  background: var(--md-state-current-pressed);
+}
+
+.inspector-panel .tag .tag-text-action.ui-button,
+.settings-panel .tag .tag-text-action.ui-button {
+  width: auto;
+  min-width: auto;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  color: currentColor;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-state-current-pressed);
+  box-shadow: none;
+}
+
+.inspector-panel .tag .tag-text-action.ui-button:hover,
+.settings-panel .tag .tag-text-action.ui-button:hover {
+  background: var(--md-state-current-focus);
+}
+
+.inspector-panel .tag .tag-text-action.ui-button-danger,
+.settings-panel .tag .tag-text-action.ui-button-danger {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-state-error-focus);
+}
+
+:root[data-theme="light"] .inspector-panel .tag button,
+:root[data-theme="light"] .settings-panel .tag button,
+:root[data-theme="light"] .inspector-panel .tag .tag-text-action.ui-button,
+:root[data-theme="light"] .settings-panel .tag .tag-text-action.ui-button {
+  background: var(--md-state-current-hover);
+}
+
+:root[data-theme="light"] .inspector-panel .tag button:hover,
+:root[data-theme="light"] .settings-panel .tag button:hover,
+:root[data-theme="light"] .inspector-panel .tag .tag-text-action.ui-button:hover,
+:root[data-theme="light"] .settings-panel .tag .tag-text-action.ui-button:hover {
+  background: var(--md-state-current-pressed);
+}
+
+:root[data-theme="light"] .inspector-panel .tag .tag-text-action.ui-button-danger,
+:root[data-theme="light"] .settings-panel .tag .tag-text-action.ui-button-danger {
+  color: var(--md-sys-color-error);
+  background: var(--md-state-error-hover);
+}
+/* Scoped shared app utilities: end */
+

@@ -41,6 +41,15 @@
   background: var(--md-sys-color-secondary-container);
 }
 
+.audio-row:focus-visible {
+  outline: 3px solid var(--md-state-primary-focus-ring);
+  outline-offset: 2px;
+}
+
+:root[data-theme="light"] .audio-row:focus-visible {
+  outline-color: var(--md-state-primary-focus-ring);
+}
+
 .cover-thumb {
   width: 58px;
   height: 58px;
@@ -194,6 +203,7 @@
 }
 
 .audio-row:hover .row-actions,
+.audio-row:focus-within .row-actions,
 .audio-row.selected .row-actions {
   opacity: 1;
 }
@@ -202,58 +212,6 @@
   white-space: nowrap;
   color: var(--md-sys-color-on-primary);
   background: var(--md-sys-color-primary);
-}
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 26px;
-  padding: 2px 10px;
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 12px;
-  font-weight: 760;
-  border-radius: var(--md-sys-shape-corner-full);
-  background: var(--md-sys-color-surface-container-high);
-}
-
-.status-pill span {
-  opacity: 0.72;
-  font-weight: 700;
-}
-
-.status-pill.none {
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.status-pill.pending {
-  color: var(--md-sys-color-on-warning-container);
-  background: var(--md-sys-color-warning-container);
-}
-
-.status-pill.running {
-  color: var(--md-sys-color-on-primary-container);
-  background: var(--md-sys-color-primary-container);
-}
-
-.status-pill.done {
-  color: var(--md-sys-color-on-success-container);
-  background: var(--md-sys-color-success-container);
-}
-
-.status-pill.failed {
-  color: var(--md-sys-color-on-error-container);
-  background: var(--md-sys-color-error-container);
-}
-
-.status-pill.canceled {
-  color: var(--md-sys-color-on-surface-variant);
-  background: var(--md-sys-color-surface-container-highest);
-}
-
-.status-pill.cancel_requested {
-  color: var(--md-sys-color-on-warning-container);
-  background: var(--md-sys-color-warning-container);
 }
 
 .search-hits {
@@ -266,7 +224,7 @@
 }
 
 .audio-row.selected .search-hits {
-  background: rgba(0, 0, 0, 0.16);
+  background: var(--md-state-scrim-subtle);
 }
 
 .search-hit {
@@ -451,7 +409,7 @@
   position: absolute;
   inset: 0;
   transform: translateX(-110%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  background: linear-gradient(90deg, transparent, var(--md-state-current-pressed), transparent);
   animation: skeleton-shimmer 1.35s infinite;
 }
 

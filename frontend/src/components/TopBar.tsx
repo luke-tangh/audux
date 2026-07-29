@@ -102,7 +102,10 @@ export default function TopBar({
           >
             <SelectField
               density="compact"
-              wrapperClassName="topbar-select-field top-transcript-filter"
+              wrapperClassName="topbar-select-field"
+              controlSize="toolbar"
+              controlWidth={152}
+              controlMinWidth={152}
               label="转写"
               value={hasTranscriptFilter}
               options={TRANSCRIPT_FILTER_OPTIONS}
@@ -113,7 +116,10 @@ export default function TopBar({
 
             <SelectField
               density="compact"
-              wrapperClassName="topbar-select-field top-file-filter"
+              wrapperClassName="topbar-select-field"
+              controlSize="toolbar"
+              controlWidth={136}
+              controlMinWidth={136}
               label="文件"
               value={missingFilter}
               options={FILE_FILTER_OPTIONS}

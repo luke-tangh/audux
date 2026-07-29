@@ -10,17 +10,13 @@ type MissingFilter = "all" | "available" | "missing";
 type Props = {
   title: string;
   q: string;
-  setQ: (q: string) => void;
   isLoading?: boolean;
   loadError?: string;
   onOpenSettings: () => void;
   onClearFilters: () => void;
   missingDescriptionOnly: boolean;
-  setMissingDescriptionOnly: (v: boolean) => void;
   hasTranscriptFilter: TranscriptFilter;
-  setHasTranscriptFilter: (v: TranscriptFilter) => void;
   missingFilter: MissingFilter;
-  setMissingFilter: (v: MissingFilter) => void;
   items: AudioItem[];
   totalCount?: number;
   hasMore?: boolean;
@@ -30,14 +26,11 @@ type Props = {
   onSelect: (item: AudioItem) => void;
   onPlay: (item: AudioItem) => void;
   onPlayAt: (item: AudioItem, startSeconds: number) => void;
-  onBatchTranscribe: () => void;
-  onBatchAnalyze: () => void;
   isPlaylistView?: boolean;
   onRemoveFromPlaylist?: (item: AudioItem) => void;
   onMovePlaylistItem?: (item: AudioItem, direction: "up" | "down") => void;
   onMovePlaylistItemTo?: (source: AudioItem, target: AudioItem) => void;
 };
-
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -86,8 +79,12 @@ function CoverThumb({ item }: { item: AudioItem }) {
 
       {item.cover_path && (
         <img
+          key={`${item.id}-${item.updated_at}`}
           src={api.coverUrl(item.id, item.updated_at)}
           alt=""
+          onLoad={(e) => {
+            e.currentTarget.style.display = "";
+          }}
           onError={(e) => {
             e.currentTarget.style.display = "none";
           }}
@@ -274,6 +271,16 @@ export default function AudioList({
     return items.find((item) => item.playlist_item_id === draggedPlaylistItemId);
   }
 
+  const selectedRowIndex =
+    selectedId !== undefined ? items.findIndex((item) => item.id === selectedId) : -1;
+
+  function focusAudioRow(index: number) {
+    const row = document.querySelector<HTMLElement>(
+      `[data-audio-row-index="${index}"]`
+    );
+    row?.focus();
+  }
+
   return (
     <section className="audio-list-panel" aria-busy={isLoading}>
       {loadError && (
@@ -302,9 +309,12 @@ export default function AudioList({
       )}
 
       <div className="audio-scroll-list" role="list" aria-label={`${title} 音频列表`}>
-        {items.map((item) => {
+        {items.map((item, index) => {
           const draggable = Boolean(isPlaylistView && item.playlist_item_id);
           const description = displayDescription(item);
+          const rowIsSelected = selectedId === item.id;
+          const rowIsTabbable =
+            rowIsSelected || (selectedRowIndex < 0 && index === 0);
 
           return (
             <div
@@ -313,12 +323,14 @@ export default function AudioList({
                   ? `${item.id}-${item.playlist_item_id}`
                   : item.id
               }
-              className={`audio-row ${selectedId === item.id ? "selected" : ""}`}
+              className={`audio-row ${rowIsSelected ? "selected" : ""}`}
               role="listitem"
-              tabIndex={0}
-              aria-current={selectedId === item.id ? "true" : undefined}
+              tabIndex={rowIsTabbable ? 0 : -1}
+              aria-current={rowIsSelected ? "true" : undefined}
               aria-label={`音频：${displayTitle(item)}`}
-              aria-keyshortcuts="Enter Space"
+              aria-keyshortcuts="Enter Space ArrowUp ArrowDown Home End"
+              data-audio-row="true"
+              data-audio-row-index={index}
               draggable={draggable}
               onDragStart={(e) => {
                 if (!draggable || !item.playlist_item_id) return;
@@ -347,8 +359,41 @@ export default function AudioList({
               onKeyDown={(e) => {
                 if (e.target !== e.currentTarget) return;
 
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+
+                  const nextIndex =
+                    e.key === "ArrowDown"
+                      ? Math.min(items.length - 1, index + 1)
+                      : Math.max(0, index - 1);
+
+                  const nextItem = items[nextIndex];
+
+                  if (nextItem && nextIndex !== index) {
+                    onSelect(nextItem);
+                    focusAudioRow(nextIndex);
+                  }
+
+                  return;
+                }
+
+                if (e.key === "Home" || e.key === "End") {
+                  e.preventDefault();
+
+                  const nextIndex = e.key === "Home" ? 0 : items.length - 1;
+                  const nextItem = items[nextIndex];
+
+                  if (nextItem && nextIndex !== index) {
+                    onSelect(nextItem);
+                    focusAudioRow(nextIndex);
+                  }
+
+                  return;
+                }
+
                 if (e.key === "Enter") {
                   onSelect(item);
+                  return;
                 }
 
                 if (e.key === " ") {
