@@ -49,10 +49,12 @@ export function useLibraryController() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   const loadSeqRef = useRef(0);
+  const hasLoadedListRef = useRef(false);
 
   const { ensureBackendReady } = useBackendReady();
   const { toasts, notify, closeToast } = useToast();
@@ -85,9 +87,17 @@ export function useLibraryController() {
 
   async function load() {
     const loadSeq = ++loadSeqRef.current;
+    const isListView = view !== "settings";
 
-    if (view !== "settings") {
-      setLoading(true);
+    if (isListView) {
+      if (hasLoadedListRef.current) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+    } else {
+      setLoading(false);
+      setRefreshing(false);
     }
 
     setLoadError("");
@@ -99,6 +109,7 @@ export function useLibraryController() {
       if (loadSeq !== loadSeqRef.current) return;
 
       if (view === "settings") {
+        hasLoadedListRef.current = false;
         setAudioItems([]);
         setPlaylistItemsRaw([]);
         setAudioTotal(0);
@@ -171,6 +182,7 @@ export function useLibraryController() {
       setAudioHasMore(hasMore);
       setSearchLimited(nextSearchLimited);
       setSearchLimit(nextSearchLimit);
+      hasLoadedListRef.current = true;
 
       setSelected((prev) => {
         if (items.length === 0) return null;
@@ -191,6 +203,7 @@ export function useLibraryController() {
     } finally {
       if (loadSeq === loadSeqRef.current) {
         setLoading(false);
+        setRefreshing(false);
       }
     }
   }
@@ -388,6 +401,7 @@ export function useLibraryController() {
     playlists,
 
     loading,
+    refreshing,
     loadingMore,
     loadError,
 

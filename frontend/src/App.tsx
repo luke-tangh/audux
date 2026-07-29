@@ -42,6 +42,7 @@ export default function App() {
     playlists,
 
     loading,
+    refreshing,
     loadingMore,
     loadError,
 
@@ -122,6 +123,7 @@ export default function App() {
                 title={listTitle}
                 q={q}
                 isLoading={loading}
+                isRefreshing={refreshing}
                 loadError={loadError}
                 onOpenSettings={openSettings}
                 onClearFilters={clearFilters}

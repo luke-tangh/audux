@@ -11,6 +11,7 @@ type Props = {
   title: string;
   q: string;
   isLoading?: boolean;
+  isRefreshing?: boolean;
   loadError?: string;
   onOpenSettings: () => void;
   onClearFilters: () => void;
@@ -244,6 +245,7 @@ export default function AudioList({
   title,
   q,
   isLoading = false,
+  isRefreshing = false,
   loadError,
   onOpenSettings,
   onClearFilters,
@@ -282,7 +284,10 @@ export default function AudioList({
   }
 
   return (
-    <section className="audio-list-panel" aria-busy={isLoading}>
+    <section
+      className="audio-list-panel"
+      aria-busy={isLoading || isRefreshing}
+    >
       {loadError && (
         <div className="list-error">
           <strong>列表加载失败</strong>
@@ -291,8 +296,10 @@ export default function AudioList({
         </div>
       )}
 
-      {isLoading && items.length > 0 && (
-        <div className="list-loading-bar">正在更新结果…</div>
+      {isRefreshing && (
+        <div className="list-refresh-indicator" aria-hidden="true">
+          <span />
+        </div>
       )}
 
       {isLoading && items.length === 0 && <ListSkeleton />}
