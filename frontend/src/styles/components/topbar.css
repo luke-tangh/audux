@@ -118,27 +118,6 @@
   letter-spacing: 0.005em;
 }
 
-.top-command-bar .top-missing-description-action.ui-button {
-  flex: 0 0 auto;
-  min-width: 74px;
-  padding-inline: 11px;
-}
-
-.top-command-bar .top-missing-description-action[aria-pressed="true"] {
-  box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant);
-}
-
-.top-command-bar .top-missing-description-action[aria-pressed="true"] .ui-button-label::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  display: inline-block;
-  margin-right: 6px;
-  border-radius: 999px;
-  background: currentColor;
-  vertical-align: 1px;
-}
-
 .top-command-bar .top-batch-group {
   min-width: max-content;
   display: inline-flex;
@@ -249,10 +228,6 @@
   align-self: center;
 }
 
-.top-command-bar .top-missing-description-action.ui-button {
-  order: 3;
-}
-
 .top-command-bar .top-batch-group {
   order: 4;
   flex: 0 0 auto;
@@ -265,11 +240,6 @@
 }
 
 @container library-topbar (max-width: 720px) {
-  .top-command-bar .top-missing-description-action.ui-button {
-    min-width: 72px;
-    padding-inline: 10px;
-  }
-
   .top-command-bar .top-batch-group {
     gap: 5px;
   }
@@ -335,12 +305,6 @@
 
   .top-command-bar .top-toolbar-actions {
     gap: 5px;
-  }
-
-  .top-command-bar .top-missing-description-action.ui-button {
-    min-width: 68px;
-    padding-inline: 9px;
-    font-size: 12px;
   }
 
   .top-command-bar .top-batch-action.ui-button {

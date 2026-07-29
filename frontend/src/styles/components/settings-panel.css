@@ -111,6 +111,13 @@
   margin-bottom: 14px;
 }
 
+.settings-panel .asr-device-field {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+
 .settings-panel .root-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;

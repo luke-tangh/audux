@@ -41,23 +41,27 @@ export default function AsrSettingsTab({
           onValueChange={onAsrModelNameChange}
         />
 
-        <SelectField
-          label="Device"
-          density="compact"
-          controlSize="compact"
-          controlHeight={42}
-          controlWidth={148}
-          controlMinWidth={128}
-          controlMaxWidth={148}
-          menuWidth="control"
-          menuMinWidth={128}
-          value={asrDevice}
-          options={[
-            { value: "cpu", label: "cpu" },
-            { value: "cuda", label: "cuda" }
-          ]}
-          onValueChange={onAsrDeviceChange}
-        />
+        <div className="asr-device-field">
+          <span className="ui-field-label" aria-hidden="true">
+            Device
+          </span>
+
+          <SelectField
+            label="Device"
+            hideLabel
+            controlHeight={48}
+            controlWidth="100%"
+            controlMinWidth={0}
+            controlMaxWidth="100%"
+            menuWidth="control"
+            value={asrDevice}
+            options={[
+              { value: "cpu", label: "cpu" },
+              { value: "cuda", label: "cuda" }
+            ]}
+            onValueChange={onAsrDeviceChange}
+          />
+        </div>
 
         <TextField
           label="Compute Type"

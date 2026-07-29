@@ -41,7 +41,6 @@ export function useLibraryController() {
   const [selectedTag, setSelectedTag] = useState<string | undefined>();
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
 
-  const [missingDescriptionOnly, setMissingDescriptionOnly] = useState(false);
   const [hasTranscriptFilter, setHasTranscriptFilter] = useState<TranscriptFilter>("all");
   const [missingFilter, setMissingFilter] = useState<MissingFilter>("all");
 
@@ -69,7 +68,6 @@ export function useLibraryController() {
       view,
       debouncedQ,
       selectedTag,
-      missingDescriptionOnly,
       hasTranscriptFilter,
       missingFilter
     });
@@ -79,7 +77,6 @@ export function useLibraryController() {
     return buildPlaylistListParamsForState({
       debouncedQ,
       selectedTag,
-      missingDescriptionOnly,
       hasTranscriptFilter,
       missingFilter
     });
@@ -264,7 +261,6 @@ export function useLibraryController() {
     debouncedQ,
     selectedTag,
     selectedPlaylistId,
-    missingDescriptionOnly,
     hasTranscriptFilter,
     missingFilter,
     refreshToken
@@ -300,7 +296,6 @@ export function useLibraryController() {
   function clearFilters() {
     setQ("");
     setSelectedTag(undefined);
-    setMissingDescriptionOnly(false);
     setHasTranscriptFilter("all");
     setMissingFilter("all");
 
@@ -362,7 +357,6 @@ export function useLibraryController() {
   const hasActiveFilter =
     Boolean(q.trim()) ||
     Boolean(selectedTag) ||
-    missingDescriptionOnly ||
     hasTranscriptFilter !== "all" ||
     missingFilter !== "all" ||
     isSmartView(view);
@@ -390,8 +384,6 @@ export function useLibraryController() {
     selectedPlaylistId,
     setSelectedPlaylistId,
 
-    missingDescriptionOnly,
-    setMissingDescriptionOnly,
     hasTranscriptFilter,
     setHasTranscriptFilter,
     missingFilter,

@@ -49,14 +49,12 @@ export function buildAudioListParams({
   view,
   debouncedQ,
   selectedTag,
-  missingDescriptionOnly,
   hasTranscriptFilter,
   missingFilter
 }: {
   view: ViewMode;
   debouncedQ: string;
   selectedTag?: string;
-  missingDescriptionOnly: boolean;
   hasTranscriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
 }): AudioListParams {
@@ -64,8 +62,7 @@ export function buildAudioListParams({
     q: debouncedQ || undefined,
     tag: selectedTag,
     favorite: view === "favorites" ? true : undefined,
-    missing_description:
-      view === "missingDescription" ? true : missingDescriptionOnly || undefined,
+    missing_description: view === "missingDescription" ? true : undefined,
     has_transcript:
       view === "transcribed" ? true : transcriptFilterToParam(hasTranscriptFilter),
     missing: view === "missing" ? true : missingFilterToParam(missingFilter),
@@ -76,20 +73,17 @@ export function buildAudioListParams({
 export function buildPlaylistListParams({
   debouncedQ,
   selectedTag,
-  missingDescriptionOnly,
   hasTranscriptFilter,
   missingFilter
 }: {
   debouncedQ: string;
   selectedTag?: string;
-  missingDescriptionOnly: boolean;
   hasTranscriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
 }): PlaylistListParams {
   return {
     q: debouncedQ || undefined,
     tag: selectedTag,
-    missing_description: missingDescriptionOnly || undefined,
     has_transcript: transcriptFilterToParam(hasTranscriptFilter),
     missing: missingFilterToParam(missingFilter)
   };

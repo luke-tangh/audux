@@ -31,8 +31,6 @@ export default function App() {
     selectedPlaylistId,
     setSelectedPlaylistId,
 
-    missingDescriptionOnly,
-    setMissingDescriptionOnly,
     hasTranscriptFilter,
     setHasTranscriptFilter,
     missingFilter,
@@ -108,8 +106,6 @@ export default function App() {
                 isLoading={loading}
                 hasActiveFilter={hasActiveFilter}
                 onClearFilters={clearFilters}
-                missingDescriptionOnly={missingDescriptionOnly}
-                setMissingDescriptionOnly={setMissingDescriptionOnly}
                 hasTranscriptFilter={hasTranscriptFilter}
                 setHasTranscriptFilter={setHasTranscriptFilter}
                 missingFilter={missingFilter}
@@ -127,9 +123,7 @@ export default function App() {
                 loadError={loadError}
                 onOpenSettings={openSettings}
                 onClearFilters={clearFilters}
-                missingDescriptionOnly={missingDescriptionOnly}
-                hasTranscriptFilter={hasTranscriptFilter}
-                missingFilter={missingFilter}
+                hasActiveFilter={hasActiveFilter}
                 items={audioItems}
                 totalCount={audioTotal}
                 hasMore={audioHasMore}
