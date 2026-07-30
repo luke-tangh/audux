@@ -190,7 +190,7 @@
 
 .top-command-bar .top-filter-controls {
   order: 1;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   width: auto;
   min-width: 0;
   display: flex;
@@ -246,39 +246,6 @@
 
   .top-command-bar .top-batch-action.ui-button {
     padding-inline: 11px;
-  }
-}
-
-@container library-topbar (max-width: 620px) {
-  .top-command-bar .top-toolbar-controls {
-    flex-wrap: wrap;
-    align-items: stretch;
-    gap: 8px;
-    overflow-x: hidden;
-    overflow-y: visible;
-  }
-
-  .top-command-bar .top-filter-controls {
-    flex: 1 0 100%;
-    width: 100%;
-    min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scrollbar-width: none;
-  }
-
-  .top-command-bar .top-filter-controls::-webkit-scrollbar {
-    display: none;
-  }
-
-  .top-command-bar .top-toolbar-actions {
-    flex: 0 0 auto;
-    width: auto;
-    min-width: 0;
-  }
-
-  .top-command-bar .top-settings-button {
-    margin-left: auto;
   }
 }
 

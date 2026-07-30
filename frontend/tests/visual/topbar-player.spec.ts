@@ -19,22 +19,59 @@ async function stabilize(page: import("@playwright/test").Page) {
   });
 }
 
+async function expectToolbarOnOneLine(
+  toolbar: import("@playwright/test").Locator,
+  viewport: string
+) {
+  const state = await toolbar.evaluate((element) => {
+    const parts = [
+      element.querySelector<HTMLElement>(".top-filter-controls"),
+      element.querySelector<HTMLElement>(".top-toolbar-actions"),
+      element.querySelector<HTMLElement>(".top-settings-button")
+    ].filter((part): part is HTMLElement => Boolean(part));
+    const centers = parts.map((part) => {
+      const rect = part.getBoundingClientRect();
+      return rect.top + rect.height / 2;
+    });
+
+    return {
+      hasHorizontalRoom: element.scrollWidth <= element.clientWidth + 1,
+      singleLine: Math.max(...centers) - Math.min(...centers) <= 2
+    };
+  });
+
+  expect(state, `toolbar at viewport ${viewport}`).toEqual({
+    hasHorizontalRoom: true,
+    singleLine: true
+  });
+}
+
 test.describe("MD3 visual regression", () => {
   test("TopBar responsive states", async ({ page }) => {
     await page.goto("/");
     await stabilize(page);
 
     const topbar = page.locator(".top-command-bar");
+    const toolbar = page.locator(".top-toolbar-controls");
     await expect(topbar).toBeVisible();
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(topbar).toHaveScreenshot("topbar-wide.png");
+    await expectToolbarOnOneLine(toolbar, "1280x800");
 
     await page.setViewportSize({ width: 1000, height: 800 });
     await expect(topbar).toHaveScreenshot("topbar-medium.png");
+    await expectToolbarOnOneLine(toolbar, "1000x800");
 
     await page.setViewportSize({ width: 760, height: 800 });
     await expect(topbar).toHaveScreenshot("topbar-compact.png");
+    await expectToolbarOnOneLine(toolbar, "760x800");
+
+    await page.getByRole("combobox", { name: "按 transcript 状态筛选" }).click();
+    await page.getByRole("option", { name: "已有 transcript" }).click();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(page.getByRole("button", { name: "重置" })).toBeVisible();
+    await expectToolbarOnOneLine(toolbar, "1280x800 with reset action");
   });
 
   test("PlayerBar responsive states", async ({ page }) => {
@@ -156,5 +193,28 @@ test.describe("MD3 visual regression", () => {
         fullyVisible: true
       });
     }
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addStyleTag({
+      content: ".player-now-card { min-height: 80px !important; }"
+    });
+
+    const linuxFontMetricsState = await player.evaluate((element) => {
+      const playerRect = element.getBoundingClientRect();
+      const nowCardRect = element
+        .querySelector<HTMLElement>(".player-now-card")!
+        .getBoundingClientRect();
+
+      return {
+        expandsPastDefaultHeight: playerRect.height > 96,
+        contentContained: nowCardRect.bottom <= playerRect.bottom,
+        fullyVisible: playerRect.bottom <= window.innerHeight
+      };
+    });
+    expect(linuxFontMetricsState).toEqual({
+      expandsPastDefaultHeight: true,
+      contentContained: true,
+      fullyVisible: true
+    });
   });
 });

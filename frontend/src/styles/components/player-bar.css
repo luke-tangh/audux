@@ -9,8 +9,9 @@
 .player-dock {
   position: relative;
   z-index: 50;
-  flex: 0 0 var(--player-height);
-  height: var(--player-height);
+  flex: 0 0 auto;
+  height: auto;
+  min-height: var(--player-height);
   display: grid;
   grid-template-columns: minmax(250px, 330px) minmax(320px, 1fr) minmax(280px, 360px);
   gap: 14px;
