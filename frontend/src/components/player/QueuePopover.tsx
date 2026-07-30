@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { FocusEvent, KeyboardEvent, RefObject } from "react";
 import type { AudioItem } from "../../types";
 import { displayTitle } from "../../types";
@@ -24,19 +24,34 @@ export default function QueuePopover({
   onClear
 }: QueuePopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const initialCurrentFocusPlacedRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const popover = popoverRef.current;
-    if (!popover || popover.contains(document.activeElement)) return;
+    if (!popover) return;
 
     const currentQueueItem = popover.querySelector<HTMLElement>(
       '[aria-current="true"]'
     );
+    const shouldPlaceCurrentFocus =
+      Boolean(currentQueueItem) && !initialCurrentFocusPlacedRef.current;
+
+    if (
+      popover.contains(document.activeElement) &&
+      !shouldPlaceCurrentFocus
+    ) {
+      return;
+    }
+
     const firstControl = popover.querySelector<HTMLElement>(
       'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
     );
 
     (currentQueueItem || firstControl || popover).focus();
+
+    if (currentQueueItem) {
+      initialCurrentFocusPlacedRef.current = true;
+    }
   }, [queue.length, queueIndex]);
 
   useEffect(() => {
