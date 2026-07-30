@@ -24,7 +24,7 @@ export default function QueuePopover({
   onClear
 }: QueuePopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
-  const initialCurrentFocusPlacedRef = useRef(false);
+  const managedCurrentItemRef = useRef<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
     const popover = popoverRef.current;
@@ -33,25 +33,18 @@ export default function QueuePopover({
     const currentQueueItem = popover.querySelector<HTMLElement>(
       '[aria-current="true"]'
     );
-    const shouldPlaceCurrentFocus =
-      Boolean(currentQueueItem) && !initialCurrentFocusPlacedRef.current;
+    const shouldPlaceInitialFocus = managedCurrentItemRef.current === null;
+    const shouldFollowCurrentItem =
+      document.activeElement === managedCurrentItemRef.current;
 
-    if (
-      popover.contains(document.activeElement) &&
-      !shouldPlaceCurrentFocus
-    ) {
-      return;
-    }
+    if (!shouldPlaceInitialFocus && !shouldFollowCurrentItem) return;
 
     const firstControl = popover.querySelector<HTMLElement>(
       'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
     );
 
     (currentQueueItem || firstControl || popover).focus();
-
-    if (currentQueueItem) {
-      initialCurrentFocusPlacedRef.current = true;
-    }
+    managedCurrentItemRef.current = currentQueueItem;
   }, [queue.length, queueIndex]);
 
   useEffect(() => {

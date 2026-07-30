@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy.exc import IntegrityError
@@ -14,6 +15,7 @@ from .common import (
     BUSY_AUDIO_TASK_STATUSES,
     ServiceError,
     _attachment_headers,
+    _find_library_root_id_for_path,
     _is_unique_constraint_error,
     _mark_audio_missing_if_unavailable,
     _srt_time,
@@ -36,6 +38,12 @@ def enqueue_transcribe(session: Session, audio_id: int):
 
     if not _mark_audio_missing_if_unavailable(session, audio):
         raise ServiceError(400, "Audio file missing")
+
+    if _find_library_root_id_for_path(session, Path(audio.file_path)) is None:
+        raise ServiceError(
+            400,
+            "Audio file path must be within a configured library root",
+        )
 
     try:
         input_payload = build_asr_task_payload(session)

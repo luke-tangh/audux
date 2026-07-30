@@ -91,6 +91,31 @@ class TestLocalSecurity(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertFalse(security._setting_truthy(value))
 
+    def test_query_tokens_are_limited_to_media_and_download_paths(self):
+        allowed = [
+            "/audio-items/1/file",
+            "/audio-items/1/cover",
+            "/audio-items/1/transcript/export",
+            "/playlists/1/export",
+            "/export/metadata",
+            "/logs/app/file",
+        ]
+        rejected = [
+            "/settings",
+            "/audio-items",
+            "/audio-items/1",
+            "/audio-items/1/transcript",
+            "/logs/app",
+        ]
+
+        for path in allowed:
+            with self.subTest(path=path):
+                self.assertTrue(security._path_allows_query_token(path))
+
+        for path in rejected:
+            with self.subTest(path=path):
+                self.assertFalse(security._path_allows_query_token(path))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,9 @@
+import logging
 import unittest
 
-from app.logger import redact_sensitive_text
+import httpx
+
+from app.logger import SensitiveDataFilter, redact_sensitive_text
 
 
 class TestLoggerRedaction(unittest.TestCase):
@@ -49,6 +52,27 @@ class TestLoggerRedaction(unittest.TestCase):
         self.assertNotIn("local-token", redacted)
         self.assertNotIn("query-token", redacted)
         self.assertIn("[redacted]", redacted)
+
+    def test_filter_redacts_sensitive_values_in_url_objects(self):
+        record = logging.LogRecord(
+            name="httpx",
+            level=20,
+            pathname=__file__,
+            lineno=1,
+            msg="HTTP Request: %s",
+            args=(
+                httpx.URL(
+                    "http://127.0.0.1/audio?access_token=query-token"
+                ),
+            ),
+            exc_info=None,
+        )
+
+        SensitiveDataFilter().filter(record)
+
+        rendered = record.getMessage()
+        self.assertNotIn("query-token", rendered)
+        self.assertIn("access_token=[redacted]", rendered)
 
 
 if __name__ == "__main__":

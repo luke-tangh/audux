@@ -1,6 +1,7 @@
 import hmac
 import ipaddress
 import os
+import re
 import secrets
 from typing import Optional
 from urllib.parse import urlparse
@@ -48,6 +49,17 @@ TOKEN_EXEMPT_PATHS = PUBLIC_PATHS | {
     "/auth/token",
 }
 
+QUERY_TOKEN_EXACT_PATHS = {
+    "/export/metadata",
+    "/logs/app/file",
+}
+
+QUERY_TOKEN_PATH_PATTERNS = (
+    re.compile(r"^/audio-items/\d+/(?:file|cover)$"),
+    re.compile(r"^/audio-items/\d+/transcript/export$"),
+    re.compile(r"^/playlists/\d+/export$"),
+)
+
 
 def _get_or_create_local_api_token() -> str:
     """
@@ -94,11 +106,18 @@ def _is_token_exempt_path(path: str) -> bool:
     return path.startswith("/docs/") or path.startswith("/redoc/")
 
 
+def _path_allows_query_token(path: str) -> bool:
+    if path in QUERY_TOKEN_EXACT_PATHS:
+        return True
+
+    return any(pattern.fullmatch(path) for pattern in QUERY_TOKEN_PATH_PATTERNS)
+
+
 def _request_has_valid_local_token(request: Request) -> bool:
     expected = _get_or_create_local_api_token()
 
     provided = request.headers.get(LOCAL_TOKEN_HEADER_NAME)
-    if not provided:
+    if not provided and _path_allows_query_token(request.url.path):
         provided = request.query_params.get(LOCAL_TOKEN_QUERY_NAME)
 
     if not provided:

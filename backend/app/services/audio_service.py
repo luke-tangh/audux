@@ -396,6 +396,13 @@ def relocate_audio_item(
     if new_path.suffix.lower() not in SUPPORTED_EXTS:
         raise ServiceError(400, "Unsupported audio format")
 
+    library_root_id = _find_library_root_id_for_path(session, new_path)
+    if library_root_id is None:
+        raise ServiceError(
+            400,
+            "Audio file path must be within a configured library root",
+        )
+
     exists = session.exec(
         select(AudioItem).where(
             AudioItem.file_path == str(new_path),
@@ -416,7 +423,7 @@ def relocate_audio_item(
     item.file_size = stat.st_size
     item.file_mtime = datetime.utcfromtimestamp(stat.st_mtime).isoformat()
     item.file_hash = file_hash
-    item.library_root_id = _find_library_root_id_for_path(session, new_path)
+    item.library_root_id = library_root_id
     item.is_missing = False
 
     for key, value in meta.items():
@@ -438,6 +445,7 @@ def relocate_audio_item(
     session.refresh(item)
 
     rebuild_audio_search_index(session, item.id)
+    session.refresh(item)
     logger.info("Audio item relocated id=%s path=%s", audio_id, new_path)
 
     return item

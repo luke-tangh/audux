@@ -30,6 +30,17 @@ def _redact_log_arg(value: Any) -> Any:
     if isinstance(value, str):
         return redact_sensitive_text(value)
 
+    # Third-party loggers may pass URL objects instead of strings. Preserve
+    # numeric and structured arguments unless rendering reveals a sensitive
+    # value, in which case returning a redacted string remains safe for %s.
+    try:
+        rendered = str(value)
+        redacted = redact_sensitive_text(rendered)
+        if redacted != rendered:
+            return redacted
+    except Exception:
+        pass
+
     return value
 
 
