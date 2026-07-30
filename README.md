@@ -402,7 +402,3 @@ npm run typecheck
 npm run build
 npm run tauri:dev
 ```
-
-## License
-
-Private / Internal project by default.
