@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import type { FocusEvent, KeyboardEvent, RefObject } from "react";
 import type { AudioItem } from "../../types";
 import { displayTitle } from "../../types";
 import { Button, MaterialIcon } from "../ui";
@@ -5,7 +7,8 @@ import { Button, MaterialIcon } from "../ui";
 type QueuePopoverProps = {
   queue: AudioItem[];
   queueIndex: number;
-  onClose: () => void;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  onClose: (restoreFocus?: boolean) => void;
   onSelect: (index: number) => void;
   onRemove: (index: number) => void;
   onClear: () => void;
@@ -14,23 +17,96 @@ type QueuePopoverProps = {
 export default function QueuePopover({
   queue,
   queueIndex,
+  triggerRef,
   onClose,
   onSelect,
   onRemove,
   onClear
 }: QueuePopoverProps) {
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const popover = popoverRef.current;
+    if (!popover || popover.contains(document.activeElement)) return;
+
+    const currentQueueItem = popover.querySelector<HTMLElement>(
+      '[aria-current="true"]'
+    );
+    const firstControl = popover.querySelector<HTMLElement>(
+      'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+
+    (currentQueueItem || firstControl || popover).focus();
+  }, [queue.length, queueIndex]);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node | null;
+
+      if (!target) return;
+      if (popoverRef.current?.contains(target)) return;
+      if (triggerRef.current?.contains(target)) return;
+
+      onClose(false);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [onClose, triggerRef]);
+
+  function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    const nextTarget = event.relatedTarget as Node | null;
+
+    if (!nextTarget || event.currentTarget.contains(nextTarget)) return;
+
+    window.setTimeout(() => {
+      if (!popoverRef.current?.contains(document.activeElement)) {
+        onClose(false);
+      }
+    }, 0);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose(true);
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+
+    const controls = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    );
+
+    const firstControl = controls[0];
+    const lastControl = controls[controls.length - 1];
+    const leavingPopover =
+      controls.length === 0 ||
+      (event.shiftKey && document.activeElement === firstControl) ||
+      (!event.shiftKey && document.activeElement === lastControl);
+
+    if (leavingPopover) {
+      window.setTimeout(() => onClose(false), 0);
+    }
+  }
+
   return (
     <div
+      ref={popoverRef}
       id="player-queue-popover"
       className="queue-popover"
       role="dialog"
       aria-label="播放队列"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onClose();
-        }
-      }}
+      tabIndex={-1}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
     >
       <div className="queue-popover-header">
         <strong>播放队列</strong>

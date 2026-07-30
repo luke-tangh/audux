@@ -36,26 +36,54 @@ function normalizeThemeMode(value: string | null): ThemeMode {
   return "system";
 }
 
+function storedThemeMode(): ThemeMode {
+  if (typeof window === "undefined") return "system";
+
+  try {
+    return normalizeThemeMode(window.localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return "system";
+  }
+}
+
 function resolveTheme(mode: ThemeMode): ResolvedTheme {
   return mode === "system" ? systemTheme() : mode;
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
-    if (typeof window === "undefined") return "system";
+function initialThemeMode(): ThemeMode {
+  if (typeof document === "undefined") return "system";
 
-    return normalizeThemeMode(window.localStorage.getItem(STORAGE_KEY));
-  });
+  return normalizeThemeMode(
+    document.documentElement.dataset.themeMode || storedThemeMode()
+  );
+}
+
+function initialResolvedTheme(mode: ThemeMode): ResolvedTheme {
+  if (typeof document === "undefined") return "dark";
+
+  const bootstrappedTheme = document.documentElement.dataset.theme;
+
+  if (bootstrappedTheme === "light" || bootstrappedTheme === "dark") {
+    return bootstrappedTheme;
+  }
+
+  return resolveTheme(mode);
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(initialThemeMode);
 
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(themeMode)
+    initialResolvedTheme(themeMode)
   );
 
   const setThemeMode = useCallback((mode: ThemeMode) => {
     setThemeModeState(mode);
 
-    if (typeof window !== "undefined") {
+    try {
       window.localStorage.setItem(STORAGE_KEY, mode);
+    } catch {
+      // The active theme still applies when storage is unavailable.
     }
   }, []);
 

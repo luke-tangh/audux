@@ -380,6 +380,11 @@ export default function SelectField({
       return;
     }
 
+    if (event.key === "Tab" && open) {
+      closeMenu();
+      return;
+    }
+
     if (isTypingKey(event)) {
       const query = event.key.toLocaleLowerCase();
       const startIndex = activeIndex >= 0 ? activeIndex : -1;
