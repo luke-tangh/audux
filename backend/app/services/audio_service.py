@@ -9,8 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from sqlalchemy import func
 
+from ..asr_config import ASR_PROVIDER_EXTERNAL, build_asr_task_payload
 from ..db import COVERS_DIR
-from ..local_security import ensure_llm_endpoint_allowed
+from ..local_security import ensure_asr_endpoint_allowed, ensure_llm_endpoint_allowed
 from ..logger import get_logger
 from ..models import (
     AITask,
@@ -137,6 +138,20 @@ def list_audio_items(
 
 
 def batch_transcribe(session: Session, audio_ids: list[int]) -> dict:
+    try:
+        input_payload = build_asr_task_payload(session)
+    except ValueError as e:
+        raise ServiceError(400, str(e)) from e
+
+    asr_config = input_payload["asr"]
+    if asr_config["provider"] == ASR_PROVIDER_EXTERNAL:
+        warning = ensure_asr_endpoint_allowed(session, asr_config["endpoint"])
+        if warning:
+            logger.warning(
+                "Batch transcribe uses non-local ASR endpoint: %s",
+                asr_config["endpoint"],
+            )
+
     created_task_ids: list[int] = []
     skipped: list[int] = []
     errors: list[dict] = []
@@ -176,7 +191,7 @@ def batch_transcribe(session: Session, audio_ids: list[int]) -> dict:
                     audio_id=audio_id,
                     task_type="transcribe",
                     status="pending",
-                    input_payload=json.dumps({}, ensure_ascii=False),
+                    input_payload=json.dumps(input_payload, ensure_ascii=False),
                     updated_at=now_iso(),
                 )
                 session.add(task)

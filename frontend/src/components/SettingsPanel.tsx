@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, endpointPrivacyWarning } from "../api";
+import { api, asrEndpointPrivacyWarning, endpointPrivacyWarning } from "../api";
 import type { LibraryRoot, ScanTask, Tag } from "../types";
 import { pickAudioFolder } from "../tauri";
 import TaskPanel from "./TaskPanel";
@@ -33,10 +33,20 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [playlistName, setPlaylistName] = useState("");
   const [maintenanceTags, setMaintenanceTags] = useState<Tag[]>([]);
 
+  const [asrProvider, setAsrProvider] = useState("faster_whisper");
   const [asrModelName, setAsrModelName] = useState("small");
   const [asrDevice, setAsrDevice] = useState("cpu");
   const [asrComputeType, setAsrComputeType] = useState("int8");
   const [asrBeamSize, setAsrBeamSize] = useState("5");
+  const [asrExternalEndpoint, setAsrExternalEndpoint] = useState("");
+  const [asrExternalModelName, setAsrExternalModelName] = useState("");
+  const [asrExternalApiKey, setAsrExternalApiKey] = useState("");
+  const [asrExternalLanguage, setAsrExternalLanguage] = useState("auto");
+  const [asrExternalTimestampPolicy, setAsrExternalTimestampPolicy] =
+    useState("preferred");
+  const [asrExternalTimeout, setAsrExternalTimeout] = useState("3600");
+  const [asrExternalAllowRemoteEndpoint, setAsrExternalAllowRemoteEndpoint] =
+    useState(false);
 
   const [llmEndpoint, setLlmEndpoint] = useState("");
   const [llmModel, setLlmModel] = useState("");
@@ -126,10 +136,44 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       applyScanTasks(scanRows, false);
       setMaintenanceTags(tagRows);
 
+      setAsrProvider(
+        settings.find((setting) => setting.key === "asr.provider")?.value ||
+          "faster_whisper"
+      );
       setAsrModelName(settings.find((setting) => setting.key === "asr.model_name")?.value || "small");
       setAsrDevice(settings.find((setting) => setting.key === "asr.device")?.value || "cpu");
       setAsrComputeType(settings.find((setting) => setting.key === "asr.compute_type")?.value || "int8");
       setAsrBeamSize(settings.find((setting) => setting.key === "asr.beam_size")?.value || "5");
+      setAsrExternalEndpoint(
+        settings.find((setting) => setting.key === "asr.external.endpoint")?.value || ""
+      );
+      setAsrExternalModelName(
+        settings.find((setting) => setting.key === "asr.external.model_name")?.value || ""
+      );
+      setAsrExternalApiKey(
+        settings.find((setting) => setting.key === "asr.external.api_key")?.value || ""
+      );
+      setAsrExternalLanguage(
+        settings.find((setting) => setting.key === "asr.external.language")?.value ||
+          "auto"
+      );
+      setAsrExternalTimestampPolicy(
+        settings.find((setting) => setting.key === "asr.external.timestamp_policy")
+          ?.value || "preferred"
+      );
+      setAsrExternalTimeout(
+        settings.find((setting) => setting.key === "asr.external.timeout")?.value ||
+          "3600"
+      );
+      setAsrExternalAllowRemoteEndpoint(
+        ["1", "true", "yes", "on"].includes(
+          (
+            settings.find(
+              (setting) => setting.key === "asr.external.allow_remote_endpoint"
+            )?.value || ""
+          ).toLowerCase()
+        )
+      );
 
       setLlmEndpoint(settings.find((setting) => setting.key === "llm.endpoint")?.value || "");
       setLlmModel(settings.find((setting) => setting.key === "llm.model_name")?.value || "");
@@ -251,11 +295,44 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   }
 
   async function saveAsr() {
+    const warning = asrEndpointPrivacyWarning(asrExternalEndpoint);
+    if (
+      asrProvider === "external" &&
+      warning &&
+      !asrExternalAllowRemoteEndpoint
+    ) {
+      notify?.("如需使用非本机 ASR endpoint，请先勾选明确允许远程 / 内网 endpoint。", "error");
+      return;
+    }
+
     try {
+      await api.setSetting("asr.provider", asrProvider);
       await api.setSetting("asr.model_name", asrModelName.trim() || "small");
       await api.setSetting("asr.device", asrDevice.trim() || "cpu");
       await api.setSetting("asr.compute_type", asrComputeType.trim() || "int8");
       await api.setSetting("asr.beam_size", asrBeamSize.trim() || "5");
+      await api.setSetting("asr.external.endpoint", asrExternalEndpoint.trim());
+      await api.setSetting(
+        "asr.external.model_name",
+        asrExternalModelName.trim()
+      );
+      await api.setSetting("asr.external.api_key", asrExternalApiKey);
+      await api.setSetting(
+        "asr.external.language",
+        asrExternalLanguage.trim() || "auto"
+      );
+      await api.setSetting(
+        "asr.external.timestamp_policy",
+        asrExternalTimestampPolicy
+      );
+      await api.setSetting(
+        "asr.external.timeout",
+        asrExternalTimeout.trim() || "3600"
+      );
+      await api.setSetting(
+        "asr.external.allow_remote_endpoint",
+        asrExternalAllowRemoteEndpoint ? "true" : "false"
+      );
 
       notify?.("ASR 设置已保存", "success");
     } catch (err) {
@@ -422,6 +499,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   }
 
   const llmWarning = endpointPrivacyWarning(llmEndpoint);
+  const asrExternalWarning = asrEndpointPrivacyWarning(asrExternalEndpoint);
 
   return (
     <section className="settings-panel">
@@ -467,14 +545,33 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
         {activeTab === "asr" && (
           <AsrSettingsTab
+            asrProvider={asrProvider}
             asrModelName={asrModelName}
             asrDevice={asrDevice}
             asrComputeType={asrComputeType}
             asrBeamSize={asrBeamSize}
+            externalEndpoint={asrExternalEndpoint}
+            externalModelName={asrExternalModelName}
+            externalApiKey={asrExternalApiKey}
+            externalLanguage={asrExternalLanguage}
+            externalTimestampPolicy={asrExternalTimestampPolicy}
+            externalTimeout={asrExternalTimeout}
+            externalAllowRemoteEndpoint={asrExternalAllowRemoteEndpoint}
+            externalWarning={asrExternalWarning}
+            onAsrProviderChange={setAsrProvider}
             onAsrModelNameChange={setAsrModelName}
             onAsrDeviceChange={setAsrDevice}
             onAsrComputeTypeChange={setAsrComputeType}
             onAsrBeamSizeChange={setAsrBeamSize}
+            onExternalEndpointChange={setAsrExternalEndpoint}
+            onExternalModelNameChange={setAsrExternalModelName}
+            onExternalApiKeyChange={setAsrExternalApiKey}
+            onExternalLanguageChange={setAsrExternalLanguage}
+            onExternalTimestampPolicyChange={setAsrExternalTimestampPolicy}
+            onExternalTimeoutChange={setAsrExternalTimeout}
+            onExternalAllowRemoteEndpointChange={
+              setAsrExternalAllowRemoteEndpoint
+            }
             onSaveAsr={saveAsr}
           />
         )}

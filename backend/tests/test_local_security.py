@@ -70,6 +70,15 @@ class TestLocalSecurity(unittest.TestCase):
                 self.assertIsNotNone(warning)
                 self.assertIn("不是 localhost", warning)
 
+    def test_asr_privacy_warning_describes_full_audio_upload(self):
+        self.assertIsNone(
+            security._asr_privacy_warning("http://127.0.0.1:8000/v1")
+        )
+
+        warning = security._asr_privacy_warning("https://asr.example.com/v1")
+        self.assertIsNotNone(warning)
+        self.assertIn("完整音频文件", warning)
+
     def test_setting_truthy(self):
         truthy_values = ["1", "true", "TRUE", "yes", "on", " On "]
         falsey_values = ["", "0", "false", "no", "off", None]

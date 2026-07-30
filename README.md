@@ -12,7 +12,7 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 - 播放器：播放队列、倍速、音量、播放位置记忆
 - 标签与播放列表管理
 - Transcript：
-  - faster-whisper 本地转写
+  - faster-whisper 内置转写或外部本地 ASR 服务
   - transcript 时间轴
   - TXT / JSON / SRT 导出
 - AI 整理：
@@ -148,11 +148,16 @@ npm run tauri:dev
 
 ## ASR 设置
 
-ASR 使用 `faster-whisper`。
+ASR 支持两种 Provider：
 
-默认设置：
+- `faster_whisper`：由后端进程直接加载本地 faster-whisper 模型。
+- `external`：把媒体库中的音频上传到单独部署的 ASR HTTP 服务。模型、
+  CUDA、PyTorch 和 vLLM 不进入桌面应用的安装包。
+
+默认使用 faster-whisper：
 
 ```txt
+asr.provider = faster_whisper
 asr.model_name = small
 asr.device = cpu
 asr.compute_type = int8
@@ -160,6 +165,82 @@ asr.beam_size = 5
 ```
 
 如果希望完全离线，建议把 `asr.model_name` 配置为本地模型路径，而不是 `small` / `medium` / `large-v3` 这类模型名称。否则首次运行可能会尝试下载模型。
+
+### External ASR Provider
+
+典型配置：
+
+```txt
+asr.provider = external
+asr.external.endpoint = http://127.0.0.1:8000/v1
+asr.external.model_name = qwen3-asr-1.7b
+asr.external.api_key =
+asr.external.language = auto
+asr.external.timestamp_policy = preferred
+asr.external.timeout = 3600
+asr.external.allow_remote_endpoint = false
+```
+
+`endpoint` 是 API base URL。后端会向以下地址发送请求：
+
+```txt
+POST {endpoint}/audio/transcriptions
+Content-Type: multipart/form-data
+```
+
+表单字段：
+
+```txt
+file                          原始音频文件
+model                         asr.external.model_name
+response_format               verbose_json
+language                      非 auto 时发送
+timestamp_granularities[]     时间戳策略不是 off 时发送 segment
+```
+
+服务必须返回 JSON：
+
+```json
+{
+  "text": "完整转写文本",
+  "language": "zh",
+  "model": "qwen3-asr-1.7b",
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 4.25,
+      "text": "第一段文本"
+    }
+  ]
+}
+```
+
+其中 `language`、`model` 和 `segments` 可省略。也兼容
+`full_text`、`start_seconds`、`end_seconds` 字段名。时间戳策略：
+
+- `off`：不请求时间戳，允许 `segments` 为空。
+- `preferred`：请求 segment 时间戳，但 text-only 响应仍可落库。
+- `required`：响应没有 segments 时任务失败。
+
+Qwen3-ASR 建议由外部服务同时加载 `Qwen3-ForcedAligner-0.6B`，在服务端完成
+长音频切片、对齐及时间偏移合并，再返回上述结构。MiMo-V2.5-ASR 当前可以返回
+text-only 响应，并把时间戳策略设置为 `preferred` 或 `off`。
+
+Qwen3-ASR 和 MiMo-V2.5-ASR 的官方服务示例使用 Chat Completions 音频消息，
+不能直接作为这里的 endpoint；需要在模型服务侧增加一层轻量适配，把
+`/audio/transcriptions` 请求转换成模型调用并返回上述统一结构。
+
+任务入队时会保存 Provider、endpoint、模型、语言和时间戳策略的快照，重试继续
+使用相同配置。API key 不会写入任务 payload 或日志，执行时从当前设置读取。
+
+隐私与安全：
+
+- 默认只允许 localhost、127.0.0.0/8、`::1` 和 `.localhost` endpoint。
+- 使用非本机地址必须显式启用 `asr.external.allow_remote_endpoint`。
+- 非本机服务会收到完整音频文件，请只连接可信的内网或私有服务。
+- endpoint 不允许包含用户名、密码、查询参数或 fragment；凭据只能填写在 API Key。
+- 应用只上传已经通过媒体库路径检查的文件，不把任意客户端路径传给 ASR 服务。
 
 ## LLM 设置
 
@@ -272,6 +353,15 @@ frontend/src-tauri/binaries/local-audio-backend-<target-triple>
 - av
 - sqlite3
 
+如果发布版本只使用 External ASR，可以构建不含 faster-whisper、CTranslate2
+和相关模型运行依赖的轻量 sidecar：
+
+```bash
+LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 python build_backend.py
+```
+
+该模式仍可使用 `external` Provider；只有 `faster_whisper` Provider 不可用。
+
 不同平台的 native 依赖仍建议在目标平台上实际测试。
 
 ## 构建 Tauri 应用
@@ -365,6 +455,19 @@ python run.py
 cd backend
 python -m pip install -r requirements.txt
 ```
+
+### External ASR 任务失败
+
+检查：
+
+- Provider 是否选择 `external`
+- endpoint 是否是 API base URL（例如 `http://127.0.0.1:8000/v1`），不要填写
+  完整的 `/audio/transcriptions` 路径
+- model_name 是否与模型服务一致
+- 模型服务是否接受 multipart `file` 和 `verbose_json`
+- `required` 时间戳策略下是否返回非空 segments
+- endpoint 不是 loopback 时是否已明确允许远程 ASR endpoint
+- 超长音频的切片、Forced Aligner 和时间偏移是否由模型服务正确处理
 
 ### LLM 测试失败
 

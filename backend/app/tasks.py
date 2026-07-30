@@ -12,6 +12,13 @@ from .db import engine
 from .models import AITask, AudioItem, Transcript, TranscriptSegment, Setting
 from .models import now_iso
 from .transcriber import transcribe_audio
+from .asr_client import transcribe_external_audio
+from .asr_config import (
+    ASR_PROVIDER_EXTERNAL,
+    get_external_asr_api_key,
+    parse_task_input_payload,
+    resolve_asr_task_config,
+)
 from .search import rebuild_audio_search_index
 from .ai_client import (
     call_openai_compatible_chat,
@@ -19,7 +26,7 @@ from .ai_client import (
     parse_ai_json_content,
 )
 from .logger import get_logger
-from .local_security import ensure_llm_endpoint_allowed
+from .local_security import ensure_asr_endpoint_allowed, ensure_llm_endpoint_allowed
 
 
 logger = get_logger(__name__)
@@ -48,6 +55,7 @@ class TaskSnapshot:
     id: int
     audio_id: int
     task_type: str
+    input_payload: dict
 
 
 def _is_unique_constraint_error(error: IntegrityError) -> bool:
@@ -66,6 +74,7 @@ def _snapshot_task(task: AITask) -> TaskSnapshot:
         id=int(task.id),
         audio_id=int(task.audio_id),
         task_type=str(task.task_type),
+        input_payload=parse_task_input_payload(task.input_payload),
     )
 
 
@@ -516,27 +525,47 @@ async def handle_transcribe_task(task: TaskSnapshot):
 
         file_path = audio.file_path
 
-        model_name = get_setting(session, "asr.model_name", "small") or "small"
-        device = get_setting(session, "asr.device", "cpu") or "cpu"
-        compute_type = get_setting(session, "asr.compute_type", "int8") or "int8"
-        beam_size = get_setting_int(session, "asr.beam_size", 5)
+        asr_config = resolve_asr_task_config(session, task.input_payload)
+        external_api_key = ""
+
+        if asr_config["provider"] == ASR_PROVIDER_EXTERNAL:
+            external_api_key = get_external_asr_api_key(session)
+            privacy_warning = _ensure_asr_endpoint_allowed_for_worker(
+                session,
+                asr_config["endpoint"],
+            )
+            if privacy_warning:
+                logger.warning(
+                    "Transcribe task uses non-local ASR endpoint: %s",
+                    asr_config["endpoint"],
+                )
 
         audio.transcript_status = "running"
         audio.updated_at = now_iso()
         session.add(audio)
         session.commit()
 
-    result = await _run_with_task_heartbeat(
-        task_id,
-        asyncio.to_thread(
+    if asr_config["provider"] == ASR_PROVIDER_EXTERNAL:
+        transcribe_awaitable = transcribe_external_audio(
+            file_path=file_path,
+            endpoint=asr_config["endpoint"],
+            model_name=asr_config["model_name"],
+            api_key=external_api_key or None,
+            language=asr_config["language"],
+            timestamp_policy=asr_config["timestamp_policy"],
+            timeout=asr_config["timeout"],
+        )
+    else:
+        transcribe_awaitable = asyncio.to_thread(
             transcribe_audio,
             file_path,
-            model_name,
-            device,
-            compute_type,
-            beam_size,
-        ),
-    )
+            asr_config["model_name"],
+            asr_config["device"],
+            asr_config["compute_type"],
+            asr_config["beam_size"],
+        )
+
+    result = await _run_with_task_heartbeat(task_id, transcribe_awaitable)
 
     with Session(engine) as session:
         if is_task_canceled(session, task_id):
@@ -600,6 +629,18 @@ async def handle_transcribe_task(task: TaskSnapshot):
 def _ensure_llm_endpoint_allowed_for_worker(session: Session, endpoint: str) -> Optional[str]:
     try:
         return ensure_llm_endpoint_allowed(session, endpoint)
+    except Exception as e:
+        detail = getattr(e, "detail", None)
+
+        if detail:
+            raise ValueError(str(detail)) from e
+
+        raise
+
+
+def _ensure_asr_endpoint_allowed_for_worker(session: Session, endpoint: str) -> Optional[str]:
+    try:
+        return ensure_asr_endpoint_allowed(session, endpoint)
     except Exception as e:
         detail = getattr(e, "detail", None)
 

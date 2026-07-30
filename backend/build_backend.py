@@ -63,10 +63,13 @@ def _env_falsey(value: str | None) -> bool:
 
 def build_with_asr() -> bool:
     """
-    Whether to include faster-whisper and native ASR dependencies in the
-    PyInstaller sidecar.
+    Whether to include the embedded faster-whisper provider and its native
+    dependencies in the PyInstaller sidecar.
 
-    Default: true, because release builds should keep existing full functionality.
+    External ASR uses the base httpx dependency and remains available when this
+    option is disabled.
+
+    Default: true, because release builds should keep the embedded provider.
 
     To create a lite/smoke build without faster-whisper:
 
@@ -103,7 +106,7 @@ def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
                 "is not installed.\n\n"
                 "For full release build:\n"
                 "  python -m pip install -r requirements.txt\n\n"
-                "For a lite build without ASR:\n"
+                "For a lite build without embedded faster-whisper:\n"
                 "  LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 python build_backend.py"
             )
 
@@ -121,9 +124,9 @@ def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
         )
     else:
         print(
-            "Building backend sidecar WITHOUT faster-whisper / ASR support. "
-            "Transcribe tasks will fail at runtime until faster-whisper is installed "
-            "or a full ASR-enabled sidecar is built."
+            "Building backend sidecar WITHOUT embedded faster-whisper support. "
+            "The external ASR provider remains available; faster_whisper tasks "
+            "will fail until faster-whisper is installed or a full sidecar is built."
         )
 
     cmd.extend(

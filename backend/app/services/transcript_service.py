@@ -4,6 +4,9 @@ from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from ..asr_config import ASR_PROVIDER_EXTERNAL, build_asr_task_payload
+from ..local_security import ensure_asr_endpoint_allowed
+from ..logger import get_logger
 from ..models import AITask, AudioItem, Transcript, TranscriptSegment, now_iso
 from ..search import rebuild_audio_search_index
 from ..tasks import get_active_task
@@ -15,6 +18,9 @@ from .common import (
     _mark_audio_missing_if_unavailable,
     _srt_time,
 )
+
+
+logger = get_logger(__name__)
 
 
 def enqueue_transcribe(session: Session, audio_id: int):
@@ -31,11 +37,25 @@ def enqueue_transcribe(session: Session, audio_id: int):
     if not _mark_audio_missing_if_unavailable(session, audio):
         raise ServiceError(400, "Audio file missing")
 
+    try:
+        input_payload = build_asr_task_payload(session)
+    except ValueError as e:
+        raise ServiceError(400, str(e)) from e
+
+    asr_config = input_payload["asr"]
+    if asr_config["provider"] == ASR_PROVIDER_EXTERNAL:
+        warning = ensure_asr_endpoint_allowed(session, asr_config["endpoint"])
+        if warning:
+            logger.warning(
+                "Transcribe uses non-local ASR endpoint: %s",
+                asr_config["endpoint"],
+            )
+
     task = AITask(
         audio_id=audio_id,
         task_type="transcribe",
         status="pending",
-        input_payload=json.dumps({}, ensure_ascii=False),
+        input_payload=json.dumps(input_payload, ensure_ascii=False),
         updated_at=now_iso(),
     )
 

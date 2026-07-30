@@ -295,6 +295,16 @@ export function endpointPrivacyWarning(endpoint: string): string | null {
   return "当前 LLM endpoint 不是 localhost / 127.0.0.1。AI 分析会把音频 metadata 和 transcript 发送到该地址。请确认这是你信任的本地或内网模型服务。";
 }
 
+export function asrEndpointPrivacyWarning(endpoint: string): string | null {
+  if (!endpoint.trim()) return null;
+
+  if (isProbablyLocalEndpoint(endpoint.trim())) {
+    return null;
+  }
+
+  return "当前 ASR endpoint 不是 localhost / 127.0.0.1。转写会把完整音频文件发送到该地址。请确认这是你信任的本地或内网模型服务。";
+}
+
 export const api = {
   ensureAuthToken: ensureLocalApiToken,
 

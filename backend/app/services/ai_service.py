@@ -4,8 +4,17 @@ from typing import Optional
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
+from ..asr_config import (
+    ASR_PROVIDER_EXTERNAL,
+    parse_task_input_payload,
+    resolve_asr_task_config,
+)
 from ..ai_client import call_openai_compatible_chat, get_ai_message_content
-from ..local_security import _llm_privacy_warning, ensure_llm_endpoint_allowed
+from ..local_security import (
+    _llm_privacy_warning,
+    ensure_asr_endpoint_allowed,
+    ensure_llm_endpoint_allowed,
+)
 from ..logger import get_logger
 from ..models import AITask, AudioItem, Setting, now_iso
 from ..tasks import get_active_task
@@ -161,6 +170,25 @@ def retry_ai_task(session: Session, task_id: int) -> AITask:
         warning = ensure_llm_endpoint_allowed(session, endpoint.value)
         if warning:
             logger.warning("Retry analyze uses non-local LLM endpoint: %s", endpoint.value)
+
+    if task.task_type == "transcribe":
+        try:
+            current_payload = parse_task_input_payload(task.input_payload)
+            asr_config = resolve_asr_task_config(session, current_payload)
+        except ValueError as e:
+            raise ServiceError(400, str(e)) from e
+
+        if asr_config["provider"] == ASR_PROVIDER_EXTERNAL:
+            warning = ensure_asr_endpoint_allowed(session, asr_config["endpoint"])
+            if warning:
+                logger.warning(
+                    "Retry transcribe uses non-local ASR endpoint: %s",
+                    asr_config["endpoint"],
+                )
+
+        # Normalize old empty task payloads while preserving the original
+        # provider/model snapshot for tasks created by this version.
+        task.input_payload = json.dumps({"asr": asr_config}, ensure_ascii=False)
 
     task.status = "pending"
     task.retry_count += 1

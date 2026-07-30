@@ -177,6 +177,20 @@ def _llm_privacy_warning(endpoint: str) -> Optional[str]:
     )
 
 
+def _asr_privacy_warning(endpoint: str) -> Optional[str]:
+    if not endpoint:
+        return None
+
+    if _is_local_endpoint(endpoint):
+        return None
+
+    return (
+        "当前 ASR endpoint 不是 localhost / 127.0.0.1。"
+        "转写会把完整音频文件发送到该地址。"
+        "请确认这是你信任的本地或内网模型服务。"
+    )
+
+
 def _setting_truthy(value: Optional[str]) -> bool:
     return (value or "").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -195,6 +209,25 @@ def ensure_llm_endpoint_allowed(session: Session, endpoint: str) -> Optional[str
         raise HTTPException(
             status_code=400,
             detail=f"{warning} 如需继续，请在设置中启用允许非本机 LLM endpoint。",
+        )
+
+    return warning
+
+
+def ensure_asr_endpoint_allowed(session: Session, endpoint: str) -> Optional[str]:
+    """
+    External ASR endpoints receive the source audio, so remote use requires a
+    separate explicit opt-in from the LLM endpoint setting.
+    """
+    warning = _asr_privacy_warning(endpoint)
+    if not warning:
+        return None
+
+    allow_remote = session.get(Setting, "asr.external.allow_remote_endpoint")
+    if not allow_remote or not _setting_truthy(allow_remote.value):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{warning} 如需继续，请在设置中启用允许非本机 ASR endpoint。",
         )
 
     return warning
