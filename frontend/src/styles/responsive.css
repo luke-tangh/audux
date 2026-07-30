@@ -126,10 +126,6 @@
   .sidebar-nav {
     max-height: 220px;
   }
-
-  .sidebar-footer {
-    display: none;
-  }
 }
 
 @media (max-width: 1040px) {

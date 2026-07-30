@@ -1,6 +1,7 @@
 .sidebar {
   min-height: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -252,6 +253,11 @@
   flex: 0 0 auto;
   display: grid;
   gap: 10px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-top: 4px;
+  background: var(--md-sys-color-surface-container);
 }
 
 .settings-nav {

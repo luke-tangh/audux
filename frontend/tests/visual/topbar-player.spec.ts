@@ -53,4 +53,51 @@ test.describe("MD3 visual regression", () => {
     await page.setViewportSize({ width: 760, height: 800 });
     await expect(player).toHaveScreenshot("player-compact.png");
   });
+
+  test("sidebar settings center remains reachable at common zoom levels", async ({
+    page
+  }) => {
+    await page.goto("/");
+    await stabilize(page);
+
+    const settingsCenter = page.getByRole("button", { name: "设置中心" });
+    const zoomViewports = [
+      { width: 1280, height: 800 },
+      { width: 1164, height: 727 },
+      { width: 1024, height: 640 },
+      { width: 853, height: 533 }
+    ];
+
+    for (const viewport of zoomViewports) {
+      await page.setViewportSize(viewport);
+
+      const state = await settingsCenter.evaluate((button) => {
+        const rect = button.getBoundingClientRect();
+        const hitTarget = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2
+        );
+
+        return {
+          rendered: rect.width > 0 && rect.height > 0,
+          fullyVisible:
+            rect.left >= 0 &&
+            rect.top >= 0 &&
+            rect.right <= window.innerWidth &&
+            rect.bottom <= window.innerHeight,
+          receivesPointer:
+            hitTarget === button || (hitTarget ? button.contains(hitTarget) : false)
+        };
+      });
+
+      expect(
+        state,
+        `viewport ${viewport.width}x${viewport.height}`
+      ).toEqual({
+        rendered: true,
+        fullyVisible: true,
+        receivesPointer: true
+      });
+    }
+  });
 });
