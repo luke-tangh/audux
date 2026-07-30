@@ -73,7 +73,7 @@ jobs:
 
   frontend-visual-tests:
     name: Frontend visual and accessibility tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     defaults:
       run:
@@ -95,6 +95,13 @@ jobs:
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Install CJK fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          fc-cache -f
+          fc-match "Noto Sans CJK SC"
 
       - name: Run visual and accessibility tests
         run: npm run test:visual
