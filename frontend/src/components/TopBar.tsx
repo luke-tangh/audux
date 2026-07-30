@@ -16,9 +16,6 @@ type Props = {
   hasActiveFilter: boolean;
   onClearFilters: () => void;
 
-  missingDescriptionOnly: boolean;
-  setMissingDescriptionOnly: (value: boolean) => void;
-
   hasTranscriptFilter: TranscriptFilter;
   setHasTranscriptFilter: (value: TranscriptFilter) => void;
 
@@ -53,8 +50,6 @@ export default function TopBar({
   isLoading = false,
   hasActiveFilter,
   onClearFilters,
-  missingDescriptionOnly,
-  setMissingDescriptionOnly,
   hasTranscriptFilter,
   setHasTranscriptFilter,
   missingFilter,
@@ -128,19 +123,6 @@ export default function TopBar({
               onValueChange={(value) => setMissingFilter(value as MissingFilter)}
             />
 
-            <Button
-              variant={missingDescriptionOnly ? "tonal" : "outlined"}
-              className="top-quick-action top-missing-description-action"
-              aria-pressed={missingDescriptionOnly}
-              title={
-                missingDescriptionOnly
-                  ? "关闭缺描述筛选"
-                  : "只看缺少描述的音频"
-              }
-              onClick={() => setMissingDescriptionOnly(!missingDescriptionOnly)}
-            >
-              缺描述
-            </Button>
           </div>
 
           <div

@@ -290,35 +290,6 @@ select option:disabled {
     linear-gradient(90deg, rgba(103, 80, 164, 0.035) 1px, transparent 1px);
 }
 
-.md-title-large {
-  font-size: var(--md-sys-typescale-title-large-font-size);
-  line-height: var(--md-sys-typescale-title-large-line-height);
-  font-weight: var(--md-sys-typescale-title-large-font-weight);
-  letter-spacing: var(--md-sys-typescale-title-large-letter-spacing);
-}
-
-.md-title-medium {
-  font-size: var(--md-sys-typescale-title-medium-font-size);
-  line-height: var(--md-sys-typescale-title-medium-line-height);
-  font-weight: var(--md-sys-typescale-title-medium-font-weight);
-  letter-spacing: var(--md-sys-typescale-title-medium-letter-spacing);
-}
-
-.md-body-medium {
-  font-size: var(--md-sys-typescale-body-medium-font-size);
-  line-height: var(--md-sys-typescale-body-medium-line-height);
-  font-weight: var(--md-sys-typescale-body-medium-font-weight);
-  letter-spacing: var(--md-sys-typescale-body-medium-letter-spacing);
-}
-
-.md-label-large {
-  font-size: var(--md-sys-typescale-label-large-font-size);
-  line-height: var(--md-sys-typescale-label-large-line-height);
-  font-weight: var(--md-sys-typescale-label-large-font-weight);
-  letter-spacing: var(--md-sys-typescale-label-large-letter-spacing);
-}
-
-.md-label-small,
 .eyebrow {
   font-size: var(--md-sys-typescale-label-small-font-size);
   line-height: var(--md-sys-typescale-label-small-line-height);

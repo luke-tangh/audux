@@ -31,8 +31,6 @@ export default function App() {
     selectedPlaylistId,
     setSelectedPlaylistId,
 
-    missingDescriptionOnly,
-    setMissingDescriptionOnly,
     hasTranscriptFilter,
     setHasTranscriptFilter,
     missingFilter,
@@ -42,6 +40,7 @@ export default function App() {
     playlists,
 
     loading,
+    refreshing,
     loadingMore,
     loadError,
 
@@ -87,7 +86,6 @@ export default function App() {
           playlists={playlists}
           selectedPlaylistId={selectedPlaylistId}
           setSelectedPlaylistId={setSelectedPlaylistId}
-          refresh={refresh}
         />
 
         {view === "settings" ? (
@@ -108,8 +106,6 @@ export default function App() {
                 isLoading={loading}
                 hasActiveFilter={hasActiveFilter}
                 onClearFilters={clearFilters}
-                missingDescriptionOnly={missingDescriptionOnly}
-                setMissingDescriptionOnly={setMissingDescriptionOnly}
                 hasTranscriptFilter={hasTranscriptFilter}
                 setHasTranscriptFilter={setHasTranscriptFilter}
                 missingFilter={missingFilter}
@@ -123,12 +119,11 @@ export default function App() {
                 title={listTitle}
                 q={q}
                 isLoading={loading}
+                isRefreshing={refreshing}
                 loadError={loadError}
                 onOpenSettings={openSettings}
                 onClearFilters={clearFilters}
-                missingDescriptionOnly={missingDescriptionOnly}
-                hasTranscriptFilter={hasTranscriptFilter}
-                missingFilter={missingFilter}
+                hasActiveFilter={hasActiveFilter}
                 items={audioItems}
                 totalCount={audioTotal}
                 hasMore={audioHasMore}

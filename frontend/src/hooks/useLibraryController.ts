@@ -41,7 +41,6 @@ export function useLibraryController() {
   const [selectedTag, setSelectedTag] = useState<string | undefined>();
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
 
-  const [missingDescriptionOnly, setMissingDescriptionOnly] = useState(false);
   const [hasTranscriptFilter, setHasTranscriptFilter] = useState<TranscriptFilter>("all");
   const [missingFilter, setMissingFilter] = useState<MissingFilter>("all");
 
@@ -49,10 +48,12 @@ export function useLibraryController() {
   const [refreshToken, setRefreshToken] = useState(0);
 
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState("");
 
   const loadSeqRef = useRef(0);
+  const hasLoadedListRef = useRef(false);
 
   const { ensureBackendReady } = useBackendReady();
   const { toasts, notify, closeToast } = useToast();
@@ -67,7 +68,6 @@ export function useLibraryController() {
       view,
       debouncedQ,
       selectedTag,
-      missingDescriptionOnly,
       hasTranscriptFilter,
       missingFilter
     });
@@ -77,7 +77,6 @@ export function useLibraryController() {
     return buildPlaylistListParamsForState({
       debouncedQ,
       selectedTag,
-      missingDescriptionOnly,
       hasTranscriptFilter,
       missingFilter
     });
@@ -85,9 +84,17 @@ export function useLibraryController() {
 
   async function load() {
     const loadSeq = ++loadSeqRef.current;
+    const isListView = view !== "settings";
 
-    if (view !== "settings") {
-      setLoading(true);
+    if (isListView) {
+      if (hasLoadedListRef.current) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+    } else {
+      setLoading(false);
+      setRefreshing(false);
     }
 
     setLoadError("");
@@ -99,6 +106,7 @@ export function useLibraryController() {
       if (loadSeq !== loadSeqRef.current) return;
 
       if (view === "settings") {
+        hasLoadedListRef.current = false;
         setAudioItems([]);
         setPlaylistItemsRaw([]);
         setAudioTotal(0);
@@ -171,6 +179,7 @@ export function useLibraryController() {
       setAudioHasMore(hasMore);
       setSearchLimited(nextSearchLimited);
       setSearchLimit(nextSearchLimit);
+      hasLoadedListRef.current = true;
 
       setSelected((prev) => {
         if (items.length === 0) return null;
@@ -191,6 +200,7 @@ export function useLibraryController() {
     } finally {
       if (loadSeq === loadSeqRef.current) {
         setLoading(false);
+        setRefreshing(false);
       }
     }
   }
@@ -251,7 +261,6 @@ export function useLibraryController() {
     debouncedQ,
     selectedTag,
     selectedPlaylistId,
-    missingDescriptionOnly,
     hasTranscriptFilter,
     missingFilter,
     refreshToken
@@ -287,7 +296,6 @@ export function useLibraryController() {
   function clearFilters() {
     setQ("");
     setSelectedTag(undefined);
-    setMissingDescriptionOnly(false);
     setHasTranscriptFilter("all");
     setMissingFilter("all");
 
@@ -306,7 +314,6 @@ export function useLibraryController() {
     audioItems,
     setAudioItems,
     setPlaylistItemsRaw,
-    selected,
     setSelected,
     notify
   });
@@ -350,7 +357,6 @@ export function useLibraryController() {
   const hasActiveFilter =
     Boolean(q.trim()) ||
     Boolean(selectedTag) ||
-    missingDescriptionOnly ||
     hasTranscriptFilter !== "all" ||
     missingFilter !== "all" ||
     isSmartView(view);
@@ -378,8 +384,6 @@ export function useLibraryController() {
     selectedPlaylistId,
     setSelectedPlaylistId,
 
-    missingDescriptionOnly,
-    setMissingDescriptionOnly,
     hasTranscriptFilter,
     setHasTranscriptFilter,
     missingFilter,
@@ -389,6 +393,7 @@ export function useLibraryController() {
     playlists,
 
     loading,
+    refreshing,
     loadingMore,
     loadError,
 

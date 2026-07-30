@@ -4,19 +4,15 @@ import type { AudioItem } from "../types";
 import { displayAuthor, displayDescription, displayTitle, formatDuration } from "../types";
 import { Button, StatusPill, MaterialIcon } from "./ui";
 
-type TranscriptFilter = "all" | "yes" | "no";
-type MissingFilter = "all" | "available" | "missing";
-
 type Props = {
   title: string;
   q: string;
   isLoading?: boolean;
+  isRefreshing?: boolean;
   loadError?: string;
   onOpenSettings: () => void;
   onClearFilters: () => void;
-  missingDescriptionOnly: boolean;
-  hasTranscriptFilter: TranscriptFilter;
-  missingFilter: MissingFilter;
+  hasActiveFilter: boolean;
   items: AudioItem[];
   totalCount?: number;
   hasMore?: boolean;
@@ -165,42 +161,30 @@ function SearchHits({
 }
 
 function EmptyState({
-  q,
-  missingDescriptionOnly,
-  hasTranscriptFilter,
-  missingFilter,
+  hasActiveFilter,
   onOpenSettings,
   onClearFilters
 }: {
-  q: string;
-  missingDescriptionOnly: boolean;
-  hasTranscriptFilter: TranscriptFilter;
-  missingFilter: MissingFilter;
+  hasActiveFilter: boolean;
   onOpenSettings: () => void;
   onClearFilters: () => void;
 }) {
-  const hasFilter =
-    Boolean(q.trim()) ||
-    missingDescriptionOnly ||
-    hasTranscriptFilter !== "all" ||
-    missingFilter !== "all";
-
   return (
     <div className="empty-state">
       <div className="empty-illustration">🎧</div>
 
       <div className="empty-title">
-        {hasFilter ? "没有找到匹配的音频" : "还没有导入音频"}
+        {hasActiveFilter ? "没有找到匹配的音频" : "还没有导入音频"}
       </div>
 
       <div className="empty-subtitle">
-        {hasFilter
+        {hasActiveFilter
           ? "当前搜索或筛选条件没有命中结果。可以清空筛选后重新浏览。"
           : "添加本地媒体库目录后，系统会自动读取 metadata、封面，并支持转写和 AI 标签整理。"}
       </div>
 
       <div className="empty-actions">
-        {hasFilter ? (
+        {hasActiveFilter ? (
           <Button variant="filled" onClick={onClearFilters}>
             清空筛选
           </Button>
@@ -244,12 +228,11 @@ export default function AudioList({
   title,
   q,
   isLoading = false,
+  isRefreshing = false,
   loadError,
   onOpenSettings,
   onClearFilters,
-  missingDescriptionOnly,
-  hasTranscriptFilter,
-  missingFilter,
+  hasActiveFilter,
   items,
   totalCount,
   hasMore,
@@ -282,7 +265,10 @@ export default function AudioList({
   }
 
   return (
-    <section className="audio-list-panel" aria-busy={isLoading}>
+    <section
+      className="audio-list-panel"
+      aria-busy={isLoading || isRefreshing}
+    >
       {loadError && (
         <div className="list-error">
           <strong>列表加载失败</strong>
@@ -291,18 +277,17 @@ export default function AudioList({
         </div>
       )}
 
-      {isLoading && items.length > 0 && (
-        <div className="list-loading-bar">正在更新结果…</div>
+      {isRefreshing && (
+        <div className="list-refresh-indicator" aria-hidden="true">
+          <span />
+        </div>
       )}
 
       {isLoading && items.length === 0 && <ListSkeleton />}
 
       {!isLoading && !loadError && items.length === 0 && (
         <EmptyState
-          q={q}
-          missingDescriptionOnly={missingDescriptionOnly}
-          hasTranscriptFilter={hasTranscriptFilter}
-          missingFilter={missingFilter}
+          hasActiveFilter={hasActiveFilter}
           onOpenSettings={onOpenSettings}
           onClearFilters={onClearFilters}
         />

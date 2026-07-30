@@ -11,7 +11,6 @@ type UsePlaybackQueueParams = {
   audioItems: AudioItem[];
   setAudioItems: Dispatch<SetStateAction<AudioItem[]>>;
   setPlaylistItemsRaw: Dispatch<SetStateAction<AudioItem[]>>;
-  selected: AudioItem | null;
   setSelected: Dispatch<SetStateAction<AudioItem | null>>;
   notify: Notify;
 };
@@ -20,7 +19,6 @@ export function usePlaybackQueue({
   audioItems,
   setAudioItems,
   setPlaylistItemsRaw,
-  selected,
   setSelected,
   notify
 }: UsePlaybackQueueParams) {
