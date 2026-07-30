@@ -1,13 +1,13 @@
 .app-shell {
   height: 100vh;
+  height: 100dvh;
   min-width: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .main-shell {
-  flex: 1;
   min-width: 0;
   min-height: 0;
   display: grid;

@@ -65,8 +65,12 @@
   }
 
   .sidebar {
+    padding-block: 10px;
+  }
+
+  .sidebar-scroll-content {
     gap: 10px;
-    padding: 10px;
+    padding-inline: 10px;
   }
 
   .brand {
@@ -101,14 +105,6 @@
     display: none;
   }
 
-  .sidebar-section:not(.tag-section) .sidebar-scroll-area {
-    max-height: clamp(72px, 14vh, 124px);
-  }
-
-  .privacy-card {
-    display: none;
-  }
-
   .top-command-bar {
     padding-block: 12px;
   }
@@ -119,12 +115,6 @@
 
   .top-title-block p:not(.search-limit-warning) {
     display: none;
-  }
-}
-
-@media (max-height: 660px) {
-  .sidebar-nav {
-    max-height: 220px;
   }
 }
 

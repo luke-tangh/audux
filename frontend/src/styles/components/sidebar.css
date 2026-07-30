@@ -1,11 +1,20 @@
 .sidebar {
   min-height: 0;
+  overflow: hidden;
+  display: flex;
+  padding-block: 12px;
+}
+
+.sidebar-scroll-content {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px;
+  padding-inline: 12px;
 }
 
 .brand {
@@ -47,8 +56,7 @@
 .sidebar-nav {
   flex: 0 0 auto;
   min-height: 0;
-  max-height: clamp(220px, 34vh, 372px);
-  overflow: auto;
+  overflow: visible;
   display: grid;
   gap: 4px;
   padding: 2px 2px 2px 0;
@@ -128,15 +136,14 @@
 
 .sidebar-section:not(.tag-section) .sidebar-scroll-area {
   min-height: 0;
-  max-height: clamp(92px, 18vh, 180px);
-  overflow: auto;
+  overflow: visible;
   padding-right: 2px;
 }
 
 .tag-section {
-  flex: 1 1 0;
-  min-height: 124px;
-  overflow: hidden;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
 }
 
 .sidebar-section-heading {
@@ -178,15 +185,15 @@
 
 .sidebar-scroll-area,
 .tag-cloud-nav {
-  overflow: auto;
+  overflow: visible;
   display: grid;
   gap: 6px;
 }
 
 .tag-section .tag-cloud-nav {
-  height: 100%;
+  height: auto;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
@@ -253,6 +260,7 @@
   flex: 0 0 auto;
   display: grid;
   gap: 10px;
+  margin-top: auto;
   position: sticky;
   bottom: 0;
   z-index: 2;
@@ -274,19 +282,4 @@
 .settings-nav.active {
   color: var(--md-sys-color-on-primary-container);
   background: var(--md-sys-color-primary-container);
-}
-
-.privacy-card {
-  padding: 14px;
-  color: var(--md-sys-color-on-tertiary-container);
-  font-size: 12px;
-  line-height: 1.55;
-  border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-tertiary-container);
-}
-
-.privacy-card strong {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--md-sys-color-on-tertiary-container);
 }

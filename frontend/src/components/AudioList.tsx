@@ -171,7 +171,9 @@ function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <div className="empty-illustration">🎧</div>
+      <div className="empty-illustration" aria-hidden="true">
+        <MaterialIcon name="music_note" size={42} />
+      </div>
 
       <div className="empty-title">
         {hasActiveFilter ? "没有找到匹配的音频" : "还没有导入音频"}

@@ -46,6 +46,7 @@ export default function Sidebar(props: Props) {
 
   return (
     <aside className="sidebar">
+      <div className="sidebar-scroll-content">
       <div className="brand">
         <div className="brand-orb" aria-hidden="true">
           <MaterialIcon name="library_music" size={28} />
@@ -85,19 +86,6 @@ export default function Sidebar(props: Props) {
           <span>
             <strong>收藏</strong>
             <em>常听内容</em>
-          </span>
-        </Button>
-
-        <Button preserveChildren
-          type="button"
-          className={navClass(props.view === "missingDescription")}
-          aria-current={props.view === "missingDescription" ? "page" : undefined}
-          onClick={() => openView("missingDescription")}
-        >
-          <span className="nav-symbol"><MaterialIcon name="edit_note" size={22} /></span>
-          <span>
-            <strong>缺少描述</strong>
-            <em>需要整理</em>
           </span>
         </Button>
 
@@ -237,11 +225,7 @@ export default function Sidebar(props: Props) {
           <MaterialIcon name="settings" size={20} />
           <strong>设置中心</strong>
         </Button>
-
-        <div className="privacy-card">
-          <strong>本地优先</strong>
-          <span>音频文件保留在本机。只有你配置 AI endpoint 后，分析任务才会发送 metadata 与 transcript。</span>
-        </div>
+      </div>
       </div>
     </aside>
   );
