@@ -7,6 +7,8 @@
     "dev": "vite --host 127.0.0.1 --port 5173",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build",
+    "build:backend": "node scripts/build-backend.mjs",
+    "build:tauri": "npm run build:backend && npm run build",
     "preview": "vite preview",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",

@@ -163,6 +163,9 @@ def main():
 
     shutil.copy2(built, out_path)
 
+    if platform.system().lower() != "windows":
+        out_path.chmod(out_path.stat().st_mode | 0o111)
+
     print(f"Backend sidecar generated: {out_path}")
 
 
