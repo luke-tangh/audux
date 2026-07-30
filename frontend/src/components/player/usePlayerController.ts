@@ -89,21 +89,23 @@ export function usePlayerController({
       return;
     }
 
+    const activeAudio = currentAudio;
+    const audioElement = el;
     let canceled = false;
-    let startSeconds = currentAudio.last_position_seconds || 0;
+    let startSeconds = activeAudio.last_position_seconds || 0;
 
     endedAudioIdRef.current = null;
 
     const onLoadedMetadataOnce = () => {
       try {
-        el.currentTime = startSeconds;
+        audioElement.currentTime = startSeconds;
       } catch {
         // ignore
       }
     };
 
     async function prepareAndPlay() {
-      if (shouldPromptRestart(currentAudio)) {
+      if (shouldPromptRestart(activeAudio)) {
         const restart = await dialog.confirm({
           title: "从头播放？",
           message:
@@ -117,22 +119,22 @@ export function usePlayerController({
 
         if (restart) {
           startSeconds = 0;
-          void savePositionFor(currentAudio.id, 0).catch(console.error);
+          void savePositionFor(activeAudio.id, 0).catch(console.error);
         }
       }
 
       if (canceled) return;
 
-      el.src = api.audioFileUrl(currentAudio.id);
-      el.playbackRate = rate;
-      el.volume = volume;
+      audioElement.src = api.audioFileUrl(activeAudio.id);
+      audioElement.playbackRate = rate;
+      audioElement.volume = volume;
 
       setCurrent(startSeconds);
       setDuration(0);
 
-      el.addEventListener("loadedmetadata", onLoadedMetadataOnce, { once: true });
+      audioElement.addEventListener("loadedmetadata", onLoadedMetadataOnce, { once: true });
 
-      el.play()
+      audioElement.play()
         .then(() => {
           if (!canceled) setIsPlaying(true);
         })
@@ -146,13 +148,14 @@ export function usePlayerController({
 
     return () => {
       canceled = true;
-      el.removeEventListener("loadedmetadata", onLoadedMetadataOnce);
+      audioElement.removeEventListener("loadedmetadata", onLoadedMetadataOnce);
 
-      if (!currentAudio) return;
-      if (endedAudioIdRef.current === currentAudio.id) return;
+      if (endedAudioIdRef.current === activeAudio.id) return;
 
-      const latestPosition = Number.isFinite(el.currentTime) ? el.currentTime : startSeconds;
-      void savePositionFor(currentAudio.id, latestPosition).catch(console.error);
+      const latestPosition = Number.isFinite(audioElement.currentTime)
+        ? audioElement.currentTime
+        : startSeconds;
+      void savePositionFor(activeAudio.id, latestPosition).catch(console.error);
     };
   }, [audio?.id, dialog]);
 

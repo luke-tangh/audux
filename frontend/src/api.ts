@@ -86,8 +86,20 @@ export class ApiError extends Error {
   }
 }
 
-function readableErrorFromJson(value: any): string {
-  if (!value) return "";
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readableErrorFromJson(value: unknown): string {
+  if (!isJsonObject(value)) {
+    if (value === null || value === undefined) return "";
+
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return String(value);
+    }
+  }
 
   if (typeof value.detail === "string") {
     return value.detail;
@@ -96,7 +108,7 @@ function readableErrorFromJson(value: any): string {
   if (Array.isArray(value.detail)) {
     return value.detail
       .map((item) => {
-        if (typeof item?.msg === "string") return item.msg;
+        if (isJsonObject(item) && typeof item.msg === "string") return item.msg;
         return JSON.stringify(item);
       })
       .join("; ");
@@ -131,7 +143,8 @@ async function parseErrorResponse(resp: Response): Promise<ApiError> {
   try {
     const json = JSON.parse(text);
     const message = readableErrorFromJson(json) || `HTTP ${resp.status}`;
-    return new ApiError(message, resp.status, json.detail, text);
+    const detail = isJsonObject(json) ? json.detail : undefined;
+    return new ApiError(message, resp.status, detail, text);
   } catch {
     return new ApiError(text, resp.status, undefined, text);
   }
