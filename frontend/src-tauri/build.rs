@@ -45,19 +45,29 @@ fn ensure_dev_sidecar_placeholder() {
         return;
     };
 
+    println!("cargo:rerun-if-changed={}", path.display());
+
     if profile == "release" {
-        if path.exists() && file_starts_with(&path, DEV_PLACEHOLDER_MARKER) {
+        if !path.exists() {
             panic!(
-                "\nRelease sidecar is still a dev placeholder:\n  {}\n\n\
-                 Please build the real backend sidecar before running `tauri build`:\n\
-                 1. cd backend\n\
-                 2. python build_backend.py\n\
-                 3. cd ../frontend\n\
-                 4. npm run tauri:build\n",
+                "\nRelease sidecar is missing:\n  {}\n\n\
+                 Build it for the current platform before compiling Tauri directly:\n\
+                 cd frontend && npm run build:backend\n\n\
+                 `npm run tauri:build` performs this step automatically.\n",
                 path.display()
             );
         }
 
+        if file_starts_with(&path, DEV_PLACEHOLDER_MARKER) {
+            panic!(
+                "\nRelease sidecar is still a dev placeholder:\n  {}\n\n\
+                 Please build the real backend sidecar before running `tauri build`:\n\
+                 cd frontend && npm run build:backend\n",
+                path.display()
+            );
+        }
+
+        ensure_unix_executable(&path);
         return;
     }
 
@@ -99,6 +109,25 @@ fn ensure_dev_sidecar_placeholder() {
         path.display()
     );
 }
+
+#[cfg(unix)]
+fn ensure_unix_executable(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    if let Ok(metadata) = fs::metadata(path) {
+        let mut permissions = metadata.permissions();
+        let mode = permissions.mode();
+
+        if mode & 0o111 == 0 {
+            permissions.set_mode(mode | 0o111);
+            fs::set_permissions(path, permissions)
+                .expect("failed to make backend sidecar executable");
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn ensure_unix_executable(_path: &Path) {}
 
 fn main() {
     println!("cargo:rerun-if-env-changed=PROFILE");

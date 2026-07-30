@@ -276,19 +276,57 @@ frontend/src-tauri/binaries/local-audio-backend-<target-triple>
 
 ## 构建 Tauri 应用
 
+Linux（Ubuntu/Debian）需要先安装 Tauri 的系统依赖，以及 Linux 原生的
+Node.js、Rust 和 Python：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  libwebkit2gtk-4.1-dev \
+  libappindicator3-dev \
+  librsvg2-dev \
+  fonts-noto-cjk \
+  patchelf \
+  rpm
+
+rustup toolchain install stable
+```
+
+在 Linux 上安装前端依赖：
+
 ```bash
 cd frontend
+npm ci
+```
+
+然后直接构建：
+
+```bash
 npm run tauri:build
 ```
+
+`tauri:build` 会先调用当前平台的 Python，生成带正确 target triple 的
+backend sidecar，再构建前端和 Tauri 安装包。Python 的查找顺序为：
+
+1. `LOCAL_AUDIO_LIBRARY_PYTHON`
+2. 已激活的 `VIRTUAL_ENV`
+3. `backend/.venv`
+4. Windows 上的 `python` / `py -3`
+5. Linux 和 macOS 上的 `python3` / `python`
 
 Release 构建前请确认：
 
 1. 已安装 backend 依赖
 2. 如需打包 sidecar，已安装 PyInstaller
-3. 已运行 `python backend/build_backend.py`
-4. `frontend/src-tauri/binaries` 中不是 dev placeholder
-5. ASR 模型策略已确认：本地路径或用户自行下载
-6. LLM endpoint 不会意外指向不可信服务
+3. ASR 模型策略已确认：本地路径或用户自行下载
+4. LLM endpoint 不会意外指向不可信服务
+
+如果只想单独生成当前 Linux 平台的 sidecar，可以运行：
+
+```bash
+cd frontend
+npm run build:backend
+```
 
 ## 常见问题
 

@@ -19,6 +19,10 @@ body {
   font-family:
     Roboto,
     Inter,
+    "Noto Sans CJK SC",
+    "Noto Sans SC",
+    "Source Han Sans SC",
+    "WenQuanYi Micro Hei",
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -293,3 +297,24 @@ select option:disabled {
   letter-spacing: var(--md-sys-typescale-label-small-letter-spacing);
 }
 /* Theme backgrounds and typography utilities: end */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --md-sys-motion-duration-short: 0.01ms;
+    --md-sys-motion-duration-medium: 0.01ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+
+  button:active {
+    transform: none;
+  }
+}

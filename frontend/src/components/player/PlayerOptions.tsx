@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { AudioItem } from "../../types";
 import { Button, MaterialIcon, SelectField } from "../ui";
 import QueuePopover from "./QueuePopover";
@@ -34,14 +35,28 @@ export default function PlayerOptions({
   onQueueRemove,
   onQueueClear
 }: PlayerOptionsProps) {
-  function closeQueue() {
+  const queueToggleRef = useRef<HTMLButtonElement | null>(null);
+
+  function closeQueue(restoreFocus = false) {
     onQueueOpenChange(false);
+
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => {
+        queueToggleRef.current?.focus();
+      });
+    }
   }
 
   function selectQueueItem(index: number) {
     onQueueSelect(index);
-    closeQueue();
+    closeQueue(true);
   }
+
+  useEffect(() => {
+    if (queueOpen && queue.length === 0) {
+      closeQueue(true);
+    }
+  }, [queue.length, queueOpen]);
 
   return (
     <div className="player-options">
@@ -80,10 +95,11 @@ export default function PlayerOptions({
 
       <div className="queue-control">
         <Button
+          ref={queueToggleRef}
           preserveChildren
           type="button"
           className="queue-toggle-button"
-          aria-label="打开播放队列"
+          aria-label={queueOpen ? "关闭播放队列" : "打开播放队列"}
           aria-haspopup="dialog"
           aria-expanded={queueOpen}
           aria-controls="player-queue-popover"
@@ -97,12 +113,13 @@ export default function PlayerOptions({
           <QueuePopover
             queue={queue}
             queueIndex={queueIndex}
+            triggerRef={queueToggleRef}
             onClose={closeQueue}
             onSelect={selectQueueItem}
             onRemove={onQueueRemove}
             onClear={() => {
               onQueueClear();
-              closeQueue();
+              closeQueue(true);
             }}
           />
         )}
