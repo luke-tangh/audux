@@ -35,8 +35,8 @@ if (virtualEnv) {
 
 const projectVenvPython =
   platform() === "win32"
-    ? join(projectRoot, "backend", ".venv", "Scripts", "python.exe")
-    : join(projectRoot, "backend", ".venv", "bin", "python");
+    ? join(projectRoot, ".venv", "Scripts", "python.exe")
+    : join(projectRoot, ".venv", "bin", "python");
 
 if (existsSync(projectVenvPython)) {
   candidates.push({ command: projectVenvPython, args: [] });
@@ -87,7 +87,7 @@ for (const candidate of candidates) {
 console.error(
   [
     "No usable Python 3 executable was found.",
-    "Set LOCAL_AUDIO_LIBRARY_PYTHON to a Python executable, or create backend/.venv.",
+    "Set LOCAL_AUDIO_LIBRARY_PYTHON to a Python executable, or run `uv sync` at the project root.",
   ].join("\n"),
 );
 process.exit(1);

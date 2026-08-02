@@ -45,8 +45,8 @@ def ensure_pyinstaller_available():
         import PyInstaller  # noqa: F401
     except Exception as e:
         raise RuntimeError(
-            "PyInstaller is not installed. Install it before release build:\n"
-            "  python -m pip install pyinstaller"
+            "PyInstaller is not installed. Sync the build dependencies first:\n"
+            "  uv sync --locked --group build"
         ) from e
 
 
@@ -73,7 +73,8 @@ def build_with_asr() -> bool:
 
     To create a lite/smoke build without faster-whisper:
 
-        LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 python build_backend.py
+        LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 \\
+          uv run --locked --group build python backend/build_backend.py
     """
     value = os.getenv("LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR")
 
@@ -105,9 +106,10 @@ def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
                 "LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR is enabled, but faster-whisper "
                 "is not installed.\n\n"
                 "For full release build:\n"
-                "  python -m pip install -r requirements.txt\n\n"
+                "  uv sync --locked --extra asr --group build\n\n"
                 "For a lite build without embedded faster-whisper:\n"
-                "  LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 python build_backend.py"
+                "  LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 "
+                "uv run --locked --group build python backend/build_backend.py"
             )
 
         cmd.extend(
@@ -123,14 +125,19 @@ def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
             ]
         )
     else:
+        for module_name in ["faster_whisper", "ctranslate2", "tokenizers", "av"]:
+            cmd.extend(["--exclude-module", module_name])
+
         print(
             "Building backend sidecar WITHOUT embedded faster-whisper support. "
             "The external ASR provider remains available; faster_whisper tasks "
-            "will fail until faster-whisper is installed or a full sidecar is built."
+            "will fail in this lite sidecar. Build a full sidecar to enable them."
         )
 
     cmd.extend(
         [
+            "--collect-submodules",
+            "app",
             "--hidden-import",
             "sqlite3",
             "run.py",

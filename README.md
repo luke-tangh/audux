@@ -39,11 +39,13 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 
 ```txt
 .
+├── .python-version
+├── pyproject.toml
+├── uv.lock
 ├── backend
 │   ├── app
 │   ├── tests
 │   ├── build_backend.py
-│   ├── requirements.txt
 │   └── run.py
 ├── frontend
 │   ├── src
@@ -75,27 +77,21 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 
 ## 后端开发环境
 
-建议使用 Python 3.11+。
+后端使用 uv 管理 Python 3.12、项目虚拟环境和锁定依赖。先安装
+[uv](https://docs.astral.sh/uv/getting-started/installation/)，然后在仓库根目录执行：
 
 ```bash
-cd backend
+# 基础后端依赖
+uv sync --locked
 
-python -m venv .venv
-
-# macOS / Linux
-source .venv/bin/activate
-
-# Windows PowerShell
-# .venv\Scripts\Activate.ps1
-
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+# 如需内置 faster-whisper
+uv sync --locked --extra asr
 ```
 
-如果你已经有当前环境，并且 `pip list` 中已包含所需依赖，可以直接启动后端：
+uv 会在仓库根目录创建 `.venv`。不需要手动激活环境，直接启动后端：
 
 ```bash
-python run.py
+uv run --locked python backend/run.py
 ```
 
 默认监听：
@@ -314,7 +310,7 @@ LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS=1
 
 ```bash
 cd backend
-python -m unittest discover -s tests
+uv run --locked python -m unittest discover -s tests
 ```
 
 ## 构建前端
@@ -326,17 +322,10 @@ npm run build
 
 ## 构建后端 sidecar
 
-`build_backend.py` 需要 PyInstaller。如果当前环境没有安装 PyInstaller，可以单独安装：
+完整 sidecar 构建需要 PyInstaller 和内置 ASR 依赖。在仓库根目录执行：
 
 ```bash
-cd backend
-python -m pip install pyinstaller
-```
-
-然后构建 backend sidecar：
-
-```bash
-python build_backend.py
+uv run --locked --extra asr --group build python backend/build_backend.py
 ```
 
 该命令会生成：
@@ -357,7 +346,8 @@ frontend/src-tauri/binaries/local-audio-backend-<target-triple>
 和相关模型运行依赖的轻量 sidecar：
 
 ```bash
-LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 python build_backend.py
+LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 \
+  uv run --locked --group build python backend/build_backend.py
 ```
 
 该模式仍可使用 `external` Provider；只有 `faster_whisper` Provider 不可用。
@@ -400,14 +390,14 @@ backend sidecar，再构建前端和 Tauri 安装包。Python 的查找顺序为
 
 1. `LOCAL_AUDIO_LIBRARY_PYTHON`
 2. 已激活的 `VIRTUAL_ENV`
-3. `backend/.venv`
+3. 仓库根目录的 `.venv`
 4. Windows 上的 `python` / `py -3`
 5. Linux 和 macOS 上的 `python3` / `python`
 
 Release 构建前请确认：
 
-1. 已安装 backend 依赖
-2. 如需打包 sidecar，已安装 PyInstaller
+1. 已执行 `uv sync --locked --extra asr --group build`
+2. `uv.lock` 与 `pyproject.toml` 保持同步
 3. ASR 模型策略已确认：本地路径或用户自行下载
 4. LLM endpoint 不会意外指向不可信服务
 
@@ -445,15 +435,13 @@ POST / PUT / PATCH / DELETE 还需要本地客户端 header：
 ### 后端未启动
 
 ```bash
-cd backend
-python run.py
+uv run --locked python backend/run.py
 ```
 
 ### faster-whisper 未安装
 
 ```bash
-cd backend
-python -m pip install -r requirements.txt
+uv sync --locked --extra asr
 ```
 
 ### External ASR 任务失败
@@ -496,8 +484,8 @@ python -m pip install -r requirements.txt
 ```bash
 # backend
 cd backend
-python -m unittest discover -s tests
-python run.py
+uv run --locked python -m unittest discover -s tests
+uv run --locked python run.py
 
 # frontend
 cd frontend

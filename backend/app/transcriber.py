@@ -11,7 +11,7 @@ def _get_whisper_model(model_name: str, device: str, compute_type: str):
     except Exception as e:
         raise RuntimeError(
             "faster-whisper is not installed. "
-            "Please install it with: pip install faster-whisper"
+            "Sync the ASR dependencies with: uv sync --locked --extra asr"
         ) from e
 
     key = (model_name, device, compute_type)

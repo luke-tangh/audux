@@ -48,14 +48,12 @@ npm ci
 Backend:
 
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements-base.txt
+uv sync --locked
 ```
 
-Install `requirements.txt` only when ASR/faster-whisper behavior or a full release
-sidecar must be tested. It is substantially heavier than the base dependencies.
+Use `uv sync --locked --extra asr` when ASR/faster-whisper behavior must be
+tested. Use `uv sync --locked --extra asr --group build` for a full release
+sidecar. These environments are substantially heavier than the base dependencies.
 
 Linux Tauri development also requires WebKitGTK 4.1, AppIndicator, librsvg,
 patchelf, and a native Rust toolchain. Install `fonts-noto-cjk` when validating
@@ -69,8 +67,8 @@ Backend development and tests:
 
 ```bash
 cd backend
-python run.py
-python -m unittest discover -s tests
+uv run --locked python run.py
+uv run --locked python -m unittest discover -s tests
 ```
 
 Frontend development and verification:

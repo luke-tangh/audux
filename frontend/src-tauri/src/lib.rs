@@ -171,6 +171,20 @@ fn find_dev_python() -> std::path::PathBuf {
         }
     }
 
+    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let project_venv_python = if cfg!(windows) {
+        project_root
+            .join(".venv")
+            .join("Scripts")
+            .join("python.exe")
+    } else {
+        project_root.join(".venv").join("bin").join("python")
+    };
+
+    if project_venv_python.exists() {
+        return project_venv_python;
+    }
+
     if cfg!(windows) {
         PathBuf::from("python")
     } else {
@@ -240,10 +254,7 @@ fn start_backend_in_dev(app: &tauri::AppHandle) {
             eprintln!("  {} {}", python.display(), backend_script.display());
             eprintln!();
             eprintln!("If dependencies are missing, run:");
-            eprintln!(
-                "  {} -m pip install fastapi uvicorn sqlmodel sqlalchemy mutagen httpx python-multipart",
-                python.display()
-            );
+            eprintln!("  uv sync");
         }
     }
 }
