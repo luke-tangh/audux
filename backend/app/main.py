@@ -7,6 +7,7 @@ from .db import create_db_and_tables
 from .logger import setup_logging, get_logger
 from .scanner import recover_interrupted_scan_tasks
 from .tasks import start_worker_once
+from .version import APP_VERSION
 from .local_security import (
     ALLOW_ALL_CORS,
     LOCAL_ORIGIN_REGEX,
@@ -25,7 +26,7 @@ from .local_security import (
 setup_logging()
 logger = get_logger(__name__)
 
-app = FastAPI(title="Local Audio Library API", version="0.1.0")
+app = FastAPI(title="Local Audio Library API", version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,

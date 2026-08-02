@@ -4,8 +4,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 const SIDECAR_BASENAME: &str = "local-audio-backend";
-const DEV_PLACEHOLDER_MARKER: &[u8] =
-    b"LOCAL_AUDIO_LIBRARY_DEV_SIDECAR_PLACEHOLDER\n";
+const DEV_PLACEHOLDER_MARKER: &[u8] = b"LOCAL_AUDIO_LIBRARY_DEV_SIDECAR_PLACEHOLDER\n";
 
 fn target_sidecar_path() -> Option<PathBuf> {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").ok()?;
@@ -15,7 +14,11 @@ fn target_sidecar_path() -> Option<PathBuf> {
         return None;
     }
 
-    let exe_suffix = if target.contains("windows") { ".exe" } else { "" };
+    let exe_suffix = if target.contains("windows") {
+        ".exe"
+    } else {
+        ""
+    };
 
     Some(
         PathBuf::from(manifest_dir)

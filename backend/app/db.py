@@ -1,7 +1,14 @@
+import logging
+import sqlite3
 from pathlib import Path
-from datetime import datetime
 from sqlmodel import SQLModel, Session, create_engine
 from sqlalchemy import text, event
+
+from .time_utils import utc_now_iso
+
+
+logger = logging.getLogger(__name__)
+CURRENT_SCHEMA_VERSION = 6
 
 APP_DATA_DIR = Path.home() / ".local_audio_library"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -14,6 +21,9 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 EXPORTS_DIR = APP_DATA_DIR / "exports"
 EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+BACKUPS_DIR = APP_DATA_DIR / "backups"
+BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
 DB_PATH = APP_DATA_DIR / "database.sqlite"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -43,9 +53,101 @@ def get_session():
 
 
 def create_db_and_tables():
+    backup_path = prepare_database_for_migrations()
     SQLModel.metadata.create_all(engine)
     create_fts_tables()
     run_migrations()
+
+    if backup_path is not None:
+        logger.info("Database migration backup created: %s", backup_path)
+
+
+def _database_schema_state(path: Path) -> tuple[int | None, set[int]]:
+    """Return the highest and complete set of applied migration versions."""
+    if not path.exists() or path.stat().st_size == 0:
+        return None, set()
+
+    uri = f"file:{path.resolve().as_posix()}?mode=ro"
+
+    with sqlite3.connect(uri, uri=True) as conn:
+        user_table = conn.execute(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+            LIMIT 1
+            """
+        ).fetchone()
+
+        if user_table is None:
+            return None, set()
+
+        migrations_table = conn.execute(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table' AND name = 'schema_migrations'
+            """
+        ).fetchone()
+
+        if migrations_table is None:
+            return 0, set()
+
+        rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
+        applied_versions = {int(row[0]) for row in rows}
+        return max(applied_versions, default=0), applied_versions
+
+
+def _verified_sqlite_backup(source_path: Path, destination_path: Path):
+    temporary_path = destination_path.with_suffix(destination_path.suffix + ".tmp")
+
+    try:
+        with sqlite3.connect(source_path) as source:
+            with sqlite3.connect(temporary_path) as destination:
+                source.backup(destination)
+
+        with sqlite3.connect(temporary_path) as verification:
+            result = verification.execute("PRAGMA quick_check").fetchone()
+            if result is None or result[0] != "ok":
+                raise RuntimeError(f"Database backup verification failed: {result}")
+
+        temporary_path.replace(destination_path)
+
+        try:
+            destination_path.chmod(0o600)
+        except OSError:
+            logger.debug(
+                "Could not restrict database backup permissions: %s",
+                destination_path,
+            )
+    except Exception:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def prepare_database_for_migrations() -> Path | None:
+    """Create a verified backup before changing an existing database schema."""
+    schema_version, applied_versions = _database_schema_state(DB_PATH)
+    expected_versions = set(range(1, CURRENT_SCHEMA_VERSION + 1))
+
+    if schema_version is None or applied_versions == expected_versions:
+        return None
+
+    if schema_version > CURRENT_SCHEMA_VERSION:
+        raise RuntimeError(
+            "Database schema version "
+            f"{schema_version} is newer than this application supports "
+            f"({CURRENT_SCHEMA_VERSION}). Refusing to modify it."
+        )
+
+    BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = utc_now_iso().replace("-", "").replace(":", "").replace(".", "")
+    backup_path = BACKUPS_DIR / (
+        f"database.pre-migration-v{schema_version}-to-v{CURRENT_SCHEMA_VERSION}-"
+        f"{timestamp}Z.sqlite"
+    )
+    _verified_sqlite_backup(DB_PATH, backup_path)
+    return backup_path
 
 
 def create_fts_tables():
@@ -85,7 +187,7 @@ def _mark_migration_applied(conn, version: int, name: str):
         {
             "version": version,
             "name": name,
-            "applied_at": datetime.utcnow().isoformat(),
+            "applied_at": utc_now_iso(),
         },
     )
 
@@ -121,7 +223,7 @@ def _dedupe_active_ai_tasks(conn):
     保留每个 audio_id + task_type 下 id 最小的一条 active task，
     其余 active task 标记为 canceled，避免 CREATE UNIQUE INDEX 失败。
     """
-    now = datetime.utcnow().isoformat()
+    now = utc_now_iso()
 
     conn.execute(
         text(
@@ -151,7 +253,7 @@ def _dedupe_active_scan_tasks(conn):
     """
     创建 active scan task 唯一索引前，处理旧库里可能已经存在的同 root 重复扫描任务。
     """
-    now = datetime.utcnow().isoformat()
+    now = utc_now_iso()
 
     conn.execute(
         text(

@@ -112,7 +112,7 @@ jobs:
           retention-days: 7
 
   tauri-cargo-check:
-    name: Tauri cargo check
+    name: Tauri tests and cargo check
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -149,6 +149,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: frontend/src-tauri -> target
+
+      - name: Run Rust tests
+        run: cargo test --locked
 
       - name: Cargo check
         run: cargo check --locked

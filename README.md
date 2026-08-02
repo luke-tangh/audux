@@ -70,10 +70,16 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 ~/.local_audio_library/covers
 ~/.local_audio_library/logs
 ~/.local_audio_library/exports
+~/.local_audio_library/backups
 ~/.local_audio_library/local_api_token
 ```
 
 `local_api_token` 是后端自动生成的本地随机 API token，用于防止外部网页直接访问敏感接口。
+
+应用检测到数据库需要升级时，会先通过 SQLite backup API 创建经过
+`PRAGMA quick_check` 验证的完整备份。备份位于 `backups/`，文件名会注明升级前后
+schema 版本。备份失败时应用会停止升级，不会继续修改原数据库。较新版本数据库也
+不会被旧版本应用降级修改。
 
 ## 后端开发环境
 
@@ -400,6 +406,16 @@ Release 构建前请确认：
 2. `uv.lock` 与 `pyproject.toml` 保持同步
 3. ASR 模型策略已确认：本地路径或用户自行下载
 4. LLM endpoint 不会意外指向不可信服务
+
+## Release dry-run
+
+GitHub Actions 的 `Release` workflow 支持手动触发。手动运行会在 Linux、Windows
+和 macOS 构建完整安装包并保留 artifacts，但不会创建 GitHub Release。只有推送
+`v*.*.*` tag 才会发布 Release。
+
+发布 `v0.5.0-beta.1` 前，按照
+[`docs/release-checklist.md`](docs/release-checklist.md) 完成安装、升级、端口冲突、
+后端退出和 ASR smoke test。
 
 如果只想单独生成当前 Linux 平台的 sidecar，可以运行：
 

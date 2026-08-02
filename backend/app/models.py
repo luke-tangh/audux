@@ -1,10 +1,10 @@
 from typing import Optional
 from sqlmodel import SQLModel, Field
-from datetime import datetime
+from .time_utils import utc_now_iso
 
 
 def now_iso() -> str:
-    return datetime.utcnow().isoformat()
+    return utc_now_iso()
 
 
 class LibraryRoot(SQLModel, table=True):

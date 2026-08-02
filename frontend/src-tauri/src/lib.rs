@@ -1,6 +1,11 @@
 use std::net::TcpListener;
 use std::sync::Mutex;
 
+#[cfg(debug_assertions)]
+use std::io;
+#[cfg(debug_assertions)]
+use std::process::Child;
+
 use tauri::Manager;
 #[cfg(not(debug_assertions))]
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
@@ -9,6 +14,7 @@ const BACKEND_API_HOST: &str = "127.0.0.1";
 const BACKEND_PORT_ENV: &str = "LOCAL_AUDIO_LIBRARY_API_PORT";
 const DEFAULT_BACKEND_PORT: u16 = 8765;
 
+#[cfg(debug_assertions)]
 struct BackendProcess(Mutex<Option<std::process::Child>>);
 
 struct BackendConfig {
@@ -47,14 +53,31 @@ fn random_available_port() -> Option<u16> {
     Some(listener.local_addr().ok()?.port())
 }
 
-fn choose_backend_port() -> u16 {
-    let requested = requested_backend_port();
-
+fn choose_backend_port_for(requested: u16) -> u16 {
     if is_port_available(requested) {
         return requested;
     }
 
     random_available_port().unwrap_or(requested)
+}
+
+fn choose_backend_port() -> u16 {
+    choose_backend_port_for(requested_backend_port())
+}
+
+#[cfg(debug_assertions)]
+fn terminate_std_child(child: &mut Child) -> io::Result<()> {
+    if child.try_wait()?.is_some() {
+        return Ok(());
+    }
+
+    match child.kill() {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::InvalidInput => {}
+        Err(error) => return Err(error),
+    }
+
+    child.wait().map(|_| ())
 }
 
 #[tauri::command]
@@ -123,9 +146,10 @@ fn stop_backend_sidecar(app: &tauri::AppHandle) {
         };
 
         if let Some(mut child) = guard.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-            println!("Python backend process stopped.");
+            match terminate_std_child(&mut child) {
+                Ok(()) => println!("Python backend process stopped."),
+                Err(e) => eprintln!("Failed to stop Python backend process: {}", e),
+            }
         }
     }
 
@@ -140,7 +164,7 @@ fn stop_backend_sidecar(app: &tauri::AppHandle) {
             }
         };
 
-        if let Some(mut child) = guard.take() {
+        if let Some(child) = guard.take() {
             let _ = child.kill();
             println!("Backend sidecar stopped.");
         }
@@ -306,15 +330,17 @@ pub fn run() {
 
     let builder = tauri::Builder::default()
         .manage(backend_config)
-        .manage(BackendProcess(Mutex::new(None)))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init());
 
+    #[cfg(debug_assertions)]
+    let builder = builder.manage(BackendProcess(Mutex::new(None)));
+
     #[cfg(not(debug_assertions))]
     let builder = builder.manage(BackendSidecarProcess(Mutex::new(None)));
 
-    builder
+    let app = builder
         .invoke_handler(tauri::generate_handler![
             pick_audio_folder,
             pick_audio_file,
@@ -332,6 +358,63 @@ pub fn run() {
                 stop_backend_sidecar(&handle);
             }
         })
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    app.run(|app_handle, event| {
+        if matches!(
+            event,
+            tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
+        ) {
+            stop_backend_sidecar(app_handle);
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{choose_backend_port_for, terminate_std_child, BACKEND_API_HOST};
+    use std::net::TcpListener;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::Duration;
+
+    #[test]
+    fn backend_port_conflict_uses_an_available_fallback() {
+        let occupied = TcpListener::bind((BACKEND_API_HOST, 0)).unwrap();
+        let occupied_port = occupied.local_addr().unwrap().port();
+
+        let selected_port = choose_backend_port_for(occupied_port);
+
+        assert_ne!(selected_port, occupied_port);
+        assert!(selected_port > 0);
+    }
+
+    #[test]
+    fn spawned_backend_process_is_stopped_and_reaped() {
+        let test_executable = std::env::current_exe().unwrap();
+        let mut child = Command::new(test_executable)
+            .args([
+                "--exact",
+                "tests::backend_child_helper",
+                "--ignored",
+                "--nocapture",
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+
+        thread::sleep(Duration::from_millis(100));
+        assert!(child.try_wait().unwrap().is_none());
+
+        terminate_std_child(&mut child).unwrap();
+        assert!(child.try_wait().unwrap().is_some());
+    }
+
+    #[test]
+    #[ignore = "helper process for spawned_backend_process_is_stopped_and_reaped"]
+    fn backend_child_helper() {
+        thread::sleep(Duration::from_secs(30));
+    }
 }

@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -32,6 +31,7 @@ from ..scanner import (
 )
 from ..search import rebuild_audio_search_index, search_audio_ids_with_meta
 from ..tasks import get_active_task
+from ..time_utils import utc_timestamp_iso
 from .common import (
     AUDIO_MIME_TYPES,
     BUSY_AUDIO_TASK_STATUSES,
@@ -421,7 +421,7 @@ def relocate_audio_item(
     item.file_name = new_path.name
     item.file_ext = new_path.suffix.lower()
     item.file_size = stat.st_size
-    item.file_mtime = datetime.utcfromtimestamp(stat.st_mtime).isoformat()
+    item.file_mtime = utc_timestamp_iso(stat.st_mtime)
     item.file_hash = file_hash
     item.library_root_id = library_root_id
     item.is_missing = False

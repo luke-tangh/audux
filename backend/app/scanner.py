@@ -2,7 +2,6 @@ import base64
 import hashlib
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
 
 from sqlmodel import Session, select
 from mutagen import File as MutagenFile
@@ -11,6 +10,7 @@ from .db import COVERS_DIR, engine
 from .models import AudioItem, LibraryRoot, ScanTask, Setting, now_iso
 from .search import rebuild_audio_search_index
 from .logger import get_logger
+from .time_utils import utc_timestamp_iso
 
 logger = get_logger(__name__)
 
@@ -767,7 +767,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
             select(AudioItem).where(AudioItem.file_path == resolved)
         ).first()
 
-        mtime = datetime.utcfromtimestamp(stat.st_mtime).isoformat()
+        mtime = utc_timestamp_iso(stat.st_mtime)
 
         if existing:
             file_changed = _audio_file_changed(existing, stat, mtime)

@@ -2740,6 +2740,7 @@ MVP+ 完成标准：
 
 ## v0.5
 
+- Beta 发布加固：版本统一、数据库升级备份、迁移回归、Tauri 生命周期 smoke test
 - playlist rename / delete
 - LibraryRoot delete
 - tag merge

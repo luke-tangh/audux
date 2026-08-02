@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Local Audio Library",
-  "version": "0.1.0",
-  "identifier": "com.local.audio.library",
+  "version": "0.5.0-beta.1",
+  "identifier": "com.luketang.localaudiolibrary",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:5173",

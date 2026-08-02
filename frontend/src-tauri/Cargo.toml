@@ -1,8 +1,8 @@
 [package]
 name = "local-audio-library"
-version = "0.1.0"
+version = "0.5.0-beta.1"
 description = "Local Audio Library"
-authors = ["you"]
+authors = ["Luke Tang <Luke.TangH@outlook.com>"]
 edition = "2021"
 
 [lib]
