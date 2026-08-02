@@ -12,6 +12,7 @@ import type {
   PlaylistDetail,
   ScanTask,
   Tag,
+  TagMergeResult,
   Transcript
 } from "./types";
 
@@ -337,6 +338,15 @@ export const api = {
       body: JSON.stringify(payload)
     }),
 
+  deleteLibraryRoot: (id: number) =>
+    request<{
+      ok: boolean;
+      detached_audio_items: number;
+      removed_scan_tasks: number;
+    }>(`/library-roots/${id}`, {
+      method: "DELETE"
+    }),
+
   scanLibraryRoot: (id: number) =>
     request<ScanTask>(`/library-roots/${id}/scan`, {
       method: "POST"
@@ -465,6 +475,12 @@ export const api = {
       }
     ),
 
+  mergeTag: (sourceTagId: number, targetTagId: number) =>
+    request<TagMergeResult>(`/tags/${sourceTagId}/merge`, {
+      method: "POST",
+      body: JSON.stringify({ target_tag_id: targetTagId })
+    }),
+
   addTags: (audioId: number, tags: string[], source: "user" | "ai" | "system" = "user") =>
     request<Tag[]>(`/audio-items/${audioId}/tags`, {
       method: "POST",
@@ -531,6 +547,17 @@ export const api = {
       body: JSON.stringify({ name, description })
     }),
 
+  updatePlaylist: (playlistId: number, name: string) =>
+    request<Playlist>(`/playlists/${playlistId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name })
+    }),
+
+  deletePlaylist: (playlistId: number) =>
+    request<{ ok: boolean; removed_items: number }>(`/playlists/${playlistId}`, {
+      method: "DELETE"
+    }),
+
   addToPlaylist: (playlistId: number, audioId: number) =>
     request(`/playlists/${playlistId}/items`, {
       method: "POST",
@@ -582,6 +609,12 @@ export const api = {
     }),
 
   getTranscript: (audioId: number) => request<Transcript>(`/audio-items/${audioId}/transcript`),
+
+  updateTranscript: (audioId: number, fullText: string) =>
+    request<Transcript>(`/audio-items/${audioId}/transcript`, {
+      method: "PATCH",
+      body: JSON.stringify({ full_text: fullText })
+    }),
 
   transcriptExportUrl: (audioId: number, format: "txt" | "json" | "srt") =>
     appendAccessToken(

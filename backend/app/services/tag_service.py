@@ -75,6 +75,63 @@ def delete_tag(session: Session, tag_id: int, force: bool = False) -> dict:
     }
 
 
+def merge_tag(session: Session, source_tag_id: int, target_tag_id: int) -> dict:
+    if source_tag_id == target_tag_id:
+        raise ServiceError(400, "Source and target tags must be different")
+
+    source = session.get(Tag, source_tag_id)
+    if not source:
+        raise ServiceError(404, "Source tag not found")
+
+    target = session.get(Tag, target_tag_id)
+    if not target:
+        raise ServiceError(404, "Target tag not found")
+
+    source_links = session.exec(
+        select(AudioTag).where(AudioTag.tag_id == source_tag_id)
+    ).all()
+    target_audio_ids = set(
+        session.exec(
+            select(AudioTag.audio_id).where(AudioTag.tag_id == target_tag_id)
+        ).all()
+    )
+    affected_audio_ids = {link.audio_id for link in source_links}
+    created_links = 0
+
+    for link in source_links:
+        if link.audio_id not in target_audio_ids:
+            session.add(AudioTag(audio_id=link.audio_id, tag_id=target_tag_id))
+            created_links += 1
+
+        session.delete(link)
+
+        audio = session.get(AudioItem, link.audio_id)
+        if audio:
+            audio.updated_at = now_iso()
+            session.add(audio)
+
+    session.delete(source)
+    session.flush()
+
+    for audio_id in affected_audio_ids:
+        rebuild_audio_search_index(session, audio_id, commit=False)
+
+    session.commit()
+
+    logger.info(
+        "Tag merged source_id=%s target_id=%s affected_audio=%s",
+        source_tag_id,
+        target_tag_id,
+        len(affected_audio_ids),
+    )
+    return {
+        "ok": True,
+        "target_tag": target,
+        "affected_audio_items": len(affected_audio_ids),
+        "created_links": created_links,
+    }
+
+
 def add_tags_to_audio(
     session: Session,
     audio_id: int,

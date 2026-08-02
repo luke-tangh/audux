@@ -62,6 +62,7 @@ export default function App() {
     playPrevious,
     playNext,
     removeQueueItem,
+    moveQueueItem,
     clearQueue,
     handlePlaybackPositionSaved,
 
@@ -167,6 +168,7 @@ export default function App() {
         onNext={playNext}
         onQueueSelect={(index) => void playAudio(playbackQueue[index], playbackQueue)}
         onQueueRemove={(index) => void removeQueueItem(index)}
+        onQueueMove={moveQueueItem}
         onQueueClear={clearQueue}
         onPositionSaved={handlePlaybackPositionSaved}
       />

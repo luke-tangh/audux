@@ -9,11 +9,13 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 - 大资料库分页加载：前端按页加载音频，不再一次性拉取全库
 - metadata 读取：标题、作者、专辑、描述、时长、码率、采样率等
 - 内嵌封面提取与自定义封面上传
-- 播放器：播放队列、倍速、音量、播放位置记忆
-- 标签与播放列表管理
+- 播放器：播放队列拖拽 / 键盘排序、倍速、音量、播放位置记忆
+- 标签与播放列表管理：标签合并、Playlist 创建 / 重命名 / 删除
+- 媒体库目录可安全移除：保留磁盘文件和已有音频、标签、Playlist、Transcript 数据
 - Transcript：
   - faster-whisper 内置转写或外部本地 ASR 服务
   - transcript 时间轴
+  - 手动修订全文并同步更新搜索索引
   - TXT / JSON / SRT 导出
 - AI 整理：
   - OpenAI-compatible 本地或内网 LLM endpoint

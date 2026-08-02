@@ -120,13 +120,40 @@
 
 .settings-panel .root-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 10px;
   align-items: center;
   margin-top: 12px;
   padding: 14px;
   border-radius: var(--md-sys-shape-corner-large);
   background: var(--md-sys-color-surface-container);
+}
+
+.settings-panel .playlist-maintenance-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.settings-panel .playlist-maintenance-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container);
+}
+
+.settings-panel .playlist-maintenance-row strong,
+.settings-panel .playlist-maintenance-row span {
+  display: block;
+}
+
+.settings-panel .playlist-maintenance-row span {
+  margin-top: 3px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
 }
 
 .settings-panel .root-card.disabled {
@@ -248,6 +275,24 @@
 @media (max-width: 720px) {
   .settings-panel .settings-header-actions {
     justify-content: flex-start;
+  }
+
+  .settings-panel .settings-grid-layout,
+  .settings-panel .settings-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-panel .root-card > :first-child,
+  .settings-panel .playlist-maintenance-row > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .settings-panel .root-card {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .settings-panel .playlist-maintenance-row {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 }
 /* Settings header controls: end */

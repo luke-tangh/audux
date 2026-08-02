@@ -229,6 +229,40 @@ export default function DetailPanel({
     }
   }
 
+  async function saveTranscriptEdit(fullText: string): Promise<boolean> {
+    if (!transcript) return false;
+
+    if (transcript.segments.length > 0) {
+      const ok = await dialog.confirm({
+        title: "保存 Transcript 修订？",
+        message:
+          `当前 transcript 包含 ${transcript.segments.length} 个时间轴分段。` +
+          "保存全文修订后会清除这些分段，避免时间戳与文字不一致。",
+        confirmLabel: "保存并清除分段",
+        cancelLabel: "取消",
+        tone: "warning"
+      });
+
+      if (!ok) return false;
+    }
+
+    try {
+      const updated = await api.updateTranscript(audio!.id, fullText);
+      setTranscript(updated);
+      refresh();
+      notify?.(
+        updated.cleared_segments
+          ? `Transcript 已保存，并清除 ${updated.cleared_segments} 个旧分段`
+          : "Transcript 已保存",
+        "success"
+      );
+      return true;
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+      return false;
+    }
+  }
+
   async function analyze() {
     try {
       const settings = await api.listSettings();
@@ -496,6 +530,10 @@ export default function DetailPanel({
             onTranscribe={transcribe}
             onExportTranscript={exportTranscript}
             onJumpToSegment={jumpToSegment}
+            onSaveTranscript={saveTranscriptEdit}
+            canEdit={!["pending", "running", "cancel_requested"].includes(
+              audio.transcript_status
+            )}
           />
         )}
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from ..db import get_session
-from ..schemas import TranscriptCreate
+from ..schemas import TranscriptCreate, TranscriptUpdate
 from ..services import transcript_service
 from .utils import service_call
 
@@ -41,3 +41,17 @@ def save_transcript(
     session: Session = Depends(get_session),
 ):
     return service_call(transcript_service.save_transcript, session, audio_id, payload)
+
+
+@router.patch("/audio-items/{audio_id}/transcript")
+def update_transcript(
+    audio_id: int,
+    payload: TranscriptUpdate,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        transcript_service.update_transcript,
+        session,
+        audio_id,
+        payload.full_text,
+    )

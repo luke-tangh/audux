@@ -262,11 +262,34 @@
 
 .queue-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 34px;
+  grid-template-columns: 30px minmax(0, 1fr) 34px;
   gap: 7px;
   align-items: center;
   padding: 5px;
   border-radius: var(--md-sys-shape-corner-medium);
+}
+
+.queue-row.dragging {
+  opacity: 0.52;
+}
+
+.queue-row.drop-target {
+  box-shadow: inset 0 0 0 2px var(--md-sys-color-primary);
+}
+
+.queue-drag-handle {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  cursor: grab;
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+}
+
+.queue-drag-handle:active {
+  cursor: grabbing;
 }
 
 .queue-row:hover {

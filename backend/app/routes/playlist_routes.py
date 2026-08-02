@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from ..db import get_session
-from ..schemas import PlaylistCreate, PlaylistItemAdd, PlaylistItemsReorder
+from ..schemas import (
+    PlaylistCreate,
+    PlaylistItemAdd,
+    PlaylistItemsReorder,
+    PlaylistUpdate,
+)
 from ..services import playlist_service
 from .utils import service_call
 
@@ -23,6 +28,28 @@ def create_playlist(
 @router.get("/playlists")
 def list_playlists(session: Session = Depends(get_session)):
     return playlist_service.list_playlists(session)
+
+
+@router.patch("/playlists/{playlist_id}")
+def update_playlist(
+    playlist_id: int,
+    payload: PlaylistUpdate,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        playlist_service.update_playlist,
+        session,
+        playlist_id,
+        payload.name,
+    )
+
+
+@router.delete("/playlists/{playlist_id}")
+def delete_playlist(
+    playlist_id: int,
+    session: Session = Depends(get_session),
+):
+    return service_call(playlist_service.delete_playlist, session, playlist_id)
 
 
 @router.get("/playlists/{playlist_id}")

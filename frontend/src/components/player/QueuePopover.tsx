@@ -1,8 +1,10 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
-import type { FocusEvent, KeyboardEvent, RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { DragEvent, FocusEvent, KeyboardEvent, RefObject } from "react";
 import type { AudioItem } from "../../types";
 import { displayTitle } from "../../types";
 import { Button, MaterialIcon } from "../ui";
+
+const QUEUE_DRAG_TYPE = "application/x-local-audio-queue-index";
 
 type QueuePopoverProps = {
   queue: AudioItem[];
@@ -11,6 +13,7 @@ type QueuePopoverProps = {
   onClose: (restoreFocus?: boolean) => void;
   onSelect: (index: number) => void;
   onRemove: (index: number) => void;
+  onMove: (sourceIndex: number, targetIndex: number) => void;
   onClear: () => void;
 };
 
@@ -21,10 +24,13 @@ export default function QueuePopover({
   onClose,
   onSelect,
   onRemove,
+  onMove,
   onClear
 }: QueuePopoverProps) {
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const managedCurrentItemRef = useRef<HTMLElement | null>(null);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   useLayoutEffect(() => {
     const popover = popoverRef.current;
@@ -105,6 +111,29 @@ export default function QueuePopover({
     }
   }
 
+  function handleDragStart(event: DragEvent<HTMLButtonElement>, index: number) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData(QUEUE_DRAG_TYPE, String(index));
+    setDraggingIndex(index);
+    setDropIndex(index);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>, targetIndex: number) {
+    const transferredValue = event.dataTransfer.getData(QUEUE_DRAG_TYPE);
+    if (draggingIndex === null && transferredValue === "") return;
+
+    event.preventDefault();
+    const transferredIndex = Number(transferredValue);
+    const sourceIndex = draggingIndex ?? transferredIndex;
+
+    if (Number.isInteger(sourceIndex)) {
+      onMove(sourceIndex, targetIndex);
+    }
+
+    setDraggingIndex(null);
+    setDropIndex(null);
+  }
+
   return (
     <div
       ref={popoverRef}
@@ -136,10 +165,55 @@ export default function QueuePopover({
         <div className="queue-list" role="list">
           {queue.map((item, index) => (
             <div
-              key={`${item.id}-${index}`}
-              className={`queue-row ${index === queueIndex ? "active" : ""}`}
+              key={item.playlist_item_id ?? `${item.id}-${index}`}
+              className={[
+                "queue-row",
+                index === queueIndex ? "active" : "",
+                index === draggingIndex ? "dragging" : "",
+                index === dropIndex && index !== draggingIndex ? "drop-target" : ""
+              ].filter(Boolean).join(" ")}
               role="listitem"
+              onDragOver={(event) => {
+                if (
+                  draggingIndex === null &&
+                  !event.dataTransfer.types.includes(QUEUE_DRAG_TYPE)
+                ) {
+                  return;
+                }
+
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDropIndex(index);
+              }}
+              onDrop={(event) => handleDrop(event, index)}
             >
+              <Button
+                preserveChildren
+                type="button"
+                className="queue-drag-handle"
+                draggable
+                aria-label={`调整 ${displayTitle(item)} 的队列顺序`}
+                title="拖拽排序；也可使用上下方向键"
+                onDragStart={(event) => handleDragStart(event, index)}
+                onDragEnd={() => {
+                  setDraggingIndex(null);
+                  setDropIndex(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowUp" && index > 0) {
+                    event.preventDefault();
+                    onMove(index, index - 1);
+                  }
+
+                  if (event.key === "ArrowDown" && index < queue.length - 1) {
+                    event.preventDefault();
+                    onMove(index, index + 1);
+                  }
+                }}
+              >
+                <MaterialIcon name="drag_indicator" size={17} />
+              </Button>
+
               <Button
                 preserveChildren
                 type="button"

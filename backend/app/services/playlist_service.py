@@ -21,7 +21,11 @@ def create_playlist(
     name: str,
     description: Optional[str] = None,
 ) -> Playlist:
-    playlist = Playlist(name=name, description=description)
+    normalized_name = name.strip()
+    if not normalized_name:
+        raise ServiceError(400, "Playlist name is required")
+
+    playlist = Playlist(name=normalized_name, description=description)
     session.add(playlist)
     session.commit()
     session.refresh(playlist)
@@ -30,6 +34,46 @@ def create_playlist(
 
 def list_playlists(session: Session) -> list[Playlist]:
     return session.exec(select(Playlist).order_by(Playlist.created_at)).all()
+
+
+def update_playlist(
+    session: Session,
+    playlist_id: int,
+    name: str,
+) -> Playlist:
+    playlist = session.get(Playlist, playlist_id)
+    if not playlist:
+        raise ServiceError(404, "Playlist not found")
+
+    normalized_name = name.strip()
+    if not normalized_name:
+        raise ServiceError(400, "Playlist name is required")
+
+    playlist.name = normalized_name
+    playlist.updated_at = now_iso()
+    session.add(playlist)
+    session.commit()
+    session.refresh(playlist)
+    return playlist
+
+
+def delete_playlist(session: Session, playlist_id: int) -> dict:
+    playlist = session.get(Playlist, playlist_id)
+    if not playlist:
+        raise ServiceError(404, "Playlist not found")
+
+    items = session.exec(
+        select(PlaylistItem).where(PlaylistItem.playlist_id == playlist_id)
+    ).all()
+
+    for item in items:
+        session.delete(item)
+
+    session.flush()
+    session.delete(playlist)
+    session.commit()
+
+    return {"ok": True, "removed_items": len(items)}
 
 
 def get_playlist(

@@ -276,6 +276,16 @@
   background: var(--md-sys-color-surface-container);
 }
 
+.inspector-panel .transcript-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.inspector-panel .transcript-editor .ui-textarea-field {
+  min-height: 280px;
+  line-height: 1.65;
+}
+
 .inspector-panel .segment {
   display: grid;
   grid-template-columns: 82px minmax(0, 1fr);

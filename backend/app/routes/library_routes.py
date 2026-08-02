@@ -40,6 +40,14 @@ def update_library_root(
     )
 
 
+@router.delete("/library-roots/{root_id}")
+def delete_library_root(
+    root_id: int,
+    session: Session = Depends(get_session),
+):
+    return service_call(library_service.delete_library_root, session, root_id)
+
+
 @router.post("/library-roots/{root_id}/scan")
 def scan_root(
     root_id: int,

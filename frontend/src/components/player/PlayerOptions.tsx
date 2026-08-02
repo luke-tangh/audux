@@ -19,6 +19,7 @@ type PlayerOptionsProps = {
   onQueueOpenChange: (value: boolean | ((current: boolean) => boolean)) => void;
   onQueueSelect: (index: number) => void;
   onQueueRemove: (index: number) => void;
+  onQueueMove: (sourceIndex: number, targetIndex: number) => void;
   onQueueClear: () => void;
 };
 
@@ -33,6 +34,7 @@ export default function PlayerOptions({
   onQueueOpenChange,
   onQueueSelect,
   onQueueRemove,
+  onQueueMove,
   onQueueClear
 }: PlayerOptionsProps) {
   const queueToggleRef = useRef<HTMLButtonElement | null>(null);
@@ -117,6 +119,7 @@ export default function PlayerOptions({
             onClose={closeQueue}
             onSelect={selectQueueItem}
             onRemove={onQueueRemove}
+            onMove={onQueueMove}
             onClear={() => {
               onQueueClear();
               closeQueue(true);

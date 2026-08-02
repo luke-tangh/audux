@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from ..logger import get_logger
-from ..models import LibraryRoot, ScanTask, now_iso
+from ..models import AudioItem, LibraryRoot, ScanTask, now_iso
 from ..scanner import scan_library_root
 from .common import ServiceError, _get_active_scan_task, _is_unique_constraint_error
 
@@ -55,6 +55,50 @@ def update_library_root(
 
     logger.info("Library root updated id=%s enabled=%s", root.id, root.is_enabled)
     return root
+
+
+def delete_library_root(session: Session, root_id: int) -> dict:
+    root = session.get(LibraryRoot, root_id)
+    if not root:
+        raise ServiceError(404, "Library root not found")
+
+    active_task = _get_active_scan_task(session, root_id)
+    if active_task:
+        raise ServiceError(
+            409,
+            "Cancel or finish the active scan task before removing this library root",
+        )
+
+    audio_items = session.exec(
+        select(AudioItem).where(AudioItem.library_root_id == root_id)
+    ).all()
+    scan_tasks = session.exec(
+        select(ScanTask).where(ScanTask.root_id == root_id)
+    ).all()
+
+    for audio in audio_items:
+        audio.library_root_id = None
+        audio.updated_at = now_iso()
+        session.add(audio)
+
+    for task in scan_tasks:
+        session.delete(task)
+
+    session.flush()
+    session.delete(root)
+    session.commit()
+
+    logger.info(
+        "Library root removed id=%s detached_audio=%s removed_scan_tasks=%s",
+        root_id,
+        len(audio_items),
+        len(scan_tasks),
+    )
+    return {
+        "ok": True,
+        "detached_audio_items": len(audio_items),
+        "removed_scan_tasks": len(scan_tasks),
+    }
 
 
 def create_scan_task(session: Session, root_id: int) -> ScanTask:

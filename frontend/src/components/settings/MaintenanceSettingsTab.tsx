@@ -8,6 +8,7 @@ type MaintenanceSettingsTabProps = {
   onCleanupTags: () => void;
   onLoadTags: () => void;
   onRenameTag: (tag: Tag) => void;
+  onMergeTag: (tag: Tag) => void;
   onDeleteTag: (tag: Tag) => void;
 };
 
@@ -17,6 +18,7 @@ export default function MaintenanceSettingsTab({
   onCleanupTags,
   onLoadTags,
   onRenameTag,
+  onMergeTag,
   onDeleteTag
 }: MaintenanceSettingsTabProps) {
   return (
@@ -50,7 +52,7 @@ export default function MaintenanceSettingsTab({
           </>
         }
       >
-        <p className="muted">可重命名标签，或清理没有关联任何音频的 orphan tags。</p>
+        <p className="muted">可重命名、合并标签，或清理没有关联任何音频的 orphan tags。</p>
 
         {maintenanceTags.length === 0 && <p className="muted">暂无标签</p>}
 
@@ -66,6 +68,15 @@ export default function MaintenanceSettingsTab({
                 onClick={() => onRenameTag(tag)}
               >
                 重命名
+              </Button>
+              <Button
+                preserveChildren
+                className="tag-text-action"
+                size="sm"
+                variant="text"
+                onClick={() => onMergeTag(tag)}
+              >
+                合并
               </Button>
               <Button
                 preserveChildren

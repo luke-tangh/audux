@@ -143,6 +143,36 @@ export function usePlaybackQueue({
     notify("播放队列已清空", "info");
   }
 
+  function moveQueueItem(sourceIndex: number, targetIndex: number) {
+    if (
+      sourceIndex < 0 ||
+      targetIndex < 0 ||
+      sourceIndex >= playbackQueue.length ||
+      targetIndex >= playbackQueue.length ||
+      sourceIndex === targetIndex
+    ) {
+      return;
+    }
+
+    const nextQueue = [...playbackQueue];
+    const [moved] = nextQueue.splice(sourceIndex, 1);
+    nextQueue.splice(targetIndex, 0, moved);
+
+    let nextPlayingIndex = playingIndex;
+
+    if (sourceIndex === playingIndex) {
+      nextPlayingIndex = targetIndex;
+    } else if (sourceIndex < playingIndex && targetIndex >= playingIndex) {
+      nextPlayingIndex = playingIndex - 1;
+    } else if (sourceIndex > playingIndex && targetIndex <= playingIndex) {
+      nextPlayingIndex = playingIndex + 1;
+    }
+
+    setPlaybackQueue(nextQueue);
+    setPlayingIndex(nextPlayingIndex);
+    notify("播放队列顺序已更新", "success");
+  }
+
   function handleAudioDeleted(audioId: number) {
     setSelected((prev) => (prev?.id === audioId ? null : prev));
 
@@ -184,6 +214,7 @@ export function usePlaybackQueue({
     playPrevious,
     playNext,
     removeQueueItem,
+    moveQueueItem,
     clearQueue,
     handlePlaybackPositionSaved,
     handleAudioDeleted

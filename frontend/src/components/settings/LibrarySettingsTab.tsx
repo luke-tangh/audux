@@ -1,4 +1,4 @@
-import type { LibraryRoot, ScanTask } from "../../types";
+import type { LibraryRoot, Playlist, ScanTask } from "../../types";
 import { Button, CheckboxField, PanelCard, TextField } from "../ui";
 import { scanProgress } from "./settingsUtils";
 
@@ -8,14 +8,18 @@ type LibrarySettingsTabProps = {
   path: string;
   scanResult: string;
   playlistName: string;
+  playlists: Playlist[];
   onPathChange: (value: string) => void;
   onChooseFolder: () => void;
   onAddRoot: () => void;
   onToggleRoot: (root: LibraryRoot, isEnabled: boolean) => void;
+  onRemoveRoot: (root: LibraryRoot) => void;
   onScan: (rootId: number) => void;
   onCancelScan: (task: ScanTask) => void;
   onPlaylistNameChange: (value: string) => void;
   onCreatePlaylist: () => void;
+  onRenamePlaylist: (playlist: Playlist) => void;
+  onDeletePlaylist: (playlist: Playlist) => void;
 };
 
 export default function LibrarySettingsTab({
@@ -24,14 +28,18 @@ export default function LibrarySettingsTab({
   path,
   scanResult,
   playlistName,
+  playlists,
   onPathChange,
   onChooseFolder,
   onAddRoot,
   onToggleRoot,
+  onRemoveRoot,
   onScan,
   onCancelScan,
   onPlaylistNameChange,
-  onCreatePlaylist
+  onCreatePlaylist,
+  onRenamePlaylist,
+  onDeletePlaylist
 }: LibrarySettingsTabProps) {
   return (
     <div className="settings-grid-layout">
@@ -71,6 +79,10 @@ export default function LibrarySettingsTab({
 
             <Button variant="text" onClick={() => onScan(root.id)}>
               扫描
+            </Button>
+
+            <Button variant="danger" onClick={() => onRemoveRoot(root)}>
+              移除
             </Button>
           </div>
         ))}
@@ -129,6 +141,26 @@ export default function LibrarySettingsTab({
           <Button variant="filled" onClick={onCreatePlaylist}>
             创建
           </Button>
+        </div>
+
+        {playlists.length === 0 && <p className="muted">暂无 Playlist。</p>}
+
+        <div className="playlist-maintenance-list">
+          {playlists.map((playlist) => (
+            <div key={playlist.id} className="playlist-maintenance-row">
+              <div>
+                <strong>{playlist.name}</strong>
+                {playlist.description && <span>{playlist.description}</span>}
+              </div>
+
+              <Button variant="text" onClick={() => onRenamePlaylist(playlist)}>
+                重命名
+              </Button>
+              <Button variant="danger" onClick={() => onDeletePlaylist(playlist)}>
+                删除
+              </Button>
+            </div>
+          ))}
         </div>
       </PanelCard>
     </div>

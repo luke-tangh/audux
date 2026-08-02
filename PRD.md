@@ -1694,6 +1694,16 @@ PATCH /library-roots/{root_id}
 
 ---
 
+### 移除媒体库目录
+
+```http
+DELETE /library-roots/{root_id}
+```
+
+仅移除目录配置及其扫描历史；磁盘文件和已有音频、标签、Playlist、Transcript 数据保留。存在进行中的扫描任务时拒绝移除。
+
+---
+
 ### 异步扫描媒体库
 
 ```http
@@ -1873,6 +1883,22 @@ DELETE /tags/{tag_id}?force=false
 
 ---
 
+### 合并标签
+
+```http
+POST /tags/{source_tag_id}/merge
+```
+
+```json
+{
+  "target_tag_id": 8
+}
+```
+
+合并会去重音频关联、删除源标签，并在同一事务中更新受影响音频的全文搜索索引。
+
+---
+
 ### 添加标签到音频
 
 ```http
@@ -1918,6 +1944,17 @@ POST /playlists
 ```http
 GET /playlists
 ```
+
+---
+
+### 重命名 / 删除 playlist
+
+```http
+PATCH  /playlists/{playlist_id}
+DELETE /playlists/{playlist_id}
+```
+
+删除 playlist 只删除列表及其排序项，不删除音频。
 
 ---
 
@@ -1997,6 +2034,22 @@ GET /audio-items/{audio_id}/transcript
 ```http
 POST /audio-items/{audio_id}/transcript
 ```
+
+---
+
+### 修订 transcript 全文
+
+```http
+PATCH /audio-items/{audio_id}/transcript
+```
+
+```json
+{
+  "full_text": "手动修订后的全文"
+}
+```
+
+保存手动全文时清除旧时间轴分段，避免时间戳与文字不一致，并同步更新全文搜索索引。转写任务进行中时拒绝编辑。
 
 ---
 
@@ -2740,12 +2793,12 @@ MVP+ 完成标准：
 
 ## v0.5
 
-- Beta 发布加固：版本统一、数据库升级备份、迁移回归、Tauri 生命周期 smoke test
-- playlist rename / delete
-- LibraryRoot delete
-- tag merge
-- transcript 编辑能力
-- 更完整的播放队列拖拽排序
+- [x] 第一阶段：Beta 发布加固，包括版本统一、数据库升级备份、迁移回归、Tauri 生命周期 smoke test
+- [x] 第二阶段：playlist rename / delete
+- [x] 第二阶段：非破坏性 LibraryRoot delete
+- [x] 第二阶段：tag merge 与搜索索引同步
+- [x] 第二阶段：transcript 全文编辑能力
+- [x] 第二阶段：播放队列拖拽排序与键盘无障碍排序
 
 ---
 

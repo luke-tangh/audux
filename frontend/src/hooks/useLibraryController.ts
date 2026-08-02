@@ -415,6 +415,7 @@ export function useLibraryController() {
     playPrevious: playback.playPrevious,
     playNext: playback.playNext,
     removeQueueItem: playback.removeQueueItem,
+    moveQueueItem: playback.moveQueueItem,
     clearQueue: playback.clearQueue,
     handlePlaybackPositionSaved: playback.handlePlaybackPositionSaved,
 

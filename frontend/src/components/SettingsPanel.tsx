@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, asrEndpointPrivacyWarning, endpointPrivacyWarning } from "../api";
-import type { LibraryRoot, ScanTask, Tag } from "../types";
+import type { LibraryRoot, Playlist, ScanTask, Tag } from "../types";
 import { pickAudioFolder } from "../tauri";
 import TaskPanel from "./TaskPanel";
 import { PanelCard, Tabs } from "./ui";
@@ -31,6 +31,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [path, setPath] = useState("");
   const [scanResult, setScanResult] = useState("");
   const [playlistName, setPlaylistName] = useState("");
+  const [settingsPlaylists, setSettingsPlaylists] = useState<Playlist[]>([]);
   const [maintenanceTags, setMaintenanceTags] = useState<Tag[]>([]);
 
   const [asrProvider, setAsrProvider] = useState("faster_whisper");
@@ -125,16 +126,18 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.health();
       setBackendStatus("ok");
 
-      const [rootRows, settings, scanRows, tagRows] = await Promise.all([
+      const [rootRows, settings, scanRows, tagRows, playlistRows] = await Promise.all([
         api.listLibraryRoots(),
         api.listSettings(),
         api.listScanTasks({ limit: 20 }),
-        api.listTags().catch(() => [])
+        api.listTags().catch(() => []),
+        api.listPlaylists().catch(() => [])
       ]);
 
       setRoots(rootRows);
       applyScanTasks(scanRows, false);
       setMaintenanceTags(tagRows);
+      setSettingsPlaylists(playlistRows);
 
       setAsrProvider(
         settings.find((setting) => setting.key === "asr.provider")?.value ||
@@ -245,6 +248,33 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     }
   }
 
+  async function removeRoot(root: LibraryRoot) {
+    const ok = await dialog.confirm({
+      title: "移除媒体库目录？",
+      message:
+        `确认移除「${root.path}」？\n\n` +
+        "音频文件和数据库中的音频、标签、playlist、transcript 都会保留；该目录的扫描历史会删除。",
+      confirmLabel: "移除目录",
+      cancelLabel: "取消",
+      tone: "danger",
+      destructive: true
+    });
+
+    if (!ok) return;
+
+    try {
+      const result = await api.deleteLibraryRoot(root.id);
+      await load();
+      refresh();
+      notify?.(
+        `目录已移除，保留 ${result.detached_audio_items} 条音频记录`,
+        "success"
+      );
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
   async function scan(id: number) {
     try {
       setScanResult("已创建扫描任务...");
@@ -289,6 +319,57 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await load();
 
       notify?.("Playlist 已创建", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function renamePlaylist(playlist: Playlist) {
+    const name = await dialog.prompt({
+      title: "重命名 Playlist",
+      message: `为「${playlist.name}」输入新的名称。`,
+      inputLabel: "Playlist 名称",
+      defaultValue: playlist.name,
+      required: true,
+      confirmLabel: "保存",
+      cancelLabel: "取消",
+      validate: (value) => {
+        const trimmed = value.trim();
+        if (!trimmed) return "Playlist 名称不能为空";
+        if (trimmed === playlist.name) return "请输入不同的名称";
+        return null;
+      }
+    });
+
+    if (name === null) return;
+
+    try {
+      await api.updatePlaylist(playlist.id, name.trim());
+      await load();
+      refresh();
+      notify?.("Playlist 已重命名", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function deletePlaylist(playlist: Playlist) {
+    const ok = await dialog.confirm({
+      title: "删除 Playlist？",
+      message: `确认删除「${playlist.name}」？\n\n只会删除播放列表及其排序，不会删除任何音频。`,
+      confirmLabel: "删除 Playlist",
+      cancelLabel: "取消",
+      tone: "danger",
+      destructive: true
+    });
+
+    if (!ok) return;
+
+    try {
+      const result = await api.deletePlaylist(playlist.id);
+      await load();
+      refresh();
+      notify?.(`Playlist 已删除，移除 ${result.removed_items} 个列表项`, "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -477,6 +558,45 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     }
   }
 
+  async function mergeTag(tag: Tag) {
+    const targetName = await dialog.prompt({
+      title: "合并标签",
+      message: `把 #${tag.name} 的全部音频关联合并到另一个现有标签。源标签随后会删除。`,
+      inputLabel: "目标标签名称",
+      placeholder: "输入现有标签的完整名称",
+      required: true,
+      confirmLabel: "合并",
+      cancelLabel: "取消",
+      tone: "warning",
+      validate: (value) => {
+        const normalized = value.trim();
+        if (normalized === tag.name) return "源标签和目标标签必须不同";
+        if (!maintenanceTags.some((candidate) => candidate.name === normalized)) {
+          return "目标标签不存在，请输入现有标签的完整名称";
+        }
+        return null;
+      }
+    });
+
+    if (targetName === null) return;
+    const target = maintenanceTags.find(
+      (candidate) => candidate.name === targetName.trim()
+    );
+    if (!target) return;
+
+    try {
+      const result = await api.mergeTag(tag.id, target.id);
+      await loadTags();
+      refresh();
+      notify?.(
+        `已将 #${tag.name} 合并到 #${result.target_tag.name}，影响 ${result.affected_audio_items} 条音频`,
+        "success"
+      );
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
   async function cleanupTags() {
     const ok = await dialog.confirm({
       title: "清理未使用标签？",
@@ -532,14 +652,18 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             path={path}
             scanResult={scanResult}
             playlistName={playlistName}
+            playlists={settingsPlaylists}
             onPathChange={setPath}
             onChooseFolder={chooseFolder}
             onAddRoot={addRoot}
             onToggleRoot={toggleRoot}
+            onRemoveRoot={removeRoot}
             onScan={scan}
             onCancelScan={cancelScan}
             onPlaylistNameChange={setPlaylistName}
             onCreatePlaylist={createPlaylist}
+            onRenamePlaylist={renamePlaylist}
+            onDeletePlaylist={deletePlaylist}
           />
         )}
 
@@ -612,6 +736,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onCleanupTags={cleanupTags}
             onLoadTags={loadTags}
             onRenameTag={renameTag}
+            onMergeTag={mergeTag}
             onDeleteTag={deleteTag}
           />
         )}

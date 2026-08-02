@@ -14,6 +14,7 @@ type Props = {
   onNext: () => void;
   onQueueSelect: (index: number) => void;
   onQueueRemove: (index: number) => void;
+  onQueueMove: (sourceIndex: number, targetIndex: number) => void;
   onQueueClear: () => void;
   onPositionSaved: (audioId: number, position: number) => void;
 };
@@ -28,6 +29,7 @@ export default function PlayerBar({
   onNext,
   onQueueSelect,
   onQueueRemove,
+  onQueueMove,
   onQueueClear,
   onPositionSaved
 }: Props) {
@@ -80,6 +82,7 @@ export default function PlayerBar({
         onQueueOpenChange={player.setQueueOpen}
         onQueueSelect={onQueueSelect}
         onQueueRemove={onQueueRemove}
+        onQueueMove={onQueueMove}
         onQueueClear={onQueueClear}
       />
     </footer>

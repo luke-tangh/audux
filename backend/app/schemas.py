@@ -36,9 +36,17 @@ class TagUpdate(BaseModel):
     name: Optional[str] = None
 
 
+class TagMergeRequest(BaseModel):
+    target_tag_id: int
+
+
 class PlaylistCreate(BaseModel):
     name: str
     description: Optional[str] = None
+
+
+class PlaylistUpdate(BaseModel):
+    name: str
 
 
 class PlaylistItemAdd(BaseModel):
@@ -61,6 +69,10 @@ class TranscriptCreate(BaseModel):
     full_text: str
     model_name: Optional[str] = None
     segments: List[TranscriptSegmentCreate] = Field(default_factory=list)
+
+
+class TranscriptUpdate(BaseModel):
+    full_text: str
 
 
 class SettingUpdate(BaseModel):

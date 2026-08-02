@@ -13,6 +13,13 @@ export type Tag = {
   created_at: string;
 };
 
+export type TagMergeResult = {
+  ok: boolean;
+  target_tag: Tag;
+  affected_audio_items: number;
+  created_links: number;
+};
+
 export type SearchHit = {
   field: "title" | "author" | "description" | "tags" | "transcript" | string;
   label: string;
@@ -131,6 +138,7 @@ export type Transcript = {
     end_seconds: number;
     text: string;
   }[];
+  cleared_segments?: number;
 };
 
 export type AITask = {

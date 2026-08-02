@@ -208,4 +208,43 @@ test.describe("MD3 accessibility behavior", () => {
 
     await expect(page.getByRole("dialog", { name: "播放队列" })).toBeHidden();
   });
+
+  test("reorders the playback queue without changing the playing item", async ({
+    page
+  }) => {
+    await mockLibraryApi(page);
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "播放 测试音频 1" }).click();
+    await page.getByRole("button", { name: "打开播放队列" }).click();
+
+    const queueTitles = page.locator("#player-queue-popover .queue-title");
+    await expect(queueTitles).toHaveText(["测试音频 1", "测试音频 2"]);
+    const currentQueueItem = page.locator(
+      '#player-queue-popover .queue-row-main[aria-current="true"]'
+    );
+    const playingTitle = await currentQueueItem.locator(".queue-title").innerText();
+
+    const firstHandle = page.getByRole("button", {
+      name: "调整 测试音频 1 的队列顺序"
+    });
+    await firstHandle.focus();
+    await firstHandle.press("ArrowDown");
+
+    await expect(queueTitles).toHaveText(["测试音频 2", "测试音频 1"]);
+    await expect(currentQueueItem).toContainText(playingTitle);
+
+    const movedHandle = page.getByRole("button", {
+      name: "调整 测试音频 1 的队列顺序"
+    });
+    const firstRow = page.locator("#player-queue-popover .queue-row").first();
+    const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+
+    await movedHandle.dispatchEvent("dragstart", { dataTransfer });
+    await firstRow.dispatchEvent("dragover", { dataTransfer });
+    await firstRow.dispatchEvent("drop", { dataTransfer });
+    await movedHandle.dispatchEvent("dragend", { dataTransfer });
+
+    await expect(queueTitles).toHaveText(["测试音频 1", "测试音频 2"]);
+  });
 });

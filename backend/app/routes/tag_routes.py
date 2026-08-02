@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from ..db import get_session
-from ..schemas import TagUpdate, TagsAddRequest
+from ..schemas import TagMergeRequest, TagUpdate, TagsAddRequest
 from ..services import tag_service
 from .utils import service_call
 
@@ -31,6 +31,20 @@ def delete_tag(
     session: Session = Depends(get_session),
 ):
     return service_call(tag_service.delete_tag, session, tag_id, force)
+
+
+@router.post("/tags/{tag_id}/merge")
+def merge_tag(
+    tag_id: int,
+    payload: TagMergeRequest,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        tag_service.merge_tag,
+        session,
+        tag_id,
+        payload.target_tag_id,
+    )
 
 
 @router.post("/audio-items/{audio_id}/tags")

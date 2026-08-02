@@ -226,3 +226,57 @@ def save_transcript(session: Session, audio_id: int, payload) -> Transcript:
     rebuild_audio_search_index(session, audio_id)
 
     return transcript
+
+
+def update_transcript(session: Session, audio_id: int, full_text: str) -> dict:
+    audio = session.get(AudioItem, audio_id)
+    if not audio:
+        raise ServiceError(404, "Audio not found")
+
+    if audio.transcript_status in BUSY_AUDIO_TASK_STATUSES:
+        raise ServiceError(409, "Transcript cannot be edited while transcription is active")
+
+    transcript = session.exec(
+        select(Transcript).where(Transcript.audio_id == audio_id)
+    ).first()
+    if not transcript:
+        raise ServiceError(404, "Transcript not found")
+
+    normalized_text = full_text.strip()
+    if not normalized_text:
+        raise ServiceError(400, "Transcript text is required")
+
+    segments = session.exec(
+        select(TranscriptSegment).where(
+            TranscriptSegment.transcript_id == transcript.id
+        )
+    ).all()
+
+    if normalized_text == transcript.full_text:
+        return {
+            "transcript": transcript,
+            "segments": segments,
+            "cleared_segments": 0,
+        }
+
+    for segment in segments:
+        session.delete(segment)
+
+    transcript.full_text = normalized_text
+    transcript.updated_at = now_iso()
+    session.add(transcript)
+
+    audio.transcript_status = "done"
+    audio.updated_at = now_iso()
+    session.add(audio)
+    session.flush()
+
+    rebuild_audio_search_index(session, audio_id, commit=False)
+    session.commit()
+    session.refresh(transcript)
+
+    return {
+        "transcript": transcript,
+        "segments": [],
+        "cleared_segments": len(segments),
+    }
