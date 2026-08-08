@@ -34,6 +34,7 @@ cargo check --locked
 - Linux x64 bundle
 - Windows x64 NSIS (`.exe`) bundle
 - macOS x64 bundle
+- 三个平台的 `local-audio-library-lite-<target>.zip`
 - 三个平台的 `local-audio-whisper-<target>.zip` 和 descriptor
 
 手动触发不得创建 GitHub Release。检查每个平台 artifact 中确实包含安装包，而不是
@@ -49,6 +50,14 @@ debug sidecar placeholder。
 - 关闭最后一个应用窗口后，`local-audio-backend` / Python backend 进程退出。
 - 再次启动后媒体库、播放位置、标签、playlist 和设置仍存在。
 - 卸载应用不会静默删除 `~/.local_audio_library` 用户数据。
+
+browser-lite 每个平台至少验证：
+
+- 单个可执行文件启动后显示回环 URL，并自动打开生产前端。
+- 默认端口被占用时仍能选择其他端口，页面、媒体和 API 均使用同一 origin。
+- 浏览器中可以手动输入媒体库路径；不可用的 Tauri 原生选择器有明确提示。
+- `Ctrl+C` 或关闭终端后 backend 退出且端口释放。
+- 未安装/已安装 Whisper companion 两种状态与 Tauri 版本保持一致。
 
 ## 4. Upgrade and backup smoke test
 

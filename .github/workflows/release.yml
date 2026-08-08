@@ -64,6 +64,13 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Build browser-lite frontend
+        working-directory: frontend
+        run: npm run build:browser-lite
+
+      - name: Build browser-lite executable
+        run: uv run --locked --group build python backend/build_browser_lite.py
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -88,6 +95,7 @@ jobs:
           name: local-audio-library-${{ matrix.name }}
           path: |
             frontend/src-tauri/target/release/bundle/**
+            backend/dist/browser-lite/**
             backend/dist/whisper-components/**
           if-no-files-found: error
 
@@ -126,5 +134,6 @@ jobs:
         with:
           files: |
             release-artifacts/**/bundle/**/*
+            release-artifacts/**/local-audio-library-lite-*.zip
             release-artifacts/**/local-audio-whisper-*.zip
             release-artifacts/whisper-components.json

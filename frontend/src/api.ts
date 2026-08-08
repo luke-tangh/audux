@@ -22,9 +22,14 @@ import type {
 } from "./types";
 
 export const DEFAULT_API_BASE = "http://127.0.0.1:8765";
-export let API_BASE = DEFAULT_API_BASE;
+const BROWSER_LITE_MODE = import.meta.env.VITE_BROWSER_LITE === "true";
+const browserLiteApiBase =
+  BROWSER_LITE_MODE && typeof window !== "undefined"
+    ? window.location.origin
+    : DEFAULT_API_BASE;
+export let API_BASE = browserLiteApiBase;
 
-let apiBaseResolved = false;
+let apiBaseResolved = BROWSER_LITE_MODE;
 let apiBasePromise: Promise<string> | null = null;
 
 function isTauriRuntimeSync(): boolean {

@@ -364,6 +364,35 @@ Release workflow 会为三个目标平台构建 lite 安装包和 companion，�
 
 不同平台的 native 依赖仍建议在目标平台上实际测试。
 
+## 构建 browser-lite 单文件版本
+
+browser-lite 不使用 Tauri。它把生产前端和 lite backend 打包进同一个可执行文件，
+启动后选择可用的 `127.0.0.1` 端口，并自动打开默认浏览器：
+
+```bash
+cd frontend
+npm run build:browser-lite
+
+cd ..
+uv run --locked --group build python backend/build_browser_lite.py
+```
+
+产物位于 `backend/dist/browser-lite/`：
+
+```txt
+local-audio-library-lite-<target-triple>[.exe]
+local-audio-library-lite-<target-triple>.zip
+```
+
+Windows 双击可执行文件会显示控制台；Linux 和 macOS 建议从终端运行。保持终端开启，
+按 `Ctrl+C` 即可停止服务。浏览器前端和 API 使用同一回环 origin，不需要放宽 CORS，
+也不依赖固定端口。可用 `LOCAL_AUDIO_LIBRARY_BROWSER_PORT` 指定端口，或设置
+`LOCAL_AUDIO_LIBRARY_BROWSER_OPEN=0` 禁止自动打开浏览器。
+
+browser-lite 仍然需要本机 backend 才能访问文件系统，因此它不是可部署到公共静态
+网站的纯网页。Tauri 原生文件/目录选择器不可用，媒体库路径需要手动输入；Whisper
+继续通过相同的可选 companion 安装机制提供。
+
 ## 构建 Tauri 应用
 
 Linux（Ubuntu/Debian）需要先安装 Tauri 的系统依赖，以及 Linux 原生的
@@ -420,8 +449,9 @@ F4 收口评估已经完成。v0.5 现已冻结功能范围并进入 Beta 发布
 不代表已经发布。
 
 GitHub Actions 的 `Release` workflow 支持手动触发。手动运行会在 Linux、Windows
-和 macOS 构建 lite 安装包与对应 Whisper companion 并保留 artifacts，但不会创建
-GitHub Release。只有推送 `v*.*.*` tag 才会发布 Release 和组件 manifest。
+和 macOS 同时构建 Tauri 安装包、browser-lite 单文件包与对应 Whisper companion，
+并保留 artifacts，但不会创建 GitHub Release。只有推送 `v*.*.*` tag 才会发布这些
+产物和组件 manifest。
 
 按照 [`docs/release-checklist.md`](docs/release-checklist.md) 完成三平台安装、升级、
 端口冲突、后端退出和 ASR smoke test 后，才能创建发布标签。

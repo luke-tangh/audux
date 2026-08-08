@@ -1,4 +1,5 @@
 import build_backend
+import build_browser_lite
 import build_whisper_companion
 
 
@@ -36,3 +37,19 @@ class TestBuildBackend:
         assert "faster_whisper" in command
         assert "ctranslate2" in command
         assert command[-1] == "run_whisper_companion.py"
+
+    def test_browser_lite_embeds_frontend_and_excludes_asr(self):
+        command = build_browser_lite.build_command("local-audio-library-lite")
+
+        assert "--onefile" in command
+        add_data_index = command.index("--add-data")
+        assert command[add_data_index + 1].endswith(
+            f"{build_browser_lite.os.pathsep}browser_frontend"
+        )
+        excluded_modules = {
+            command[index + 1]
+            for index, argument in enumerate(command)
+            if argument == "--exclude-module"
+        }
+        assert excluded_modules == set(build_browser_lite.ASR_MODULES)
+        assert command[-1] == "run_browser_lite.py"
