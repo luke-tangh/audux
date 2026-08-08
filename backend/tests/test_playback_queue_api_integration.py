@@ -1,13 +1,11 @@
-import unittest
-
 from sqlmodel import Session
 
 from app.models import AudioItem
 
-from api_test_support import ApiIntegrationTestCase
+from tests.api_test_support import ApiIntegrationTest
 
 
-class TestPlaybackQueueApiIntegration(ApiIntegrationTestCase, unittest.TestCase):
+class TestPlaybackQueueApiIntegration(ApiIntegrationTest):
     def test_resolve_preserves_order_and_skips_unavailable_items(self):
         enabled_root = self.add_library_root(self.root_path / "enabled")
         disabled_root = self.add_library_root(
@@ -47,24 +45,18 @@ class TestPlaybackQueueApiIntegration(ApiIntegrationTestCase, unittest.TestCase)
             },
         )
 
-        self.assertEqual(response.status_code, 200, response.text)
+        assert response.status_code == 200, response.text
         payload = response.json()
-        self.assertEqual(
-            [item["id"] for item in payload["items"]],
-            [second.id, first.id],
-        )
-        self.assertEqual(
-            payload["skipped"],
-            [
-                {"audio_id": 999_999, "reason": "deleted"},
-                {"audio_id": missing.id, "reason": "missing"},
-                {"audio_id": disabled.id, "reason": "disabled_root"},
-                {"audio_id": second.id, "reason": "duplicate"},
-            ],
-        )
+        assert [item['id'] for item in payload['items']] == [second.id, first.id]
+        assert payload["skipped"] == [
+            {"audio_id": 999999, "reason": "deleted"},
+            {"audio_id": missing.id, "reason": "missing"},
+            {"audio_id": disabled.id, "reason": "disabled_root"},
+            {"audio_id": second.id, "reason": "duplicate"},
+        ]
 
         with Session(self.engine) as session:
-            self.assertTrue(session.get(AudioItem, missing.id).is_missing)
+            assert session.get(AudioItem, missing.id).is_missing
 
     def test_resolve_requires_a_bounded_non_empty_queue(self):
         empty = self.client.post(
@@ -78,9 +70,5 @@ class TestPlaybackQueueApiIntegration(ApiIntegrationTestCase, unittest.TestCase)
             json={"audio_ids": list(range(1, 502))},
         )
 
-        self.assertEqual(empty.status_code, 422, empty.text)
-        self.assertEqual(oversized.status_code, 422, oversized.text)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert empty.status_code == 422, empty.text
+        assert oversized.status_code == 422, oversized.text

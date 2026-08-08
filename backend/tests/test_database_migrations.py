@@ -1,9 +1,9 @@
 import sqlite3
 import tempfile
-import unittest
+from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import patch
 
+import pytest
 from sqlalchemy import text
 from sqlmodel import SQLModel, Session, create_engine
 
@@ -11,7 +11,8 @@ TEST_RUNTIME_DIR = tempfile.TemporaryDirectory(
     prefix="local-audio-migration-module-test-"
 )
 
-with patch("pathlib.Path.home", return_value=Path(TEST_RUNTIME_DIR.name)):
+with pytest.MonkeyPatch.context() as monkeypatch:
+    monkeypatch.setattr(Path, "home", lambda: Path(TEST_RUNTIME_DIR.name))
     from app import db
     from app.models import (
         AITask,
@@ -26,32 +27,28 @@ with patch("pathlib.Path.home", return_value=Path(TEST_RUNTIME_DIR.name)):
     )
 
 
-class TestDatabaseMigrations(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix="local-audio-migration-test-")
-        self.root = Path(self.tmp.name)
+class TestDatabaseMigrations:
+    @pytest.fixture(autouse=True)
+    def migration_context(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> Iterator[None]:
+        self.root = tmp_path
         self.db_path = self.root / "database.sqlite"
         self.backups_dir = self.root / "backups"
         self.engine = create_engine(
             f"sqlite:///{self.db_path}",
             connect_args={"check_same_thread": False},
         )
-        self.patches = [
-            patch.object(db, "DB_PATH", self.db_path),
-            patch.object(db, "BACKUPS_DIR", self.backups_dir),
-            patch.object(db, "engine", self.engine),
-        ]
+        monkeypatch.setattr(db, "DB_PATH", self.db_path)
+        monkeypatch.setattr(db, "BACKUPS_DIR", self.backups_dir)
+        monkeypatch.setattr(db, "engine", self.engine)
 
-        for active_patch in self.patches:
-            active_patch.start()
-
-    def tearDown(self):
-        self.engine.dispose()
-
-        for active_patch in reversed(self.patches):
-            active_patch.stop()
-
-        self.tmp.cleanup()
+        try:
+            yield
+        finally:
+            self.engine.dispose()
 
     def seed_v4_database(self):
         SQLModel.metadata.create_all(self.engine)
@@ -122,94 +119,67 @@ class TestDatabaseMigrations(unittest.TestCase):
         db.create_db_and_tables()
 
         backup_paths = list(self.backups_dir.glob("*.sqlite"))
-        self.assertEqual(len(backup_paths), 1)
-        self.assertIn("pre-migration-v4-to-v6", backup_paths[0].name)
+        assert len(backup_paths) == 1
+        assert 'pre-migration-v4-to-v6' in backup_paths[0].name
 
         with sqlite3.connect(backup_paths[0]) as backup:
-            self.assertEqual(
-                backup.execute("PRAGMA quick_check").fetchone()[0],
-                "ok",
-            )
-            self.assertEqual(
-                backup.execute(
-                    "SELECT MAX(version) FROM schema_migrations"
-                ).fetchone()[0],
-                4,
-            )
-            self.assertEqual(
-                backup.execute(
-                    "SELECT COUNT(*) FROM ai_tasks WHERE status IN ('pending', 'running')"
-                ).fetchone()[0],
-                2,
-            )
+            assert backup.execute('PRAGMA quick_check').fetchone()[0] == 'ok'
+            assert backup.execute('SELECT MAX(version) FROM schema_migrations').fetchone()[0] == 4
+            active_tasks = backup.execute(
+                "SELECT COUNT(*) FROM ai_tasks WHERE status IN ('pending', 'running')"
+            ).fetchone()[0]
+            assert active_tasks == 2
 
         with self.engine.connect() as connection:
-            self.assertEqual(
-                connection.execute(
-                    text("SELECT MAX(version) FROM schema_migrations")
-                ).scalar_one(),
-                db.CURRENT_SCHEMA_VERSION,
-            )
-            self.assertEqual(
-                connection.execute(text("SELECT title_user FROM audio_items")).scalar_one(),
-                "升级测试音频",
-            )
-            self.assertEqual(
-                connection.execute(text("SELECT name FROM tags")).scalar_one(),
-                "保留标签",
-            )
-            self.assertEqual(
-                connection.execute(text("SELECT name FROM playlists")).scalar_one(),
-                "保留列表",
-            )
-            self.assertEqual(
-                connection.execute(text("SELECT full_text FROM transcripts")).scalar_one(),
-                "需要保留的转写内容",
-            )
-            self.assertEqual(
-                connection.execute(
-                    text(
-                        """
-                        SELECT COUNT(*) FROM ai_tasks
-                        WHERE status IN ('pending', 'running', 'cancel_requested')
-                        """
-                    )
-                ).scalar_one(),
-                1,
-            )
-            self.assertEqual(
-                connection.execute(
-                    text(
-                        """
-                        SELECT COUNT(*) FROM scan_tasks
-                        WHERE status IN ('pending', 'running', 'cancel_requested')
-                        """
-                    )
-                ).scalar_one(),
-                1,
-            )
+            schema_version = connection.execute(
+                text("SELECT MAX(version) FROM schema_migrations")
+            ).scalar_one()
+            assert schema_version == db.CURRENT_SCHEMA_VERSION
+            assert connection.execute(
+                text("SELECT title_user FROM audio_items")
+            ).scalar_one() == "升级测试音频"
+            assert connection.execute(text('SELECT name FROM tags')).scalar_one() == '保留标签'
+            assert connection.execute(text('SELECT name FROM playlists')).scalar_one() == '保留列表'
+            assert connection.execute(
+                text("SELECT full_text FROM transcripts")
+            ).scalar_one() == "需要保留的转写内容"
+            assert connection.execute(
+                text(
+                    """
+                    SELECT COUNT(*) FROM ai_tasks
+                    WHERE status IN ('pending', 'running', 'cancel_requested')
+                    """
+                )
+            ).scalar_one() == 1
+            assert connection.execute(
+                text(
+                    """
+                    SELECT COUNT(*) FROM scan_tasks
+                    WHERE status IN ('pending', 'running', 'cancel_requested')
+                    """
+                )
+            ).scalar_one() == 1
 
         db.create_db_and_tables()
-        self.assertEqual(len(list(self.backups_dir.glob("*.sqlite"))), 1)
+        assert len(list(self.backups_dir.glob('*.sqlite'))) == 1
 
-    def test_backup_failure_prevents_schema_changes(self):
+    def test_backup_failure_prevents_schema_changes(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
         self.seed_v4_database()
 
-        with patch.object(
-            db,
-            "_verified_sqlite_backup",
-            side_effect=OSError("backup destination unavailable"),
-        ):
-            with self.assertRaisesRegex(OSError, "backup destination unavailable"):
-                db.create_db_and_tables()
+        def fail_backup(*args, **kwargs):
+            raise OSError("backup destination unavailable")
+
+        monkeypatch.setattr(db, "_verified_sqlite_backup", fail_backup)
+        with pytest.raises(OSError, match="backup destination unavailable"):
+            db.create_db_and_tables()
 
         with self.engine.connect() as connection:
-            self.assertEqual(
-                connection.execute(
-                    text("SELECT MAX(version) FROM schema_migrations")
-                ).scalar_one(),
-                4,
-            )
+            assert connection.execute(
+                text("SELECT MAX(version) FROM schema_migrations")
+            ).scalar_one() == 4
 
     def test_newer_schema_is_never_modified(self):
         with sqlite3.connect(self.db_path) as connection:
@@ -229,15 +199,10 @@ class TestDatabaseMigrations(unittest.TestCase):
             connection.execute("INSERT INTO sentinel VALUES ('untouched')")
             connection.commit()
 
-        with self.assertRaisesRegex(RuntimeError, "newer than this application"):
+        with pytest.raises(RuntimeError, match="newer than this application"):
             db.create_db_and_tables()
 
         with sqlite3.connect(self.db_path) as connection:
-            self.assertEqual(
-                connection.execute("SELECT value FROM sentinel").fetchone()[0],
-                "untouched",
+            assert connection.execute("SELECT value FROM sentinel").fetchone()[0] == (
+                "untouched"
             )
-
-
-if __name__ == "__main__":
-    unittest.main()

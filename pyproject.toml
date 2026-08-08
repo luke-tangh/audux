@@ -27,6 +27,7 @@ test = [
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
+pythonpath = ["backend"]
 
 [tool.uv]
 package = false
