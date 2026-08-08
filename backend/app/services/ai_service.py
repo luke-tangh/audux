@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 
 from ..asr_config import (
     ASR_PROVIDER_EXTERNAL,
+    ASR_PROVIDER_FASTER_WHISPER,
     parse_task_input_payload,
     resolve_asr_task_config,
 )
@@ -19,6 +20,7 @@ from ..logger import get_logger
 from ..models import AITask, AudioItem, Setting, now_iso
 from ..tasks import get_active_task
 from .common import BUSY_AUDIO_TASK_STATUSES, ServiceError, _is_unique_constraint_error
+from .whisper_component_service import is_whisper_companion_available
 
 
 logger = get_logger(__name__)
@@ -185,6 +187,14 @@ def retry_ai_task(session: Session, task_id: int) -> AITask:
                     "Retry transcribe uses non-local ASR endpoint: %s",
                     asr_config["endpoint"],
                 )
+        elif (
+            asr_config["provider"] == ASR_PROVIDER_FASTER_WHISPER
+            and not is_whisper_companion_available()
+        ):
+            raise ServiceError(
+                409,
+                "Whisper component is not installed. Install it from Settings > ASR.",
+            )
 
         # Normalize old empty task payloads while preserving the original
         # provider/model snapshot for tasks created by this version.

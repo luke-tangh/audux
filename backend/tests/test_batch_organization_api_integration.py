@@ -146,6 +146,36 @@ class TestBatchOrganizationApi(ApiIntegrationTest):
             assert session.get(AudioItem, self.first.id).is_favorite
             assert session.get(AudioItem, self.second.id).is_favorite
 
+    def test_set_favorite_supports_the_500_item_limit_in_one_request(self):
+        with Session(self.engine) as session:
+            additional = [
+                AudioItem(
+                    file_path=str(self.library / f"bulk-{index}.mp3"),
+                    file_name=f"bulk-{index}.mp3",
+                    library_root_id=self.root.id,
+                )
+                for index in range(498)
+            ]
+            session.add_all(additional)
+            session.commit()
+            audio_ids = [self.first.id, self.second.id] + [
+                int(audio.id) for audio in additional if audio.id is not None
+            ]
+
+        response = self.organize(
+            {
+                "audio_ids": audio_ids,
+                "action": "set_favorite",
+                "is_favorite": True,
+            }
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["requested_count"] == 500
+        assert response.json()["matched_count"] == 500
+        assert response.json()["changed_count"] == 500
+        assert response.json()["errors"] == []
+
     def test_action_payload_validation_and_resource_failure_do_not_partially_write(self):
         invalid_payload = self.organize(
             {

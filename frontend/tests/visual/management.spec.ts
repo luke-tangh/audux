@@ -86,6 +86,7 @@ type MockState = {
   mutations: Mutation[];
   batchErrors: Array<{ audio_id: number; error: string }>;
   transcriptConflictOnce: boolean;
+  whisperStatus: "not_installed" | "downloading" | "installed";
 };
 
 function createMockState(): MockState {
@@ -184,7 +185,8 @@ function createMockState(): MockState {
     },
     mutations: [],
     batchErrors: [],
-    transcriptConflictOnce: false
+    transcriptConflictOnce: false,
+    whisperStatus: "not_installed"
   };
 }
 
@@ -265,6 +267,42 @@ async function mockManagementApi(page: Page, state: MockState) {
 
     if (method === "GET" && url.pathname === "/scan-tasks") {
       await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/asr/whisper-component") {
+      await route.fulfill({
+        json: {
+          status: state.whisperStatus,
+          available: state.whisperStatus === "installed",
+          source: state.whisperStatus === "installed" ? "component" : null,
+          app_version: "0.5.0-beta.1",
+          target: "x86_64-unknown-linux-gnu",
+          downloaded_bytes: state.whisperStatus === "downloading" ? 1024 : 0,
+          total_bytes: state.whisperStatus === "downloading" ? 4096 : null,
+          error_message: null
+        },
+        headers
+      });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/asr/whisper-component/install") {
+      state.mutations.push({ method, path: url.pathname, body: null });
+      state.whisperStatus = "downloading";
+      await route.fulfill({
+        json: {
+          status: "downloading",
+          available: false,
+          source: null,
+          app_version: "0.5.0-beta.1",
+          target: "x86_64-unknown-linux-gnu",
+          downloaded_bytes: 0,
+          total_bytes: null,
+          error_message: null
+        },
+        headers
+      });
       return;
     }
 
@@ -646,6 +684,26 @@ test.describe("v0.5 management workflows", () => {
     expect(state.mutations).toContainEqual({
       method: "DELETE",
       path: "/library-roots/7",
+      body: null
+    });
+  });
+
+  test("offers the optional Whisper component download from ASR settings", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await openSettings(page);
+    await page.getByRole("tab", { name: "ASR" }).click();
+
+    await expect(page.getByText("未安装", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "下载并安装" }).click();
+
+    await expect(page.getByText("正在下载", { exact: true })).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: "Whisper 组件下载进度" })).toBeVisible();
+    expect(state.mutations).toContainEqual({
+      method: "POST",
+      path: "/asr/whisper-component/install",
       body: null
     });
   });

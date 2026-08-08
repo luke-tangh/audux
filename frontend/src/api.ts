@@ -17,7 +17,8 @@ import type {
   Tag,
   TagMergeResult,
   Transcript,
-  TranscriptSegmentEdit
+  TranscriptSegmentEdit,
+  WhisperComponentStatus
 } from "./types";
 
 export const DEFAULT_API_BASE = "http://127.0.0.1:8765";
@@ -692,6 +693,24 @@ export const api = {
     }),
 
   listSettings: () => request<{ key: string; value: string; updated_at: string }[]>("/settings"),
+
+  getWhisperComponentStatus: () =>
+    request<WhisperComponentStatus>("/asr/whisper-component"),
+
+  installWhisperComponent: () =>
+    request<WhisperComponentStatus>("/asr/whisper-component/install", {
+      method: "POST"
+    }),
+
+  cancelWhisperComponentInstall: () =>
+    request<WhisperComponentStatus>("/asr/whisper-component/install/cancel", {
+      method: "POST"
+    }),
+
+  removeWhisperComponent: () =>
+    request<WhisperComponentStatus>("/asr/whisper-component", {
+      method: "DELETE"
+    }),
 
   rebuildSearchIndex: () =>
     request<{ ok: boolean; count: number }>("/maintenance/rebuild-search-index", {

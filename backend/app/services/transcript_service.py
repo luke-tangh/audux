@@ -6,7 +6,11 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from ..asr_config import ASR_PROVIDER_EXTERNAL, build_asr_task_payload
+from ..asr_config import (
+    ASR_PROVIDER_EXTERNAL,
+    ASR_PROVIDER_FASTER_WHISPER,
+    build_asr_task_payload,
+)
 from ..local_security import ensure_asr_endpoint_allowed
 from ..logger import get_logger
 from ..models import AITask, AudioItem, Transcript, TranscriptSegment, now_iso
@@ -21,6 +25,7 @@ from .common import (
     _mark_audio_missing_if_unavailable,
     _srt_time,
 )
+from .whisper_component_service import is_whisper_companion_available
 
 
 logger = get_logger(__name__)
@@ -52,6 +57,14 @@ def enqueue_transcribe(session: Session, audio_id: int):
         raise ServiceError(400, str(e)) from e
 
     asr_config = input_payload["asr"]
+    if (
+        asr_config["provider"] == ASR_PROVIDER_FASTER_WHISPER
+        and not is_whisper_companion_available()
+    ):
+        raise ServiceError(
+            409,
+            "Whisper component is not installed. Install it from Settings > ASR.",
+        )
     if asr_config["provider"] == ASR_PROVIDER_EXTERNAL:
         warning = ensure_asr_endpoint_allowed(session, asr_config["endpoint"])
         if warning:

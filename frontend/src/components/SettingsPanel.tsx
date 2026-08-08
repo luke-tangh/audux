@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { api, asrEndpointPrivacyWarning, endpointPrivacyWarning } from "../api";
-import type { LibraryRoot, Playlist, ScanTask, Tag } from "../types";
+import type {
+  LibraryRoot,
+  Playlist,
+  ScanTask,
+  Tag,
+  WhisperComponentStatus
+} from "../types";
 import { pickAudioFolder } from "../tauri";
 import TaskPanel from "./TaskPanel";
 import { PanelCard, Tabs } from "./ui";
@@ -48,6 +54,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [asrExternalTimeout, setAsrExternalTimeout] = useState("3600");
   const [asrExternalAllowRemoteEndpoint, setAsrExternalAllowRemoteEndpoint] =
     useState(false);
+  const [whisperComponent, setWhisperComponent] =
+    useState<WhisperComponentStatus | null>(null);
 
   const [llmEndpoint, setLlmEndpoint] = useState("");
   const [llmModel, setLlmModel] = useState("");
@@ -121,23 +129,30 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     setMaintenanceTags(tagRows);
   }
 
+  async function loadWhisperComponentStatus() {
+    const status = await api.getWhisperComponentStatus();
+    setWhisperComponent(status);
+  }
+
   async function load() {
     try {
       await api.health();
       setBackendStatus("ok");
 
-      const [rootRows, settings, scanRows, tagRows, playlistRows] = await Promise.all([
+      const [rootRows, settings, scanRows, tagRows, playlistRows, componentStatus] = await Promise.all([
         api.listLibraryRoots(),
         api.listSettings(),
         api.listScanTasks({ limit: 20 }),
         api.listTags().catch(() => []),
-        api.listPlaylists().catch(() => [])
+        api.listPlaylists().catch(() => []),
+        api.getWhisperComponentStatus()
       ]);
 
       setRoots(rootRows);
       applyScanTasks(scanRows, false);
       setMaintenanceTags(tagRows);
       setSettingsPlaylists(playlistRows);
+      setWhisperComponent(componentStatus);
 
       setAsrProvider(
         settings.find((setting) => setting.key === "asr.provider")?.value ||
@@ -204,6 +219,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
     const timer = setInterval(() => {
       loadScanTasks().catch(console.error);
+      loadWhisperComponentStatus().catch(console.error);
     }, 3000);
 
     return () => clearInterval(timer);
@@ -376,6 +392,11 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   }
 
   async function saveAsr() {
+    if (asrProvider === "faster_whisper" && !whisperComponent?.available) {
+      notify?.("请先下载并安装 Whisper 本地转写组件。", "error");
+      return;
+    }
+
     const warning = asrEndpointPrivacyWarning(asrExternalEndpoint);
     if (
       asrProvider === "external" &&
@@ -416,6 +437,47 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       );
 
       notify?.("ASR 设置已保存", "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function installWhisperComponent() {
+    try {
+      const status = await api.installWhisperComponent();
+      setWhisperComponent(status);
+      notify?.("Whisper 组件已开始下载", "info");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function cancelWhisperComponentInstall() {
+    try {
+      const status = await api.cancelWhisperComponentInstall();
+      setWhisperComponent(status);
+      notify?.("已请求取消 Whisper 组件下载", "info");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function removeWhisperComponent() {
+    const ok = await dialog.confirm({
+      title: "移除 Whisper 组件？",
+      message: "组件运行时会被移除，已下载的模型缓存将保留，之后可再次安装组件。",
+      confirmLabel: "移除组件",
+      cancelLabel: "取消",
+      tone: "danger",
+      destructive: true
+    });
+
+    if (!ok) return;
+
+    try {
+      const status = await api.removeWhisperComponent();
+      setWhisperComponent(status);
+      notify?.("Whisper 组件已移除，模型缓存已保留", "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -682,6 +744,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             externalTimeout={asrExternalTimeout}
             externalAllowRemoteEndpoint={asrExternalAllowRemoteEndpoint}
             externalWarning={asrExternalWarning}
+            whisperComponent={whisperComponent}
             onAsrProviderChange={setAsrProvider}
             onAsrModelNameChange={setAsrModelName}
             onAsrDeviceChange={setAsrDevice}
@@ -696,6 +759,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onExternalAllowRemoteEndpointChange={
               setAsrExternalAllowRemoteEndpoint
             }
+            onInstallWhisperComponent={installWhisperComponent}
+            onCancelWhisperComponentInstall={cancelWhisperComponentInstall}
+            onRemoveWhisperComponent={removeWhisperComponent}
             onSaveAsr={saveAsr}
           />
         )}

@@ -104,6 +104,22 @@
   max-width: 780px;
 }
 
+.settings-panel .asr-settings-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-panel .whisper-component-status strong,
+.settings-panel .whisper-component-status span {
+  display: block;
+}
+
+.settings-panel .whisper-component-status span {
+  margin-top: 4px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+}
+
 .settings-panel .settings-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(220px, 1fr));
