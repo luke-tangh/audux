@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -26,7 +28,27 @@ from .local_security import (
 setup_logging()
 logger = get_logger(__name__)
 
-app = FastAPI(title="Local Audio Library API", version=APP_VERSION)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    create_db_and_tables()
+    _get_or_create_local_api_token()
+
+    try:
+        recover_interrupted_scan_tasks()
+    except Exception:
+        logger.exception("Failed to recover interrupted scan tasks")
+
+    start_worker_once()
+    logger.info("Local Audio Library backend started")
+    yield
+
+
+app = FastAPI(
+    title="Local Audio Library API",
+    version=APP_VERSION,
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -88,20 +110,6 @@ async def local_request_guard(request: Request, call_next):
                 )
 
     return await call_next(request)
-
-
-@app.on_event("startup")
-async def on_startup():
-    create_db_and_tables()
-    _get_or_create_local_api_token()
-
-    try:
-        recover_interrupted_scan_tasks()
-    except Exception:
-        logger.exception("Failed to recover interrupted scan tasks")
-
-    start_worker_once()
-    logger.info("Local Audio Library backend started")
 
 
 @app.get("/health")

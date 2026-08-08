@@ -32,7 +32,7 @@ cargo check --locked
 在 GitHub Actions 中手动运行 `Release` workflow。确认三个构建任务成功并下载：
 
 - Linux x64 bundle
-- Windows x64 bundle
+- Windows x64 NSIS (`.exe`) bundle
 - macOS x64 bundle
 - 三个平台的 `local-audio-whisper-<target>.zip` 和 descriptor
 

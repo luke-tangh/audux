@@ -35,3 +35,21 @@ class TestVersionConsistency:
             desktop_version,
             APP_VERSION,
         } == {expected}
+
+    def test_prerelease_version_does_not_enable_windows_msi(self):
+        repository_root = Path(__file__).resolve().parents[2]
+        expected = (repository_root / "VERSION").read_text(encoding="utf-8").strip()
+
+        if "-" not in expected:
+            return
+
+        with (
+            repository_root
+            / "frontend"
+            / "src-tauri"
+            / "tauri.windows.conf.json"
+        ).open(encoding="utf-8") as file:
+            windows_targets = json.load(file)["bundle"]["targets"]
+
+        assert windows_targets != "all"
+        assert "msi" not in windows_targets
