@@ -307,6 +307,9 @@ def _add_search_hit(
     tokens: list[str],
     start_seconds: Optional[float] = None,
     end_seconds: Optional[float] = None,
+    segment_index: Optional[int] = None,
+    context_before: Optional[str] = None,
+    context_after: Optional[str] = None,
     limit: int = 6,
 ):
     if len(hits) >= limit:
@@ -329,6 +332,15 @@ def _add_search_hit(
 
     if end_seconds is not None:
         hit["end_seconds"] = end_seconds
+
+    if segment_index is not None:
+        hit["segment_index"] = segment_index
+
+    if context_before:
+        hit["context_before"] = context_before
+
+    if context_after:
+        hit["context_after"] = context_after
 
     hits.append(hit)
 
@@ -361,18 +373,55 @@ def _matching_transcript_segments_by_transcript_ids(
     rows = session.exec(
         select(TranscriptSegment)
         .where(TranscriptSegment.transcript_id.in_(transcript_ids))
-        .where(or_(*conditions))
+        .where(and_(*conditions))
         .order_by(TranscriptSegment.transcript_id, TranscriptSegment.segment_index)
     ).all()
 
+    matching_by_transcript_id: dict[int, list[TranscriptSegment]] = {
+        transcript_id: [] for transcript_id in transcript_ids
+    }
+
     for segment in rows:
         transcript_id = int(segment.transcript_id)
-        bucket = result.setdefault(transcript_id, [])
+        bucket = matching_by_transcript_id.setdefault(transcript_id, [])
 
         if len(bucket) >= per_transcript_limit:
             continue
 
         bucket.append(segment)
+
+    context_conditions = []
+    for transcript_id, matching_segments in matching_by_transcript_id.items():
+        context_indexes: set[int] = set()
+
+        for segment in matching_segments:
+            context_indexes.update(
+                {
+                    segment.segment_index - 1,
+                    segment.segment_index,
+                    segment.segment_index + 1,
+                }
+            )
+
+        if context_indexes:
+            context_conditions.append(
+                and_(
+                    TranscriptSegment.transcript_id == transcript_id,
+                    TranscriptSegment.segment_index.in_(context_indexes),
+                )
+            )
+
+    if not context_conditions:
+        return result
+
+    context_rows = session.exec(
+        select(TranscriptSegment)
+        .where(or_(*context_conditions))
+        .order_by(TranscriptSegment.transcript_id, TranscriptSegment.segment_index)
+    ).all()
+
+    for segment in context_rows:
+        result.setdefault(int(segment.transcript_id), []).append(segment)
 
     return result
 
@@ -476,6 +525,10 @@ def _search_hits_for_audio(
         ).all()
 
     segment_hit_count = 0
+    segment_by_index = {
+        segment.segment_index: segment
+        for segment in segments or []
+    }
 
     for seg in segments or []:
         if segment_hit_count >= 3:
@@ -490,6 +543,17 @@ def _search_hits_for_audio(
             tokens,
             start_seconds=seg.start_seconds,
             end_seconds=seg.end_seconds,
+            segment_index=seg.segment_index,
+            context_before=(
+                segment_by_index[seg.segment_index - 1].text
+                if seg.segment_index - 1 in segment_by_index
+                else None
+            ),
+            context_after=(
+                segment_by_index[seg.segment_index + 1].text
+                if seg.segment_index + 1 in segment_by_index
+                else None
+            ),
         )
 
         if len(hits) > before_count:

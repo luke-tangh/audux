@@ -15,7 +15,8 @@ import type {
   ScanTask,
   Tag,
   TagMergeResult,
-  Transcript
+  Transcript,
+  TranscriptSegmentEdit
 } from "./types";
 
 export const DEFAULT_API_BASE = "http://127.0.0.1:8765";
@@ -618,10 +619,26 @@ export const api = {
 
   getTranscript: (audioId: number) => request<Transcript>(`/audio-items/${audioId}/transcript`),
 
-  updateTranscript: (audioId: number, fullText: string) =>
+  updateTranscript: (audioId: number, fullText: string, expectedUpdatedAt: string) =>
     request<Transcript>(`/audio-items/${audioId}/transcript`, {
       method: "PATCH",
-      body: JSON.stringify({ full_text: fullText })
+      body: JSON.stringify({
+        full_text: fullText,
+        expected_updated_at: expectedUpdatedAt
+      })
+    }),
+
+  updateTranscriptSegments: (
+    audioId: number,
+    segments: TranscriptSegmentEdit[],
+    expectedUpdatedAt: string
+  ) =>
+    request<Transcript>(`/audio-items/${audioId}/transcript/segments`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        expected_updated_at: expectedUpdatedAt,
+        segments
+      })
     }),
 
   transcriptExportUrl: (audioId: number, format: "txt" | "json" | "srt") =>

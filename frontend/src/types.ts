@@ -26,6 +26,9 @@ export type SearchHit = {
   text: string;
   start_seconds?: number;
   end_seconds?: number;
+  segment_index?: number;
+  context_before?: string;
+  context_after?: string;
 };
 
 export type AudioItem = {
@@ -119,6 +122,17 @@ export type PlaylistDetail = {
   }[];
 };
 
+export type TranscriptSegment = {
+  id: number;
+  transcript_id: number;
+  segment_index: number;
+  start_seconds: number;
+  end_seconds: number;
+  text: string;
+};
+
+export type TranscriptSegmentEdit = Pick<TranscriptSegment, "id" | "text">;
+
 export type Transcript = {
   transcript: {
     id: number;
@@ -130,15 +144,9 @@ export type Transcript = {
     generated_at: string;
     updated_at: string;
   };
-  segments: {
-    id: number;
-    transcript_id: number;
-    segment_index: number;
-    start_seconds: number;
-    end_seconds: number;
-    text: string;
-  }[];
+  segments: TranscriptSegment[];
   cleared_segments?: number;
+  updated_segments?: number;
 };
 
 export type AITask = {

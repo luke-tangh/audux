@@ -186,7 +186,10 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
             "PATCH",
             f"/audio-items/{self.audio.id}/transcript",
             headers=self.auth_headers(include_client=True),
-            json={"full_text": "  旧的转写内容  "},
+            json={
+                "full_text": "  旧的转写内容  ",
+                "expected_updated_at": before_edit.json()["transcript"]["updated_at"],
+            },
         )
         self.assertEqual(unchanged.status_code, 200, unchanged.text)
         self.assertEqual(len(unchanged.json()["segments"]), 1)
@@ -196,7 +199,10 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
             "PATCH",
             f"/audio-items/{self.audio.id}/transcript",
             headers=self.auth_headers(include_client=True),
-            json={"full_text": "  手动修订后的关键文本  "},
+            json={
+                "full_text": "  手动修订后的关键文本  ",
+                "expected_updated_at": before_edit.json()["transcript"]["updated_at"],
+            },
         )
         self.assertEqual(updated.status_code, 200, updated.text)
         self.assertEqual(updated.json()["transcript"]["full_text"], "手动修订后的关键文本")
@@ -229,7 +235,10 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
             "PATCH",
             f"/audio-items/{self.audio.id}/transcript",
             headers=self.auth_headers(include_client=True),
-            json={"full_text": "不应保存"},
+            json={
+                "full_text": "不应保存",
+                "expected_updated_at": updated.json()["transcript"]["updated_at"],
+            },
         )
         self.assertEqual(blocked.status_code, 409, blocked.text)
 

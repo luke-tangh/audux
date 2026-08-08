@@ -73,6 +73,17 @@ class TranscriptCreate(BaseModel):
 
 class TranscriptUpdate(BaseModel):
     full_text: str
+    expected_updated_at: str = Field(min_length=1)
+
+
+class TranscriptSegmentUpdate(BaseModel):
+    id: int = Field(gt=0)
+    text: str
+
+
+class TranscriptSegmentsUpdate(BaseModel):
+    expected_updated_at: str = Field(min_length=1)
+    segments: List[TranscriptSegmentUpdate] = Field(min_length=1, max_length=1000)
 
 
 class SettingUpdate(BaseModel):

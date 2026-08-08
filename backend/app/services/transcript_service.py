@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from fastapi.responses import PlainTextResponse, Response
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -228,7 +229,11 @@ def save_transcript(session: Session, audio_id: int, payload) -> Transcript:
     return transcript
 
 
-def update_transcript(session: Session, audio_id: int, full_text: str) -> dict:
+def _editable_transcript(
+    session: Session,
+    audio_id: int,
+    expected_updated_at: str,
+) -> tuple[AudioItem, Transcript]:
     audio = session.get(AudioItem, audio_id)
     if not audio:
         raise ServiceError(404, "Audio not found")
@@ -241,6 +246,49 @@ def update_transcript(session: Session, audio_id: int, full_text: str) -> dict:
     ).first()
     if not transcript:
         raise ServiceError(404, "Transcript not found")
+
+    if transcript.updated_at != expected_updated_at:
+        raise ServiceError(
+            409,
+            "Transcript has changed since it was loaded; reload before saving",
+        )
+
+    return audio, transcript
+
+
+def _claim_transcript_version(
+    session: Session,
+    transcript: Transcript,
+    expected_updated_at: str,
+    new_updated_at: str,
+    full_text: str,
+) -> None:
+    result = session.execute(
+        update(Transcript)
+        .where(Transcript.id == transcript.id)
+        .where(Transcript.updated_at == expected_updated_at)
+        .values(full_text=full_text, updated_at=new_updated_at)
+    )
+
+    if result.rowcount != 1:
+        session.rollback()
+        raise ServiceError(
+            409,
+            "Transcript has changed since it was loaded; reload before saving",
+        )
+
+
+def update_transcript(
+    session: Session,
+    audio_id: int,
+    full_text: str,
+    expected_updated_at: str,
+) -> dict:
+    audio, transcript = _editable_transcript(
+        session,
+        audio_id,
+        expected_updated_at,
+    )
 
     normalized_text = full_text.strip()
     if not normalized_text:
@@ -259,24 +307,138 @@ def update_transcript(session: Session, audio_id: int, full_text: str) -> dict:
             "cleared_segments": 0,
         }
 
-    for segment in segments:
-        session.delete(segment)
+    updated_at = now_iso()
 
-    transcript.full_text = normalized_text
-    transcript.updated_at = now_iso()
-    session.add(transcript)
+    try:
+        _claim_transcript_version(
+            session,
+            transcript,
+            expected_updated_at,
+            updated_at,
+            normalized_text,
+        )
 
-    audio.transcript_status = "done"
-    audio.updated_at = now_iso()
-    session.add(audio)
-    session.flush()
+        for segment in segments:
+            session.delete(segment)
 
-    rebuild_audio_search_index(session, audio_id, commit=False)
-    session.commit()
-    session.refresh(transcript)
+        audio.transcript_status = "done"
+        audio.updated_at = updated_at
+        session.add(audio)
+        session.flush()
+
+        rebuild_audio_search_index(session, audio_id, commit=False)
+        session.commit()
+        session.refresh(transcript)
+    except ServiceError:
+        raise
+    except Exception:
+        session.rollback()
+        raise
 
     return {
         "transcript": transcript,
         "segments": [],
         "cleared_segments": len(segments),
+    }
+
+
+def update_transcript_segments(
+    session: Session,
+    audio_id: int,
+    segment_updates,
+    expected_updated_at: str,
+) -> dict:
+    audio, transcript = _editable_transcript(
+        session,
+        audio_id,
+        expected_updated_at,
+    )
+
+    segments = session.exec(
+        select(TranscriptSegment)
+        .where(TranscriptSegment.transcript_id == transcript.id)
+        .order_by(TranscriptSegment.segment_index)
+    ).all()
+    if not segments:
+        raise ServiceError(409, "Transcript has no timeline segments to edit")
+
+    segment_by_id = {
+        int(segment.id): segment
+        for segment in segments
+        if segment.id is not None
+    }
+    requested_ids = [int(update_item.id) for update_item in segment_updates]
+    if len(requested_ids) != len(set(requested_ids)):
+        raise ServiceError(400, "Transcript segment IDs must be unique")
+
+    normalized_updates: dict[int, str] = {}
+    for update_item in segment_updates:
+        segment_id = int(update_item.id)
+        if segment_id not in segment_by_id:
+            raise ServiceError(404, f"Transcript segment {segment_id} not found")
+
+        normalized_text = update_item.text.strip()
+        if not normalized_text:
+            raise ServiceError(400, "Transcript segment text is required")
+
+        normalized_updates[segment_id] = normalized_text
+
+    changed_segments = [
+        segment
+        for segment_id, segment in segment_by_id.items()
+        if segment_id in normalized_updates
+        and segment.text != normalized_updates[segment_id]
+    ]
+
+    if not changed_segments:
+        return {
+            "transcript": transcript,
+            "segments": segments,
+            "updated_segments": 0,
+        }
+
+    full_text = "\n".join(
+        normalized_updates.get(int(segment.id), segment.text.strip())
+        for segment in segments
+        if segment.id is not None
+    )
+    updated_at = now_iso()
+
+    try:
+        _claim_transcript_version(
+            session,
+            transcript,
+            expected_updated_at,
+            updated_at,
+            full_text,
+        )
+
+        for segment in changed_segments:
+            segment.text = normalized_updates[int(segment.id)]
+            session.add(segment)
+
+        audio.transcript_status = "done"
+        audio.updated_at = updated_at
+        session.add(audio)
+        session.flush()
+
+        rebuild_audio_search_index(session, audio_id, commit=False)
+        session.commit()
+        session.refresh(transcript)
+
+        stored_segments = session.exec(
+            select(TranscriptSegment)
+            .where(TranscriptSegment.transcript_id == transcript.id)
+            .order_by(TranscriptSegment.segment_index)
+        ).all()
+    except ServiceError:
+        raise
+    except Exception:
+        session.rollback()
+        raise
+
+    return {
+        "transcript": transcript,
+        "segments": stored_segments,
+        "updated_segments": len(changed_segments),
     }

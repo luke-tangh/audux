@@ -281,6 +281,79 @@
   gap: 12px;
 }
 
+.inspector-panel .transcript-edit-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+}
+
+.inspector-panel .transcript-edit-status.dirty {
+  color: var(--md-sys-color-on-tertiary-container);
+  background: var(--md-sys-color-tertiary-container);
+}
+
+.inspector-panel .transcript-edit-status.conflict {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.inspector-panel .transcript-conflict {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  color: var(--md-sys-color-on-error-container);
+  border: 1px solid var(--md-sys-color-error);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-error-container);
+}
+
+.inspector-panel .transcript-conflict p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.inspector-panel .transcript-conflict .ui-button {
+  justify-self: start;
+}
+
+.inspector-panel .transcript-segment-editors {
+  display: grid;
+  gap: 8px;
+  max-height: 520px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container);
+}
+
+.inspector-panel .transcript-segment-editor {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 8px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.inspector-panel .transcript-segment-editor > .ui-button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.inspector-panel .transcript-editor .transcript-segment-editor .ui-textarea-field {
+  min-height: 74px;
+  line-height: 1.55;
+}
+
 .inspector-panel .transcript-editor .ui-textarea-field {
   min-height: 280px;
   line-height: 1.65;

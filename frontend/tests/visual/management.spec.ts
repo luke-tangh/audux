@@ -16,6 +16,16 @@ type MockState = {
     is_enabled: boolean;
     created_at: string;
     updated_at: string;
+    search_hits?: Array<{
+      field: string;
+      label: string;
+      text: string;
+      start_seconds?: number;
+      end_seconds?: number;
+      segment_index?: number;
+      context_before?: string;
+      context_after?: string;
+    }>;
   }>;
   playlists: Array<{
     id: number;
@@ -71,9 +81,11 @@ type MockState = {
       text: string;
     }>;
     cleared_segments?: number;
+    updated_segments?: number;
   };
   mutations: Mutation[];
   batchErrors: Array<{ audio_id: number; error: string }>;
+  transcriptConflictOnce: boolean;
 };
 
 function createMockState(): MockState {
@@ -137,7 +149,7 @@ function createMockState(): MockState {
         id: 31,
         audio_id: 1,
         language: "zh",
-        full_text: "原始 Transcript 全文",
+        full_text: "开场内容\n原始分段文字\n收尾内容",
         model_name: "test-model",
         status: "done",
         generated_at: NOW,
@@ -145,17 +157,34 @@ function createMockState(): MockState {
       },
       segments: [
         {
-          id: 41,
+          id: 40,
           transcript_id: 31,
           segment_index: 0,
           start_seconds: 0,
           end_seconds: 2.5,
+          text: "开场内容"
+        },
+        {
+          id: 41,
+          transcript_id: 31,
+          segment_index: 1,
+          start_seconds: 2.5,
+          end_seconds: 5,
           text: "原始分段文字"
+        },
+        {
+          id: 42,
+          transcript_id: 31,
+          segment_index: 2,
+          start_seconds: 5,
+          end_seconds: 7.5,
+          text: "收尾内容"
         }
       ]
     },
     mutations: [],
-    batchErrors: []
+    batchErrors: [],
+    transcriptConflictOnce: false
   };
 }
 
@@ -192,9 +221,28 @@ async function mockManagementApi(page: Page, state: MockState) {
     }
 
     if (method === "GET" && url.pathname === "/audio-items") {
+      const hasQuery = Boolean(url.searchParams.get("q"));
       await route.fulfill({
         json: {
-          items: state.audioItems,
+          items: state.audioItems.map((item) =>
+            hasQuery && item.id === 1
+              ? {
+                  ...item,
+                  search_hits: [
+                    {
+                      field: "transcript",
+                      label: "Transcript",
+                      text: "原始分段文字",
+                      start_seconds: 2.5,
+                      end_seconds: 5,
+                      segment_index: 1,
+                      context_before: "开场内容",
+                      context_after: "收尾内容"
+                    }
+                  ]
+                }
+              : item
+          ),
           total: state.audioItems.length,
           limit: 120,
           offset: 0,
@@ -350,7 +398,10 @@ async function mockManagementApi(page: Page, state: MockState) {
     }
 
     if (method === "PATCH" && url.pathname === "/audio-items/1/transcript") {
-      const body = parseRequestBody(request) as { full_text?: unknown };
+      const body = parseRequestBody(request) as {
+        full_text?: unknown;
+        expected_updated_at?: unknown;
+      };
       state.mutations.push({ method, path: url.pathname, body });
       const clearedSegments = state.transcript.segments.length;
       state.transcript = {
@@ -361,6 +412,55 @@ async function mockManagementApi(page: Page, state: MockState) {
         },
         segments: [],
         cleared_segments: clearedSegments
+      };
+      await route.fulfill({ json: state.transcript, headers });
+      return;
+    }
+
+    if (
+      method === "PATCH" &&
+      url.pathname === "/audio-items/1/transcript/segments"
+    ) {
+      const body = parseRequestBody(request) as {
+        expected_updated_at: string;
+        segments: Array<{ id: number; text: string }>;
+      };
+      state.mutations.push({ method, path: url.pathname, body });
+
+      if (state.transcriptConflictOnce) {
+        state.transcriptConflictOnce = false;
+        state.transcript = {
+          transcript: {
+            ...state.transcript.transcript,
+            full_text: "开场内容\n服务器较新版本\n收尾内容",
+            updated_at: "2026-08-08T00:03:00Z"
+          },
+          segments: state.transcript.segments.map((segment) =>
+            segment.id === 41 ? { ...segment, text: "服务器较新版本" } : segment
+          )
+        };
+        await route.fulfill({
+          status: 409,
+          json: { detail: "Transcript has changed since it was loaded" },
+          headers
+        });
+        return;
+      }
+
+      const edits = new Map(body.segments.map((segment) => [segment.id, segment.text]));
+      const segments = state.transcript.segments.map((segment) =>
+        edits.has(segment.id)
+          ? { ...segment, text: String(edits.get(segment.id)) }
+          : segment
+      );
+      state.transcript = {
+        transcript: {
+          ...state.transcript.transcript,
+          full_text: segments.map((segment) => segment.text).join("\n"),
+          updated_at: "2026-08-08T00:02:00Z"
+        },
+        segments,
+        updated_segments: body.segments.length
       };
       await route.fulfill({ json: state.transcript, headers });
       return;
@@ -575,7 +675,105 @@ test.describe("v0.5 management workflows", () => {
     });
   });
 
-  test("confirms segment clearing before saving a transcript revision", async ({
+  test("edits transcript segments without clearing the timeline", async ({ page }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
+    await page.getByRole("tab", { name: "Transcript" }).click();
+    await page.getByRole("button", { name: "编辑分段" }).click();
+
+    const middleDraft = page.getByRole("textbox", { name: "第 2 段文本" });
+    await middleDraft.fill("修订后的分段关键词");
+    await expect(page.getByText("有未保存修改")).toBeVisible();
+    await page.getByRole("button", { name: "保存分段修订" }).click();
+
+    await expect(page.getByText("修订后的分段关键词")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "从 0:02 开始播放" })
+    ).toBeVisible();
+    await expect(page.getByText("已保存 1 个分段修订")).toBeVisible();
+    expect(state.mutations).toContainEqual({
+      method: "PATCH",
+      path: "/audio-items/1/transcript/segments",
+      body: {
+        expected_updated_at: NOW,
+        segments: [{ id: 41, text: "修订后的分段关键词" }]
+      }
+    });
+  });
+
+  test("confirms before discarding an unsaved segment draft", async ({ page }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
+    await page.getByRole("tab", { name: "Transcript" }).click();
+    await page.getByRole("button", { name: "编辑分段" }).click();
+    await page.getByRole("textbox", { name: "第 2 段文本" }).fill("未保存草稿");
+    await page.getByRole("button", { name: "取消" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "放弃未保存修改？" });
+    await dialog.getByRole("button", { name: "继续编辑" }).click();
+    await expect(page.getByRole("textbox", { name: "第 2 段文本" })).toHaveValue(
+      "未保存草稿"
+    );
+
+    await page.getByRole("button", { name: "取消" }).click();
+    await dialog.getByRole("button", { name: "放弃修改" }).click();
+    await expect(page.getByText("原始分段文字")).toBeVisible();
+    expect(
+      state.mutations.filter(
+        (mutation) => mutation.path === "/audio-items/1/transcript/segments"
+      )
+    ).toHaveLength(0);
+  });
+
+  test("keeps the draft visible when a transcript version conflicts", async ({
+    page
+  }) => {
+    const state = createMockState();
+    state.transcriptConflictOnce = true;
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
+    await page.getByRole("tab", { name: "Transcript" }).click();
+    await page.getByRole("button", { name: "编辑分段" }).click();
+    const middleDraft = page.getByRole("textbox", { name: "第 2 段文本" });
+    await middleDraft.fill("本地未保存草稿");
+    await page.getByRole("button", { name: "保存分段修订" }).click();
+
+    await expect(
+      page.getByText("服务器上的 Transcript 已在你编辑期间更新")
+    ).toBeVisible();
+    await expect(middleDraft).toHaveValue("本地未保存草稿");
+    await page
+      .getByRole("button", { name: "放弃草稿并加载最新版本" })
+      .click();
+    await expect(middleDraft).toHaveValue("服务器较新版本");
+  });
+
+  test("shows adjacent transcript context in search results", async ({ page }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page
+      .getByRole("searchbox", { name: "搜索标题、作者、标签、描述或 transcript" })
+      .fill("分段文字");
+
+    await expect(page.getByText("开场内容")).toBeVisible();
+    await expect(page.getByText("原始分段文字")).toBeVisible();
+    await expect(page.getByText("收尾内容")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "从 0:02 开始播放 测试音频 1" })
+    ).toBeVisible();
+  });
+
+  test("confirms segment clearing before saving a full transcript replacement", async ({
     page
   }) => {
     const state = createMockState();
@@ -586,11 +784,11 @@ test.describe("v0.5 management workflows", () => {
     await page.getByRole("tab", { name: "Transcript" }).click();
     await expect(page.getByText("原始分段文字")).toBeVisible();
 
-    await page.getByRole("button", { name: "编辑" }).click();
+    await page.getByRole("button", { name: "替换全文" }).click();
     await page
-      .getByRole("textbox", { name: "Transcript 全文" })
+      .getByRole("textbox", { name: "Transcript 全文（高级替换）" })
       .fill("修订后的 Transcript 全文");
-    await page.getByRole("button", { name: "保存修订" }).click();
+    await page.getByRole("button", { name: "保存全文替换" }).click();
 
     const dialog = page.getByRole("dialog", { name: "保存 Transcript 修订？" });
     await expect(dialog).toContainText("会清除这些分段");
@@ -599,12 +797,15 @@ test.describe("v0.5 management workflows", () => {
     await expect(page.getByText("修订后的 Transcript 全文")).toBeVisible();
     await expect(page.getByText("原始分段文字")).toHaveCount(0);
     await expect(
-      page.getByText("Transcript 已保存，并清除 1 个旧分段")
+      page.getByText("Transcript 已保存，并清除 3 个旧分段")
     ).toBeVisible();
     expect(state.mutations).toContainEqual({
       method: "PATCH",
       path: "/audio-items/1/transcript",
-      body: { full_text: "修订后的 Transcript 全文" }
+      body: {
+        full_text: "修订后的 Transcript 全文",
+        expected_updated_at: NOW
+      }
     });
   });
 });

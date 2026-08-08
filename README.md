@@ -16,7 +16,8 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 - Transcript：
   - faster-whisper 内置转写或外部本地 ASR 服务
   - transcript 时间轴
-  - 手动修订全文并同步更新搜索索引
+  - 逐段修订并保留时间轴，自动同步全文和搜索索引
+  - 以版本冲突保护的全文替换高级操作
   - TXT / JSON / SRT 导出
 - AI 整理：
   - OpenAI-compatible 本地或内网 LLM endpoint
@@ -25,6 +26,7 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 - 搜索：
   - SQLite FTS5
   - 标题、作者、描述、标签、transcript 全文搜索
+  - Transcript 命中展示相邻分段上下文并支持时间点跳转
 - 任务队列：
   - ASR / AI 任务
   - 取消、重试
@@ -412,8 +414,8 @@ Release 构建前请确认：
 
 ## 开发路线与 Release dry-run
 
-当前暂缓发布 `v0.5.0-beta.1`。显式多选与批量整理已经完成，下一步优先完善
-Transcript 保真修订，再实现播放队列会话恢复。详细范围和验收门槛见
+当前暂缓发布 `v0.5.0-beta.1`。显式多选与批量整理、Transcript 保真修订与搜索上下文
+已经完成，下一步优先实现播放队列会话恢复。详细范围和验收门槛见
 [`docs/roadmap.md`](docs/roadmap.md)。仓库中的 `0.5.0-beta.1` 版本字符串暂作为内部
 开发候选标识，不代表已经发布。
 

@@ -163,9 +163,21 @@ function SearchHits({
             <strong>{hit.label}</strong>
           )}
 
-          <span>
+          <span className="search-hit-content">
+            {hit.context_before && (
+              <span className="search-hit-context">
+                <HighlightText text={hit.context_before} query={query} />
+              </span>
+            )}
+            <span className="search-hit-match">
             {hit.start_seconds !== undefined && <strong>{hit.label}</strong>}
             <HighlightText text={hit.text} query={query} />
+            </span>
+            {hit.context_after && (
+              <span className="search-hit-context">
+                <HighlightText text={hit.context_after} query={query} />
+              </span>
+            )}
           </span>
         </div>
       ))}

@@ -314,6 +314,28 @@
   font-size: 12px;
 }
 
+.search-hit-content {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.search-hit-match {
+  color: var(--md-sys-color-on-surface);
+}
+
+.search-hit-context {
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface-variant);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.78;
+}
+
+.search-hit-context::before {
+  content: "… ";
+}
+
 .list-refresh-indicator {
   position: absolute;
   top: 1px;

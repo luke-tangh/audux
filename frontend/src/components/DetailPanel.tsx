@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, endpointPrivacyWarning } from "../api";
-import type { AISuggestions, AudioItem, Playlist, Tag, Transcript } from "../types";
+import { ApiError, api, endpointPrivacyWarning } from "../api";
+import type {
+  AISuggestions,
+  AudioItem,
+  Playlist,
+  Tag,
+  Transcript,
+  TranscriptSegmentEdit
+} from "../types";
 import { pickAudioFile } from "../tauri";
 import { Tabs } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
@@ -229,8 +236,17 @@ export default function DetailPanel({
     }
   }
 
-  async function saveTranscriptEdit(fullText: string): Promise<boolean> {
-    if (!transcript) return false;
+  async function loadLatestTranscriptAfterConflict() {
+    const latest = await api.getTranscript(audio!.id).catch(() => null);
+    if (latest) setTranscript(latest);
+    notify?.("检测到较新的 Transcript，当前草稿尚未保存。请加载最新版本后重新检查。", "error");
+  }
+
+  async function saveTranscriptEdit(
+    fullText: string,
+    expectedUpdatedAt: string
+  ): Promise<"saved" | "conflict" | "error"> {
+    if (!transcript) return "error";
 
     if (transcript.segments.length > 0) {
       const ok = await dialog.confirm({
@@ -243,11 +259,15 @@ export default function DetailPanel({
         tone: "warning"
       });
 
-      if (!ok) return false;
+      if (!ok) return "error";
     }
 
     try {
-      const updated = await api.updateTranscript(audio!.id, fullText);
+      const updated = await api.updateTranscript(
+        audio!.id,
+        fullText,
+        expectedUpdatedAt
+      );
       setTranscript(updated);
       refresh();
       notify?.(
@@ -256,10 +276,42 @@ export default function DetailPanel({
           : "Transcript 已保存",
         "success"
       );
-      return true;
+      return "saved";
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        await loadLatestTranscriptAfterConflict();
+        return "conflict";
+      }
+
       notify?.(err instanceof Error ? err.message : String(err), "error");
-      return false;
+      return "error";
+    }
+  }
+
+  async function saveTranscriptSegments(
+    segments: TranscriptSegmentEdit[],
+    expectedUpdatedAt: string
+  ): Promise<"saved" | "conflict" | "error"> {
+    if (!transcript || segments.length === 0) return "error";
+
+    try {
+      const updated = await api.updateTranscriptSegments(
+        audio!.id,
+        segments,
+        expectedUpdatedAt
+      );
+      setTranscript(updated);
+      refresh();
+      notify?.(`已保存 ${updated.updated_segments || segments.length} 个分段修订`, "success");
+      return "saved";
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        await loadLatestTranscriptAfterConflict();
+        return "conflict";
+      }
+
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+      return "error";
     }
   }
 
@@ -530,7 +582,8 @@ export default function DetailPanel({
             onTranscribe={transcribe}
             onExportTranscript={exportTranscript}
             onJumpToSegment={jumpToSegment}
-            onSaveTranscript={saveTranscriptEdit}
+            onSaveFullTranscript={saveTranscriptEdit}
+            onSaveTranscriptSegments={saveTranscriptSegments}
             canEdit={!["pending", "running", "cancel_requested"].includes(
               audio.transcript_status
             )}
