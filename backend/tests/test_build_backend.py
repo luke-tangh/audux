@@ -53,3 +53,22 @@ class TestBuildBackend:
         }
         assert excluded_modules == set(build_browser_lite.ASR_MODULES)
         assert command[-1] == "run_browser_lite.py"
+
+    def test_browser_lite_uses_platform_executable_icon(self, monkeypatch):
+        for system, icon_name in [
+            ("Windows", "icon.ico"),
+            ("Darwin", "icon.icns"),
+        ]:
+            monkeypatch.setattr(build_browser_lite.platform, "system", lambda: system)
+            command = build_browser_lite.build_command("local-audio-library-lite")
+
+            icon_index = command.index("--icon")
+            assert command[icon_index + 1] == str(
+                build_browser_lite.TAURI_ICONS / icon_name
+            )
+
+    def test_browser_lite_skips_embedded_icon_on_linux(self, monkeypatch):
+        monkeypatch.setattr(build_browser_lite.platform, "system", lambda: "Linux")
+        command = build_browser_lite.build_command("local-audio-library-lite")
+
+        assert "--icon" not in command

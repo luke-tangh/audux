@@ -16,8 +16,18 @@ from build_backend import (
 ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = ROOT.parent
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+TAURI_ICONS = PROJECT_ROOT / "frontend" / "src-tauri" / "icons"
 OUTPUT_DIR = ROOT / "dist" / "browser-lite"
 ASR_MODULES = ["faster_whisper", "ctranslate2", "tokenizers", "av"]
+
+
+def executable_icon_path(system: str | None = None) -> Path | None:
+    current_system = (system or platform.system()).lower()
+    icon_name = {
+        "windows": "icon.ico",
+        "darwin": "icon.icns",
+    }.get(current_system)
+    return TAURI_ICONS / icon_name if icon_name else None
 
 
 def build_command(name: str) -> list[str]:
@@ -30,9 +40,18 @@ def build_command(name: str) -> list[str]:
         "--onefile",
         "--name",
         name,
-        "--add-data",
-        f"{FRONTEND_DIST}{os.pathsep}browser_frontend",
     ]
+    icon_path = executable_icon_path()
+    if icon_path is not None:
+        if not icon_path.is_file():
+            raise RuntimeError(f"Browser-lite executable icon not found: {icon_path}")
+        command.extend(["--icon", str(icon_path)])
+    command.extend(
+        [
+            "--add-data",
+            f"{FRONTEND_DIST}{os.pathsep}browser_frontend",
+        ]
+    )
     for module_name in ASR_MODULES:
         command.extend(["--exclude-module", module_name])
     command.extend(
