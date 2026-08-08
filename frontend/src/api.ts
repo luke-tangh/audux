@@ -4,6 +4,8 @@ import type {
   AudioDetail,
   AudioItem,
   BatchTaskResult,
+  BatchOrganizationPayload,
+  BatchOrganizationResult,
   LibraryRoot,
   LLMConfigPayload,
   LLMTestResult,
@@ -600,6 +602,12 @@ export const api = {
     request<BatchTaskResult>("/audio-items/batch/analyze", {
       method: "POST",
       body: JSON.stringify({ audio_ids: audioIds })
+    }),
+
+  organizeAudioBatch: (payload: BatchOrganizationPayload) =>
+    request<BatchOrganizationResult>("/audio-items/batch/organize", {
+      method: "POST",
+      body: JSON.stringify(payload)
     }),
 
   testLlm: (payload: LLMConfigPayload) =>

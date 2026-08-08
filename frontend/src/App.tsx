@@ -19,6 +19,8 @@ export default function App() {
     searchLimit,
     selected,
     setSelected,
+    selectionMode,
+    selectedAudioIds,
 
     playing,
     playbackQueue,
@@ -56,6 +58,11 @@ export default function App() {
     clearFilters,
     openSettings,
     loadMoreAudioItems,
+    enterSelectionMode,
+    exitSelectionMode,
+    toggleAudioSelection,
+    toggleSelectAllLoaded,
+    clearAudioSelection,
 
     playAudio,
     playAudioAt,
@@ -68,6 +75,10 @@ export default function App() {
 
     batchTranscribeCurrentList,
     batchAnalyzeCurrentList,
+    batchAddTags,
+    batchRemoveTag,
+    batchAddToPlaylist,
+    batchSetFavorite,
 
     removeFromCurrentPlaylist,
     movePlaylistItem,
@@ -131,6 +142,8 @@ export default function App() {
                 isLoadingMore={loadingMore}
                 onLoadMore={loadMoreAudioItems}
                 selectedId={selected?.id}
+                selectionMode={selectionMode}
+                selectedAudioIds={selectedAudioIds}
                 onSelect={setSelected}
                 onPlay={(item) => playAudio(item, audioItems)}
                 onPlayAt={(item, seconds) => playAudioAt(item, seconds, audioItems)}
@@ -142,6 +155,15 @@ export default function App() {
                 onMovePlaylistItemTo={
                   view === "playlist" ? movePlaylistItemTo : undefined
                 }
+                onEnterSelectionMode={enterSelectionMode}
+                onExitSelectionMode={exitSelectionMode}
+                onToggleAudioSelection={toggleAudioSelection}
+                onToggleSelectAllLoaded={toggleSelectAllLoaded}
+                onClearAudioSelection={clearAudioSelection}
+                onBatchAddTags={() => void batchAddTags()}
+                onBatchRemoveTag={() => void batchRemoveTag()}
+                onBatchAddToPlaylist={() => void batchAddToPlaylist()}
+                onBatchSetFavorite={(isFavorite) => void batchSetFavorite(isFavorite)}
               />
             </main>
 

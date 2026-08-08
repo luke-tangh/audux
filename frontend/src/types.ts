@@ -217,6 +217,35 @@ export type BatchTaskResult = {
   tasks?: AITask[];
 };
 
+export type BatchOrganizationAction =
+  | "add_tags"
+  | "remove_tags"
+  | "add_to_playlist"
+  | "set_favorite";
+
+export type BatchOrganizationPayload = {
+  audio_ids: number[];
+  action: BatchOrganizationAction;
+  tag_names?: string[];
+  tag_ids?: number[];
+  playlist_id?: number;
+  is_favorite?: boolean;
+};
+
+export type BatchOrganizationResult = {
+  action: BatchOrganizationAction;
+  requested_count: number;
+  matched_count: number;
+  changed_count: number;
+  unchanged_count: number;
+  duplicate_count: number;
+  relationship_changes: number;
+  errors: Array<{
+    audio_id: number;
+    error: string;
+  }>;
+};
+
 export function displayTitle(a: AudioItem): string {
   return a.title_user || a.title_original || a.file_name;
 }

@@ -7,10 +7,11 @@ from ..db import get_session
 from ..schemas import (
     AudioUpdate,
     BatchAudioRequest,
+    BatchOrganizationRequest,
     PlaybackPositionUpdate,
     RelocateAudioRequest,
 )
-from ..services import audio_service
+from ..services import audio_service, organization_service
 from ..services.common import ServiceError
 from .utils import raise_http, service_call
 
@@ -63,6 +64,18 @@ def batch_analyze(
     session: Session = Depends(get_session),
 ):
     return service_call(audio_service.batch_analyze, session, payload.audio_ids)
+
+
+@router.post("/audio-items/batch/organize")
+def batch_organize_audio(
+    payload: BatchOrganizationRequest,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        organization_service.batch_organize_audio,
+        session,
+        payload.model_dump(),
+    )
 
 
 @router.get("/audio-items/{audio_id}")

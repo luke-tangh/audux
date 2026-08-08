@@ -11,6 +11,7 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 - 内嵌封面提取与自定义封面上传
 - 播放器：播放队列拖拽 / 键盘排序、倍速、音量、播放位置记忆
 - 标签与播放列表管理：标签合并、Playlist 创建 / 重命名 / 删除
+- 显式多选与批量整理：批量添加 / 移除标签、加入 Playlist、收藏 / 取消收藏
 - 媒体库目录可安全移除：保留磁盘文件和已有音频、标签、Playlist、Transcript 数据
 - Transcript：
   - faster-whisper 内置转写或外部本地 ASR 服务
@@ -409,15 +410,23 @@ Release 构建前请确认：
 3. ASR 模型策略已确认：本地路径或用户自行下载
 4. LLM endpoint 不会意外指向不可信服务
 
-## Release dry-run
+## 开发路线与 Release dry-run
+
+当前暂缓发布 `v0.5.0-beta.1`。显式多选与批量整理已经完成，下一步优先完善
+Transcript 保真修订，再实现播放队列会话恢复。详细范围和验收门槛见
+[`docs/roadmap.md`](docs/roadmap.md)。仓库中的 `0.5.0-beta.1` 版本字符串暂作为内部
+开发候选标识，不代表已经发布。
 
 GitHub Actions 的 `Release` workflow 支持手动触发。手动运行会在 Linux、Windows
 和 macOS 构建完整安装包并保留 artifacts，但不会创建 GitHub Release。只有推送
 `v*.*.*` tag 才会发布 Release。
 
-发布 `v0.5.0-beta.1` 前，按照
+重新决定进入 Beta 发布验证后，按照
 [`docs/release-checklist.md`](docs/release-checklist.md) 完成安装、升级、端口冲突、
 后端退出和 ASR smoke test。
+
+暂停前整理的 Beta 发布草案见
+[`docs/releases/v0.5.0-beta.1.md`](docs/releases/v0.5.0-beta.1.md)。
 
 如果只想单独生成当前 Linux 平台的 sidecar，可以运行：
 

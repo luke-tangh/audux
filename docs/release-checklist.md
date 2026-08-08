@@ -1,7 +1,10 @@
-# v0.5.0 Beta Release Checklist
+# Beta Release Checklist（暂停）
 
-这份清单用于 `v0.5.0-beta.1` 及后续 Beta。测试必须使用临时媒体库和测试数据目录，
-不要直接拿唯一一份真实用户数据做升级或卸载测试。
+> 当前不执行发布流程。完成 [`roadmap.md`](roadmap.md) 的 v0.5 F1–F3 并通过 F4
+> 收口评估后，再确定实际版本标签并启用本清单。
+
+这份清单用于后续 Beta 候选版本。测试必须使用临时媒体库和测试数据目录，不要直接
+拿唯一一份真实用户数据做升级或卸载测试。
 
 ## 1. Automated preflight
 
@@ -66,11 +69,12 @@ debug sidecar placeholder。
 
 ## 6. Publish gate
 
-只有三个平台的 clean-install、升级和生命周期检查全部通过后，才推送：
+只有重新确定发布版本，且三个平台的 clean-install、升级和生命周期检查全部通过后，
+才创建并推送对应标签。例如：
 
 ```bash
-git tag v0.5.0-beta.1
-git push origin v0.5.0-beta.1
+git tag vX.Y.Z-beta.N
+git push origin vX.Y.Z-beta.N
 ```
 
 发布后下载 GitHub Release 中的文件，再做一次安装包哈希和启动抽查。

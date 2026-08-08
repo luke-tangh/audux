@@ -11,6 +11,7 @@ import {
   listCopyForView
 } from "./library/filters";
 import { useBatchTasks } from "./library/useBatchTasks";
+import { useBatchOrganization } from "./library/useBatchOrganization";
 import { useDebouncedValue } from "./library/useDebouncedValue";
 import { useNavigationData } from "./library/useNavigationData";
 import { usePlaybackQueue } from "./library/usePlaybackQueue";
@@ -26,6 +27,7 @@ import type {
 export type { MissingFilter, TranscriptFilter, ViewMode } from "./library/types";
 
 const AUDIO_PAGE_LIMIT = 120;
+const MAX_BATCH_SELECTION = 500;
 
 export function useLibraryController() {
   const [view, setView] = useState<ViewMode>("library");
@@ -35,6 +37,10 @@ export function useLibraryController() {
   const [searchLimited, setSearchLimited] = useState(false);
   const [searchLimit, setSearchLimit] = useState<number | null>(null);
   const [selected, setSelected] = useState<AudioItem | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedAudioIds, setSelectedAudioIds] = useState<Set<number>>(
+    () => new Set()
+  );
 
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q, 240);
@@ -266,6 +272,18 @@ export function useLibraryController() {
     refreshToken
   ]);
 
+  useEffect(() => {
+    setSelectionMode(false);
+    setSelectedAudioIds(new Set());
+  }, [
+    view,
+    debouncedQ,
+    selectedTag,
+    selectedPlaylistId,
+    hasTranscriptFilter,
+    missingFilter
+  ]);
+
   const hasBusyVisibleTask =
     audioItems.some(
       (item) => isBusyStatus(item.ai_status) || isBusyStatus(item.transcript_status)
@@ -331,6 +349,72 @@ export function useLibraryController() {
     refresh
   });
 
+  function clearAudioSelection() {
+    setSelectedAudioIds(new Set());
+  }
+
+  function enterSelectionMode() {
+    setSelectionMode(true);
+  }
+
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    clearAudioSelection();
+  }
+
+  function toggleAudioSelection(audioId: number) {
+    if (
+      !selectedAudioIds.has(audioId) &&
+      selectedAudioIds.size >= MAX_BATCH_SELECTION
+    ) {
+      notify(`单次最多选择 ${MAX_BATCH_SELECTION} 个音频。`, "info");
+      return;
+    }
+
+    setSelectedAudioIds((current) => {
+      const next = new Set(current);
+      if (next.has(audioId)) {
+        next.delete(audioId);
+      } else {
+        next.add(audioId);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAllLoaded() {
+    const selectableItems = audioItems.slice(0, MAX_BATCH_SELECTION);
+    const allSelectableSelected =
+      selectableItems.length > 0 &&
+      selectableItems.every((item) => selectedAudioIds.has(item.id));
+
+    if (!allSelectableSelected && audioItems.length > MAX_BATCH_SELECTION) {
+      notify(`已选择前 ${MAX_BATCH_SELECTION} 个音频。`, "info");
+    }
+
+    setSelectedAudioIds((current) => {
+      const allLoadedSelected =
+        selectableItems.length > 0 &&
+        selectableItems.every((item) => current.has(item.id));
+      if (allLoadedSelected) {
+        return new Set();
+      }
+      return new Set(
+        selectableItems.map((item) => item.id)
+      );
+    });
+  }
+
+  const batchOrganization = useBatchOrganization({
+    selectedAudioIds: Array.from(selectedAudioIds),
+    tags,
+    playlists,
+    clearSelection: clearAudioSelection,
+    loadNavigation,
+    refresh,
+    notify
+  });
+
   const playlistActions = usePlaylistActions({
     selectedPlaylistId,
     playlistItemsRaw,
@@ -345,6 +429,12 @@ export function useLibraryController() {
 
   function handleAudioDeleted(audioId: number) {
     playback.handleAudioDeleted(audioId);
+    setSelectedAudioIds((current) => {
+      if (!current.has(audioId)) return current;
+      const next = new Set(current);
+      next.delete(audioId);
+      return next;
+    });
     refresh();
   }
 
@@ -372,6 +462,8 @@ export function useLibraryController() {
     searchLimit,
     selected,
     setSelected,
+    selectionMode,
+    selectedAudioIds,
 
     playing: playback.playing,
     playbackQueue: playback.playbackQueue,
@@ -409,6 +501,11 @@ export function useLibraryController() {
     clearFilters,
     openSettings,
     loadMoreAudioItems,
+    enterSelectionMode,
+    exitSelectionMode,
+    toggleAudioSelection,
+    toggleSelectAllLoaded,
+    clearAudioSelection,
 
     playAudio: playback.playAudio,
     playAudioAt: playback.playAudioAt,
@@ -421,6 +518,10 @@ export function useLibraryController() {
 
     batchTranscribeCurrentList: batchTasks.batchTranscribeCurrentList,
     batchAnalyzeCurrentList: batchTasks.batchAnalyzeCurrentList,
+    batchAddTags: batchOrganization.addTags,
+    batchRemoveTag: batchOrganization.removeTag,
+    batchAddToPlaylist: batchOrganization.addToPlaylist,
+    batchSetFavorite: batchOrganization.setFavorite,
 
     removeFromCurrentPlaylist: playlistActions.removeFromCurrentPlaylist,
     movePlaylistItem: playlistActions.movePlaylistItem,

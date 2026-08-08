@@ -1,14 +1,47 @@
 .audio-list-panel {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   position: relative;
 }
 
 .audio-scroll-list {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 8px;
+}
+
+.batch-selection-toolbar {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.batch-selection-toolbar.active {
+  background: var(--md-sys-color-secondary-container);
+}
+
+.batch-selection-toolbar strong {
+  margin-right: 4px;
+  color: var(--md-sys-color-on-secondary-container);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.batch-selection-divider {
+  width: 1px;
+  height: 24px;
+  flex: 0 0 auto;
+  margin-inline: 2px;
+  background: var(--md-sys-color-outline-variant);
 }
 
 .audio-row {
@@ -39,6 +72,31 @@
   border-color: transparent;
   color: var(--md-sys-color-on-secondary-container);
   background: var(--md-sys-color-secondary-container);
+}
+
+.audio-row.selection-mode {
+  grid-template-columns: 36px 64px minmax(0, 1fr) auto;
+}
+
+.audio-row.batch-selected {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
+}
+
+.batch-row-checkbox {
+  width: 36px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.batch-row-checkbox input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--md-sys-color-primary);
 }
 
 .audio-row:focus-visible {
@@ -206,6 +264,10 @@
 .audio-row:focus-within .row-actions,
 .audio-row.selected .row-actions {
   opacity: 1;
+}
+
+.audio-row.selection-mode .row-actions {
+  display: none;
 }
 
 .row-play-button {

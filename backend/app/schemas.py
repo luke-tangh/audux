@@ -1,5 +1,5 @@
-from typing import Optional, List, Any
-from pydantic import BaseModel, Field
+from typing import Any, List, Literal, Optional
+from pydantic import BaseModel, Field, model_validator
 
 
 class LibraryRootCreate(BaseModel):
@@ -91,6 +91,39 @@ class LLMConfig(BaseModel):
 
 class BatchAudioRequest(BaseModel):
     audio_ids: List[int]
+
+
+BatchOrganizationAction = Literal[
+    "add_tags",
+    "remove_tags",
+    "add_to_playlist",
+    "set_favorite",
+]
+
+
+class BatchOrganizationRequest(BaseModel):
+    audio_ids: List[int] = Field(min_length=1, max_length=500)
+    action: BatchOrganizationAction
+    tag_names: List[str] = Field(default_factory=list, max_length=50)
+    tag_ids: List[int] = Field(default_factory=list, max_length=50)
+    playlist_id: Optional[int] = None
+    is_favorite: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_action_payload(self):
+        if self.action == "add_tags" and not any(name.strip() for name in self.tag_names):
+            raise ValueError("tag_names is required for add_tags")
+
+        if self.action == "remove_tags" and not self.tag_ids:
+            raise ValueError("tag_ids is required for remove_tags")
+
+        if self.action == "add_to_playlist" and self.playlist_id is None:
+            raise ValueError("playlist_id is required for add_to_playlist")
+
+        if self.action == "set_favorite" and self.is_favorite is None:
+            raise ValueError("is_favorite is required for set_favorite")
+
+        return self
 
 
 class ApiResponse(BaseModel):

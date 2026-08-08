@@ -4,6 +4,8 @@ import type { AudioItem } from "../types";
 import { displayAuthor, displayDescription, displayTitle, formatDuration } from "../types";
 import { Button, StatusPill, MaterialIcon } from "./ui";
 
+const MAX_BATCH_SELECTION = 500;
+
 type Props = {
   title: string;
   q: string;
@@ -19,6 +21,8 @@ type Props = {
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
   selectedId?: number;
+  selectionMode: boolean;
+  selectedAudioIds: ReadonlySet<number>;
   onSelect: (item: AudioItem) => void;
   onPlay: (item: AudioItem) => void;
   onPlayAt: (item: AudioItem, startSeconds: number) => void;
@@ -26,6 +30,15 @@ type Props = {
   onRemoveFromPlaylist?: (item: AudioItem) => void;
   onMovePlaylistItem?: (item: AudioItem, direction: "up" | "down") => void;
   onMovePlaylistItemTo?: (source: AudioItem, target: AudioItem) => void;
+  onEnterSelectionMode: () => void;
+  onExitSelectionMode: () => void;
+  onToggleAudioSelection: (audioId: number) => void;
+  onToggleSelectAllLoaded: () => void;
+  onClearAudioSelection: () => void;
+  onBatchAddTags: () => void;
+  onBatchRemoveTag: () => void;
+  onBatchAddToPlaylist: () => void;
+  onBatchSetFavorite: (isFavorite: boolean) => void;
 };
 
 function escapeRegExp(value: string): string {
@@ -241,13 +254,24 @@ export default function AudioList({
   isLoadingMore,
   onLoadMore,
   selectedId,
+  selectionMode,
+  selectedAudioIds,
   onSelect,
   onPlay,
   onPlayAt,
   isPlaylistView,
   onRemoveFromPlaylist,
   onMovePlaylistItem,
-  onMovePlaylistItemTo
+  onMovePlaylistItemTo,
+  onEnterSelectionMode,
+  onExitSelectionMode,
+  onToggleAudioSelection,
+  onToggleSelectAllLoaded,
+  onClearAudioSelection,
+  onBatchAddTags,
+  onBatchRemoveTag,
+  onBatchAddToPlaylist,
+  onBatchSetFavorite
 }: Props) {
   const [draggedPlaylistItemId, setDraggedPlaylistItemId] = useState<number | null>(null);
 
@@ -258,6 +282,11 @@ export default function AudioList({
 
   const selectedRowIndex =
     selectedId !== undefined ? items.findIndex((item) => item.id === selectedId) : -1;
+  const selectedCount = selectedAudioIds.size;
+  const selectableItems = items.slice(0, MAX_BATCH_SELECTION);
+  const allLoadedSelected =
+    selectableItems.length > 0 &&
+    selectableItems.every((item) => selectedAudioIds.has(item.id));
 
   function focusAudioRow(index: number) {
     const row = document.querySelector<HTMLElement>(
@@ -295,11 +324,79 @@ export default function AudioList({
         />
       )}
 
+      {!isLoading && !loadError && items.length > 0 && (
+        <div
+          className={`batch-selection-toolbar ${selectionMode ? "active" : ""}`}
+          aria-label="批量整理"
+        >
+          {!selectionMode ? (
+            <Button variant="outlined" size="sm" onClick={onEnterSelectionMode}>
+              多选整理
+            </Button>
+          ) : (
+            <>
+              <strong aria-live="polite">已选择 {selectedCount} 个</strong>
+              <Button variant="text" size="sm" onClick={onToggleSelectAllLoaded}>
+                {allLoadedSelected
+                  ? "取消全选"
+                  : items.length > MAX_BATCH_SELECTION
+                    ? `选择前 ${MAX_BATCH_SELECTION} 个`
+                    : `全选已加载 (${items.length})`}
+              </Button>
+              <Button
+                variant="text"
+                size="sm"
+                onClick={onClearAudioSelection}
+                disabled={selectedCount === 0}
+              >
+                清空选择
+              </Button>
+              <span className="batch-selection-divider" aria-hidden="true" />
+              <Button size="sm" onClick={onBatchAddTags} disabled={selectedCount === 0}>
+                添加标签
+              </Button>
+              <Button size="sm" onClick={onBatchRemoveTag} disabled={selectedCount === 0}>
+                移除标签
+              </Button>
+              <Button
+                size="sm"
+                onClick={onBatchAddToPlaylist}
+                disabled={selectedCount === 0}
+              >
+                加入 Playlist
+              </Button>
+              <Button
+                variant="tonal"
+                size="sm"
+                onClick={() => onBatchSetFavorite(true)}
+                disabled={selectedCount === 0}
+              >
+                收藏
+              </Button>
+              <Button
+                variant="tonal"
+                size="sm"
+                onClick={() => onBatchSetFavorite(false)}
+                disabled={selectedCount === 0}
+              >
+                取消收藏
+              </Button>
+              <Button variant="outlined" size="sm" onClick={onExitSelectionMode}>
+                完成
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="audio-scroll-list" role="list" aria-label={`${title} 音频列表`}>
         {items.map((item, index) => {
-          const draggable = Boolean(isPlaylistView && item.playlist_item_id);
+          const draggable = Boolean(
+            !selectionMode && isPlaylistView && item.playlist_item_id
+          );
           const description = displayDescription(item);
           const rowIsSelected = selectedId === item.id;
+          const rowIsBatchSelected = selectedAudioIds.has(item.id);
           const rowIsTabbable =
             rowIsSelected || (selectedRowIndex < 0 && index === 0);
 
@@ -310,7 +407,12 @@ export default function AudioList({
                   ? `${item.id}-${item.playlist_item_id}`
                   : item.id
               }
-              className={`audio-row ${rowIsSelected ? "selected" : ""}`}
+              className={[
+                "audio-row",
+                rowIsSelected ? "selected" : "",
+                selectionMode ? "selection-mode" : "",
+                rowIsBatchSelected ? "batch-selected" : ""
+              ].filter(Boolean).join(" ")}
               role="listitem"
               tabIndex={rowIsTabbable ? 0 : -1}
               aria-current={rowIsSelected ? "true" : undefined}
@@ -341,10 +443,20 @@ export default function AudioList({
                 setDraggedPlaylistItemId(null);
               }}
               onDragEnd={() => setDraggedPlaylistItemId(null)}
-              onClick={() => onSelect(item)}
-              onDoubleClick={() => onPlay(item)}
+              onClick={() =>
+                selectionMode ? onToggleAudioSelection(item.id) : onSelect(item)
+              }
+              onDoubleClick={() => {
+                if (!selectionMode) onPlay(item);
+              }}
               onKeyDown={(e) => {
                 if (e.target !== e.currentTarget) return;
+
+                if (selectionMode && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  onToggleAudioSelection(item.id);
+                  return;
+                }
 
                 if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                   e.preventDefault();
@@ -395,6 +507,20 @@ export default function AudioList({
                     : 1
               }}
             >
+              {selectionMode && (
+                <label
+                  className="batch-row-checkbox"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={rowIsBatchSelected}
+                    aria-label={`选择 ${displayTitle(item)}`}
+                    onChange={() => onToggleAudioSelection(item.id)}
+                  />
+                </label>
+              )}
+
               <CoverThumb item={item} />
 
               <div className="audio-info">

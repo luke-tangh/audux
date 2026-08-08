@@ -1,0 +1,610 @@
+import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+const NOW = "2026-08-08T00:00:00Z";
+
+type Mutation = {
+  method: string;
+  path: string;
+  body: unknown;
+};
+
+type MockState = {
+  roots: Array<{
+    id: number;
+    path: string;
+    is_enabled: boolean;
+    created_at: string;
+    updated_at: string;
+  }>;
+  playlists: Array<{
+    id: number;
+    name: string;
+    description?: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+  tags: Array<{
+    id: number;
+    name: string;
+    source: string;
+    created_at: string;
+  }>;
+  audioItems: Array<{
+    id: number;
+    file_path: string;
+    file_name: string;
+    title_user: string;
+    duration_seconds: number;
+    transcript_status: string;
+    ai_status: string;
+    play_count: number;
+    last_position_seconds: number;
+    is_favorite: boolean;
+    is_missing: boolean;
+    created_at: string;
+    updated_at: string;
+    tags?: Array<{
+      id: number;
+      name: string;
+      source: string;
+      created_at: string;
+    }>;
+  }>;
+  transcript: {
+    transcript: {
+      id: number;
+      audio_id: number;
+      language: string;
+      full_text: string;
+      model_name: string;
+      status: string;
+      generated_at: string;
+      updated_at: string;
+    };
+    segments: Array<{
+      id: number;
+      transcript_id: number;
+      segment_index: number;
+      start_seconds: number;
+      end_seconds: number;
+      text: string;
+    }>;
+    cleared_segments?: number;
+  };
+  mutations: Mutation[];
+  batchErrors: Array<{ audio_id: number; error: string }>;
+};
+
+function createMockState(): MockState {
+  return {
+    roots: [
+      {
+        id: 7,
+        path: "/library/podcasts",
+        is_enabled: true,
+        created_at: NOW,
+        updated_at: NOW
+      }
+    ],
+    playlists: [
+      {
+        id: 11,
+        name: "晨间播放",
+        description: "测试列表",
+        created_at: NOW,
+        updated_at: NOW
+      }
+    ],
+    tags: [
+      { id: 21, name: "待整理", source: "user", created_at: NOW },
+      { id: 22, name: "知识", source: "user", created_at: NOW }
+    ],
+    audioItems: [
+      {
+        id: 1,
+        file_path: "/library/podcasts/one.mp3",
+        file_name: "one.mp3",
+        title_user: "测试音频 1",
+        duration_seconds: 120,
+        transcript_status: "done",
+        ai_status: "none",
+        play_count: 0,
+        last_position_seconds: 0,
+        is_favorite: false,
+        is_missing: false,
+        created_at: NOW,
+        updated_at: NOW
+      },
+      {
+        id: 2,
+        file_path: "/library/podcasts/two.mp3",
+        file_name: "two.mp3",
+        title_user: "测试音频 2",
+        duration_seconds: 180,
+        transcript_status: "none",
+        ai_status: "none",
+        play_count: 0,
+        last_position_seconds: 0,
+        is_favorite: false,
+        is_missing: false,
+        created_at: NOW,
+        updated_at: NOW
+      }
+    ],
+    transcript: {
+      transcript: {
+        id: 31,
+        audio_id: 1,
+        language: "zh",
+        full_text: "原始 Transcript 全文",
+        model_name: "test-model",
+        status: "done",
+        generated_at: NOW,
+        updated_at: NOW
+      },
+      segments: [
+        {
+          id: 41,
+          transcript_id: 31,
+          segment_index: 0,
+          start_seconds: 0,
+          end_seconds: 2.5,
+          text: "原始分段文字"
+        }
+      ]
+    },
+    mutations: [],
+    batchErrors: []
+  };
+}
+
+function parseRequestBody(request: import("@playwright/test").Request): unknown {
+  const body = request.postData();
+  return body ? JSON.parse(body) : null;
+}
+
+async function mockManagementApi(page: Page, state: MockState) {
+  await page.route("http://127.0.0.1:8765/**", async (route) => {
+    const request = route.request();
+    const method = request.method();
+    const url = new URL(request.url());
+    const headers = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers":
+        "Content-Type, X-Local-Audio-Client, X-Local-Audio-Token",
+      "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
+    };
+
+    if (method === "OPTIONS") {
+      await route.fulfill({ status: 204, headers });
+      return;
+    }
+
+    if (url.pathname === "/health") {
+      await route.fulfill({ json: { status: "ok" }, headers });
+      return;
+    }
+
+    if (url.pathname === "/auth/token") {
+      await route.fulfill({ json: { token: "management-test-token" }, headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/audio-items") {
+      await route.fulfill({
+        json: {
+          items: state.audioItems,
+          total: state.audioItems.length,
+          limit: 120,
+          offset: 0,
+          has_more: false
+        },
+        headers
+      });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/library-roots") {
+      await route.fulfill({ json: state.roots, headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/settings") {
+      await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/scan-tasks") {
+      await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/logs/app") {
+      await route.fulfill({ json: { file: "app.log", content: "" }, headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/tags") {
+      await route.fulfill({ json: state.tags, headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/playlists") {
+      await route.fulfill({ json: state.playlists, headers });
+      return;
+    }
+
+    const audioDetailMatch = url.pathname.match(/^\/audio-items\/(\d+)$/);
+    if (method === "GET" && audioDetailMatch) {
+      const audio = state.audioItems.find(
+        (item) => item.id === Number(audioDetailMatch[1])
+      );
+      await route.fulfill({ json: { audio, tags: [] }, headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/audio-items/1/ai-suggestions") {
+      await route.fulfill({ json: { task_id: null, tags: [] }, headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/audio-items/1/transcript") {
+      await route.fulfill({ json: state.transcript, headers });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/audio-items/batch/organize") {
+      const body = parseRequestBody(request) as {
+        audio_ids: number[];
+        action: "add_tags" | "remove_tags" | "add_to_playlist" | "set_favorite";
+        tag_names?: string[];
+        tag_ids?: number[];
+        playlist_id?: number;
+        is_favorite?: boolean;
+      };
+      state.mutations.push({ method, path: url.pathname, body });
+
+      if (body.action === "add_tags") {
+        for (const name of body.tag_names || []) {
+          if (!state.tags.some((tag) => tag.name === name)) {
+            state.tags.push({
+              id: 100 + state.tags.length,
+              name,
+              source: "user",
+              created_at: NOW
+            });
+          }
+        }
+      }
+
+      if (body.action === "set_favorite") {
+        state.audioItems = state.audioItems.map((item) =>
+          body.audio_ids.includes(item.id)
+            ? { ...item, is_favorite: Boolean(body.is_favorite) }
+            : item
+        );
+      }
+
+      await route.fulfill({
+        json: {
+          action: body.action,
+          requested_count: body.audio_ids.length,
+          matched_count: body.audio_ids.length,
+          changed_count: Math.max(0, body.audio_ids.length - state.batchErrors.length),
+          unchanged_count: 0,
+          duplicate_count: 0,
+          relationship_changes: Math.max(
+            0,
+            body.audio_ids.length - state.batchErrors.length
+          ),
+          errors: state.batchErrors
+        },
+        headers
+      });
+      return;
+    }
+
+    if (method === "PATCH" && url.pathname === "/playlists/11") {
+      const body = parseRequestBody(request) as { name?: unknown };
+      state.mutations.push({ method, path: url.pathname, body });
+      const playlist = state.playlists.find((item) => item.id === 11)!;
+      playlist.name = String(body.name);
+      playlist.updated_at = "2026-08-08T00:01:00Z";
+      await route.fulfill({ json: playlist, headers });
+      return;
+    }
+
+    if (method === "DELETE" && url.pathname === "/playlists/11") {
+      state.mutations.push({ method, path: url.pathname, body: null });
+      state.playlists = state.playlists.filter((item) => item.id !== 11);
+      await route.fulfill({ json: { ok: true, removed_items: 2 }, headers });
+      return;
+    }
+
+    if (method === "DELETE" && url.pathname === "/library-roots/7") {
+      state.mutations.push({ method, path: url.pathname, body: null });
+      state.roots = state.roots.filter((item) => item.id !== 7);
+      await route.fulfill({
+        json: { ok: true, detached_audio_items: 1, removed_scan_tasks: 3 },
+        headers
+      });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/tags/21/merge") {
+      const body = parseRequestBody(request);
+      state.mutations.push({ method, path: url.pathname, body });
+      const targetTag = state.tags.find((item) => item.id === 22)!;
+      state.tags = state.tags.filter((item) => item.id !== 21);
+      await route.fulfill({
+        json: {
+          ok: true,
+          target_tag: targetTag,
+          affected_audio_items: 4,
+          created_links: 3
+        },
+        headers
+      });
+      return;
+    }
+
+    if (method === "PATCH" && url.pathname === "/audio-items/1/transcript") {
+      const body = parseRequestBody(request) as { full_text?: unknown };
+      state.mutations.push({ method, path: url.pathname, body });
+      const clearedSegments = state.transcript.segments.length;
+      state.transcript = {
+        transcript: {
+          ...state.transcript.transcript,
+          full_text: String(body.full_text),
+          updated_at: "2026-08-08T00:02:00Z"
+        },
+        segments: [],
+        cleared_segments: clearedSegments
+      };
+      await route.fulfill({ json: state.transcript, headers });
+      return;
+    }
+
+    await route.fulfill({
+      status: 404,
+      json: { detail: `Unhandled test request: ${method} ${url.pathname}` },
+      headers
+    });
+  });
+}
+
+async function openSettings(page: Page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "设置中心" }).click();
+  await expect(page.getByRole("tab", { name: "媒体库" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+}
+
+test.describe("v0.5 management workflows", () => {
+  test("selects only loaded audio and submits a batch tag operation", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "多选整理" }).click();
+    await page.getByRole("button", { name: "全选已加载 (2)" }).click();
+    await expect(page.getByText("已选择 2 个")).toBeVisible();
+    const selectedCheckboxes = page.getByRole("checkbox", { name: /选择 测试音频/ });
+    await expect(selectedCheckboxes).toHaveCount(2);
+    await expect(selectedCheckboxes.first()).toBeChecked();
+    await expect(selectedCheckboxes.last()).toBeChecked();
+
+    await page.getByRole("button", { name: "添加标签" }).click();
+    const dialog = page.getByRole("dialog", { name: "批量添加标签" });
+    await dialog.getByRole("textbox", { name: "标签名称" }).fill("课程, 重点");
+    await dialog.getByRole("button", { name: "添加标签" }).click();
+
+    await expect(page.getByText("已选择 0 个")).toBeVisible();
+    await expect(page.getByText(/批量添加标签完成：修改 2 个/)).toBeVisible();
+    expect(state.mutations).toContainEqual({
+      method: "POST",
+      path: "/audio-items/batch/organize",
+      body: {
+        audio_ids: [1, 2],
+        action: "add_tags",
+        tag_names: ["课程", "重点"]
+      }
+    });
+  });
+
+  test("submits remove-tag, playlist and favorite actions for explicit selection", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+    await page.getByRole("button", { name: "多选整理" }).click();
+
+    const firstCheckbox = page.getByRole("checkbox", { name: "选择 测试音频 1" });
+    await firstCheckbox.check();
+    await page.getByRole("button", { name: "收藏", exact: true }).click();
+    let dialog = page.getByRole("dialog", { name: "批量收藏？" });
+    await dialog.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(page.getByText("已选择 1 个")).toBeVisible();
+    expect(
+      state.mutations.filter(
+        (mutation) => mutation.path === "/audio-items/batch/organize"
+      )
+    ).toHaveLength(0);
+
+    await page.getByRole("button", { name: "移除标签" }).click();
+    dialog = page.getByRole("dialog", { name: "批量移除标签" });
+    await dialog.getByRole("textbox", { name: "标签完整名称" }).fill("待整理");
+    await dialog.getByRole("button", { name: "移除标签" }).click();
+    await expect(page.getByText(/批量移除标签完成/)).toBeVisible();
+    await expect(page.getByText("已选择 0 个")).toBeVisible();
+
+    await firstCheckbox.check();
+    await page.getByRole("button", { name: "加入 Playlist" }).click();
+    dialog = page.getByRole("dialog", { name: "批量加入 Playlist" });
+    await dialog
+      .getByRole("textbox", { name: "Playlist 名称或 #ID" })
+      .fill("#11");
+    await dialog.getByRole("button", { name: "加入 Playlist" }).click();
+    await expect(page.getByText(/批量加入 Playlist完成/)).toBeVisible();
+    await expect(page.getByText("已选择 0 个")).toBeVisible();
+
+    await firstCheckbox.check();
+    state.batchErrors = [{ audio_id: 1, error: "Audio item not found" }];
+    await page.getByRole("button", { name: "收藏", exact: true }).click();
+    dialog = page.getByRole("dialog", { name: "批量收藏？" });
+    await dialog.getByRole("button", { name: "设为收藏" }).click();
+    await expect(page.getByText(/错误 1 个/)).toBeVisible();
+
+    const organizationBodies = state.mutations
+      .filter((mutation) => mutation.path === "/audio-items/batch/organize")
+      .map((mutation) => mutation.body);
+    expect(organizationBodies).toEqual([
+      { audio_ids: [1], action: "remove_tags", tag_ids: [21] },
+      { audio_ids: [1], action: "add_to_playlist", playlist_id: 11 },
+      { audio_ids: [1], action: "set_favorite", is_favorite: true }
+    ]);
+  });
+
+  test("clears selection mode when filters change", async ({ page }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "多选整理" }).click();
+    await page.getByRole("checkbox", { name: "选择 测试音频 1" }).check();
+    await expect(page.getByText("已选择 1 个")).toBeVisible();
+
+    await page.getByRole("combobox", { name: "按 transcript 状态筛选" }).click();
+    await page.getByRole("option", { name: "已有 transcript" }).click();
+
+    await expect(page.getByRole("button", { name: "多选整理" })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "选择 测试音频 1" })).toHaveCount(0);
+  });
+
+  test("renames and deletes a playlist through confirmed UI actions", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await openSettings(page);
+
+    const playlistRow = page
+      .locator(".playlist-maintenance-row")
+      .filter({ hasText: "晨间播放" });
+    await playlistRow.getByRole("button", { name: "重命名" }).click();
+
+    const renameDialog = page.getByRole("dialog", { name: "重命名 Playlist" });
+    await renameDialog.getByRole("textbox", { name: "Playlist 名称" }).fill("通勤精选");
+    await renameDialog.getByRole("button", { name: "保存" }).click();
+
+    const renamedRow = page
+      .locator(".playlist-maintenance-row")
+      .filter({ hasText: "通勤精选" });
+    await expect(renamedRow).toBeVisible();
+    expect(state.mutations[0]).toEqual({
+      method: "PATCH",
+      path: "/playlists/11",
+      body: { name: "通勤精选" }
+    });
+
+    await renamedRow.getByRole("button", { name: "删除" }).click();
+    const deleteDialog = page.getByRole("dialog", { name: "删除 Playlist？" });
+    await expect(deleteDialog).toContainText("不会删除任何音频");
+    await deleteDialog.getByRole("button", { name: "删除 Playlist" }).click();
+
+    await expect(renamedRow).toHaveCount(0);
+    expect(state.mutations[1]).toEqual({
+      method: "DELETE",
+      path: "/playlists/11",
+      body: null
+    });
+  });
+
+  test("removes a library root without presenting it as audio deletion", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await openSettings(page);
+
+    const rootRow = page.locator(".root-card").filter({ hasText: "/library/podcasts" });
+    await rootRow.getByRole("button", { name: "移除" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "移除媒体库目录？" });
+    await expect(dialog).toContainText("音频文件和数据库中的音频");
+    await expect(dialog).toContainText("都会保留");
+    await dialog.getByRole("button", { name: "移除目录" }).click();
+
+    await expect(rootRow).toHaveCount(0);
+    await expect(page.getByText("目录已移除，保留 1 条音频记录")).toBeVisible();
+    expect(state.mutations).toContainEqual({
+      method: "DELETE",
+      path: "/library-roots/7",
+      body: null
+    });
+  });
+
+  test("merges a source tag into an existing target tag", async ({ page }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await openSettings(page);
+    await page.getByRole("tab", { name: "维护" }).click();
+
+    const sourceTag = page.locator(".tag").filter({ hasText: "#待整理" });
+    await sourceTag.getByRole("button", { name: "合并" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "合并标签" });
+    await dialog.getByRole("textbox", { name: "目标标签名称" }).fill("知识");
+    await dialog.getByRole("button", { name: "合并" }).click();
+
+    await expect(sourceTag).toHaveCount(0);
+    await expect(page.locator(".tag").filter({ hasText: "#知识" })).toBeVisible();
+    await expect(
+      page.getByText("已将 #待整理 合并到 #知识，影响 4 条音频")
+    ).toBeVisible();
+    expect(state.mutations).toContainEqual({
+      method: "POST",
+      path: "/tags/21/merge",
+      body: { target_tag_id: 22 }
+    });
+  });
+
+  test("confirms segment clearing before saving a transcript revision", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
+    await page.getByRole("tab", { name: "Transcript" }).click();
+    await expect(page.getByText("原始分段文字")).toBeVisible();
+
+    await page.getByRole("button", { name: "编辑" }).click();
+    await page
+      .getByRole("textbox", { name: "Transcript 全文" })
+      .fill("修订后的 Transcript 全文");
+    await page.getByRole("button", { name: "保存修订" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "保存 Transcript 修订？" });
+    await expect(dialog).toContainText("会清除这些分段");
+    await dialog.getByRole("button", { name: "保存并清除分段" }).click();
+
+    await expect(page.getByText("修订后的 Transcript 全文")).toBeVisible();
+    await expect(page.getByText("原始分段文字")).toHaveCount(0);
+    await expect(
+      page.getByText("Transcript 已保存，并清除 1 个旧分段")
+    ).toBeVisible();
+    expect(state.mutations).toContainEqual({
+      method: "PATCH",
+      path: "/audio-items/1/transcript",
+      body: { full_text: "修订后的 Transcript 全文" }
+    });
+  });
+});
