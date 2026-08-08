@@ -1,4 +1,4 @@
-import unittest
+import pytest
 
 from app.ai_client import (
     get_ai_message_content,
@@ -7,15 +7,12 @@ from app.ai_client import (
 )
 
 
-class TestAIClient(unittest.TestCase):
+class TestAIClient:
     def test_parse_ai_json_content_clean_json(self):
-        self.assertEqual(
-            parse_ai_json_content('{"ok": true, "value": 1}'),
-            {
-                "ok": True,
-                "value": 1,
-            },
-        )
+        assert parse_ai_json_content('{"ok": true, "value": 1}') == {
+            "ok": True,
+            "value": 1,
+        }
 
     def test_parse_ai_json_content_extracts_json_object(self):
         content = """
@@ -29,31 +26,25 @@ class TestAIClient(unittest.TestCase):
         ```
         """
 
-        self.assertEqual(
-            parse_ai_json_content(content),
-            {
-                "description": "hello",
-                "tags": ["a", "b"],
-            },
-        )
+        assert parse_ai_json_content(content) == {
+            "description": "hello",
+            "tags": ["a", "b"],
+        }
 
     def test_parse_ai_json_content_extracts_unicode_json_object(self):
         content = '模型输出：{"description": "你好，世界", "tags": ["中文", "AI"]} 完成。'
 
-        self.assertEqual(
-            parse_ai_json_content(content),
-            {
-                "description": "你好，世界",
-                "tags": ["中文", "AI"],
-            },
-        )
+        assert parse_ai_json_content(content) == {
+            "description": "你好，世界",
+            "tags": ["中文", "AI"],
+        }
 
     def test_parse_ai_json_content_invalid_raises(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             parse_ai_json_content("not json")
 
     def test_parse_ai_json_content_malformed_embedded_json_raises(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             parse_ai_json_content("prefix {not valid json} suffix")
 
     def test_get_ai_message_content_success(self):
@@ -67,10 +58,10 @@ class TestAIClient(unittest.TestCase):
             ]
         }
 
-        self.assertEqual(get_ai_message_content(response), "hello")
+        assert get_ai_message_content(response) == "hello"
 
     def test_get_ai_message_content_invalid_schema_raises(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             get_ai_message_content({"choices": []})
 
     def test_parse_ai_json_response(self):
@@ -84,14 +75,7 @@ class TestAIClient(unittest.TestCase):
             ]
         }
 
-        self.assertEqual(
-            parse_ai_json_response(response),
-            {
-                "description": "ok",
-                "tags": ["tag"],
-            },
-        )
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert parse_ai_json_response(response) == {
+            "description": "ok",
+            "tags": ["tag"],
+        }

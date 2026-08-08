@@ -1,18 +1,17 @@
-import unittest
+import pytest
 
 import app.local_security as security
 
 
-class TestLocalSecurity(unittest.TestCase):
-    def setUp(self):
-        self._old_allow_all_cors = security.ALLOW_ALL_CORS
-        security.ALLOW_ALL_CORS = False
+@pytest.fixture(autouse=True)
+def disable_allow_all_cors(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(security, "ALLOW_ALL_CORS", False)
 
-    def tearDown(self):
-        security.ALLOW_ALL_CORS = self._old_allow_all_cors
 
-    def test_allowed_request_origins(self):
-        allowed = [
+class TestLocalSecurity:
+    @pytest.mark.parametrize(
+        "origin",
+        [
             "http://localhost:5173",
             "https://localhost",
             "http://127.0.0.1:5173",
@@ -21,101 +20,100 @@ class TestLocalSecurity(unittest.TestCase):
             "http://foo.localhost:5173",
             "https://tauri.localhost",
             "tauri://localhost",
-        ]
+        ],
+    )
+    def test_allowed_request_origins(self, origin: str):
+        assert security._is_allowed_request_origin(origin)
 
-        for origin in allowed:
-            with self.subTest(origin=origin):
-                self.assertTrue(security._is_allowed_request_origin(origin))
-
-    def test_disallowed_request_origins(self):
-        disallowed = [
+    @pytest.mark.parametrize(
+        "origin",
+        [
             "https://example.com",
             "http://localhost.evil.com",
             "file://localhost/path",
             "ftp://localhost",
             "not-a-url",
-        ]
+        ],
+    )
+    def test_disallowed_request_origins(self, origin: str):
+        assert not security._is_allowed_request_origin(origin)
 
-        for origin in disallowed:
-            with self.subTest(origin=origin):
-                self.assertFalse(security._is_allowed_request_origin(origin))
-
-    def test_local_llm_endpoints(self):
-        endpoints = [
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
             "http://localhost:1234/v1",
             "http://127.0.0.1:1234/v1",
             "http://127.1.2.3:1234/v1",
             "http://[::1]:8765/v1",
             "http://model.localhost/v1",
-        ]
+        ],
+    )
+    def test_local_llm_endpoints(self, endpoint: str):
+        assert security._is_local_endpoint(endpoint)
+        assert security._llm_privacy_warning(endpoint) is None
 
-        for endpoint in endpoints:
-            with self.subTest(endpoint=endpoint):
-                self.assertTrue(security._is_local_endpoint(endpoint))
-                self.assertIsNone(security._llm_privacy_warning(endpoint))
-
-    def test_remote_llm_endpoints_have_privacy_warning(self):
-        endpoints = [
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
             "https://example.com/v1",
             "http://192.168.1.2:1234/v1",
             "http://10.0.0.2:1234/v1",
             "not-a-url",
-        ]
+        ],
+    )
+    def test_remote_llm_endpoints_have_privacy_warning(self, endpoint: str):
+        assert not security._is_local_endpoint(endpoint)
 
-        for endpoint in endpoints:
-            with self.subTest(endpoint=endpoint):
-                self.assertFalse(security._is_local_endpoint(endpoint))
-
-                warning = security._llm_privacy_warning(endpoint)
-                self.assertIsNotNone(warning)
-                self.assertIn("不是 localhost", warning)
+        warning = security._llm_privacy_warning(endpoint)
+        assert warning is not None
+        assert "不是 localhost" in warning
 
     def test_asr_privacy_warning_describes_full_audio_upload(self):
-        self.assertIsNone(
-            security._asr_privacy_warning("http://127.0.0.1:8000/v1")
-        )
+        assert security._asr_privacy_warning("http://127.0.0.1:8000/v1") is None
 
         warning = security._asr_privacy_warning("https://asr.example.com/v1")
-        self.assertIsNotNone(warning)
-        self.assertIn("完整音频文件", warning)
+        assert warning is not None
+        assert "完整音频文件" in warning
 
-    def test_setting_truthy(self):
-        truthy_values = ["1", "true", "TRUE", "yes", "on", " On "]
-        falsey_values = ["", "0", "false", "no", "off", None]
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("1", True),
+            ("true", True),
+            ("TRUE", True),
+            ("yes", True),
+            ("on", True),
+            (" On ", True),
+            ("", False),
+            ("0", False),
+            ("false", False),
+            ("no", False),
+            ("off", False),
+            (None, False),
+        ],
+    )
+    def test_setting_truthy(self, value: str | None, expected: bool):
+        assert security._setting_truthy(value) is expected
 
-        for value in truthy_values:
-            with self.subTest(value=value):
-                self.assertTrue(security._setting_truthy(value))
-
-        for value in falsey_values:
-            with self.subTest(value=value):
-                self.assertFalse(security._setting_truthy(value))
-
-    def test_query_tokens_are_limited_to_media_and_download_paths(self):
-        allowed = [
-            "/audio-items/1/file",
-            "/audio-items/1/cover",
-            "/audio-items/1/transcript/export",
-            "/playlists/1/export",
-            "/export/metadata",
-            "/logs/app/file",
-        ]
-        rejected = [
-            "/settings",
-            "/audio-items",
-            "/audio-items/1",
-            "/audio-items/1/transcript",
-            "/logs/app",
-        ]
-
-        for path in allowed:
-            with self.subTest(path=path):
-                self.assertTrue(security._path_allows_query_token(path))
-
-        for path in rejected:
-            with self.subTest(path=path):
-                self.assertFalse(security._path_allows_query_token(path))
-
-
-if __name__ == "__main__":
-    unittest.main()
+    @pytest.mark.parametrize(
+        ("path", "expected"),
+        [
+            ("/audio-items/1/file", True),
+            ("/audio-items/1/cover", True),
+            ("/audio-items/1/transcript/export", True),
+            ("/playlists/1/export", True),
+            ("/export/metadata", True),
+            ("/logs/app/file", True),
+            ("/settings", False),
+            ("/audio-items", False),
+            ("/audio-items/1", False),
+            ("/audio-items/1/transcript", False),
+            ("/logs/app", False),
+        ],
+    )
+    def test_query_tokens_are_limited_to_media_and_download_paths(
+        self,
+        path: str,
+        expected: bool,
+    ):
+        assert security._path_allows_query_token(path) is expected
