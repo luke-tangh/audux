@@ -1,7 +1,8 @@
-# Beta Release Checklist（暂停）
+# Beta Release Checklist
 
-> 当前不执行发布流程。完成 [`roadmap.md`](roadmap.md) 的 v0.5 F1–F3 并通过 F4
-> 收口评估后，再确定实际版本标签并启用本清单。
+> F4 已决定进入 Beta 发布验证。执行本清单不代表已经批准发布；所有 publish gate
+> 项目通过后，才确定并创建实际版本标签。评估记录见
+> [`v0.5-f4-evaluation.md`](v0.5-f4-evaluation.md)。
 
 这份清单用于后续 Beta 候选版本。测试必须使用临时媒体库和测试数据目录，不要直接
 拿唯一一份真实用户数据做升级或卸载测试。

@@ -47,10 +47,20 @@ def batch_organize_audio(session: Session, payload: dict) -> dict:
     audio_ids, duplicate_count = _unique_values(requested_ids)
 
     errors: list[dict] = []
+    audio_rows = (
+        session.exec(select(AudioItem).where(AudioItem.id.in_(audio_ids))).all()
+        if audio_ids
+        else []
+    )
+    found_audio_by_id = {
+        int(audio.id): audio
+        for audio in audio_rows
+        if audio.id is not None
+    }
     audio_by_id: dict[int, AudioItem] = {}
 
     for audio_id in audio_ids:
-        audio = session.get(AudioItem, audio_id)
+        audio = found_audio_by_id.get(audio_id)
         if not audio:
             errors.append({"audio_id": audio_id, "error": "Audio item not found"})
             continue

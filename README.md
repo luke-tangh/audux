@@ -413,20 +413,20 @@ Release 构建前请确认：
 
 ## 开发路线与 Release dry-run
 
-当前暂缓发布 `v0.5.0-beta.1`。显式多选与批量整理、Transcript 保真修订与搜索上下文、
-播放队列与会话连续性已经完成，下一步进行 v0.5 范围收口评估。详细范围和验收门槛见
-[`docs/roadmap.md`](docs/roadmap.md)。仓库中的 `0.5.0-beta.1` 版本字符串暂作为内部
-开发候选标识，不代表已经发布。
+显式多选与批量整理、Transcript 保真修订与搜索上下文、播放队列与会话连续性以及
+F4 收口评估已经完成。v0.5 现已冻结功能范围并进入 Beta 发布验证，不再追加 F5。
+评估结论见 [`docs/v0.5-f4-evaluation.md`](docs/v0.5-f4-evaluation.md)，详细范围见
+[`docs/roadmap.md`](docs/roadmap.md)。仓库中的 `0.5.0-beta.1` 仍是内部候选标识，
+不代表已经发布。
 
 GitHub Actions 的 `Release` workflow 支持手动触发。手动运行会在 Linux、Windows
 和 macOS 构建 lite 安装包与对应 Whisper companion 并保留 artifacts，但不会创建
 GitHub Release。只有推送 `v*.*.*` tag 才会发布 Release 和组件 manifest。
 
-重新决定进入 Beta 发布验证后，按照
-[`docs/release-checklist.md`](docs/release-checklist.md) 完成安装、升级、端口冲突、
-后端退出和 ASR smoke test。
+按照 [`docs/release-checklist.md`](docs/release-checklist.md) 完成三平台安装、升级、
+端口冲突、后端退出和 ASR smoke test 后，才能创建发布标签。
 
-暂停前整理的 Beta 发布草案见
+Beta 发布说明草案见
 [`docs/releases/v0.5.0-beta.1.md`](docs/releases/v0.5.0-beta.1.md)。
 
 如果只想单独生成当前 Linux 平台的 sidecar，可以运行：
