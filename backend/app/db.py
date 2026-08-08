@@ -25,6 +25,12 @@ EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 BACKUPS_DIR = APP_DATA_DIR / "backups"
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
+COMPONENTS_DIR = APP_DATA_DIR / "components"
+COMPONENTS_DIR.mkdir(parents=True, exist_ok=True)
+
+MODELS_DIR = APP_DATA_DIR / "models"
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
 DB_PATH = APP_DATA_DIR / "database.sqlite"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 

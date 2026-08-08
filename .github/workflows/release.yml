@@ -51,7 +51,7 @@ jobs:
           enable-cache: true
 
       - name: Install backend dependencies
-        run: uv sync --locked --extra asr --group build
+        run: uv sync --locked --group build
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -76,12 +76,19 @@ jobs:
         working-directory: frontend
         run: npm run tauri:build
 
+      - name: Install Whisper companion dependencies
+        run: uv sync --locked --extra asr --group build
+
+      - name: Build Whisper companion
+        run: uv run --locked --extra asr --group build python backend/build_whisper_companion.py
+
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v7
         with:
           name: local-audio-library-${{ matrix.name }}
           path: |
             frontend/src-tauri/target/release/bundle/**
+            backend/dist/whisper-components/**
           if-no-files-found: error
 
   publish-release:
@@ -91,12 +98,23 @@ jobs:
     if: github.event_name == 'push'
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Download bundle artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: local-audio-library-*
           path: release-artifacts
           merge-multiple: false
+
+      - name: Build Whisper component manifest
+        shell: bash
+        run: |
+          python backend/build_whisper_manifest.py \
+            --input release-artifacts \
+            --output release-artifacts/whisper-components.json \
+            --version "${GITHUB_REF_NAME#v}"
 
       - name: List release files
         shell: bash
@@ -107,4 +125,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            release-artifacts/**/*
+            release-artifacts/**/bundle/**/*
+            release-artifacts/**/local-audio-whisper-*.zip
+            release-artifacts/whisper-components.json

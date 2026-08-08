@@ -11,7 +11,6 @@ from sqlalchemy.exc import IntegrityError
 from .db import engine
 from .models import AITask, AudioItem, Transcript, TranscriptSegment, Setting
 from .models import now_iso
-from .transcriber import transcribe_audio
 from .asr_client import transcribe_external_audio
 from .asr_config import (
     ASR_PROVIDER_EXTERNAL,
@@ -27,6 +26,10 @@ from .ai_client import (
 )
 from .logger import get_logger
 from .local_security import ensure_asr_endpoint_allowed, ensure_llm_endpoint_allowed
+from .services.whisper_component_service import (
+    WhisperCompanionCanceled,
+    transcribe_with_whisper_companion,
+)
 
 
 logger = get_logger(__name__)
@@ -396,10 +399,8 @@ async def _run_with_task_heartbeat(
     """
     在长耗时操作期间定期刷新 task.updated_at。
 
-    注意：
-    - 这里不持有业务 DB session。
-    - 对 faster-whisper 这类 to_thread 调用，cancel 仍然不能立即杀掉底层线程；
-      保持原有语义：底层阶段结束后再检查 cancel。
+    这里不持有业务 DB session。外部请求由各自客户端处理取消；Whisper
+    companion 会在任务取消后终止独立子进程。
     """
     stop_event = asyncio.Event()
     heartbeat_task = asyncio.create_task(_task_heartbeat_loop(task_id, stop_event))
@@ -556,16 +557,19 @@ async def handle_transcribe_task(task: TaskSnapshot):
             timeout=asr_config["timeout"],
         )
     else:
-        transcribe_awaitable = asyncio.to_thread(
-            transcribe_audio,
-            file_path,
-            asr_config["model_name"],
-            asr_config["device"],
-            asr_config["compute_type"],
-            asr_config["beam_size"],
+        transcribe_awaitable = transcribe_with_whisper_companion(
+            file_path=file_path,
+            model_name=asr_config["model_name"],
+            device=asr_config["device"],
+            compute_type=asr_config["compute_type"],
+            beam_size=asr_config["beam_size"],
+            is_canceled=lambda: _is_task_canceled_by_id(task_id),
         )
 
-    result = await _run_with_task_heartbeat(task_id, transcribe_awaitable)
+    try:
+        result = await _run_with_task_heartbeat(task_id, transcribe_awaitable)
+    except WhisperCompanionCanceled as error:
+        raise TaskCanceled() from error
 
     with Session(engine) as session:
         if is_task_canceled(session, task_id):

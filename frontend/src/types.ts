@@ -193,6 +193,17 @@ export type ScanTask = {
   updated_at: string;
 };
 
+export type WhisperComponentStatus = {
+  status: "not_installed" | "downloading" | "installing" | "installed" | "failed";
+  available: boolean;
+  source: "component" | "development" | null;
+  app_version: string;
+  target: string;
+  downloaded_bytes: number;
+  total_bytes: number | null;
+  error_message: string | null;
+};
+
 export type AISuggestions = {
   task_id: number | null;
   description?: string;

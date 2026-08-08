@@ -33,6 +33,7 @@ cargo check --locked
 - Linux x64 bundle
 - Windows x64 bundle
 - macOS x64 bundle
+- 三个平台的 `local-audio-whisper-<target>.zip` 和 descriptor
 
 手动触发不得创建 GitHub Release。检查每个平台 artifact 中确实包含安装包，而不是
 debug sidecar placeholder。
@@ -63,7 +64,10 @@ debug sidecar placeholder。
 
 - 先占用默认端口 `8765` 再启动应用，确认 Tauri 自动选择其他回环端口。
 - 关闭窗口并确认备用端口释放。
-- 完整 sidecar 验证 `faster_whisper` Provider 可以加载。
+- lite 安装包在未安装组件时明确提示，不创建本地转写任务。
+- 从 Release manifest 下载、校验并安装 Whisper companion，完成一次本地转写。
+- 首次模型下载写入 `models/faster-whisper/`；移除/重装组件后模型缓存仍保留。
+- 取消运行中的本地转写后 companion 子进程退出，任务最终为 canceled。
 - External ASR 使用 mock/测试服务完成一次 multipart 上传并写入 transcript。
 - 非 loopback ASR 和 LLM endpoint 仍显示隐私警告并需要显式允许。
 

@@ -1,4 +1,5 @@
 import { Button, CheckboxField, PanelCard, SelectField, TextField } from "../ui";
+import type { WhisperComponentStatus } from "../../types";
 
 type AsrSettingsTabProps = {
   asrProvider: string;
@@ -14,6 +15,7 @@ type AsrSettingsTabProps = {
   externalTimeout: string;
   externalAllowRemoteEndpoint: boolean;
   externalWarning: string | null;
+  whisperComponent: WhisperComponentStatus | null;
   onAsrProviderChange: (value: string) => void;
   onAsrModelNameChange: (value: string) => void;
   onAsrDeviceChange: (value: string) => void;
@@ -26,8 +28,17 @@ type AsrSettingsTabProps = {
   onExternalTimestampPolicyChange: (value: string) => void;
   onExternalTimeoutChange: (value: string) => void;
   onExternalAllowRemoteEndpointChange: (value: boolean) => void;
+  onInstallWhisperComponent: () => void;
+  onCancelWhisperComponentInstall: () => void;
+  onRemoveWhisperComponent: () => void;
   onSaveAsr: () => void;
 };
+
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function AsrSettingsTab({
   asrProvider,
@@ -43,6 +54,7 @@ export default function AsrSettingsTab({
   externalTimeout,
   externalAllowRemoteEndpoint,
   externalWarning,
+  whisperComponent,
   onAsrProviderChange,
   onAsrModelNameChange,
   onAsrDeviceChange,
@@ -55,18 +67,96 @@ export default function AsrSettingsTab({
   onExternalTimestampPolicyChange,
   onExternalTimeoutChange,
   onExternalAllowRemoteEndpointChange,
+  onInstallWhisperComponent,
+  onCancelWhisperComponentInstall,
+  onRemoveWhisperComponent,
   onSaveAsr
 }: AsrSettingsTabProps) {
+  const installing =
+    whisperComponent?.status === "downloading" ||
+    whisperComponent?.status === "installing";
+  const progress =
+    whisperComponent?.total_bytes && whisperComponent.total_bytes > 0
+      ? Math.min(100, (whisperComponent.downloaded_bytes / whisperComponent.total_bytes) * 100)
+      : 0;
+
   return (
-    <PanelCard
-      title="ASR Provider 设置"
-      className="max-form-card"
-      actions={
-        <Button variant="filled" onClick={onSaveAsr}>
-          保存 ASR 设置
-        </Button>
-      }
-    >
+    <div className="asr-settings-stack">
+      <PanelCard
+        title="Whisper 本地转写组件"
+        className="max-form-card"
+        actions={
+          installing ? (
+            <Button variant="outlined" onClick={onCancelWhisperComponentInstall}>
+              取消下载
+            </Button>
+          ) : whisperComponent?.available && whisperComponent.source === "component" ? (
+            <Button variant="danger" onClick={onRemoveWhisperComponent}>
+              移除组件
+            </Button>
+          ) : whisperComponent?.source === "development" ? null : (
+            <Button variant="filled" onClick={onInstallWhisperComponent}>
+              下载并安装
+            </Button>
+          )
+        }
+      >
+        <div className="whisper-component-status" aria-live="polite">
+          <div>
+            <strong>
+              {whisperComponent?.available
+                ? whisperComponent.source === "development"
+                  ? "开发环境可用"
+                  : "已安装"
+                : installing
+                  ? whisperComponent?.status === "installing"
+                    ? "正在安装"
+                    : "正在下载"
+                  : whisperComponent?.status === "failed"
+                    ? "安装失败"
+                    : "未安装"}
+            </strong>
+            <span>{whisperComponent?.target || "正在读取平台信息…"}</span>
+          </div>
+          {installing && (
+            <>
+              <div
+                className="progress-line"
+                role="progressbar"
+                aria-label="Whisper 组件下载进度"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(progress)}
+              >
+                <div style={{ width: `${progress}%` }} />
+              </div>
+              <span>
+                {formatBytes(whisperComponent?.downloaded_bytes || 0)}
+                {whisperComponent?.total_bytes
+                  ? ` / ${formatBytes(whisperComponent.total_bytes)}`
+                  : ""}
+              </span>
+            </>
+          )}
+          {whisperComponent?.error_message && (
+            <p className="privacy-warning">{whisperComponent.error_message}</p>
+          )}
+        </div>
+        <p className="muted">
+          主程序不再内置 faster-whisper 运行时。组件按当前系统独立下载；选择 small、medium、
+          large-v3 等模型时，模型文件会在首次转写时另行下载并缓存。
+        </p>
+      </PanelCard>
+
+      <PanelCard
+        title="ASR Provider 设置"
+        className="max-form-card"
+        actions={
+          <Button variant="filled" onClick={onSaveAsr}>
+            保存 ASR 设置
+          </Button>
+        }
+      >
       <div className="settings-form-grid">
         <div className="asr-device-field">
           <span className="ui-field-label" aria-hidden="true">
@@ -83,7 +173,7 @@ export default function AsrSettingsTab({
             menuWidth="control"
             value={asrProvider}
             options={[
-              { value: "faster_whisper", label: "faster-whisper（内置）" },
+              { value: "faster_whisper", label: "faster-whisper（可选组件）" },
               { value: "external", label: "External API（本地服务）" }
             ]}
             onValueChange={onAsrProviderChange}
@@ -217,8 +307,7 @@ export default function AsrSettingsTab({
 
       {asrProvider === "faster_whisper" ? (
         <p className="muted">
-          需要后端环境安装 faster-whisper。若希望完全离线，请优先填写本地模型路径；
-          如果填写 small / medium / large-v3 等模型名称，首次运行可能尝试下载模型。
+          使用前需要安装上方 Whisper 组件。若希望完全离线，请填写已缓存或可访问的本地模型路径。
         </p>
       ) : (
         <p className="muted">
@@ -226,6 +315,7 @@ export default function AsrSettingsTab({
           multipart/form-data，并返回 text、language、model 和可选 segments。
         </p>
       )}
-    </PanelCard>
+      </PanelCard>
+    </div>
   );
 }

@@ -14,7 +14,7 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 - 显式多选与批量整理：批量添加 / 移除标签、加入 Playlist、收藏 / 取消收藏
 - 媒体库目录可安全移除：保留磁盘文件和已有音频、标签、Playlist、Transcript 数据
 - Transcript：
-  - faster-whisper 内置转写或外部本地 ASR 服务
+  - 可选 Whisper companion 本地转写或外部 ASR 服务
   - transcript 时间轴
   - 逐段修订并保留时间轴，自动同步全文和搜索索引
   - 以版本冲突保护的全文替换高级操作
@@ -95,7 +95,7 @@ schema 版本。备份失败时应用会停止升级，不会继续修改原数�
 # 基础后端依赖
 uv sync --locked
 
-# 如需内置 faster-whisper
+# 如需在开发环境直接运行 Whisper companion
 uv sync --locked --extra asr
 ```
 
@@ -157,7 +157,7 @@ npm run tauri:dev
 
 ASR 支持两种 Provider：
 
-- `faster_whisper`：由后端进程直接加载本地 faster-whisper 模型。
+- `faster_whisper`：由按需安装的 Whisper companion 独立进程加载模型。
 - `external`：把媒体库中的音频上传到单独部署的 ASR HTTP 服务。模型、
   CUDA、PyTorch 和 vLLM 不进入桌面应用的安装包。
 
@@ -171,7 +171,12 @@ asr.compute_type = int8
 asr.beam_size = 5
 ```
 
-如果希望完全离线，建议把 `asr.model_name` 配置为本地模型路径，而不是 `small` / `medium` / `large-v3` 这类模型名称。否则首次运行可能会尝试下载模型。
+桌面发布包默认不包含 faster-whisper、CTranslate2、PyAV 等运行时。先在“设置 →
+ASR”下载当前平台的 Whisper 组件；组件 ZIP 会校验版本、平台、大小和 SHA-256 后再
+安装。`small` / `medium` / `large-v3` 等模型权重仍在首次转写时下载到
+`~/.local_audio_library/models/faster-whisper/`。移除组件不会删除模型缓存。
+
+如果希望完全离线，先完成组件和模型下载，或把 `asr.model_name` 配置为本地模型路径。
 
 ### External ASR Provider
 
@@ -333,10 +338,10 @@ npm run build
 
 ## 构建后端 sidecar
 
-完整 sidecar 构建需要 PyInstaller 和内置 ASR 依赖。在仓库根目录执行：
+主程序 sidecar 默认构建为 lite 版本，不包含 Whisper 运行时：
 
 ```bash
-uv run --locked --extra asr --group build python backend/build_backend.py
+uv run --locked --group build python backend/build_backend.py
 ```
 
 该命令会生成：
@@ -345,23 +350,17 @@ uv run --locked --extra asr --group build python backend/build_backend.py
 frontend/src-tauri/binaries/local-audio-backend-<target-triple>
 ```
 
-构建脚本会尝试收集：
-
-- faster-whisper
-- ctranslate2
-- tokenizers
-- av
-- sqlite3
-
-如果发布版本只使用 External ASR，可以构建不含 faster-whisper、CTranslate2
-和相关模型运行依赖的轻量 sidecar：
+如需单独构建当前平台的可选 Whisper companion：
 
 ```bash
-LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 \
-  uv run --locked --group build python backend/build_backend.py
+uv sync --locked --extra asr --group build
+uv run --locked --extra asr --group build python backend/build_whisper_companion.py
 ```
 
-该模式仍可使用 `external` Provider；只有 `faster_whisper` Provider 不可用。
+产物位于 `backend/dist/whisper-components/`，包含平台 ZIP 和 manifest descriptor。
+Release workflow 会为三个目标平台构建 lite 安装包和 companion，并汇总生成
+`whisper-components.json`。下载地址默认指向与应用版本相同的 GitHub Release；开发
+或镜像测试可用 `LOCAL_AUDIO_LIBRARY_WHISPER_MANIFEST_URL` 指定 HTTPS manifest。
 
 不同平台的 native 依赖仍建议在目标平台上实际测试。
 
@@ -407,9 +406,9 @@ backend sidecar，再构建前端和 Tauri 安装包。Python 的查找顺序为
 
 Release 构建前请确认：
 
-1. 已执行 `uv sync --locked --extra asr --group build`
+1. 已执行 lite sidecar 和当前平台 Whisper companion 构建
 2. `uv.lock` 与 `pyproject.toml` 保持同步
-3. ASR 模型策略已确认：本地路径或用户自行下载
+3. companion manifest/ZIP 校验通过，ASR 模型下载与缓存策略已确认
 4. LLM endpoint 不会意外指向不可信服务
 
 ## 开发路线与 Release dry-run
@@ -420,8 +419,8 @@ Release 构建前请确认：
 开发候选标识，不代表已经发布。
 
 GitHub Actions 的 `Release` workflow 支持手动触发。手动运行会在 Linux、Windows
-和 macOS 构建完整安装包并保留 artifacts，但不会创建 GitHub Release。只有推送
-`v*.*.*` tag 才会发布 Release。
+和 macOS 构建 lite 安装包与对应 Whisper companion 并保留 artifacts，但不会创建
+GitHub Release。只有推送 `v*.*.*` tag 才会发布 Release 和组件 manifest。
 
 重新决定进入 Beta 发布验证后，按照
 [`docs/release-checklist.md`](docs/release-checklist.md) 完成安装、升级、端口冲突、

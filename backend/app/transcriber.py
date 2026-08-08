@@ -2,10 +2,15 @@ from pathlib import Path
 from typing import Any
 
 
-_MODEL_CACHE: dict[tuple[str, str, str], Any] = {}
+_MODEL_CACHE: dict[tuple[str, str, str, str | None], Any] = {}
 
 
-def _get_whisper_model(model_name: str, device: str, compute_type: str):
+def _get_whisper_model(
+    model_name: str,
+    device: str,
+    compute_type: str,
+    download_root: str | None = None,
+):
     try:
         from faster_whisper import WhisperModel
     except Exception as e:
@@ -14,13 +19,14 @@ def _get_whisper_model(model_name: str, device: str, compute_type: str):
             "Sync the ASR dependencies with: uv sync --locked --extra asr"
         ) from e
 
-    key = (model_name, device, compute_type)
+    key = (model_name, device, compute_type, download_root)
 
     if key not in _MODEL_CACHE:
         _MODEL_CACHE[key] = WhisperModel(
             model_name,
             device=device,
             compute_type=compute_type,
+            download_root=download_root,
         )
 
     return _MODEL_CACHE[key]
@@ -32,13 +38,19 @@ def transcribe_audio(
     device: str = "cpu",
     compute_type: str = "int8",
     beam_size: int = 5,
+    download_root: str | None = None,
 ) -> dict:
     path = Path(file_path)
 
     if not path.exists() or not path.is_file():
         raise FileNotFoundError(f"Audio file not found: {file_path}")
 
-    model = _get_whisper_model(model_name, device, compute_type)
+    model = _get_whisper_model(
+        model_name,
+        device,
+        compute_type,
+        download_root,
+    )
 
     segments_iter, info = model.transcribe(
         str(path),

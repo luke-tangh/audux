@@ -69,7 +69,8 @@ def build_with_asr() -> bool:
     External ASR uses the base httpx dependency and remains available when this
     option is disabled.
 
-    Default: true, because release builds should keep the embedded provider.
+    Default: false. Release builds keep the main sidecar lightweight and ship
+    faster-whisper as an optional companion component.
 
     To create a lite/smoke build without faster-whisper:
 
@@ -81,7 +82,7 @@ def build_with_asr() -> bool:
     if _env_falsey(value):
         return False
 
-    return _env_truthy(value, default=True)
+    return _env_truthy(value, default=False)
 
 
 def module_available(module_name: str) -> bool:
@@ -130,8 +131,8 @@ def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
 
         print(
             "Building backend sidecar WITHOUT embedded faster-whisper support. "
-            "The external ASR provider remains available; faster_whisper tasks "
-            "will fail in this lite sidecar. Build a full sidecar to enable them."
+            "The external ASR provider remains available; install the optional "
+            "Whisper companion to enable local transcription."
         )
 
     cmd.extend(

@@ -6,6 +6,8 @@ from sqlmodel import Session
 from tests.api_test_support import ApiIntegrationTest
 from app import tasks
 from app.models import AITask, AudioItem, Transcript
+from app.services import transcript_service
+from app.services import whisper_component_service
 
 
 class TestTaskApiLifecycle(ApiIntegrationTest):
@@ -122,6 +124,66 @@ class TestTaskApiLifecycle(ApiIntegrationTest):
             stored_audio = session.get(AudioItem, self.audio.id)
             assert stored_audio.transcript_status == 'cancel_requested'
             assert stored_audio.ai_status == 'pending'
+
+    def test_local_transcribe_requires_optional_whisper_component(self, monkeypatch):
+        monkeypatch.setattr(
+            transcript_service,
+            "is_whisper_companion_available",
+            lambda: False,
+        )
+
+        response = self.client.post(
+            f"/audio-items/{self.audio.id}/transcribe",
+            headers=self.auth_headers(include_client=True),
+        )
+
+        assert response.status_code == 409
+        assert "Whisper component is not installed" in response.json()["detail"]
+
+    def test_whisper_component_api_is_protected_and_starts_install(self, monkeypatch):
+        status = {
+            "status": "not_installed",
+            "available": False,
+            "source": None,
+            "app_version": "0.5.0-beta.1",
+            "target": "test-target",
+            "downloaded_bytes": 0,
+            "total_bytes": None,
+            "error_message": None,
+        }
+        monkeypatch.setattr(
+            whisper_component_service,
+            "get_whisper_component_status",
+            lambda: status,
+        )
+        monkeypatch.setattr(
+            whisper_component_service,
+            "start_whisper_component_install",
+            lambda: {**status, "status": "downloading"},
+        )
+
+        unauthorized = self.client.get("/asr/whisper-component")
+        assert unauthorized.status_code == 401
+
+        listed = self.client.get(
+            "/asr/whisper-component",
+            headers=self.auth_headers(),
+        )
+        assert listed.status_code == 200
+        assert listed.json()["target"] == "test-target"
+
+        missing_client_header = self.client.post(
+            "/asr/whisper-component/install",
+            headers=self.auth_headers(),
+        )
+        assert missing_client_header.status_code == 403
+
+        started = self.client.post(
+            "/asr/whisper-component/install",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert started.status_code == 200
+        assert started.json()["status"] == "downloading"
 
 
 class TestInterruptedTaskRecovery(ApiIntegrationTest):
