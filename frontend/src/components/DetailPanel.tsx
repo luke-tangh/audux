@@ -29,6 +29,8 @@ type Props = {
   audio: AudioItem | null;
   refresh: () => void;
   onPlay: (a: AudioItem) => void;
+  onAddToQueue: (a: AudioItem) => void;
+  onPlayNext: (a: AudioItem) => void;
   playlists: Playlist[];
   selectedPlaylistId?: number | null;
   onDeleted: (audioId: number) => void;
@@ -39,6 +41,8 @@ export default function DetailPanel({
   audio,
   refresh,
   onPlay,
+  onAddToQueue,
+  onPlayNext,
   playlists,
   selectedPlaylistId,
   onDeleted,
@@ -519,6 +523,8 @@ export default function DetailPanel({
         audio={audio}
         coverVersion={coverVersion}
         onPlay={onPlay}
+        onAddToQueue={onAddToQueue}
+        onPlayNext={onPlayNext}
         onTranscribe={transcribe}
         onAnalyze={analyze}
         onUploadCover={uploadCover}

@@ -26,6 +26,8 @@ type Props = {
   onSelect: (item: AudioItem) => void;
   onPlay: (item: AudioItem) => void;
   onPlayAt: (item: AudioItem, startSeconds: number) => void;
+  onAddToQueue: (item: AudioItem) => void;
+  onPlayNext: (item: AudioItem) => void;
   isPlaylistView?: boolean;
   onRemoveFromPlaylist?: (item: AudioItem) => void;
   onMovePlaylistItem?: (item: AudioItem, direction: "up" | "down") => void;
@@ -271,6 +273,8 @@ export default function AudioList({
   onSelect,
   onPlay,
   onPlayAt,
+  onAddToQueue,
+  onPlayNext,
   isPlaylistView,
   onRemoveFromPlaylist,
   onMovePlaylistItem,
@@ -583,10 +587,39 @@ export default function AudioList({
 
               <div className="row-actions">
                 <Button
+                  preserveChildren
+                  type="button"
+                  aria-label={`将 ${displayTitle(item)} 设为下一首播放`}
+                  title="下一首播放"
+                  disabled={item.is_missing}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPlayNext(item);
+                  }}
+                >
+                  <MaterialIcon name="playlist_play" size={19} />
+                </Button>
+
+                <Button
+                  preserveChildren
+                  type="button"
+                  aria-label={`加入播放队列 ${displayTitle(item)}`}
+                  title="加入播放队列"
+                  disabled={item.is_missing}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddToQueue(item);
+                  }}
+                >
+                  <MaterialIcon name="queue_music" size={19} />
+                </Button>
+
+                <Button
                   type="button"
                   variant="filled"
                   className="row-play-button"
                   aria-label={`播放 ${displayTitle(item)}`}
+                  disabled={item.is_missing}
                   onClick={(e) => {
                     e.stopPropagation();
                     onPlay(item);

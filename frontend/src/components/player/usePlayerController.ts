@@ -5,6 +5,7 @@ import { useDialog } from "../dialog/UnifiedDialog";
 
 type UsePlayerControllerParams = {
   audio: AudioItem | null;
+  playRequestId: number;
   canNext: boolean;
   onNext: () => void;
   onPositionSaved: (audioId: number, position: number) => void;
@@ -25,6 +26,7 @@ function shouldPromptRestart(audio: AudioItem): boolean {
 
 export function usePlayerController({
   audio,
+  playRequestId,
   canNext,
   onNext,
   onPositionSaved
@@ -105,7 +107,9 @@ export function usePlayerController({
     };
 
     async function prepareAndPlay() {
-      if (shouldPromptRestart(activeAudio)) {
+      const shouldAutoPlay = playRequestId > 0;
+
+      if (shouldAutoPlay && shouldPromptRestart(activeAudio)) {
         const restart = await dialog.confirm({
           title: "从头播放？",
           message:
@@ -134,14 +138,19 @@ export function usePlayerController({
 
       audioElement.addEventListener("loadedmetadata", onLoadedMetadataOnce, { once: true });
 
-      audioElement.play()
-        .then(() => {
-          if (!canceled) setIsPlaying(true);
-        })
-        .catch((err) => {
-          console.error(err);
-          if (!canceled) setIsPlaying(false);
-        });
+      if (shouldAutoPlay) {
+        audioElement.play()
+          .then(() => {
+            if (!canceled) setIsPlaying(true);
+          })
+          .catch((err) => {
+            console.error(err);
+            if (!canceled) setIsPlaying(false);
+          });
+      } else {
+        audioElement.load();
+        setIsPlaying(false);
+      }
     }
 
     void prepareAndPlay();
@@ -157,7 +166,7 @@ export function usePlayerController({
         : startSeconds;
       void savePositionFor(activeAudio.id, latestPosition).catch(console.error);
     };
-  }, [audio?.id, dialog]);
+  }, [audio?.id, playRequestId, dialog]);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -203,6 +212,16 @@ export function usePlayerController({
     setCurrent(value);
   }
 
+  function stop() {
+    const el = audioRef.current;
+    if (!el || !audio) return;
+
+    el.pause();
+    el.currentTime = 0;
+    setCurrent(0);
+    void savePositionFor(audio.id, 0).catch(console.error);
+  }
+
   async function handleEnded() {
     if (audio) {
       endedAudioIdRef.current = audio.id;
@@ -236,6 +255,7 @@ export function usePlayerController({
     setVolume,
     setQueueOpen,
     toggle,
+    stop,
     seek,
     handleEnded,
     handleAudioPause,

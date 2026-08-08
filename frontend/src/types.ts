@@ -100,6 +100,14 @@ export type AudioDetail = {
   tags: Tag[];
 };
 
+export type PlaybackQueueResolution = {
+  items: AudioItem[];
+  skipped: Array<{
+    audio_id: number;
+    reason: "deleted" | "missing" | "disabled_root" | "duplicate" | string;
+  }>;
+};
+
 export type Playlist = {
   id: number;
   name: string;

@@ -25,6 +25,7 @@ export default function App() {
     playing,
     playbackQueue,
     playingIndex,
+    playRequestId,
 
     q,
     setQ,
@@ -66,6 +67,8 @@ export default function App() {
 
     playAudio,
     playAudioAt,
+    addToQueue,
+    playNextAudio,
     playPrevious,
     playNext,
     removeQueueItem,
@@ -147,6 +150,8 @@ export default function App() {
                 onSelect={setSelected}
                 onPlay={(item) => playAudio(item, audioItems)}
                 onPlayAt={(item, seconds) => playAudioAt(item, seconds, audioItems)}
+                onAddToQueue={addToQueue}
+                onPlayNext={playNextAudio}
                 isPlaylistView={view === "playlist"}
                 onRemoveFromPlaylist={
                   view === "playlist" ? removeFromCurrentPlaylist : undefined
@@ -171,6 +176,8 @@ export default function App() {
               audio={selected}
               refresh={refresh}
               onPlay={(item) => playAudio(item, audioItems)}
+              onAddToQueue={addToQueue}
+              onPlayNext={playNextAudio}
               playlists={playlists}
               selectedPlaylistId={selectedPlaylistId}
               onDeleted={handleAudioDeleted}
@@ -184,6 +191,7 @@ export default function App() {
         audio={playing}
         queue={playbackQueue}
         queueIndex={playingIndex}
+        playRequestId={playRequestId}
         canPrevious={playingIndex > 0}
         canNext={playingIndex >= 0 && playingIndex < playbackQueue.length - 1}
         onPrevious={playPrevious}

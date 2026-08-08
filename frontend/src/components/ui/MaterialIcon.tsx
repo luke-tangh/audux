@@ -38,6 +38,8 @@ const ICON_PATHS = {
     "M6 19h4V5H6v14Zm8-14v14h4V5h-4Z",
   play_arrow:
     "M8 5v14l11-7L8 5Z",
+  playlist_play:
+    "M4 6h10v2H4V6Zm0 4h10v2H4v-2Zm0 4h7v2H4v-2Zm11-3 6 4-6 4v-8Z",
   privacy_tip:
     "M12 2 4 5v6c0 5.1 3.4 9.8 8 11 4.6-1.2 8-5.9 8-11V5l-8-3Zm1 15h-2v-2h2v2Zm0-4h-2V7h2v6Z",
   queue_music:
@@ -56,6 +58,8 @@ const ICON_PATHS = {
     "M12 3a9 9 0 0 0-9 9c0 2.4.9 4.6 2.6 6.3l1.4-1.4A7 7 0 1 1 17 17l1.4 1.4A9 9 0 0 0 12 3Zm1 9.4V7h-2v6l4.2 2.5 1-1.7-3.2-1.9Z",
   star:
     "m12 17.3 6.2 3.7-1.6-7 5.4-4.7-7.1-.6L12 2.1 9.1 8.7 2 9.3 7.4 14l-1.6 7 6.2-3.7Z",
+  stop:
+    "M6 6h12v12H6V6Z",
   volume_up:
     "M4 9v6h4l5 5V4L8 9H4Zm11.5-.5a5 5 0 0 1 0 7l1.4 1.4a7 7 0 0 0 0-9.8l-1.4 1.4Zm2.8-2.8a9 9 0 0 1 0 12.6l1.4 1.4a11 11 0 0 0 0-15.4l-1.4 1.4Z",
   warning:

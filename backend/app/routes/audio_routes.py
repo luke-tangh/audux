@@ -9,6 +9,7 @@ from ..schemas import (
     BatchAudioRequest,
     BatchOrganizationRequest,
     PlaybackPositionUpdate,
+    PlaybackQueueResolveRequest,
     RelocateAudioRequest,
 )
 from ..services import audio_service, organization_service
@@ -75,6 +76,18 @@ def batch_organize_audio(
         organization_service.batch_organize_audio,
         session,
         payload.model_dump(),
+    )
+
+
+@router.post("/audio-items/playback-queue/resolve")
+def resolve_playback_queue(
+    payload: PlaybackQueueResolveRequest,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        audio_service.resolve_playback_queue,
+        session,
+        payload.audio_ids,
     )
 
 

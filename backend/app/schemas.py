@@ -23,6 +23,10 @@ class PlaybackPositionUpdate(BaseModel):
     last_position_seconds: float
 
 
+class PlaybackQueueResolveRequest(BaseModel):
+    audio_ids: List[int] = Field(min_length=1, max_length=500)
+
+
 class RelocateAudioRequest(BaseModel):
     file_path: str
 

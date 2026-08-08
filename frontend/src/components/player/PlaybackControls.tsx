@@ -12,6 +12,7 @@ type PlaybackControlsProps = {
   onPrevious: () => void;
   onNext: () => void;
   onToggle: () => void;
+  onStop: () => void;
   onSeek: (value: number) => void;
 };
 
@@ -26,6 +27,7 @@ export default function PlaybackControls({
   onPrevious,
   onNext,
   onToggle,
+  onStop,
   onSeek
 }: PlaybackControlsProps) {
   const safeDuration = Number.isFinite(duration) ? duration : 0;
@@ -61,6 +63,18 @@ export default function PlaybackControls({
               <MaterialIcon name="play_arrow" size={28} />
             )}
           </span>
+        </Button>
+
+        <Button
+          preserveChildren
+          type="button"
+          className="icon-button"
+          onClick={onStop}
+          disabled={!hasAudio}
+          aria-label="停止播放并回到开头"
+          title="停止并重置进度（保留队列）"
+        >
+          <MaterialIcon name="stop" size={22} />
         </Button>
 
         <Button

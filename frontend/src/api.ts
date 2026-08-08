@@ -10,6 +10,7 @@ import type {
   LLMConfigPayload,
   LLMTestResult,
   PaginatedAudioItems,
+  PlaybackQueueResolution,
   Playlist,
   PlaylistDetail,
   ScanTask,
@@ -406,6 +407,12 @@ export const api = {
   },
 
   getAudioDetail: (id: number) => request<AudioDetail>(`/audio-items/${id}`),
+
+  resolvePlaybackQueue: (audioIds: number[]) =>
+    request<PlaybackQueueResolution>("/audio-items/playback-queue/resolve", {
+      method: "POST",
+      body: JSON.stringify({ audio_ids: audioIds })
+    }),
 
   getAiSuggestions: (id: number) =>
     request<AISuggestions>(`/audio-items/${id}/ai-suggestions`),

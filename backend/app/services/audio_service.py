@@ -16,6 +16,7 @@ from ..models import (
     AITask,
     AudioItem,
     AudioTag,
+    LibraryRoot,
     PlaylistItem,
     Setting,
     Transcript,
@@ -134,6 +135,69 @@ def list_audio_items(
         "has_more": offset + len(rows) < int(total or 0),
         "search_limited": bool(search_result.limited) if search_result else False,
         "search_limit": search_result.limit if search_result else None,
+    }
+
+
+def resolve_playback_queue(session: Session, audio_ids: list[int]) -> dict:
+    """Resolve a persisted ID-only queue without trusting stale client rows."""
+    unique_ids = list(dict.fromkeys(audio_ids))
+    items = session.exec(select(AudioItem).where(AudioItem.id.in_(unique_ids))).all()
+    items_by_id = {item.id: item for item in items}
+    root_ids = {
+        item.library_root_id
+        for item in items
+        if item.library_root_id is not None
+    }
+    roots_by_id = (
+        {
+            root.id: root
+            for root in session.exec(
+                select(LibraryRoot).where(LibraryRoot.id.in_(root_ids))
+            ).all()
+        }
+        if root_ids
+        else {}
+    )
+
+    resolved: list[AudioItem] = []
+    skipped: list[dict] = []
+    seen: set[int] = set()
+    availability_changed = False
+
+    for audio_id in audio_ids:
+        if audio_id in seen:
+            skipped.append({"audio_id": audio_id, "reason": "duplicate"})
+            continue
+
+        seen.add(audio_id)
+        item = items_by_id.get(audio_id)
+        if item is None:
+            skipped.append({"audio_id": audio_id, "reason": "deleted"})
+            continue
+
+        if item.library_root_id is not None:
+            root = roots_by_id.get(item.library_root_id)
+            if root is None or not root.is_enabled:
+                skipped.append({"audio_id": audio_id, "reason": "disabled_root"})
+                continue
+
+        was_missing = item.is_missing
+        if not _mark_audio_missing_if_unavailable_no_commit(session, item):
+            skipped.append({"audio_id": audio_id, "reason": "missing"})
+            availability_changed = availability_changed or not was_missing
+            continue
+
+        availability_changed = availability_changed or was_missing
+        resolved.append(item)
+
+    if availability_changed:
+        session.commit()
+        for item in resolved:
+            session.refresh(item)
+
+    return {
+        "items": _audio_rows_with_tags_dicts(session, resolved),
+        "skipped": skipped,
     }
 
 

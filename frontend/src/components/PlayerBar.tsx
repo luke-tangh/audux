@@ -8,6 +8,7 @@ type Props = {
   audio: AudioItem | null;
   queue: AudioItem[];
   queueIndex: number;
+  playRequestId: number;
   canPrevious: boolean;
   canNext: boolean;
   onPrevious: () => void;
@@ -23,6 +24,7 @@ export default function PlayerBar({
   audio,
   queue,
   queueIndex,
+  playRequestId,
   canPrevious,
   canNext,
   onPrevious,
@@ -35,6 +37,7 @@ export default function PlayerBar({
 }: Props) {
   const player = usePlayerController({
     audio,
+    playRequestId,
     canNext,
     onNext,
     onPositionSaved
@@ -68,6 +71,7 @@ export default function PlayerBar({
         onPrevious={onPrevious}
         onNext={onNext}
         onToggle={player.toggle}
+        onStop={player.stop}
         onSeek={player.seek}
       />
 

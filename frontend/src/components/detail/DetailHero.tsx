@@ -7,6 +7,8 @@ type DetailHeroProps = {
   audio: AudioItem;
   coverVersion: number;
   onPlay: (audio: AudioItem) => void;
+  onAddToQueue: (audio: AudioItem) => void;
+  onPlayNext: (audio: AudioItem) => void;
   onTranscribe: () => void;
   onAnalyze: () => void;
   onUploadCover: (file?: File) => void;
@@ -16,6 +18,8 @@ export default function DetailHero({
   audio,
   coverVersion,
   onPlay,
+  onAddToQueue,
+  onPlayNext,
   onTranscribe,
   onAnalyze,
   onUploadCover
@@ -55,8 +59,22 @@ export default function DetailHero({
       </div>
 
       <div className="inspector-actions">
-        <Button variant="filled" onClick={() => onPlay(audio)}>
+        <Button variant="filled" onClick={() => onPlay(audio)} disabled={audio.is_missing}>
           播放
+        </Button>
+        <Button
+          variant="tonal"
+          onClick={() => onPlayNext(audio)}
+          disabled={audio.is_missing}
+        >
+          下一首播放
+        </Button>
+        <Button
+          variant="outlined"
+          onClick={() => onAddToQueue(audio)}
+          disabled={audio.is_missing}
+        >
+          加入队列
         </Button>
         <Button variant="text" onClick={onTranscribe}>
           转写

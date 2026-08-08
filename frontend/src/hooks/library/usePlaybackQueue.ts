@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { api } from "../../api";
 import type { AudioItem } from "../../types";
@@ -7,26 +7,231 @@ import type { ToastType } from "../useToast";
 
 type Notify = (message: string, type?: ToastType) => void;
 
+type PlaybackSession = {
+  version: 1;
+  audio_ids: number[];
+  current_audio_id: number | null;
+};
+
 type UsePlaybackQueueParams = {
   audioItems: AudioItem[];
   setAudioItems: Dispatch<SetStateAction<AudioItem[]>>;
   setPlaylistItemsRaw: Dispatch<SetStateAction<AudioItem[]>>;
   setSelected: Dispatch<SetStateAction<AudioItem | null>>;
+  ensureBackendReady: () => Promise<void>;
+  validationToken: number;
   notify: Notify;
 };
+
+export const PLAYBACK_SESSION_STORAGE_KEY = "local-audio-library-playback-session";
+const MAX_PLAYBACK_QUEUE_SIZE = 500;
+
+function readPlaybackSession(): PlaybackSession | null {
+  try {
+    const raw = window.localStorage.getItem(PLAYBACK_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+
+    const value = JSON.parse(raw) as Partial<PlaybackSession>;
+    if (value.version !== 1 || !Array.isArray(value.audio_ids)) return null;
+
+    const audioIds = value.audio_ids.filter(
+      (audioId): audioId is number => Number.isInteger(audioId) && audioId > 0
+    ).slice(0, MAX_PLAYBACK_QUEUE_SIZE);
+    const currentAudioId =
+      Number.isInteger(value.current_audio_id) && Number(value.current_audio_id) > 0
+        ? Number(value.current_audio_id)
+        : null;
+
+    return {
+      version: 1,
+      audio_ids: audioIds,
+      current_audio_id: currentAudioId
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePlaybackSession(queue: AudioItem[], currentAudioId: number | null) {
+  try {
+    if (queue.length === 0) {
+      window.localStorage.removeItem(PLAYBACK_SESSION_STORAGE_KEY);
+      return;
+    }
+
+    const session: PlaybackSession = {
+      version: 1,
+      audio_ids: queue.map((item) => item.id),
+      current_audio_id: currentAudioId
+    };
+    window.localStorage.setItem(PLAYBACK_SESSION_STORAGE_KEY, JSON.stringify(session));
+  } catch (error) {
+    console.error("Failed to persist playback session", error);
+  }
+}
+
+function restoredCurrentIndex(
+  storedIds: number[],
+  currentAudioId: number | null,
+  resolved: AudioItem[]
+): number {
+  if (currentAudioId === null || resolved.length === 0) return -1;
+
+  const exactIndex = resolved.findIndex((item) => item.id === currentAudioId);
+  if (exactIndex >= 0) return exactIndex;
+
+  const storedIndex = storedIds.indexOf(currentAudioId);
+  if (storedIndex < 0) return -1;
+
+  const resolvedIds = new Set(resolved.map((item) => item.id));
+  const fallbackId =
+    storedIds.slice(storedIndex + 1).find((audioId) => resolvedIds.has(audioId)) ??
+    [...storedIds.slice(0, storedIndex)].reverse().find((audioId) => resolvedIds.has(audioId));
+
+  return fallbackId === undefined
+    ? -1
+    : resolved.findIndex((item) => item.id === fallbackId);
+}
 
 export function usePlaybackQueue({
   audioItems,
   setAudioItems,
   setPlaylistItemsRaw,
   setSelected,
+  ensureBackendReady,
+  validationToken,
   notify
 }: UsePlaybackQueueParams) {
   const dialog = useDialog();
+  const preserveStoredSessionOnceRef = useRef(false);
 
   const [playing, setPlaying] = useState<AudioItem | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<AudioItem[]>([]);
   const [playingIndex, setPlayingIndex] = useState(-1);
+  const [playRequestId, setPlayRequestId] = useState(0);
+  const [sessionHydrated, setSessionHydrated] = useState(false);
+  const playbackQueueRef = useRef(playbackQueue);
+  const playingRef = useRef(playing);
+
+  playbackQueueRef.current = playbackQueue;
+  playingRef.current = playing;
+
+  useEffect(() => {
+    const stored = readPlaybackSession();
+    let canceled = false;
+
+    if (!stored || stored.audio_ids.length === 0) {
+      setSessionHydrated(true);
+      return () => {
+        canceled = true;
+      };
+    }
+
+    async function restore() {
+      try {
+        await ensureBackendReady();
+        const resolution = await api.resolvePlaybackQueue(stored!.audio_ids);
+        if (canceled) return;
+
+        const nextIndex = restoredCurrentIndex(
+          stored!.audio_ids,
+          stored!.current_audio_id,
+          resolution.items
+        );
+        const current = nextIndex >= 0 ? resolution.items[nextIndex] : null;
+
+        setPlaybackQueue(resolution.items);
+        setPlayingIndex(nextIndex);
+        setPlaying(current);
+        setSessionHydrated(true);
+
+        if (resolution.skipped.length > 0) {
+          notify(
+            `已恢复播放队列，并跳过 ${resolution.skipped.length} 个不可用项目。`,
+            "info"
+          );
+        }
+      } catch (error) {
+        if (canceled) return;
+        preserveStoredSessionOnceRef.current = true;
+        setSessionHydrated(true);
+        notify(
+          `播放队列暂时无法恢复，已保留上次会话：${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          "error"
+        );
+      }
+    }
+
+    void restore();
+
+    return () => {
+      canceled = true;
+    };
+  }, [ensureBackendReady, notify]);
+
+  useEffect(() => {
+    if (!sessionHydrated) return;
+
+    const queueSnapshot = playbackQueueRef.current;
+    if (queueSnapshot.length === 0) return;
+
+    const storedIds = queueSnapshot.map((item) => item.id);
+    const currentAudioId = playingRef.current?.id ?? null;
+    let canceled = false;
+
+    async function validateQueue() {
+      try {
+        await ensureBackendReady();
+        const resolution = await api.resolvePlaybackQueue(storedIds);
+        if (canceled) return;
+
+        const currentIds = playbackQueueRef.current.map((item) => item.id);
+        if (
+          currentIds.length !== storedIds.length ||
+          currentIds.some((audioId, index) => audioId !== storedIds[index])
+        ) {
+          return;
+        }
+
+        const nextIndex = restoredCurrentIndex(
+          storedIds,
+          currentAudioId,
+          resolution.items
+        );
+        setPlaybackQueue(resolution.items);
+        setPlayingIndex(nextIndex);
+        setPlaying(nextIndex >= 0 ? resolution.items[nextIndex] : null);
+
+        if (resolution.skipped.length > 0) {
+          notify(
+            `播放队列已更新，并移除 ${resolution.skipped.length} 个不可用项目。`,
+            "info"
+          );
+        }
+      } catch (error) {
+        console.error("Failed to validate playback queue", error);
+      }
+    }
+
+    void validateQueue();
+
+    return () => {
+      canceled = true;
+    };
+  }, [sessionHydrated, validationToken, ensureBackendReady, notify]);
+
+  useEffect(() => {
+    if (!sessionHydrated) return;
+
+    if (preserveStoredSessionOnceRef.current) {
+      preserveStoredSessionOnceRef.current = false;
+      return;
+    }
+
+    writePlaybackSession(playbackQueue, playing?.id ?? null);
+  }, [sessionHydrated, playbackQueue, playing?.id]);
 
   function handlePlaybackPositionSaved(audioId: number, position: number) {
     const lastPlayedAt = new Date().toISOString();
@@ -55,6 +260,7 @@ export function usePlaybackQueue({
     setPlayingIndex(index);
     setPlaying(item);
     setSelected(item);
+    setPlayRequestId((value) => value + 1);
 
     await api.incrementPlayCount(item.id).catch(console.error);
   }
@@ -83,6 +289,53 @@ export function usePlaybackQueue({
         audioEl.play().catch(console.error);
       }
     }, 160);
+  }
+
+  function addToQueue(item: AudioItem) {
+    if (playbackQueue.some((row) => row.id === item.id)) {
+      notify("该音频已在播放队列中", "info");
+      return;
+    }
+
+    if (playbackQueue.length >= MAX_PLAYBACK_QUEUE_SIZE) {
+      notify(`播放队列最多包含 ${MAX_PLAYBACK_QUEUE_SIZE} 个音频。`, "info");
+      return;
+    }
+
+    setPlaybackQueue((rows) => [...rows, item]);
+    notify("已加入播放队列", "success");
+  }
+
+  function playNextAudio(item: AudioItem) {
+    if (playing?.id === item.id) {
+      notify("该音频正在播放", "info");
+      return;
+    }
+
+    if (
+      playbackQueue.length >= MAX_PLAYBACK_QUEUE_SIZE &&
+      !playbackQueue.some((row) => row.id === item.id)
+    ) {
+      notify(`播放队列最多包含 ${MAX_PLAYBACK_QUEUE_SIZE} 个音频。`, "info");
+      return;
+    }
+
+    const currentAudioId = playing?.id;
+    const nextQueue = playbackQueue.filter((row) => row.id !== item.id);
+    const currentIndex =
+      currentAudioId === undefined
+        ? -1
+        : nextQueue.findIndex((row) => row.id === currentAudioId);
+    const insertionIndex = currentIndex >= 0 ? currentIndex + 1 : 0;
+
+    nextQueue.splice(insertionIndex, 0, item);
+    setPlaybackQueue(nextQueue);
+    setPlayingIndex(
+      currentAudioId === undefined
+        ? -1
+        : nextQueue.findIndex((row) => row.id === currentAudioId)
+    );
+    notify("已设为下一首播放", "success");
   }
 
   function playPrevious() {
@@ -129,7 +382,8 @@ export function usePlaybackQueue({
 
     const ok = await dialog.confirm({
       title: "清空播放队列？",
-      message: "确认清空播放队列并停止播放？",
+      message:
+        "清空会移除队列中的所有音频并停止播放。若只想停止当前音频，请使用播放器的停止按钮。",
       confirmLabel: "清空队列",
       cancelLabel: "取消",
       tone: "warning"
@@ -183,12 +437,14 @@ export function usePlaybackQueue({
 
     if (removedIndex >= 0) {
       const nextQueue = playbackQueue.filter((item) => item.id !== audioId);
-
       setPlaybackQueue(nextQueue);
 
       if (currentWasDeleted) {
-        setPlaying(null);
-        setPlayingIndex(-1);
+        const nextIndex = nextQueue.length > 0
+          ? Math.min(removedIndex, nextQueue.length - 1)
+          : -1;
+        setPlayingIndex(nextIndex);
+        setPlaying(nextIndex >= 0 ? nextQueue[nextIndex] : null);
       } else {
         setPlayingIndex((prevIndex) => {
           if (prevIndex < 0) return -1;
@@ -199,7 +455,7 @@ export function usePlaybackQueue({
       }
     }
 
-    if (playing?.id === audioId) {
+    if (playing?.id === audioId && removedIndex < 0) {
       setPlaying(null);
       setPlayingIndex(-1);
     }
@@ -209,8 +465,11 @@ export function usePlaybackQueue({
     playing,
     playbackQueue,
     playingIndex,
+    playRequestId,
     playAudio,
     playAudioAt,
+    addToQueue,
+    playNextAudio,
     playPrevious,
     playNext,
     removeQueueItem,

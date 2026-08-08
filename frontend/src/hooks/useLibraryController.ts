@@ -52,6 +52,7 @@ export function useLibraryController() {
 
   const [playlistItemsRaw, setPlaylistItemsRaw] = useState<AudioItem[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
+  const [playbackQueueValidationToken, setPlaybackQueueValidationToken] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -110,6 +111,7 @@ export function useLibraryController() {
       await loadNavigation();
 
       if (loadSeq !== loadSeqRef.current) return;
+      setPlaybackQueueValidationToken((value) => value + 1);
 
       if (view === "settings") {
         hasLoadedListRef.current = false;
@@ -333,6 +335,8 @@ export function useLibraryController() {
     setAudioItems,
     setPlaylistItemsRaw,
     setSelected,
+    ensureBackendReady,
+    validationToken: playbackQueueValidationToken,
     notify
   });
 
@@ -468,6 +472,7 @@ export function useLibraryController() {
     playing: playback.playing,
     playbackQueue: playback.playbackQueue,
     playingIndex: playback.playingIndex,
+    playRequestId: playback.playRequestId,
 
     q,
     setQ,
@@ -509,6 +514,8 @@ export function useLibraryController() {
 
     playAudio: playback.playAudio,
     playAudioAt: playback.playAudioAt,
+    addToQueue: playback.addToQueue,
+    playNextAudio: playback.playNextAudio,
     playPrevious: playback.playPrevious,
     playNext: playback.playNext,
     removeQueueItem: playback.removeQueueItem,
