@@ -12,7 +12,7 @@
 
 ```bash
 cd backend
-uv run --locked python -m unittest discover -s tests
+uv run --locked --group test python -m pytest tests
 
 cd ../frontend
 npm run build

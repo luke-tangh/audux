@@ -21,6 +21,12 @@ asr = [
 build = [
     "pyinstaller",
 ]
+test = [
+    "pytest==9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
 
 [tool.uv]
 package = false

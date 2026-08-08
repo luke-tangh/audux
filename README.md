@@ -317,11 +317,11 @@ LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS=1
 
 ## 后端测试
 
-基础测试使用 Python 标准库 `unittest`：
+后端测试使用 `pytest`：
 
 ```bash
 cd backend
-uv run --locked python -m unittest discover -s tests
+uv run --locked --group test python -m pytest tests
 ```
 
 ## 构建前端
@@ -513,7 +513,7 @@ uv sync --locked --extra asr
 ```bash
 # backend
 cd backend
-uv run --locked python -m unittest discover -s tests
+uv run --locked --group test python -m pytest tests
 uv run --locked python run.py
 
 # frontend
