@@ -1,9 +1,10 @@
 import asyncio
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import patch
 
 import httpx
+import pytest
 from sqlalchemy import event, text
 from sqlmodel import SQLModel, Session, create_engine
 
@@ -13,7 +14,8 @@ from sqlmodel import SQLModel, Session, create_engine
 # tests never touch the user's ~/.local_audio_library data.
 TEST_RUNTIME_DIR = tempfile.TemporaryDirectory(prefix="local-audio-library-tests-")
 
-with patch("pathlib.Path.home", return_value=Path(TEST_RUNTIME_DIR.name)):
+with pytest.MonkeyPatch.context() as monkeypatch:
+    monkeypatch.setattr(Path, "home", lambda: Path(TEST_RUNTIME_DIR.name))
     from app import local_security, tasks
     from app.db import get_session
     from app.main import app
@@ -50,10 +52,14 @@ async def run_sync_endpoint_inline(function, *args, **kwargs):
     return function(*args, **kwargs)
 
 
-class ApiIntegrationTestCase:
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix="local-audio-api-test-")
-        self.root_path = Path(self.tmp.name)
+class ApiIntegrationTest:
+    @pytest.fixture(autouse=True)
+    def api_test_context(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> Iterator[None]:
+        self.root_path = tmp_path
         self.db_path = self.root_path / "test.sqlite"
         self.engine = create_engine(
             f"sqlite:///{self.db_path}",
@@ -70,88 +76,81 @@ class ApiIntegrationTestCase:
             cursor.execute("PRAGMA busy_timeout=30000")
             cursor.close()
 
-        SQLModel.metadata.create_all(self.engine)
+        try:
+            SQLModel.metadata.create_all(self.engine)
 
-        with self.engine.begin() as connection:
-            connection.execute(
-                text(
-                    """
-                    CREATE VIRTUAL TABLE search_index USING fts5(
-                        audio_id UNINDEXED,
-                        title,
-                        author,
-                        description,
-                        tags,
-                        transcript
+            with self.engine.begin() as connection:
+                connection.execute(
+                    text(
+                        """
+                        CREATE VIRTUAL TABLE search_index USING fts5(
+                            audio_id UNINDEXED,
+                            title,
+                            author,
+                            description,
+                            tags,
+                            transcript
+                        )
+                        """
                     )
-                    """
                 )
-            )
-            connection.execute(
-                text(
-                    """
-                    CREATE UNIQUE INDEX ux_ai_tasks_active
-                    ON ai_tasks(audio_id, task_type)
-                    WHERE status IN ('pending', 'running', 'cancel_requested')
-                    """
+                connection.execute(
+                    text(
+                        """
+                        CREATE UNIQUE INDEX ux_ai_tasks_active
+                        ON ai_tasks(audio_id, task_type)
+                        WHERE status IN ('pending', 'running', 'cancel_requested')
+                        """
+                    )
                 )
-            )
-            connection.execute(
-                text(
-                    """
-                    CREATE UNIQUE INDEX ux_scan_tasks_active_root
-                    ON scan_tasks(root_id)
-                    WHERE status IN ('pending', 'running', 'cancel_requested')
-                    """
+                connection.execute(
+                    text(
+                        """
+                        CREATE UNIQUE INDEX ux_scan_tasks_active_root
+                        ON scan_tasks(root_id)
+                        WHERE status IN ('pending', 'running', 'cancel_requested')
+                        """
+                    )
                 )
+
+            async def get_test_session():
+                with Session(self.engine) as session:
+                    yield session
+
+            app.dependency_overrides[get_session] = get_test_session
+            monkeypatch.setattr(
+                local_security,
+                "LOCAL_TOKEN_FILE",
+                self.root_path / "local_api_token",
+            )
+            monkeypatch.setattr(tasks, "engine", self.engine)
+
+            # The test transport already owns an event loop. Running synchronous
+            # endpoints inline avoids an extra worker thread without changing route,
+            # middleware, dependency or transaction behavior under test.
+            monkeypatch.setattr(
+                "fastapi.routing.run_in_threadpool",
+                run_sync_endpoint_inline,
             )
 
-        async def get_test_session():
-            with Session(self.engine) as session:
-                yield session
+            self.client = AsgiTestClient()
+            token_response = self.client.get(
+                "/auth/token",
+                headers={
+                    local_security.LOCAL_CLIENT_HEADER_NAME:
+                        local_security.LOCAL_CLIENT_HEADER_VALUE,
+                },
+            )
+            if token_response.status_code != 200:
+                raise AssertionError(token_response.text)
 
-        app.dependency_overrides[get_session] = get_test_session
-
-        self.token_file_patch = patch.object(
-            local_security,
-            "LOCAL_TOKEN_FILE",
-            self.root_path / "local_api_token",
-        )
-        self.token_file_patch.start()
-
-        self.task_engine_patch = patch.object(tasks, "engine", self.engine)
-        self.task_engine_patch.start()
-
-        # The test transport already owns an event loop. Running synchronous
-        # endpoints inline avoids an extra worker thread without changing route,
-        # middleware, dependency or transaction behavior under test.
-        self.threadpool_patch = patch(
-            "fastapi.routing.run_in_threadpool",
-            new=run_sync_endpoint_inline,
-        )
-        self.threadpool_patch.start()
-
-        self.client = AsgiTestClient()
-        token_response = self.client.get(
-            "/auth/token",
-            headers={
-                local_security.LOCAL_CLIENT_HEADER_NAME:
-                    local_security.LOCAL_CLIENT_HEADER_VALUE,
-            },
-        )
-        if token_response.status_code != 200:
-            raise AssertionError(token_response.text)
-
-        self.token = token_response.json()["token"]
-
-    def tearDown(self):
-        self.client.close()
-        app.dependency_overrides.pop(get_session, None)
-        self.threadpool_patch.stop()
-        self.task_engine_patch.stop()
-        self.token_file_patch.stop()
-        self.engine.dispose()
-        self.tmp.cleanup()
+            self.token = token_response.json()["token"]
+            yield
+        finally:
+            if hasattr(self, "client"):
+                self.client.close()
+            app.dependency_overrides.pop(get_session, None)
+            self.engine.dispose()
 
     def auth_headers(
         self,

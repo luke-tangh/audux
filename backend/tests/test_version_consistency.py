@@ -1,12 +1,11 @@
 import json
 import tomllib
-import unittest
 from pathlib import Path
 
 from app.version import APP_VERSION
 
 
-class TestVersionConsistency(unittest.TestCase):
+class TestVersionConsistency:
     def test_release_version_is_consistent_across_layers(self):
         repository_root = Path(__file__).resolve().parents[2]
         expected = (repository_root / "VERSION").read_text(encoding="utf-8").strip()
@@ -29,17 +28,10 @@ class TestVersionConsistency(unittest.TestCase):
         ).open(encoding="utf-8") as file:
             desktop_version = json.load(file)["version"]
 
-        self.assertEqual(
-            {
-                python_version,
-                frontend_version,
-                rust_version,
-                desktop_version,
-                APP_VERSION,
-            },
-            {expected},
-        )
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert {
+            python_version,
+            frontend_version,
+            rust_version,
+            desktop_version,
+            APP_VERSION,
+        } == {expected}

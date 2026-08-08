@@ -1,14 +1,17 @@
-import tempfile
-import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import httpx
+import pytest
 
 from app.asr_client import normalize_external_asr_response, transcribe_external_audio
 
 
-class TestExternalASRClient(unittest.TestCase):
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+class TestExternalASRClient:
     def test_normalizes_verbose_json_segments(self):
         result = normalize_external_asr_response(
             {
@@ -34,26 +37,23 @@ class TestExternalASRClient(unittest.TestCase):
             timestamp_policy="preferred",
         )
 
-        self.assertEqual(result["language"], "zh")
-        self.assertEqual(result["model_name"], "qwen3-asr-1.7b")
-        self.assertEqual(result["full_text"], "你好，世界")
-        self.assertEqual(
-            result["segments"],
-            [
-                {
-                    "segment_index": 0,
-                    "start_seconds": 0.0,
-                    "end_seconds": 1.25,
-                    "text": "你好",
-                },
-                {
-                    "segment_index": 1,
-                    "start_seconds": 1.25,
-                    "end_seconds": 2.5,
-                    "text": "世界",
-                },
-            ],
-        )
+        assert result["language"] == "zh"
+        assert result["model_name"] == "qwen3-asr-1.7b"
+        assert result["full_text"] == "你好，世界"
+        assert result["segments"] == [
+            {
+                "segment_index": 0,
+                "start_seconds": 0.0,
+                "end_seconds": 1.25,
+                "text": "你好",
+            },
+            {
+                "segment_index": 1,
+                "start_seconds": 1.25,
+                "end_seconds": 2.5,
+                "text": "世界",
+            },
+        ]
 
     def test_accepts_internal_field_names_and_text_only_response(self):
         result = normalize_external_asr_response(
@@ -65,12 +65,12 @@ class TestExternalASRClient(unittest.TestCase):
             timestamp_policy="preferred",
         )
 
-        self.assertEqual(result["model_name"], "mimo-v2.5-asr")
-        self.assertEqual(result["full_text"], "text only")
-        self.assertEqual(result["segments"], [])
+        assert result["model_name"] == "mimo-v2.5-asr"
+        assert result["full_text"] == "text only"
+        assert result["segments"] == []
 
     def test_required_timestamps_reject_text_only_response(self):
-        with self.assertRaisesRegex(ValueError, "timestamps are required"):
+        with pytest.raises(ValueError, match="timestamps are required"):
             normalize_external_asr_response(
                 {"text": "text only"},
                 configured_model_name="model",
@@ -78,7 +78,7 @@ class TestExternalASRClient(unittest.TestCase):
             )
 
     def test_rejects_invalid_segment_time_range(self):
-        with self.assertRaisesRegex(ValueError, "invalid time range"):
+        with pytest.raises(ValueError, match="invalid time range"):
             normalize_external_asr_response(
                 {
                     "text": "bad",
@@ -95,7 +95,7 @@ class TestExternalASRClient(unittest.TestCase):
             )
 
     def test_requires_text_field(self):
-        with self.assertRaisesRegex(ValueError, "string field 'text'"):
+        with pytest.raises(ValueError, match="string field 'text'"):
             normalize_external_asr_response(
                 {"segments": []},
                 configured_model_name="model",
@@ -103,8 +103,13 @@ class TestExternalASRClient(unittest.TestCase):
             )
 
 
-class TestExternalASRRequest(unittest.IsolatedAsyncioTestCase):
-    async def test_posts_openai_compatible_multipart_request(self):
+class TestExternalASRRequest:
+    @pytest.mark.anyio
+    async def test_posts_openai_compatible_multipart_request(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
         captured: dict = {}
 
         class FakeResponse:
@@ -144,42 +149,30 @@ class TestExternalASRRequest(unittest.IsolatedAsyncioTestCase):
                 captured["encoded_body"] = encoded_request.read()
                 return FakeResponse()
 
-        with tempfile.TemporaryDirectory() as tmp:
-            audio_path = Path(tmp) / "demo.mp3"
-            audio_path.write_bytes(b"not-real-audio")
+        audio_path = tmp_path / "demo.mp3"
+        audio_path.write_bytes(b"not-real-audio")
+        monkeypatch.setattr("app.asr_client.httpx.AsyncClient", FakeAsyncClient)
 
-            with patch("app.asr_client.httpx.AsyncClient", FakeAsyncClient):
-                result = await transcribe_external_audio(
-                    file_path=str(audio_path),
-                    endpoint="http://127.0.0.1:8000/v1/",
-                    model_name="qwen3-asr-1.7b",
-                    api_key="secret",
-                    language="zh",
-                    timestamp_policy="preferred",
-                    timeout=123,
-                )
-
-        self.assertEqual(
-            captured["url"],
-            "http://127.0.0.1:8000/v1/audio/transcriptions",
+        result = await transcribe_external_audio(
+            file_path=str(audio_path),
+            endpoint="http://127.0.0.1:8000/v1/",
+            model_name="qwen3-asr-1.7b",
+            api_key="secret",
+            language="zh",
+            timestamp_policy="preferred",
+            timeout=123,
         )
-        self.assertEqual(captured["timeout"], 123)
-        self.assertEqual(
-            captured["headers"]["Authorization"],
-            "Bearer secret",
-        )
-        self.assertEqual(captured["data"]["model"], "qwen3-asr-1.7b")
-        self.assertEqual(captured["data"]["response_format"], "verbose_json")
-        self.assertEqual(captured["data"]["language"], "zh")
-        self.assertEqual(
-            captured["data"]["timestamp_granularities[]"],
-            "segment",
-        )
-        self.assertEqual(captured["files"]["file"][0], "demo.mp3")
-        self.assertIn("multipart/form-data", captured["encoded_content_type"])
-        self.assertIn(b'qwen3-asr-1.7b', captured["encoded_body"])
-        self.assertEqual(result["full_text"], "ok")
 
-
-if __name__ == "__main__":
-    unittest.main()
+        assert captured["url"] == (
+            "http://127.0.0.1:8000/v1/audio/transcriptions"
+        )
+        assert captured["timeout"] == 123
+        assert captured["headers"]["Authorization"] == "Bearer secret"
+        assert captured["data"]["model"] == "qwen3-asr-1.7b"
+        assert captured["data"]["response_format"] == "verbose_json"
+        assert captured["data"]["language"] == "zh"
+        assert captured["data"]["timestamp_granularities[]"] == "segment"
+        assert captured["files"]["file"][0] == "demo.mp3"
+        assert "multipart/form-data" in captured["encoded_content_type"]
+        assert b'qwen3-asr-1.7b' in captured["encoded_body"]
+        assert result["full_text"] == "ok"

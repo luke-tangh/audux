@@ -1,7 +1,7 @@
 import hashlib
-import tempfile
-import unittest
 from pathlib import Path
+
+import pytest
 
 from app.scanner import (
     SAMPLED_HASH_PREFIX,
@@ -15,13 +15,10 @@ from app.scanner import (
 )
 
 
-class TestScannerHashing(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self.tmp.name)
-
-    def tearDown(self):
-        self.tmp.cleanup()
+class TestScannerHashing:
+    @pytest.fixture(autouse=True)
+    def set_root(self, tmp_path: Path):
+        self.root = tmp_path
 
     def write_file(self, relative_path: str, data: bytes) -> Path:
         path = self.root / relative_path
@@ -34,7 +31,7 @@ class TestScannerHashing(unittest.TestCase):
 
         expected = hashlib.sha256(b"hello world").hexdigest()
 
-        self.assertEqual(calculate_file_hash(path), expected)
+        assert calculate_file_hash(path) == expected
 
     def test_calculate_sampled_file_hash_has_prefix_and_is_deterministic(self):
         path = self.write_file("audio.mp3", b"abc" * 1024)
@@ -42,9 +39,9 @@ class TestScannerHashing(unittest.TestCase):
         first = calculate_sampled_file_hash(path)
         second = calculate_sampled_file_hash(path)
 
-        self.assertTrue(first.startswith(SAMPLED_HASH_PREFIX))
-        self.assertEqual(first, second)
-        self.assertTrue(_is_sampled_hash(first))
+        assert first.startswith(SAMPLED_HASH_PREFIX)
+        assert first == second
+        assert _is_sampled_hash(first)
 
     def test_calculate_sampled_file_hash_changes_when_content_changes(self):
         path = self.write_file("audio.mp3", b"a" * 4096)
@@ -53,7 +50,7 @@ class TestScannerHashing(unittest.TestCase):
         path.write_bytes(b"b" * 4096)
         after = calculate_sampled_file_hash(path)
 
-        self.assertNotEqual(before, after)
+        assert before != after
 
     def test_calculate_file_fingerprint_strategy_selection(self):
         path = self.write_file("audio.mp3", b"hello")
@@ -62,9 +59,9 @@ class TestScannerHashing(unittest.TestCase):
         sampled = calculate_file_fingerprint(path, strategy="sampled")
         unknown = calculate_file_fingerprint(path, strategy="unknown")
 
-        self.assertEqual(full, hashlib.sha256(b"hello").hexdigest())
-        self.assertTrue(sampled.startswith(SAMPLED_HASH_PREFIX))
-        self.assertEqual(unknown, sampled)
+        assert full == hashlib.sha256(b"hello").hexdigest()
+        assert sampled.startswith(SAMPLED_HASH_PREFIX)
+        assert unknown == sampled
 
     def test_collect_audio_candidates_filters_supported_extensions(self):
         self.write_file("a.mp3", b"1")
@@ -76,22 +73,18 @@ class TestScannerHashing(unittest.TestCase):
         found = _collect_audio_candidates(self.root)
         names = {p.name for p in found}
 
-        self.assertEqual(names, {"a.mp3", "b.M4A", "c.FlAc"})
+        assert names == {"a.mp3", "b.M4A", "c.FlAc"}
 
     def test_path_points_to_available_file(self):
         file_path = self.write_file("audio.mp3", b"1")
         missing_path = self.root / "missing.mp3"
 
-        self.assertTrue(_path_points_to_available_file(str(file_path)))
-        self.assertFalse(_path_points_to_available_file(str(self.root)))
-        self.assertFalse(_path_points_to_available_file(str(missing_path)))
+        assert _path_points_to_available_file(str(file_path))
+        assert not _path_points_to_available_file(str(self.root))
+        assert not _path_points_to_available_file(str(missing_path))
 
     def test_same_audio_path(self):
         file_path = self.write_file("audio.mp3", b"1")
 
-        self.assertTrue(_same_audio_path(str(file_path), str(file_path.resolve())))
-        self.assertFalse(_same_audio_path(str(file_path), str(self.root / "other.mp3")))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert _same_audio_path(str(file_path), str(file_path.resolve()))
+        assert not _same_audio_path(str(file_path), str(self.root / "other.mp3"))

@@ -1,8 +1,7 @@
-import unittest
-
+import pytest
 from sqlmodel import Session, select
 
-from tests.api_test_support import ApiIntegrationTestCase
+from tests.api_test_support import ApiIntegrationTest
 from app.models import (
     AudioItem,
     AudioTag,
@@ -17,9 +16,9 @@ from app.models import (
 from app.search import search_audio_ids
 
 
-class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
-    def setUp(self):
-        super().setUp()
+class TestOrganizationApi(ApiIntegrationTest):
+    @pytest.fixture(autouse=True)
+    def setup_audio_item(self, api_test_context):
         self.library = self.root_path / "library"
         self.root = self.add_library_root(self.library)
         self.audio = self.add_audio(
@@ -33,9 +32,9 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
             headers=self.auth_headers(include_client=True),
             json={"name": "  初始列表  ", "description": "测试"},
         )
-        self.assertEqual(created.status_code, 200, created.text)
+        assert created.status_code == 200, created.text
         playlist_id = created.json()["id"]
-        self.assertEqual(created.json()["name"], "初始列表")
+        assert created.json()['name'] == '初始列表'
 
         for _ in range(2):
             added = self.client.post(
@@ -43,7 +42,7 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
                 headers=self.auth_headers(include_client=True),
                 json={"audio_id": self.audio.id},
             )
-            self.assertEqual(added.status_code, 200, added.text)
+            assert added.status_code == 200, added.text
 
         renamed = self.client.request(
             "PATCH",
@@ -51,28 +50,23 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
             headers=self.auth_headers(include_client=True),
             json={"name": "  学习列表  "},
         )
-        self.assertEqual(renamed.status_code, 200, renamed.text)
-        self.assertEqual(renamed.json()["name"], "学习列表")
+        assert renamed.status_code == 200, renamed.text
+        assert renamed.json()['name'] == '学习列表'
 
         deleted = self.client.request(
             "DELETE",
             f"/playlists/{playlist_id}",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(deleted.status_code, 200, deleted.text)
-        self.assertEqual(deleted.json()["removed_items"], 2)
+        assert deleted.status_code == 200, deleted.text
+        assert deleted.json()['removed_items'] == 2
 
         with Session(self.engine) as session:
-            self.assertIsNone(session.get(Playlist, playlist_id))
-            self.assertEqual(
-                session.exec(
-                    select(PlaylistItem).where(
-                        PlaylistItem.playlist_id == playlist_id
-                    )
-                ).all(),
-                [],
-            )
-            self.assertIsNotNone(session.get(AudioItem, self.audio.id))
+            assert session.get(Playlist, playlist_id) is None
+            assert session.exec(
+                select(PlaylistItem).where(PlaylistItem.playlist_id == playlist_id)
+            ).all() == []
+            assert session.get(AudioItem, self.audio.id) is not None
 
     def test_library_root_remove_is_non_destructive_and_blocks_active_scan(self):
         with Session(self.engine) as session:
@@ -87,7 +81,7 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
             f"/library-roots/{self.root.id}",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(blocked.status_code, 409, blocked.text)
+        assert blocked.status_code == 409, blocked.text
 
         with Session(self.engine) as session:
             task = session.get(ScanTask, active_id)
@@ -100,17 +94,17 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
             f"/library-roots/{self.root.id}",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(removed.status_code, 200, removed.text)
-        self.assertEqual(removed.json()["detached_audio_items"], 1)
-        self.assertEqual(removed.json()["removed_scan_tasks"], 1)
-        self.assertTrue((self.library / "organization.mp3").exists())
+        assert removed.status_code == 200, removed.text
+        assert removed.json()['detached_audio_items'] == 1
+        assert removed.json()['removed_scan_tasks'] == 1
+        assert (self.library / 'organization.mp3').exists()
 
         with Session(self.engine) as session:
-            self.assertIsNone(session.get(LibraryRoot, self.root.id))
+            assert session.get(LibraryRoot, self.root.id) is None
             stored_audio = session.get(AudioItem, self.audio.id)
-            self.assertIsNotNone(stored_audio)
-            self.assertIsNone(stored_audio.library_root_id)
-            self.assertIsNone(session.get(ScanTask, active_id))
+            assert stored_audio is not None
+            assert stored_audio.library_root_id is None
+            assert session.get(ScanTask, active_id) is None
 
     def test_tag_merge_deduplicates_links_and_rebuilds_search(self):
         second_audio = self.add_audio(
@@ -142,19 +136,19 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
             headers=self.auth_headers(include_client=True),
             json={"target_tag_id": target_id},
         )
-        self.assertEqual(merged.status_code, 200, merged.text)
-        self.assertEqual(merged.json()["affected_audio_items"], 2)
-        self.assertEqual(merged.json()["created_links"], 1)
+        assert merged.status_code == 200, merged.text
+        assert merged.json()['affected_audio_items'] == 2
+        assert merged.json()['created_links'] == 1
 
         with Session(self.engine) as session:
-            self.assertIsNone(session.get(Tag, source_id))
+            assert session.get(Tag, source_id) is None
             links = session.exec(
                 select(AudioTag).where(AudioTag.tag_id == target_id)
             ).all()
-            self.assertEqual({link.audio_id for link in links}, {self.audio.id, second_audio.id})
-            self.assertEqual(len(links), 2)
-            self.assertEqual(set(search_audio_ids(session, "目标标签")), {self.audio.id, second_audio.id})
-            self.assertEqual(search_audio_ids(session, "旧标签"), [])
+            assert {link.audio_id for link in links} == {self.audio.id, second_audio.id}
+            assert len(links) == 2
+            assert set(search_audio_ids(session, '目标标签')) == {self.audio.id, second_audio.id}
+            assert search_audio_ids(session, '旧标签') == []
 
     def test_transcript_edit_clears_segments_and_rebuilds_search(self):
         saved = self.client.post(
@@ -174,12 +168,12 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
                 ],
             },
         )
-        self.assertEqual(saved.status_code, 200, saved.text)
+        assert saved.status_code == 200, saved.text
         before_edit = self.client.get(
             f"/audio-items/{self.audio.id}/transcript",
             headers=self.auth_headers(),
         )
-        self.assertEqual(before_edit.status_code, 200, before_edit.text)
+        assert before_edit.status_code == 200, before_edit.text
         generated_at = before_edit.json()["transcript"]["generated_at"]
 
         unchanged = self.client.request(
@@ -191,9 +185,9 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
                 "expected_updated_at": before_edit.json()["transcript"]["updated_at"],
             },
         )
-        self.assertEqual(unchanged.status_code, 200, unchanged.text)
-        self.assertEqual(len(unchanged.json()["segments"]), 1)
-        self.assertEqual(unchanged.json()["cleared_segments"], 0)
+        assert unchanged.status_code == 200, unchanged.text
+        assert len(unchanged.json()['segments']) == 1
+        assert unchanged.json()['cleared_segments'] == 0
 
         updated = self.client.request(
             "PATCH",
@@ -204,27 +198,24 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
                 "expected_updated_at": before_edit.json()["transcript"]["updated_at"],
             },
         )
-        self.assertEqual(updated.status_code, 200, updated.text)
-        self.assertEqual(updated.json()["transcript"]["full_text"], "手动修订后的关键文本")
-        self.assertEqual(updated.json()["transcript"]["generated_at"], generated_at)
-        self.assertEqual(updated.json()["segments"], [])
-        self.assertEqual(updated.json()["cleared_segments"], 1)
+        assert updated.status_code == 200, updated.text
+        assert updated.json()['transcript']['full_text'] == '手动修订后的关键文本'
+        assert updated.json()['transcript']['generated_at'] == generated_at
+        assert updated.json()['segments'] == []
+        assert updated.json()['cleared_segments'] == 1
 
         with Session(self.engine) as session:
             transcript = session.exec(
                 select(Transcript).where(Transcript.audio_id == self.audio.id)
             ).one()
-            self.assertEqual(transcript.model_name, "test-model")
-            self.assertEqual(
-                session.exec(
-                    select(TranscriptSegment).where(
-                        TranscriptSegment.transcript_id == transcript.id
-                    )
-                ).all(),
-                [],
-            )
-            self.assertEqual(search_audio_ids(session, "手动修订"), [self.audio.id])
-            self.assertEqual(search_audio_ids(session, "旧的转写"), [])
+            assert transcript.model_name == 'test-model'
+            assert session.exec(
+                select(TranscriptSegment).where(
+                    TranscriptSegment.transcript_id == transcript.id
+                )
+            ).all() == []
+            assert search_audio_ids(session, '手动修订') == [self.audio.id]
+            assert search_audio_ids(session, '旧的转写') == []
 
             audio = session.get(AudioItem, self.audio.id)
             audio.transcript_status = "running"
@@ -240,8 +231,4 @@ class TestOrganizationApi(ApiIntegrationTestCase, unittest.TestCase):
                 "expected_updated_at": updated.json()["transcript"]["updated_at"],
             },
         )
-        self.assertEqual(blocked.status_code, 409, blocked.text)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert blocked.status_code == 409, blocked.text

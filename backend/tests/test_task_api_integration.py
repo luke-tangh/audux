@@ -1,16 +1,16 @@
 import json
-import unittest
 
+import pytest
 from sqlmodel import Session
 
-from tests.api_test_support import ApiIntegrationTestCase
+from tests.api_test_support import ApiIntegrationTest
 from app import tasks
 from app.models import AITask, AudioItem, Transcript
 
 
-class TestTaskApiLifecycle(ApiIntegrationTestCase, unittest.TestCase):
-    def setUp(self):
-        super().setUp()
+class TestTaskApiLifecycle(ApiIntegrationTest):
+    @pytest.fixture(autouse=True)
+    def setup_audio_item(self, api_test_context):
         self.library = self.root_path / "library"
         self.library_root = self.add_library_root(self.library)
         self.audio = self.add_audio(
@@ -34,51 +34,48 @@ class TestTaskApiLifecycle(ApiIntegrationTestCase, unittest.TestCase):
 
         for key, value in settings.items():
             response = self.put_setting(key, value)
-            self.assertEqual(response.status_code, 200, response.text)
+            assert response.status_code == 200, response.text
 
         unauthorized_settings = self.client.get("/settings")
-        self.assertEqual(unauthorized_settings.status_code, 401)
+        assert unauthorized_settings.status_code == 401
 
         listed_settings = self.client.get(
             "/settings",
             headers=self.auth_headers(),
         )
-        self.assertEqual(listed_settings.status_code, 200)
+        assert listed_settings.status_code == 200
         returned = {
             row["key"]: row["value"]
             for row in listed_settings.json()
         }
-        self.assertEqual(returned["asr.external.api_key"], "asr-secret-value")
-        self.assertEqual(returned["llm.api_key"], "llm-secret-value")
+        assert returned['asr.external.api_key'] == 'asr-secret-value'
+        assert returned['llm.api_key'] == 'llm-secret-value'
 
         transcribe = self.client.post(
             f"/audio-items/{self.audio.id}/transcribe",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(transcribe.status_code, 200, transcribe.text)
+        assert transcribe.status_code == 200, transcribe.text
         transcribe_body = transcribe.json()
-        self.assertEqual(transcribe_body["status"], "pending")
-        self.assertEqual(transcribe_body["task_type"], "transcribe")
-        self.assertNotIn("asr-secret-value", transcribe_body["input_payload"])
-        self.assertNotIn(
-            "api_key",
-            json.loads(transcribe_body["input_payload"])["asr"],
-        )
+        assert transcribe_body['status'] == 'pending'
+        assert transcribe_body['task_type'] == 'transcribe'
+        assert 'asr-secret-value' not in transcribe_body['input_payload']
+        assert 'api_key' not in json.loads(transcribe_body['input_payload'])['asr']
 
         cancel_transcribe = self.client.post(
             f"/ai-tasks/{transcribe_body['id']}/cancel",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(cancel_transcribe.status_code, 200)
-        self.assertEqual(cancel_transcribe.json()["status"], "canceled")
+        assert cancel_transcribe.status_code == 200
+        assert cancel_transcribe.json()['status'] == 'canceled'
 
         retry_transcribe = self.client.post(
             f"/ai-tasks/{transcribe_body['id']}/retry",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(retry_transcribe.status_code, 200, retry_transcribe.text)
-        self.assertEqual(retry_transcribe.json()["status"], "pending")
-        self.assertEqual(retry_transcribe.json()["retry_count"], 1)
+        assert retry_transcribe.status_code == 200, retry_transcribe.text
+        assert retry_transcribe.json()['status'] == 'pending'
+        assert retry_transcribe.json()['retry_count'] == 1
 
         with Session(self.engine) as session:
             task = session.get(AITask, transcribe_body["id"])
@@ -93,41 +90,41 @@ class TestTaskApiLifecycle(ApiIntegrationTestCase, unittest.TestCase):
             f"/ai-tasks/{transcribe_body['id']}/cancel",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(request_cancel.status_code, 200)
-        self.assertEqual(request_cancel.json()["status"], "cancel_requested")
+        assert request_cancel.status_code == 200
+        assert request_cancel.json()['status'] == 'cancel_requested'
 
         analyze = self.client.post(
             f"/audio-items/{self.audio.id}/analyze",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(analyze.status_code, 200, analyze.text)
+        assert analyze.status_code == 200, analyze.text
         analyze_body = analyze.json()
-        self.assertEqual(analyze_body["status"], "pending")
-        self.assertEqual(analyze_body["task_type"], "analyze")
-        self.assertNotIn("llm-secret-value", analyze_body["input_payload"])
+        assert analyze_body['status'] == 'pending'
+        assert analyze_body['task_type'] == 'analyze'
+        assert 'llm-secret-value' not in analyze_body['input_payload']
 
         cancel_analyze = self.client.post(
             f"/ai-tasks/{analyze_body['id']}/cancel",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(cancel_analyze.status_code, 200)
-        self.assertEqual(cancel_analyze.json()["status"], "canceled")
+        assert cancel_analyze.status_code == 200
+        assert cancel_analyze.json()['status'] == 'canceled'
 
         retry_analyze = self.client.post(
             f"/ai-tasks/{analyze_body['id']}/retry",
             headers=self.auth_headers(include_client=True),
         )
-        self.assertEqual(retry_analyze.status_code, 200, retry_analyze.text)
-        self.assertEqual(retry_analyze.json()["status"], "pending")
-        self.assertEqual(retry_analyze.json()["retry_count"], 1)
+        assert retry_analyze.status_code == 200, retry_analyze.text
+        assert retry_analyze.json()['status'] == 'pending'
+        assert retry_analyze.json()['retry_count'] == 1
 
         with Session(self.engine) as session:
             stored_audio = session.get(AudioItem, self.audio.id)
-            self.assertEqual(stored_audio.transcript_status, "cancel_requested")
-            self.assertEqual(stored_audio.ai_status, "pending")
+            assert stored_audio.transcript_status == 'cancel_requested'
+            assert stored_audio.ai_status == 'pending'
 
 
-class TestInterruptedTaskRecovery(ApiIntegrationTestCase, unittest.TestCase):
+class TestInterruptedTaskRecovery(ApiIntegrationTest):
     def test_restart_recovery_reconciles_failed_canceled_and_completed_tasks(self):
         library = self.root_path / "library"
         root = self.add_library_root(library)
@@ -194,41 +191,19 @@ class TestInterruptedTaskRecovery(ApiIntegrationTestCase, unittest.TestCase):
             task_ids = [row.id for row in rows]
 
         recovered = tasks.recover_interrupted_tasks()
-        self.assertEqual(recovered, 4)
+        assert recovered == 4
 
         with Session(self.engine) as session:
             recovered_tasks = [
                 session.get(AITask, task_id)
                 for task_id in task_ids
             ]
-            self.assertEqual(
-                [row.status for row in recovered_tasks],
-                ["failed", "canceled", "done", "done"],
-            )
-            self.assertIn(
-                "backend restart",
-                recovered_tasks[0].error_message,
-            )
-            self.assertIsNotNone(recovered_tasks[0].finished_at)
-            self.assertIsNotNone(recovered_tasks[1].finished_at)
+            assert [row.status for row in recovered_tasks] == ['failed', 'canceled', 'done', 'done']
+            assert 'backend restart' in recovered_tasks[0].error_message
+            assert recovered_tasks[0].finished_at is not None
+            assert recovered_tasks[1].finished_at is not None
 
-            self.assertEqual(
-                session.get(AudioItem, failed_audio.id).transcript_status,
-                "failed",
-            )
-            self.assertEqual(
-                session.get(AudioItem, canceled_audio.id).ai_status,
-                "canceled",
-            )
-            self.assertEqual(
-                session.get(AudioItem, completed_asr_audio.id).transcript_status,
-                "done",
-            )
-            self.assertEqual(
-                session.get(AudioItem, completed_ai_audio.id).ai_status,
-                "done",
-            )
-
-
-if __name__ == "__main__":
-    unittest.main()
+            assert session.get(AudioItem, failed_audio.id).transcript_status == 'failed'
+            assert session.get(AudioItem, canceled_audio.id).ai_status == 'canceled'
+            assert session.get(AudioItem, completed_asr_audio.id).transcript_status == 'done'
+            assert session.get(AudioItem, completed_ai_audio.id).ai_status == 'done'
