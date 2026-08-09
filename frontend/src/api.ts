@@ -18,6 +18,8 @@ import type {
   Playlist,
   PlaylistDetail,
   ScanTask,
+  SavedView,
+  SavedViewQuery,
   Tag,
   TagMergeResult,
   Transcript,
@@ -399,6 +401,7 @@ export const api = {
   listAudioItems: (params?: {
     q?: string;
     tag?: string;
+    library_root_id?: number;
     favorite?: boolean;
     missing?: boolean;
     has_transcript?: boolean;
@@ -414,6 +417,9 @@ export const api = {
 
     if (params?.q) sp.set("q", params.q);
     if (params?.tag) sp.set("tag", params.tag);
+    if (params?.library_root_id !== undefined) {
+      sp.set("library_root_id", String(params.library_root_id));
+    }
     if (params?.favorite !== undefined) sp.set("favorite", String(params.favorite));
     if (params?.missing !== undefined) sp.set("missing", String(params.missing));
     if (params?.has_transcript !== undefined) {
@@ -533,6 +539,40 @@ export const api = {
 
   listPlaylists: () => request<Playlist[]>("/playlists"),
 
+  listSavedViews: () => request<SavedView[]>("/saved-views"),
+
+  createSavedView: (name: string, query: SavedViewQuery) =>
+    request<SavedView>("/saved-views", {
+      method: "POST",
+      body: JSON.stringify({ name, query })
+    }),
+
+  updateSavedView: (
+    viewId: number,
+    payload: { name?: string; query?: SavedViewQuery }
+  ) =>
+    request<SavedView>(`/saved-views/${viewId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }),
+
+  copySavedView: (viewId: number, name?: string) =>
+    request<SavedView>(`/saved-views/${viewId}/copy`, {
+      method: "POST",
+      body: JSON.stringify({ name })
+    }),
+
+  reorderSavedViews: (viewIds: number[]) =>
+    request<SavedView[]>("/saved-views/reorder", {
+      method: "PATCH",
+      body: JSON.stringify({ view_ids: viewIds })
+    }),
+
+  deleteSavedView: (viewId: number) =>
+    request<{ ok: boolean }>(`/saved-views/${viewId}`, {
+      method: "DELETE"
+    }),
+
   getPlaylist: (id: number, params?: { include_disabled_roots?: boolean }) => {
     const sp = new URLSearchParams();
 
@@ -549,6 +589,7 @@ export const api = {
     params?: {
       q?: string;
       tag?: string;
+      library_root_id?: number;
       favorite?: boolean;
       missing?: boolean;
       has_transcript?: boolean;
@@ -564,6 +605,9 @@ export const api = {
 
     if (params?.q) sp.set("q", params.q);
     if (params?.tag) sp.set("tag", params.tag);
+    if (params?.library_root_id !== undefined) {
+      sp.set("library_root_id", String(params.library_root_id));
+    }
     if (params?.favorite !== undefined) sp.set("favorite", String(params.favorite));
     if (params?.missing !== undefined) sp.set("missing", String(params.missing));
     if (params?.has_transcript !== undefined) {

@@ -19,30 +19,32 @@ async function stabilize(page: import("@playwright/test").Page) {
   });
 }
 
-async function expectToolbarOnOneLine(
-  toolbar: import("@playwright/test").Locator,
+async function expectTopbarControlsFit(
+  topbar: import("@playwright/test").Locator,
   viewport: string
 ) {
-  const state = await toolbar.evaluate((element) => {
-    const parts = [
-      element.querySelector<HTMLElement>(".top-filter-controls"),
-      element.querySelector<HTMLElement>(".top-toolbar-actions"),
-      element.querySelector<HTMLElement>(".top-settings-button")
-    ].filter((part): part is HTMLElement => Boolean(part));
-    const centers = parts.map((part) => {
-      const rect = part.getBoundingClientRect();
-      return rect.top + rect.height / 2;
-    });
+  const state = await topbar.evaluate((element) => {
+    const search = element.querySelector<HTMLElement>(".top-command-search")!;
+    const queryRow = element.querySelector<HTMLElement>(".top-query-row")!;
+    const toolbar = element.querySelector<HTMLElement>(".top-toolbar-controls")!;
+    const filters = element.querySelector<HTMLElement>(".top-filter-controls")!;
+    const actions = element.querySelector<HTMLElement>(".top-toolbar-actions")!;
+    const searchRect = search.getBoundingClientRect();
+    const queryRect = queryRow.getBoundingClientRect();
 
     return {
-      hasHorizontalRoom: element.scrollWidth <= element.clientWidth + 1,
-      singleLine: Math.max(...centers) - Math.min(...centers) <= 2
+      searchUsesFullRow: Math.abs(searchRect.width - queryRect.width) <= 1,
+      toolbarFits: toolbar.scrollWidth <= toolbar.clientWidth + 1,
+      filtersFit: filters.scrollWidth <= filters.clientWidth + 1,
+      actionsFit: actions.scrollWidth <= actions.clientWidth + 1
     };
   });
 
-  expect(state, `toolbar at viewport ${viewport}`).toEqual({
-    hasHorizontalRoom: true,
-    singleLine: true
+  expect(state, `topbar controls at viewport ${viewport}`).toEqual({
+    searchUsesFullRow: true,
+    toolbarFits: true,
+    filtersFit: true,
+    actionsFit: true
   });
 }
 
@@ -52,26 +54,25 @@ test.describe("MD3 visual regression", () => {
     await stabilize(page);
 
     const topbar = page.locator(".top-command-bar");
-    const toolbar = page.locator(".top-toolbar-controls");
     await expect(topbar).toBeVisible();
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(topbar).toHaveScreenshot("topbar-wide.png");
-    await expectToolbarOnOneLine(toolbar, "1280x800");
+    await expectTopbarControlsFit(topbar, "1280x800");
 
     await page.setViewportSize({ width: 1000, height: 800 });
     await expect(topbar).toHaveScreenshot("topbar-medium.png");
-    await expectToolbarOnOneLine(toolbar, "1000x800");
+    await expectTopbarControlsFit(topbar, "1000x800");
 
     await page.setViewportSize({ width: 760, height: 800 });
     await expect(topbar).toHaveScreenshot("topbar-compact.png");
-    await expectToolbarOnOneLine(toolbar, "760x800");
+    await expectTopbarControlsFit(topbar, "760x800");
 
     await page.getByRole("combobox", { name: "按 transcript 状态筛选" }).click();
     await page.getByRole("option", { name: "已有 transcript" }).click();
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(page.getByRole("button", { name: "重置" })).toBeVisible();
-    await expectToolbarOnOneLine(toolbar, "1280x800 with reset action");
+    await expectTopbarControlsFit(topbar, "1280x800 with reset action");
   });
 
   test("PlayerBar responsive states", async ({ page }) => {

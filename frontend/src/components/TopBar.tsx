@@ -1,6 +1,7 @@
 import { Button, IconButton, SearchField, SelectField, MaterialIcon } from "./ui";
 import { useTranslation } from "react-i18next";
 import type { SortMode } from "../hooks/library/types";
+import type { LibraryRoot } from "../types";
 
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing";
@@ -27,6 +28,16 @@ type Props = {
   sortMode: SortMode;
   setSortMode: (value: SortMode) => void;
 
+  roots: LibraryRoot[];
+  selectedLibraryRootId?: number;
+  setSelectedLibraryRootId: (value?: number) => void;
+
+  activeSavedViewName?: string;
+  savedViewDirty: boolean;
+  canSaveView: boolean;
+  onSaveView: () => void;
+  onUpdateSavedView: () => void;
+
   onBatchTranscribe: () => void;
   onBatchAnalyze: () => void;
   onOpenSettings: () => void;
@@ -49,6 +60,14 @@ export default function TopBar({
   setMissingFilter,
   sortMode,
   setSortMode,
+  roots,
+  selectedLibraryRootId,
+  setSelectedLibraryRootId,
+  activeSavedViewName,
+  savedViewDirty,
+  canSaveView,
+  onSaveView,
+  onUpdateSavedView,
   onBatchTranscribe,
   onBatchAnalyze,
   onOpenSettings
@@ -75,6 +94,15 @@ export default function TopBar({
     { value: "duration_asc", label: t("topbar.sortDurationAsc") },
     { value: "duration_desc", label: t("topbar.sortDurationDesc") },
     { value: "play_count_desc", label: t("topbar.sortPlayCountDesc") }
+  ];
+  const rootOptions = [
+    { value: "", label: t("topbar.libraryRootAll") },
+    ...roots.map((root) => ({
+      value: String(root.id),
+      label: root.is_enabled
+        ? root.path
+        : t("topbar.libraryRootDisabled", { path: root.path })
+    }))
   ];
 
   return (
@@ -106,20 +134,6 @@ export default function TopBar({
             placeholder={t("topbar.searchPlaceholder")}
             aria-label={t("topbar.searchPlaceholder")}
           />
-
-          <SelectField
-            density="compact"
-            wrapperClassName="topbar-select-field top-sort-field"
-            controlSize="toolbar"
-            controlWidth={156}
-            controlMinWidth={156}
-            label={t("topbar.sort")}
-            value={sortMode}
-            options={sortOptions}
-            aria-label={t("topbar.sortLabel")}
-            title={t("topbar.sortLabel")}
-            onValueChange={(value) => setSortMode(value as SortMode)}
-          />
         </div>
 
         <div className="top-toolbar-controls">
@@ -130,10 +144,40 @@ export default function TopBar({
           >
             <SelectField
               density="compact"
+              wrapperClassName="topbar-select-field top-root-field"
+              controlSize="toolbar"
+              controlWidth="100%"
+              controlMinWidth={0}
+              label={t("topbar.libraryRoot")}
+              value={selectedLibraryRootId ?? ""}
+              options={rootOptions}
+              aria-label={t("topbar.libraryRootFilter")}
+              title={t("topbar.libraryRootFilter")}
+              onValueChange={(value) =>
+                setSelectedLibraryRootId(value ? Number(value) : undefined)
+              }
+            />
+
+            <SelectField
+              density="compact"
+              wrapperClassName="topbar-select-field top-sort-field"
+              controlSize="toolbar"
+              controlWidth="100%"
+              controlMinWidth={0}
+              label={t("topbar.sort")}
+              value={sortMode}
+              options={sortOptions}
+              aria-label={t("topbar.sortLabel")}
+              title={t("topbar.sortLabel")}
+              onValueChange={(value) => setSortMode(value as SortMode)}
+            />
+
+            <SelectField
+              density="compact"
               wrapperClassName="topbar-select-field"
               controlSize="toolbar"
-              controlWidth={152}
-              controlMinWidth={152}
+              controlWidth="100%"
+              controlMinWidth={0}
               label={t("topbar.transcript")}
               value={hasTranscriptFilter}
               options={transcriptFilterOptions}
@@ -146,8 +190,8 @@ export default function TopBar({
               density="compact"
               wrapperClassName="topbar-select-field"
               controlSize="toolbar"
-              controlWidth={136}
-              controlMinWidth={136}
+              controlWidth="100%"
+              controlMinWidth={0}
               label={t("topbar.file")}
               value={missingFilter}
               options={fileFilterOptions}
@@ -155,7 +199,6 @@ export default function TopBar({
               title={t("topbar.fileFilter")}
               onValueChange={(value) => setMissingFilter(value as MissingFilter)}
             />
-
           </div>
 
           <div
@@ -163,6 +206,32 @@ export default function TopBar({
             role="group"
             aria-label={t("topbar.quickActions")}
           >
+            <Button
+              variant="outlined"
+              className="top-save-view-button"
+              disabled={!canSaveView}
+              title={
+                canSaveView
+                  ? t("savedViews.saveCurrentHint")
+                  : t("savedViews.unsupportedView")
+              }
+              onClick={onSaveView}
+            >
+              {t("savedViews.saveCurrent")}
+            </Button>
+
+            {activeSavedViewName && (
+              <Button
+                variant="tonal"
+                className="top-update-view-button"
+                disabled={!savedViewDirty}
+                title={t("savedViews.updateHint", { name: activeSavedViewName })}
+                onClick={onUpdateSavedView}
+              >
+                {t("savedViews.updateCurrent")}
+              </Button>
+            )}
+
             <div
               className="top-batch-group"
               role="group"
@@ -201,16 +270,16 @@ export default function TopBar({
                 {t("topbar.reset")}
               </Button>
             )}
-          </div>
 
-          <IconButton
-            className="top-settings-button"
-            variant="soft"
-            label={t("topbar.openSettings")}
-            onClick={onOpenSettings}
-          >
-            <MaterialIcon name="settings" size={20} />
-          </IconButton>
+            <IconButton
+              className="top-settings-button"
+              variant="soft"
+              label={t("topbar.openSettings")}
+              onClick={onOpenSettings}
+            >
+              <MaterialIcon name="settings" size={20} />
+            </IconButton>
+          </div>
         </div>
       </div>
     </header>

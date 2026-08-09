@@ -774,6 +774,7 @@ def _build_audio_items_stmt(
     q: Optional[str] = None,
     search_ids: Optional[list[int]] = None,
     tag: Optional[str] = None,
+    library_root_id: Optional[int] = None,
     has_transcript: Optional[bool] = None,
     transcript_status: Optional[str] = None,
     ai_status: Optional[str] = None,
@@ -789,6 +790,9 @@ def _build_audio_items_stmt(
         session,
         include_disabled_roots=include_disabled_roots,
     )
+
+    if library_root_id is not None:
+        stmt = stmt.where(AudioItem.library_root_id == library_root_id)
 
     if q:
         ids = search_ids if search_ids is not None else search_audio_ids(session, q)

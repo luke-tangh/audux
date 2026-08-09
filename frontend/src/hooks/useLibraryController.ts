@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import type { AudioItem } from "../types";
+import type { AudioItem, SavedView, SavedViewQuery } from "../types";
+import { useDialog } from "../components/dialog/UnifiedDialog";
 import { useBackendReady } from "./useBackendReady";
 import { useToast } from "./useToast";
 import {
   buildAudioListParams as buildAudioListParamsForState,
   buildPlaylistListParams as buildPlaylistListParamsForState,
+  buildSavedViewQuery,
   isBusyStatus,
   isSmartView,
-  listCopyForView
+  listCopyForView,
+  savedViewQueriesEqual
 } from "./library/filters";
 import { useBatchTasks } from "./library/useBatchTasks";
 import { useBatchOrganization } from "./library/useBatchOrganization";
@@ -31,6 +34,10 @@ export type { MissingFilter, TranscriptFilter, ViewMode } from "./library/types"
 const AUDIO_PAGE_LIMIT = 120;
 const MAX_BATCH_SELECTION = 500;
 
+function isSavableView(view: ViewMode): view is SavedViewQuery["view"] {
+  return view !== "playlist" && view !== "settings";
+}
+
 export function useLibraryController() {
   const { t } = useTranslation();
   const [view, setView] = useState<ViewMode>("library");
@@ -48,7 +55,9 @@ export function useLibraryController() {
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q, 240);
   const [selectedTag, setSelectedTag] = useState<string | undefined>();
+  const [selectedLibraryRootId, setSelectedLibraryRootId] = useState<number | undefined>();
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
+  const [activeSavedViewId, setActiveSavedViewId] = useState<number | null>(null);
 
   const [hasTranscriptFilter, setHasTranscriptFilter] = useState<TranscriptFilter>("all");
   const [missingFilter, setMissingFilter] = useState<MissingFilter>("all");
@@ -67,8 +76,9 @@ export function useLibraryController() {
   const hasLoadedListRef = useRef(false);
 
   const { ensureBackendReady } = useBackendReady();
+  const dialog = useDialog();
   const { toasts, notify, closeToast } = useToast();
-  const { tags, playlists, loadNavigation } = useNavigationData();
+  const { tags, playlists, roots, savedViews, loadNavigation } = useNavigationData();
 
   function refresh() {
     setRefreshToken((value) => value + 1);
@@ -79,6 +89,7 @@ export function useLibraryController() {
       view,
       debouncedQ,
       selectedTag,
+      selectedLibraryRootId,
       hasTranscriptFilter,
       missingFilter,
       sortMode
@@ -89,6 +100,7 @@ export function useLibraryController() {
     return buildPlaylistListParamsForState({
       debouncedQ,
       selectedTag,
+      selectedLibraryRootId,
       hasTranscriptFilter,
       missingFilter,
       sortMode
@@ -274,6 +286,7 @@ export function useLibraryController() {
     view,
     debouncedQ,
     selectedTag,
+    selectedLibraryRootId,
     selectedPlaylistId,
     hasTranscriptFilter,
     missingFilter,
@@ -288,6 +301,7 @@ export function useLibraryController() {
     view,
     debouncedQ,
     selectedTag,
+    selectedLibraryRootId,
     selectedPlaylistId,
     hasTranscriptFilter,
     missingFilter,
@@ -324,6 +338,7 @@ export function useLibraryController() {
   function clearFilters() {
     setQ("");
     setSelectedTag(undefined);
+    setSelectedLibraryRootId(undefined);
     setHasTranscriptFilter("all");
     setMissingFilter("all");
 
@@ -335,7 +350,9 @@ export function useLibraryController() {
   function openSettings() {
     setView("settings");
     setSelectedTag(undefined);
+    setSelectedLibraryRootId(undefined);
     setSelectedPlaylistId(null);
+    setActiveSavedViewId(null);
   }
 
   const playback = usePlaybackQueue({
@@ -450,16 +467,204 @@ export function useLibraryController() {
     refresh();
   }
 
-  const { listTitle, listSubtitle } = listCopyForView(
+  const defaultListCopy = listCopyForView(
     view,
     playlists,
     selectedPlaylistId,
     t
   );
 
+  const activeSavedView = savedViews.find((row) => row.id === activeSavedViewId);
+
+  function currentSavedViewQuery(): SavedViewQuery | null {
+    if (!isSavableView(view)) return null;
+    const tagId = tags.find((tag) => tag.name === selectedTag)?.id;
+    return buildSavedViewQuery({
+      view,
+      q,
+      tagId,
+      libraryRootId: selectedLibraryRootId,
+      transcriptFilter: hasTranscriptFilter,
+      missingFilter,
+      sort: sortMode
+    });
+  }
+
+  const currentViewQuery = currentSavedViewQuery();
+  const savedViewDirty = Boolean(
+    activeSavedView?.query &&
+      currentViewQuery &&
+      !savedViewQueriesEqual(activeSavedView.query, currentViewQuery)
+  );
+  const listTitle = activeSavedView?.name || defaultListCopy.listTitle;
+  const listSubtitle = activeSavedView
+    ? t("savedViews.appliedSubtitle")
+    : defaultListCopy.listSubtitle;
+
+  function deactivateSavedView() {
+    setActiveSavedViewId(null);
+  }
+
+  function applySavedView(savedView: SavedView) {
+    if (!savedView.query) {
+      setActiveSavedViewId(savedView.id);
+      notify(t("savedViews.definitionInvalid"), "error");
+      return;
+    }
+
+    const invalidTag = savedView.invalid_references.includes("tag");
+    const invalidRoot = savedView.invalid_references.includes("library_root");
+    setView(savedView.query.view);
+    setQ(savedView.query.q);
+    setSelectedTag(invalidTag ? undefined : savedView.tag_name || undefined);
+    setSelectedLibraryRootId(
+      invalidRoot ? undefined : savedView.query.library_root_id ?? undefined
+    );
+    setHasTranscriptFilter(savedView.query.transcript_filter);
+    setMissingFilter(savedView.query.missing_filter);
+    setSortMode(savedView.query.sort);
+    setSelectedPlaylistId(null);
+    setActiveSavedViewId(savedView.id);
+
+    if (savedView.invalid_references.length > 0) {
+      const conditions = savedView.invalid_references
+        .map((reference) =>
+          reference === "tag"
+            ? t("savedViews.tagCondition")
+            : t("savedViews.libraryRootCondition")
+        )
+        .join(t("savedViews.conditionSeparator"));
+      notify(t("savedViews.invalidReferences", { conditions }), "info");
+    }
+  }
+
+  async function saveCurrentView() {
+    const query = currentSavedViewQuery();
+    if (!query) {
+      notify(t("savedViews.unsupportedView"), "info");
+      return;
+    }
+    const name = await dialog.prompt({
+      title: t("savedViews.createTitle"),
+      message: t("savedViews.createMessage"),
+      inputLabel: t("savedViews.name"),
+      required: true,
+      confirmLabel: t("savedViews.createConfirm"),
+      cancelLabel: t("common.actions.cancel"),
+      validate: (value) => (value.trim() ? null : t("savedViews.nameRequired"))
+    });
+    if (name === null) return;
+    try {
+      const created = await api.createSavedView(name.trim(), query);
+      setActiveSavedViewId(created.id);
+      await loadNavigation();
+      notify(t("savedViews.created"), "success");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function updateActiveSavedView() {
+    const query = currentSavedViewQuery();
+    if (!activeSavedView || !query) return;
+    try {
+      await api.updateSavedView(activeSavedView.id, { query });
+      await loadNavigation();
+      notify(t("savedViews.updated"), "success");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function renameSavedView(savedView: SavedView) {
+    const name = await dialog.prompt({
+      title: t("savedViews.renameTitle"),
+      message: t("savedViews.renameMessage", { name: savedView.name }),
+      inputLabel: t("savedViews.name"),
+      defaultValue: savedView.name,
+      required: true,
+      confirmLabel: t("common.actions.save"),
+      cancelLabel: t("common.actions.cancel"),
+      validate: (value) => {
+        if (!value.trim()) return t("savedViews.nameRequired");
+        if (value.trim() === savedView.name) return t("savedViews.nameDifferent");
+        return null;
+      }
+    });
+    if (name === null) return;
+    try {
+      await api.updateSavedView(savedView.id, { name: name.trim() });
+      await loadNavigation();
+      notify(t("savedViews.renamed"), "success");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function copySavedView(savedView: SavedView) {
+    const name = await dialog.prompt({
+      title: t("savedViews.copyTitle"),
+      message: t("savedViews.copyMessage", { name: savedView.name }),
+      inputLabel: t("savedViews.name"),
+      defaultValue: t("savedViews.copyDefaultName", { name: savedView.name }),
+      required: true,
+      confirmLabel: t("savedViews.copyConfirm"),
+      cancelLabel: t("common.actions.cancel"),
+      validate: (value) => (value.trim() ? null : t("savedViews.nameRequired"))
+    });
+    if (name === null) return;
+    try {
+      const copied = await api.copySavedView(savedView.id, name.trim());
+      await loadNavigation();
+      setActiveSavedViewId(copied.id);
+      if (copied.query) applySavedView(copied);
+      notify(t("savedViews.copied"), "success");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function deleteSavedView(savedView: SavedView) {
+    const ok = await dialog.confirm({
+      title: t("savedViews.deleteTitle"),
+      message: t("savedViews.deleteMessage", { name: savedView.name }),
+      confirmLabel: t("common.actions.delete"),
+      cancelLabel: t("common.actions.cancel"),
+      tone: "danger",
+      destructive: true
+    });
+    if (!ok) return;
+    try {
+      await api.deleteSavedView(savedView.id);
+      if (activeSavedViewId === savedView.id) setActiveSavedViewId(null);
+      await loadNavigation();
+      notify(t("savedViews.deleted"), "success");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
+  async function moveSavedView(savedViewId: number, direction: -1 | 1) {
+    const currentIndex = savedViews.findIndex((row) => row.id === savedViewId);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= savedViews.length) return;
+    const reordered = [...savedViews];
+    [reordered[currentIndex], reordered[targetIndex]] = [
+      reordered[targetIndex],
+      reordered[currentIndex]
+    ];
+    try {
+      await api.reorderSavedViews(reordered.map((row) => row.id));
+      await loadNavigation();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err), "error");
+    }
+  }
+
   const hasActiveFilter =
     Boolean(q.trim()) ||
     Boolean(selectedTag) ||
+    Boolean(selectedLibraryRootId) ||
     hasTranscriptFilter !== "all" ||
     missingFilter !== "all" ||
     isSmartView(view);
@@ -487,6 +692,8 @@ export function useLibraryController() {
     setQ,
     selectedTag,
     setSelectedTag,
+    selectedLibraryRootId,
+    setSelectedLibraryRootId,
     selectedPlaylistId,
     setSelectedPlaylistId,
 
@@ -499,6 +706,11 @@ export function useLibraryController() {
 
     tags,
     playlists,
+    roots,
+    savedViews,
+    activeSavedViewId,
+    savedViewDirty,
+    canSaveView: isSavableView(view),
 
     loading,
     refreshing,
@@ -516,6 +728,14 @@ export function useLibraryController() {
     refresh,
     clearFilters,
     openSettings,
+    deactivateSavedView,
+    applySavedView,
+    saveCurrentView,
+    updateActiveSavedView,
+    renameSavedView,
+    copySavedView,
+    deleteSavedView,
+    moveSavedView,
     loadMoreAudioItems,
     enterSelectionMode,
     exitSelectionMode,

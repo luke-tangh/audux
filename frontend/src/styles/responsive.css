@@ -208,12 +208,12 @@
   }
 
   .top-title-block {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .top-count-card {
-    width: 100%;
-    text-align: left;
+    width: auto;
+    text-align: right;
   }
 
   .top-command-bar .filter-group {
@@ -244,6 +244,15 @@
   .brand-copy p,
   .nav-card em {
     display: none;
+  }
+
+  .top-title-block {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-count-card {
+    width: 100%;
+    text-align: left;
   }
 
   .settings-panel .settings-header {

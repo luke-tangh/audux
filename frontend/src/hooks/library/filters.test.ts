@@ -3,11 +3,13 @@ import type { AudioItem } from "../../types";
 import {
   buildAudioListParams,
   buildPlaylistListParams,
+  buildSavedViewQuery,
   isBusyStatus,
   isSmartView,
   missingFilterToParam,
   transcriptFilterToParam,
-  uniqueAudioItems
+  uniqueAudioItems,
+  savedViewQueriesEqual
 } from "./filters";
 
 function audio(id: number): AudioItem {
@@ -42,6 +44,7 @@ describe("library filters", () => {
         view: "missingDescription",
         debouncedQ: "lecture",
         selectedTag: "work",
+        selectedLibraryRootId: 9,
         hasTranscriptFilter: "no",
         missingFilter: "available",
         sortMode: "title_asc"
@@ -49,6 +52,7 @@ describe("library filters", () => {
     ).toEqual({
       q: "lecture",
       tag: "work",
+      library_root_id: 9,
       favorite: undefined,
       missing_description: true,
       has_transcript: false,
@@ -73,6 +77,7 @@ describe("library filters", () => {
       buildPlaylistListParams({
         debouncedQ: "meeting",
         selectedTag: "todo",
+        selectedLibraryRootId: 4,
         hasTranscriptFilter: "yes",
         missingFilter: "missing",
         sortMode: "duration_desc"
@@ -80,6 +85,7 @@ describe("library filters", () => {
     ).toEqual({
       q: "meeting",
       tag: "todo",
+      library_root_id: 4,
       has_transcript: true,
       missing: true,
       sort: "duration_desc"
@@ -88,6 +94,32 @@ describe("library filters", () => {
     expect(isBusyStatus("done")).toBe(false);
     expect(isSmartView("aiFailed")).toBe(true);
     expect(isSmartView("library")).toBe(false);
+  });
+
+  it("builds and compares versioned saved-view definitions", () => {
+    const query = buildSavedViewQuery({
+      view: "favorites",
+      q: "  meeting  ",
+      tagId: 3,
+      libraryRootId: 7,
+      transcriptFilter: "yes",
+      missingFilter: "available",
+      sort: "updated_desc"
+    });
+
+    expect(query).toEqual({
+      schema_version: 1,
+      view: "favorites",
+      q: "meeting",
+      tag_id: 3,
+      library_root_id: 7,
+      transcript_filter: "yes",
+      missing_filter: "available",
+      sort: "updated_desc",
+      display_mode: "list"
+    });
+    expect(savedViewQueriesEqual(query, { ...query })).toBe(true);
+    expect(savedViewQueriesEqual(query, { ...query, q: "other" })).toBe(false);
   });
 
   it("deduplicates audio by id while preserving first-seen order", () => {

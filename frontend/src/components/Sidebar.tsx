@@ -1,5 +1,5 @@
-import { Button, MaterialIcon } from "./ui";
-import type { Playlist, Tag } from "../types";
+import { Button, IconButton, MaterialIcon } from "./ui";
+import type { Playlist, SavedView, Tag } from "../types";
 import { useTranslation } from "react-i18next";
 
 type ViewMode =
@@ -21,11 +21,20 @@ type Props = {
   playlists: Playlist[];
   selectedPlaylistId: number | null;
   setSelectedPlaylistId: (id: number | null) => void;
+  savedViews: SavedView[];
+  activeSavedViewId: number | null;
+  onApplySavedView: (savedView: SavedView) => void;
+  onRenameSavedView: (savedView: SavedView) => void;
+  onCopySavedView: (savedView: SavedView) => void;
+  onDeleteSavedView: (savedView: SavedView) => void;
+  onMoveSavedView: (savedViewId: number, direction: -1 | 1) => void;
+  onDeactivateSavedView: () => void;
 };
 
 export default function Sidebar(props: Props) {
   const { t } = useTranslation();
   function openView(view: ViewMode) {
+    props.onDeactivateSavedView();
     props.setView(view);
     props.setSelectedPlaylistId(null);
 
@@ -42,9 +51,13 @@ export default function Sidebar(props: Props) {
     return active ? "sidebar-pill active" : "sidebar-pill";
   }
 
-  const allAudioActive = props.view === "library" && !props.selectedTag;
-  const favoriteActive = props.view === "favorites";
+  const allAudioActive =
+    props.activeSavedViewId === null && props.view === "library" && !props.selectedTag;
+  const favoriteActive =
+    props.activeSavedViewId === null && props.view === "favorites";
   const settingsActive = props.view === "settings";
+  const baseViewActive = (candidate: ViewMode) =>
+    props.activeSavedViewId === null && props.view === candidate;
 
   return (
     <aside className="sidebar">
@@ -66,6 +79,7 @@ export default function Sidebar(props: Props) {
           className={navClass(allAudioActive)}
           aria-current={allAudioActive ? "page" : undefined}
           onClick={() => {
+            props.onDeactivateSavedView();
             props.setView("library");
             props.setSelectedTag(undefined);
             props.setSelectedPlaylistId(null);
@@ -93,8 +107,8 @@ export default function Sidebar(props: Props) {
 
         <Button preserveChildren
           type="button"
-          className={navClass(props.view === "transcribed")}
-          aria-current={props.view === "transcribed" ? "page" : undefined}
+          className={navClass(baseViewActive("transcribed"))}
+          aria-current={baseViewActive("transcribed") ? "page" : undefined}
           onClick={() => openView("transcribed")}
         >
           <span className="nav-symbol"><MaterialIcon name="article" size={22} /></span>
@@ -106,8 +120,8 @@ export default function Sidebar(props: Props) {
 
         <Button preserveChildren
           type="button"
-          className={navClass(props.view === "missing")}
-          aria-current={props.view === "missing" ? "page" : undefined}
+          className={navClass(baseViewActive("missing"))}
+          aria-current={baseViewActive("missing") ? "page" : undefined}
           onClick={() => openView("missing")}
         >
           <span className="nav-symbol"><MaterialIcon name="report" size={22} /></span>
@@ -119,8 +133,8 @@ export default function Sidebar(props: Props) {
 
         <Button preserveChildren
           type="button"
-          className={navClass(props.view === "aiFailed")}
-          aria-current={props.view === "aiFailed" ? "page" : undefined}
+          className={navClass(baseViewActive("aiFailed"))}
+          aria-current={baseViewActive("aiFailed") ? "page" : undefined}
           onClick={() => openView("aiFailed")}
         >
           <span className="nav-symbol"><MaterialIcon name="bolt" size={22} /></span>
@@ -130,6 +144,81 @@ export default function Sidebar(props: Props) {
           </span>
         </Button>
       </nav>
+
+      <div className="sidebar-section saved-view-section">
+        <div className="sidebar-section-heading">
+          <h3>{t("savedViews.section")}</h3>
+          <span>{props.savedViews.length}</span>
+        </div>
+
+        {props.savedViews.length === 0 && (
+          <div className="sidebar-empty">{t("savedViews.empty")}</div>
+        )}
+
+        <div className="sidebar-scroll-area">
+          {props.savedViews.map((savedView, index) => {
+            const active = props.activeSavedViewId === savedView.id;
+            return (
+              <div className={active ? "saved-view-entry active" : "saved-view-entry"} key={savedView.id}>
+                <Button
+                  preserveChildren
+                  type="button"
+                  className="saved-view-row"
+                  aria-current={active ? "page" : undefined}
+                  title={savedView.query ? savedView.name : t("savedViews.definitionInvalid")}
+                  onClick={() => props.onApplySavedView(savedView)}
+                >
+                  <MaterialIcon name={savedView.invalid_references.length ? "warning" : "menu_book"} size={18} />
+                  <strong>{savedView.name}</strong>
+                </Button>
+
+                {active && (
+                  <div className="saved-view-actions" role="group" aria-label={t("savedViews.manage", { name: savedView.name })}>
+                    <IconButton
+                      size="sm"
+                      label={t("savedViews.moveUp", { name: savedView.name })}
+                      disabled={index === 0}
+                      onClick={() => props.onMoveSavedView(savedView.id, -1)}
+                    >
+                      <MaterialIcon name="keyboard_arrow_up" size={17} />
+                    </IconButton>
+                    <IconButton
+                      size="sm"
+                      label={t("savedViews.moveDown", { name: savedView.name })}
+                      disabled={index === props.savedViews.length - 1}
+                      onClick={() => props.onMoveSavedView(savedView.id, 1)}
+                    >
+                      <MaterialIcon name="keyboard_arrow_down" size={17} />
+                    </IconButton>
+                    <IconButton
+                      size="sm"
+                      label={t("savedViews.rename", { name: savedView.name })}
+                      onClick={() => props.onRenameSavedView(savedView)}
+                    >
+                      <MaterialIcon name="edit_note" size={17} />
+                    </IconButton>
+                    <IconButton
+                      size="sm"
+                      label={t("savedViews.copy", { name: savedView.name })}
+                      onClick={() => props.onCopySavedView(savedView)}
+                    >
+                      <MaterialIcon name="queue_music" size={17} />
+                    </IconButton>
+                    <IconButton
+                      size="sm"
+                      variant="danger"
+                      label={t("savedViews.delete", { name: savedView.name })}
+                      onClick={() => props.onDeleteSavedView(savedView)}
+                    >
+                      <MaterialIcon name="close" size={17} />
+                    </IconButton>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="sidebar-section">
         <div className="sidebar-section-heading">
@@ -162,6 +251,7 @@ export default function Sidebar(props: Props) {
               }
               title={playlist.description || playlist.name}
               onClick={() => {
+                props.onDeactivateSavedView();
                 props.setView("playlist");
                 props.setSelectedTag(undefined);
                 props.setSelectedPlaylistId(playlist.id);
@@ -186,6 +276,7 @@ export default function Sidebar(props: Props) {
             className={pillClass(allAudioActive)}
             aria-pressed={allAudioActive}
             onClick={() => {
+              props.onDeactivateSavedView();
               props.setView("library");
               props.setSelectedTag(undefined);
               props.setSelectedPlaylistId(null);
@@ -198,9 +289,14 @@ export default function Sidebar(props: Props) {
             <Button preserveChildren
               key={tag.id}
               type="button"
-              className={pillClass(props.selectedTag === tag.name)}
-              aria-pressed={props.selectedTag === tag.name}
+              className={pillClass(
+                props.activeSavedViewId === null && props.selectedTag === tag.name
+              )}
+              aria-pressed={
+                props.activeSavedViewId === null && props.selectedTag === tag.name
+              }
               onClick={() => {
+                props.onDeactivateSavedView();
                 props.setView("library");
                 props.setSelectedPlaylistId(null);
                 props.setSelectedTag(tag.name);
@@ -219,6 +315,7 @@ export default function Sidebar(props: Props) {
           className={settingsActive ? "settings-nav active" : "settings-nav"}
           aria-current={settingsActive ? "page" : undefined}
           onClick={() => {
+            props.onDeactivateSavedView();
             props.setView("settings");
             props.setSelectedTag(undefined);
             props.setSelectedPlaylistId(null);

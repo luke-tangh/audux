@@ -17,6 +17,40 @@ export type AudioSortMode =
   | "duration_desc"
   | "play_count_desc";
 
+export type SavedViewMode =
+  | "library"
+  | "favorites"
+  | "missingDescription"
+  | "transcribed"
+  | "missing"
+  | "aiFailed";
+
+export type SavedViewQuery = {
+  schema_version: 1;
+  view: SavedViewMode;
+  q: string;
+  tag_id: number | null;
+  library_root_id: number | null;
+  transcript_filter: "all" | "yes" | "no";
+  missing_filter: "all" | "available" | "missing";
+  sort: AudioSortMode;
+  display_mode: "list";
+};
+
+export type SavedView = {
+  id: number;
+  name: string;
+  schema_version: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  query: SavedViewQuery | null;
+  tag_name: string | null;
+  library_root_path: string | null;
+  invalid_references: Array<"tag" | "library_root" | string>;
+  definition_error: string | null;
+};
+
 export type Tag = {
   id: number;
   name: string;

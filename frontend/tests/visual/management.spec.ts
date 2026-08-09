@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import type { SavedView, SavedViewQuery } from "../../src/types";
 
 const NOW = "2026-08-08T00:00:00Z";
 
@@ -10,6 +11,7 @@ type Mutation = {
 };
 
 type MockState = {
+  savedViews: SavedView[];
   roots: Array<{
     id: number;
     path: string;
@@ -110,6 +112,7 @@ type MockState = {
 
 function createMockState(): MockState {
   return {
+    savedViews: [],
     roots: [
       {
         id: 7,
@@ -416,6 +419,76 @@ async function mockManagementApi(page: Page, state: MockState) {
       return;
     }
 
+    if (method === "GET" && url.pathname === "/saved-views") {
+      await route.fulfill({ json: state.savedViews, headers });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/saved-views") {
+      const body = parseRequestBody(request) as { name: string; query: SavedViewQuery };
+      state.mutations.push({ method, path: url.pathname, body });
+      const savedView: SavedView = {
+        id: Math.max(0, ...state.savedViews.map((row) => row.id)) + 1,
+        name: body.name,
+        schema_version: 1,
+        sort_order: state.savedViews.length,
+        created_at: NOW,
+        updated_at: NOW,
+        query: body.query,
+        tag_name: body.query.tag_id
+          ? state.tags.find((tag) => tag.id === body.query.tag_id)?.name || null
+          : null,
+        library_root_path: body.query.library_root_id
+          ? state.roots.find((root) => root.id === body.query.library_root_id)?.path || null
+          : null,
+        invalid_references: [],
+        definition_error: null
+      };
+      state.savedViews.push(savedView);
+      await route.fulfill({ json: savedView, headers });
+      return;
+    }
+
+    if (method === "PATCH" && url.pathname === "/saved-views/reorder") {
+      const body = parseRequestBody(request) as { view_ids: number[] };
+      state.mutations.push({ method, path: url.pathname, body });
+      const byId = new Map(state.savedViews.map((row) => [row.id, row]));
+      state.savedViews = body.view_ids.map((id, sortOrder) => ({
+        ...byId.get(id)!,
+        sort_order: sortOrder
+      }));
+      await route.fulfill({ json: state.savedViews, headers });
+      return;
+    }
+
+    const savedViewMatch = url.pathname.match(/^\/saved-views\/(\d+)$/);
+    if (method === "PATCH" && savedViewMatch) {
+      const body = parseRequestBody(request) as {
+        name?: string;
+        query?: SavedViewQuery;
+      };
+      state.mutations.push({ method, path: url.pathname, body });
+      const index = state.savedViews.findIndex(
+        (row) => row.id === Number(savedViewMatch[1])
+      );
+      state.savedViews[index] = {
+        ...state.savedViews[index],
+        ...body,
+        updated_at: "2026-08-08T00:05:00Z"
+      };
+      await route.fulfill({ json: state.savedViews[index], headers });
+      return;
+    }
+
+    if (method === "DELETE" && savedViewMatch) {
+      state.mutations.push({ method, path: url.pathname, body: null });
+      state.savedViews = state.savedViews.filter(
+        (row) => row.id !== Number(savedViewMatch[1])
+      );
+      await route.fulfill({ json: { ok: true }, headers });
+      return;
+    }
+
     const audioDetailMatch = url.pathname.match(/^\/audio-items\/(\d+)$/);
     if (method === "GET" && audioDetailMatch) {
       const audio = state.audioItems.find(
@@ -617,6 +690,58 @@ async function openSettings(page: Page) {
 }
 
 test.describe("v0.5 management workflows", () => {
+  test("saves, applies and explicitly updates a database-backed view", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("searchbox", { name: /搜索标题/ }).fill("meeting");
+    await page.getByRole("combobox", { name: "按库目录筛选" }).click();
+    await page.getByRole("option", { name: "/library/podcasts" }).click();
+    await page.getByRole("button", { name: "保存视图", exact: true }).click();
+    let dialog = page.getByRole("dialog", { name: "保存当前视图" });
+    await dialog.getByRole("textbox", { name: "视图名称" }).fill("播客会议");
+    await dialog.getByRole("button", { name: "保存视图" }).click();
+
+    await expect(page.getByRole("button", { name: "播客会议", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "播客会议" })).toBeVisible();
+
+    await page.getByRole("searchbox", { name: /搜索标题/ }).fill("lecture");
+    const updateButton = page.getByRole("button", { name: "更新此视图" });
+    await expect(updateButton).toBeEnabled();
+    await updateButton.click();
+
+    await page.getByRole("button", { name: "资料库" }).first().click();
+    await page.getByRole("button", { name: "播客会议", exact: true }).click();
+    await expect(page.getByRole("searchbox", { name: /搜索标题/ })).toHaveValue("lecture");
+    await expect(page.getByRole("combobox", { name: "按库目录筛选" })).toContainText(
+      "/library/podcasts"
+    );
+
+    const createMutation = state.mutations.find(
+      (mutation) => mutation.method === "POST" && mutation.path === "/saved-views"
+    );
+    expect(createMutation?.body).toMatchObject({
+      name: "播客会议",
+      query: {
+        schema_version: 1,
+        q: "meeting",
+        library_root_id: 7,
+        sort: "default",
+        display_mode: "list"
+      }
+    });
+    expect(state.mutations).toContainEqual({
+      method: "PATCH",
+      path: "/saved-views/1",
+      body: expect.objectContaining({
+        query: expect.objectContaining({ q: "lecture", library_root_id: 7 })
+      })
+    });
+  });
+
   test("selects only loaded audio and submits a batch tag operation", async ({
     page
   }) => {

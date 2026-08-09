@@ -1,4 +1,4 @@
-import type { AudioItem, Playlist } from "../../types";
+import type { AudioItem, Playlist, SavedViewQuery } from "../../types";
 import type { TFunction } from "i18next";
 import type {
   AudioListParams,
@@ -51,6 +51,7 @@ export function buildAudioListParams({
   view,
   debouncedQ,
   selectedTag,
+  selectedLibraryRootId,
   hasTranscriptFilter,
   missingFilter,
   sortMode
@@ -58,6 +59,7 @@ export function buildAudioListParams({
   view: ViewMode;
   debouncedQ: string;
   selectedTag?: string;
+  selectedLibraryRootId?: number;
   hasTranscriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
   sortMode: SortMode;
@@ -65,6 +67,7 @@ export function buildAudioListParams({
   return {
     q: debouncedQ || undefined,
     tag: selectedTag,
+    library_root_id: selectedLibraryRootId,
     favorite: view === "favorites" ? true : undefined,
     missing_description: view === "missingDescription" ? true : undefined,
     has_transcript:
@@ -78,12 +81,14 @@ export function buildAudioListParams({
 export function buildPlaylistListParams({
   debouncedQ,
   selectedTag,
+  selectedLibraryRootId,
   hasTranscriptFilter,
   missingFilter,
   sortMode
 }: {
   debouncedQ: string;
   selectedTag?: string;
+  selectedLibraryRootId?: number;
   hasTranscriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
   sortMode: SortMode;
@@ -91,10 +96,58 @@ export function buildPlaylistListParams({
   return {
     q: debouncedQ || undefined,
     tag: selectedTag,
+    library_root_id: selectedLibraryRootId,
     has_transcript: transcriptFilterToParam(hasTranscriptFilter),
     missing: missingFilterToParam(missingFilter),
     sort: sortMode === "default" ? undefined : sortMode
   };
+}
+
+export function buildSavedViewQuery({
+  view,
+  q,
+  tagId,
+  libraryRootId,
+  transcriptFilter,
+  missingFilter,
+  sort
+}: {
+  view: SavedViewQuery["view"];
+  q: string;
+  tagId?: number;
+  libraryRootId?: number;
+  transcriptFilter: TranscriptFilter;
+  missingFilter: MissingFilter;
+  sort: SortMode;
+}): SavedViewQuery {
+  return {
+    schema_version: 1,
+    view,
+    q: q.trim(),
+    tag_id: tagId ?? null,
+    library_root_id: libraryRootId ?? null,
+    transcript_filter: transcriptFilter,
+    missing_filter: missingFilter,
+    sort,
+    display_mode: "list"
+  };
+}
+
+export function savedViewQueriesEqual(
+  left: SavedViewQuery,
+  right: SavedViewQuery
+): boolean {
+  return (
+    left.schema_version === right.schema_version &&
+    left.view === right.view &&
+    left.q === right.q &&
+    left.tag_id === right.tag_id &&
+    left.library_root_id === right.library_root_id &&
+    left.transcript_filter === right.transcript_filter &&
+    left.missing_filter === right.missing_filter &&
+    left.sort === right.sort &&
+    left.display_mode === right.display_mode
+  );
 }
 
 export function listCopyForView(

@@ -120,6 +120,7 @@ def list_playlist_audio_items(
     playlist_id: int,
     q: Optional[str] = None,
     tag: Optional[str] = None,
+    library_root_id: Optional[int] = None,
     has_transcript: Optional[bool] = None,
     transcript_status: Optional[str] = None,
     ai_status: Optional[str] = None,
@@ -159,6 +160,9 @@ def list_playlist_audio_items(
         session,
         include_disabled_roots=include_disabled_roots,
     )
+
+    if library_root_id is not None:
+        stmt = stmt.where(AudioItem.library_root_id == library_root_id)
 
     if q and search_result:
         stmt = stmt.where(AudioItem.id.in_(search_result.ids))

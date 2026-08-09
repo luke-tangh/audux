@@ -31,6 +31,8 @@ export default function App() {
     setQ,
     selectedTag,
     setSelectedTag,
+    selectedLibraryRootId,
+    setSelectedLibraryRootId,
     selectedPlaylistId,
     setSelectedPlaylistId,
 
@@ -43,6 +45,11 @@ export default function App() {
 
     tags,
     playlists,
+    roots,
+    savedViews,
+    activeSavedViewId,
+    savedViewDirty,
+    canSaveView,
 
     loading,
     refreshing,
@@ -60,6 +67,14 @@ export default function App() {
     refresh,
     clearFilters,
     openSettings,
+    deactivateSavedView,
+    applySavedView,
+    saveCurrentView,
+    updateActiveSavedView,
+    renameSavedView,
+    copySavedView,
+    deleteSavedView,
+    moveSavedView,
     loadMoreAudioItems,
     enterSelectionMode,
     exitSelectionMode,
@@ -103,6 +118,14 @@ export default function App() {
           playlists={playlists}
           selectedPlaylistId={selectedPlaylistId}
           setSelectedPlaylistId={setSelectedPlaylistId}
+          savedViews={savedViews}
+          activeSavedViewId={activeSavedViewId}
+          onApplySavedView={applySavedView}
+          onRenameSavedView={(savedView) => void renameSavedView(savedView)}
+          onCopySavedView={(savedView) => void copySavedView(savedView)}
+          onDeleteSavedView={(savedView) => void deleteSavedView(savedView)}
+          onMoveSavedView={(savedViewId, direction) => void moveSavedView(savedViewId, direction)}
+          onDeactivateSavedView={deactivateSavedView}
         />
 
         {view === "settings" ? (
@@ -129,6 +152,14 @@ export default function App() {
                 setMissingFilter={setMissingFilter}
                 sortMode={sortMode}
                 setSortMode={setSortMode}
+                roots={roots}
+                selectedLibraryRootId={selectedLibraryRootId}
+                setSelectedLibraryRootId={setSelectedLibraryRootId}
+                activeSavedViewName={savedViews.find((row) => row.id === activeSavedViewId)?.name}
+                savedViewDirty={savedViewDirty}
+                canSaveView={canSaveView}
+                onSaveView={() => void saveCurrentView()}
+                onUpdateSavedView={() => void updateActiveSavedView()}
                 onBatchTranscribe={batchTranscribeCurrentList}
                 onBatchAnalyze={batchAnalyzeCurrentList}
                 onOpenSettings={openSettings}

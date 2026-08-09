@@ -41,7 +41,7 @@ describe("local API client", () => {
   });
 
   it("shares one token request across concurrent protected calls", async () => {
-    const fetchMock = vi.fn((input: string | URL | Request) => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
       const url = String(input);
       return Promise.resolve(
         url.endsWith("/auth/token")
@@ -217,6 +217,7 @@ describe("local API client", () => {
     await api.listAudioItems({
       q: "meeting notes",
       tag: "待办",
+      library_root_id: 12,
       favorite: false,
       missing: true,
       has_transcript: false,
@@ -232,6 +233,7 @@ describe("local API client", () => {
     expect(Object.fromEntries(requestUrl.searchParams)).toEqual({
       q: "meeting notes",
       tag: "待办",
+      library_root_id: "12",
       favorite: "false",
       missing: "true",
       has_transcript: "false",
@@ -242,6 +244,44 @@ describe("local API client", () => {
       limit: "25",
       offset: "50"
     });
+  });
+
+  it("uses the saved-view CRUD and reorder contracts", async () => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
+      const url = String(input);
+      return Promise.resolve(
+        url.endsWith("/auth/token")
+          ? jsonResponse({ token: "saved-view-token" })
+          : jsonResponse({ id: 1 })
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("./api");
+    const query = {
+      schema_version: 1 as const,
+      view: "library" as const,
+      q: "ambient",
+      tag_id: null,
+      library_root_id: 2,
+      transcript_filter: "all" as const,
+      missing_filter: "available" as const,
+      sort: "title_asc" as const,
+      display_mode: "list" as const
+    };
+    await api.createSavedView("Ambient", query);
+    await api.updateSavedView(1, { query });
+    await api.copySavedView(1, "Ambient copy");
+    await api.reorderSavedViews([2, 1]);
+    await api.deleteSavedView(1);
+
+    expect(fetchMock.mock.calls.slice(1).map((call) => [call[0], call[1]?.method])).toEqual([
+      ["http://127.0.0.1:8765/saved-views", "POST"],
+      ["http://127.0.0.1:8765/saved-views/1", "PATCH"],
+      ["http://127.0.0.1:8765/saved-views/1/copy", "POST"],
+      ["http://127.0.0.1:8765/saved-views/reorder", "PATCH"],
+      ["http://127.0.0.1:8765/saved-views/1", "DELETE"]
+    ]);
   });
 
   it("handles empty success responses and plain-text backend errors", async () => {

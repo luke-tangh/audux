@@ -68,14 +68,17 @@
 }
 
 .top-query-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: block;
   min-width: 0;
 }
 
-.top-query-row .top-sort-field {
+.top-save-view-button.ui-button,
+.top-update-view-button.ui-button {
   flex: 0 0 auto;
+  height: 40px;
+  min-height: 40px;
+  white-space: nowrap;
+  border-radius: 16px;
 }
 
 .top-toolbar-controls {
@@ -83,12 +86,11 @@
   min-width: 0;
   min-height: 52px;
   display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   padding: 6px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   border-radius: var(--md-sys-shape-corner-extra-large);
   background: var(--md-sys-color-surface-container-low);
   scrollbar-width: none;
@@ -101,9 +103,17 @@
 .top-filter-controls,
 .top-toolbar-actions {
   min-width: 0;
-  display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.top-filter-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.top-toolbar-actions {
+  display: flex;
 }
 
 .topbar-select-field {
@@ -188,12 +198,11 @@
 .top-command-bar .top-toolbar-controls {
   width: 100%;
   display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: flex-start;
   gap: 8px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   scrollbar-width: none;
 }
 
@@ -203,10 +212,10 @@
 
 .top-command-bar .top-filter-controls {
   order: 1;
-  flex: 0 0 auto;
-  width: auto;
+  width: 100%;
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
   gap: 8px;
   margin: 0;
@@ -215,13 +224,13 @@
 }
 
 .top-command-bar .topbar-select-field {
-  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .top-command-bar .top-toolbar-actions {
   order: 2;
-  flex: 0 0 auto;
-  width: auto;
+  width: 100%;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -231,7 +240,6 @@
 }
 
 .top-command-bar .top-settings-button {
-  order: 3;
   flex: 0 0 auto;
   width: 40px;
   min-width: 40px;
@@ -242,17 +250,21 @@
 }
 
 .top-command-bar .top-batch-group {
-  order: 4;
+  order: 0;
   flex: 0 0 auto;
 }
 
 .top-command-bar .top-clear-filter-button {
-  order: 5;
+  order: 0;
   flex: 0 0 auto;
   margin-left: 0;
 }
 
-@container library-topbar (max-width: 720px) {
+@container library-topbar (max-width: 440px) {
+  .top-command-bar .top-filter-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .top-command-bar .top-batch-group {
     gap: 5px;
   }
@@ -314,6 +326,16 @@
     min-width: 38px;
     height: 38px;
     min-height: 38px;
+  }
+}
+
+@container library-topbar (max-width: 360px) {
+  .top-command-bar .top-filter-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-command-bar .top-toolbar-actions {
+    flex-wrap: wrap;
   }
 }
 /* TopBar integrated layout rules: end */

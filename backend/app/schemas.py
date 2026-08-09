@@ -112,6 +112,52 @@ class DatabaseBackupCreate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=80)
 
 
+SavedViewBaseMode = Literal[
+    "library",
+    "favorites",
+    "missingDescription",
+    "transcribed",
+    "missing",
+    "aiFailed",
+]
+
+
+class SavedViewQuery(BaseModel):
+    schema_version: Literal[1] = 1
+    view: SavedViewBaseMode = "library"
+    q: str = Field(default="", max_length=500)
+    tag_id: Optional[int] = Field(default=None, gt=0)
+    library_root_id: Optional[int] = Field(default=None, gt=0)
+    transcript_filter: Literal["all", "yes", "no"] = "all"
+    missing_filter: Literal["all", "available", "missing"] = "all"
+    sort: AudioSortMode = "default"
+    display_mode: Literal["list"] = "list"
+
+
+class SavedViewCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    query: SavedViewQuery
+
+
+class SavedViewUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    query: Optional[SavedViewQuery] = None
+
+    @model_validator(mode="after")
+    def require_change(self):
+        if self.name is None and self.query is None:
+            raise ValueError("name or query is required")
+        return self
+
+
+class SavedViewCopy(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+
+
+class SavedViewsReorder(BaseModel):
+    view_ids: List[int] = Field(max_length=200)
+
+
 class LLMConfig(BaseModel):
     endpoint: str
     model_name: str

@@ -1,0 +1,74 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import { LocaleProvider } from "../i18n/LocaleProvider";
+import type { SavedView } from "../types";
+import Sidebar from "./Sidebar";
+
+
+const savedView: SavedView = {
+  id: 10,
+  name: "待整理",
+  schema_version: 1,
+  sort_order: 0,
+  created_at: "2026-08-10T00:00:00Z",
+  updated_at: "2026-08-10T00:00:00Z",
+  query: {
+    schema_version: 1,
+    view: "library",
+    q: "meeting",
+    tag_id: null,
+    library_root_id: null,
+    transcript_filter: "all",
+    missing_filter: "all",
+    sort: "updated_desc",
+    display_mode: "list"
+  },
+  tag_name: null,
+  library_root_path: null,
+  invalid_references: [],
+  definition_error: null
+};
+
+describe("saved views in the sidebar", () => {
+  it("applies and exposes explicit management actions for the active view", () => {
+    const actions = {
+      onApplySavedView: vi.fn(),
+      onRenameSavedView: vi.fn(),
+      onCopySavedView: vi.fn(),
+      onDeleteSavedView: vi.fn(),
+      onMoveSavedView: vi.fn(),
+      onDeactivateSavedView: vi.fn()
+    };
+
+    render(
+      <LocaleProvider>
+        <Sidebar
+          view="library"
+          setView={vi.fn()}
+          tags={[]}
+          selectedTag={undefined}
+          setSelectedTag={vi.fn()}
+          playlists={[]}
+          selectedPlaylistId={null}
+          setSelectedPlaylistId={vi.fn()}
+          savedViews={[savedView, { ...savedView, id: 11, name: "第二个" }]}
+          activeSavedViewId={savedView.id}
+          {...actions}
+        />
+      </LocaleProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: savedView.name }));
+    fireEvent.click(screen.getByRole("button", { name: /重命名视图|Rename view/ }));
+    fireEvent.click(screen.getByRole("button", { name: /复制视图|Copy view/ }));
+    fireEvent.click(screen.getByRole("button", { name: /下移视图|Move view.*down/ }));
+    fireEvent.click(screen.getByRole("button", { name: /删除视图|Delete view/ }));
+
+    expect(actions.onApplySavedView).toHaveBeenCalledWith(savedView);
+    expect(actions.onRenameSavedView).toHaveBeenCalledWith(savedView);
+    expect(actions.onCopySavedView).toHaveBeenCalledWith(savedView);
+    expect(actions.onMoveSavedView).toHaveBeenCalledWith(savedView.id, 1);
+    expect(actions.onDeleteSavedView).toHaveBeenCalledWith(savedView);
+  });
+});

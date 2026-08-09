@@ -120,7 +120,7 @@ class TestDatabaseMigrations:
 
         backup_paths = list(self.backups_dir.glob("*.sqlite"))
         assert len(backup_paths) == 1
-        assert 'pre-migration-v4-to-v7' in backup_paths[0].name
+        assert 'pre-migration-v4-to-v8' in backup_paths[0].name
 
         with sqlite3.connect(backup_paths[0]) as backup:
             assert backup.execute('PRAGMA quick_check').fetchone()[0] == 'ok'
@@ -159,6 +159,23 @@ class TestDatabaseMigrations:
             }
             assert {"error_code", "error_params"}.issubset(ai_task_columns)
             assert {"error_code", "error_params"}.issubset(scan_task_columns)
+            saved_view_columns = {
+                row[1] for row in connection.execute(text("PRAGMA table_info(saved_views)"))
+            }
+            assert {
+                "id",
+                "name",
+                "query_json",
+                "schema_version",
+                "sort_order",
+                "created_at",
+                "updated_at",
+            }.issubset(saved_view_columns)
+            saved_view_indexes = {
+                row[1] for row in connection.execute(text("PRAGMA index_list(saved_views)"))
+            }
+            assert "ux_saved_views_name_nocase" in saved_view_indexes
+            assert "ix_saved_views_sort_order" in saved_view_indexes
             assert connection.execute(
                 text(
                     """

@@ -9,7 +9,7 @@ from .time_utils import utc_now_iso
 
 
 logger = logging.getLogger(__name__)
-CURRENT_SCHEMA_VERSION = 7
+CURRENT_SCHEMA_VERSION = 8
 
 APP_DATA_DIR = Path.home() / ".local_audio_library"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -463,3 +463,37 @@ def run_migrations():
                 _add_column_if_missing(conn, "scan_tasks", "error_params", "error_params TEXT")
 
             _mark_migration_applied(conn, 7, "structured_task_errors")
+
+        if not _migration_applied(conn, 8):
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS saved_views (
+                        id INTEGER PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        query_json TEXT NOT NULL,
+                        schema_version INTEGER NOT NULL DEFAULT 1,
+                        sort_order INTEGER NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    );
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS ux_saved_views_name_nocase
+                    ON saved_views(name COLLATE NOCASE);
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_saved_views_sort_order
+                    ON saved_views(sort_order, id);
+                    """
+                )
+            )
+            _mark_migration_applied(conn, 8, "saved_views")

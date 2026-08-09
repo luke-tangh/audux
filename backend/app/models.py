@@ -105,6 +105,18 @@ class PlaylistItem(SQLModel, table=True):
     created_at: str = Field(default_factory=now_iso)
 
 
+class SavedView(SQLModel, table=True):
+    __tablename__ = "saved_views"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    query_json: str
+    schema_version: int = 1
+    sort_order: int = 0
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+
 class Transcript(SQLModel, table=True):
     __tablename__ = "transcripts"
 

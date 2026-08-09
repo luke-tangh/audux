@@ -25,6 +25,7 @@ router = APIRouter()
 def list_audio_items(
     q: Optional[str] = None,
     tag: Optional[str] = None,
+    library_root_id: Optional[int] = None,
     has_transcript: Optional[bool] = None,
     transcript_status: Optional[str] = None,
     ai_status: Optional[str] = None,
@@ -41,6 +42,7 @@ def list_audio_items(
         session=session,
         q=q,
         tag=tag,
+        library_root_id=library_root_id,
         has_transcript=has_transcript,
         transcript_status=transcript_status,
         ai_status=ai_status,
