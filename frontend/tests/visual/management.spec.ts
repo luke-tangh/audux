@@ -102,6 +102,7 @@ type MockState = {
     safety_snapshot_id: string;
     requested_at: string;
   };
+  healthMissing: boolean;
 };
 
 function createMockState(): MockState {
@@ -204,7 +205,8 @@ function createMockState(): MockState {
     transcriptConflictOnce: false,
     whisperStatus: "not_installed",
     backups: [],
-    pendingRestore: null
+    pendingRestore: null,
+    healthMissing: true
   };
 }
 
@@ -278,6 +280,113 @@ async function mockManagementApi(page: Page, state: MockState) {
       return;
     }
 
+    if (method === "GET" && url.pathname === "/library-health") {
+      const missing = state.healthMissing
+        ? [{
+            id: 2,
+            title: "测试音频 2",
+            file_path: "/library/podcasts/two.mp3",
+            library_root_id: 7,
+            file_size: 1024,
+            duration_seconds: 180,
+            updated_at: NOW
+          }]
+        : [];
+      await route.fulfill({
+        json: {
+          generated_at: NOW,
+          roots: [{
+            root: state.roots[0],
+            path_available: true,
+            database_total: 2,
+            available: state.healthMissing ? 1 : 2,
+            missing: missing.length,
+            unsupported_count: 0,
+            unsupported_examples: [],
+            supported_files_on_disk: 2,
+            failed_scan_count: 0,
+            latest_scan: null
+          }],
+          totals: {
+            roots: 1,
+            disabled_roots: 0,
+            available: state.healthMissing ? 1 : 2,
+            missing: missing.length,
+            unsupported: 0,
+            scan_failures: 0,
+            duplicate_groups: 0,
+            detached_audio: 0
+          },
+          missing_audio: missing,
+          duplicate_groups: [],
+          active_tasks: [],
+          latest_task: null
+        },
+        headers
+      });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/library-health/tasks") {
+      await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/library-health/audio/2/relink-candidates") {
+      await route.fulfill({
+        json: {
+          audio: { id: 2, title: "测试音频 2", file_path: "/library/podcasts/two.mp3", updated_at: NOW },
+          candidates: [{
+            path: "/library/podcasts/moved/two.mp3",
+            library_root_id: 7,
+            library_root_path: "/library/podcasts",
+            file_size: 1024,
+            mtime_ns: 123,
+            duration_seconds: 180,
+            title: "测试音频 2",
+            checks: { size: true, duration: true, metadata: true, fingerprint: true },
+            eligible: true,
+            confidence: "high",
+            conflict_audio_id: null
+          }]
+        },
+        headers
+      });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/library-health/audio/2/relink-preview") {
+      await route.fulfill({
+        json: {
+          audio: { id: 2, title: "测试音频 2", old_path: "/library/podcasts/two.mp3", updated_at: NOW },
+          candidate: { path: "/library/podcasts/moved/two.mp3" },
+          impacts: {
+            transcript_preserved: true,
+            transcript_segments: 3,
+            tags_preserved: 2,
+            manual_playlists_preserved: 1,
+            cover_preserved: true,
+            cover_source: "user",
+            play_count_preserved: 8,
+            playback_position_preserved: 42,
+            user_metadata_preserved: true,
+            files_deleted: 0,
+            database_records_deleted: 0
+          },
+          confirmation: { expected_audio_updated_at: NOW, expected_file_size: 1024, expected_mtime_ns: 123 }
+        },
+        headers
+      });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/library-health/audio/2/relink") {
+      state.healthMissing = false;
+      state.mutations.push({ method, path: url.pathname, body: parseRequestBody(request) });
+      await route.fulfill({ json: { preserved: true }, headers });
+      return;
+    }
+
     if (method === "GET" && url.pathname === "/settings") {
       await route.fulfill({ json: [], headers });
       return;
@@ -337,6 +446,7 @@ async function mockManagementApi(page: Page, state: MockState) {
             blockers: [],
             active_ai_tasks: 0,
             active_scan_tasks: 0,
+            active_health_tasks: 0,
             required_bytes: 2097152,
             free_bytes: 1073741824,
             restart_required: true
@@ -972,6 +1082,39 @@ test.describe("v0.5 management workflows", () => {
       method: "DELETE",
       path: "/library-roots/7",
       body: null
+    });
+  });
+
+  test("previews preserved data before safely relinking a missing file", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await openSettings(page);
+    await page.getByRole("tab", { name: "资料库健康" }).click();
+
+    await expect(page.getByText("资料库健康中心")).toBeVisible();
+    await expect(page.getByText(/不会删除磁盘文件或数据库记录/)).toBeVisible();
+    await page.getByRole("button", { name: "查找候选" }).click();
+    await expect(page.getByText("/library/podcasts/moved/two.mp3")).toBeVisible();
+    await page.getByRole("button", { name: "预览并关联" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "确认安全重新关联" });
+    await expect(dialog).toContainText("Transcript（3 段）");
+    await expect(dialog).toContainText("2 个标签");
+    await expect(dialog).toContainText("将删除 0 个文件、0 条数据库记录");
+    await dialog.getByRole("button", { name: "确认重新关联" }).click();
+
+    await expect(page.getByText("当前没有缺失文件。")).toBeVisible();
+    expect(state.mutations).toContainEqual({
+      method: "POST",
+      path: "/library-health/audio/2/relink",
+      body: {
+        candidate_path: "/library/podcasts/moved/two.mp3",
+        expected_audio_updated_at: NOW,
+        expected_file_size: 1024,
+        expected_mtime_ns: 123
+      }
     });
   });
 

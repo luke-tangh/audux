@@ -3,8 +3,13 @@ import { api, asrEndpointPrivacyWarning, endpointPrivacyWarning } from "../api";
 import type {
   DatabaseBackup,
   DatabaseRestoreStatus,
+  LibraryDuplicateGroup,
+  LibraryHealthSummary,
+  LibraryHealthTask,
   LibraryRoot,
+  MissingAudioHealthItem,
   Playlist,
+  SafeRelinkCandidate,
   ScanTask,
   Tag,
   WhisperComponentStatus
@@ -19,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { localizedPrivacyWarning, localizedStoredError } from "../i18n/errors";
 import AsrSettingsTab from "./settings/AsrSettingsTab";
 import LibrarySettingsTab from "./settings/LibrarySettingsTab";
+import HealthSettingsTab from "./settings/HealthSettingsTab";
 import LlmSettingsTab from "./settings/LlmSettingsTab";
 import LogsSettingsTab from "./settings/LogsSettingsTab";
 import MaintenanceSettingsTab from "./settings/MaintenanceSettingsTab";
@@ -50,6 +56,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [databaseRestoreStatus, setDatabaseRestoreStatus] =
     useState<DatabaseRestoreStatus | null>(null);
   const [backupAction, setBackupAction] = useState<string | null>(null);
+  const [libraryHealth, setLibraryHealth] = useState<LibraryHealthSummary | null>(null);
+  const [healthTasks, setHealthTasks] = useState<LibraryHealthTask[]>([]);
+  const [healthCandidates, setHealthCandidates] = useState<Record<number, SafeRelinkCandidate[]>>({});
+  const [healthAction, setHealthAction] = useState<string | null>(null);
 
   const [asrProvider, setAsrProvider] = useState("faster_whisper");
   const [asrModelName, setAsrModelName] = useState("small");
@@ -132,6 +142,15 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   async function loadScanTasks() {
     const rows = await api.listScanTasks({ limit: 20 });
     applyScanTasks(rows, true);
+  }
+
+  async function loadLibraryHealth() {
+    const [summary, taskRows] = await Promise.all([
+      api.getLibraryHealth(),
+      api.listLibraryHealthTasks(20)
+    ]);
+    setLibraryHealth(summary);
+    setHealthTasks(taskRows);
   }
 
   async function loadLogs() {
@@ -255,10 +274,12 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   useEffect(() => {
     load().catch(console.error);
     loadLogs().catch(console.error);
+    loadLibraryHealth().catch(console.error);
 
     const timer = setInterval(() => {
       loadScanTasks().catch(console.error);
       loadWhisperComponentStatus().catch(console.error);
+      loadLibraryHealth().catch(console.error);
     }, 3000);
 
     return () => clearInterval(timer);
@@ -802,7 +823,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
           if (blocker.code === "backup.active_tasks") {
             return t("settings.backup.blocker.activeTasks", {
               aiTasks: preflight.active_ai_tasks,
-              scanTasks: preflight.active_scan_tasks
+              scanTasks: preflight.active_scan_tasks,
+              healthTasks: preflight.active_health_tasks
             });
           }
           if (blocker.code === "backup.insufficient_space") {
@@ -827,7 +849,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         message: t("settings.backup.restoreMessage", {
           name: backup.name,
           aiTasks: preflight.active_ai_tasks,
-          scanTasks: preflight.active_scan_tasks
+          scanTasks: preflight.active_scan_tasks,
+          healthTasks: preflight.active_health_tasks
         }),
         details: t("settings.backup.restoreDetails"),
         confirmLabel: t("settings.backup.restoreConfirm"),
@@ -865,6 +888,110 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     } finally {
       setBackupAction(null);
+    }
+  }
+
+  async function startLibraryHealthCheck() {
+    setHealthAction("check");
+    try {
+      await api.startLibraryHealthCheck();
+      await loadLibraryHealth();
+      notify?.(t("settings.health.checkStarted"), "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setHealthAction(null);
+    }
+  }
+
+  async function cancelLibraryHealthTask(task: LibraryHealthTask) {
+    setHealthAction(`cancel-${task.id}`);
+    try {
+      await api.cancelLibraryHealthTask(task.id);
+      await loadLibraryHealth();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setHealthAction(null);
+    }
+  }
+
+  async function retryLibraryHealthTask(task: LibraryHealthTask) {
+    setHealthAction(`retry-${task.id}`);
+    try {
+      await api.retryLibraryHealthTask(task.id);
+      await loadLibraryHealth();
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setHealthAction(null);
+    }
+  }
+
+  async function confirmDuplicateHashes(group: LibraryDuplicateGroup) {
+    setHealthAction(`hash-${group.candidate_key || group.hash_prefix || "group"}`);
+    try {
+      await api.confirmDuplicateHashes(group.audio_items.map((item) => item.id));
+      await loadLibraryHealth();
+      notify?.(t("settings.health.hashStarted"), "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setHealthAction(null);
+    }
+  }
+
+  async function findRelinkCandidates(audio: MissingAudioHealthItem) {
+    setHealthAction(`candidates-${audio.id}`);
+    try {
+      const result = await api.findRelinkCandidates(audio.id);
+      setHealthCandidates((current) => ({
+        ...current,
+        [audio.id]: result.candidates
+      }));
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setHealthAction(null);
+    }
+  }
+
+  async function safeRelink(
+    audio: MissingAudioHealthItem,
+    candidate: SafeRelinkCandidate
+  ) {
+    setHealthAction(`preview-${audio.id}`);
+    try {
+      const preview = await api.previewSafeRelink(audio.id, candidate.path);
+      const confirmed = await dialog.confirm({
+        title: t("settings.health.relinkTitle"),
+        message: t("settings.health.relinkMessage", {
+          title: preview.audio.title,
+          oldPath: preview.audio.old_path,
+          newPath: preview.candidate.path,
+          segments: preview.impacts.transcript_segments,
+          tags: preview.impacts.tags_preserved,
+          playlists: preview.impacts.manual_playlists_preserved,
+          plays: preview.impacts.play_count_preserved
+        }),
+        confirmLabel: t("settings.health.relinkConfirm"),
+        cancelLabel: t("common.actions.cancel"),
+        tone: "warning"
+      });
+      if (!confirmed) return;
+      await api.commitSafeRelink(audio.id, candidate.path, preview.confirmation);
+      setHealthCandidates((current) => {
+        const next = { ...current };
+        delete next[audio.id];
+        return next;
+      });
+      await loadLibraryHealth();
+      refresh();
+      notify?.(t("settings.health.relinked"), "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setHealthAction(null);
     }
   }
 
@@ -916,6 +1043,22 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onCreatePlaylist={createPlaylist}
             onRenamePlaylist={renamePlaylist}
             onDeletePlaylist={deletePlaylist}
+          />
+        )}
+
+        {activeTab === "health" && (
+          <HealthSettingsTab
+            summary={libraryHealth}
+            tasks={healthTasks}
+            candidates={healthCandidates}
+            action={healthAction}
+            onRefresh={() => loadLibraryHealth().catch((err) => notify?.(String(err), "error"))}
+            onStartCheck={startLibraryHealthCheck}
+            onCancelTask={cancelLibraryHealthTask}
+            onRetryTask={retryLibraryHealthTask}
+            onConfirmDuplicates={confirmDuplicateHashes}
+            onFindCandidates={findRelinkCandidates}
+            onRelink={safeRelink}
           />
         )}
 

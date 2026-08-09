@@ -104,6 +104,130 @@
   grid-column: 1 / -1;
 }
 
+.settings-panel .health-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(100px, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.settings-panel .health-metric {
+  display: grid;
+  gap: 3px;
+  padding: 14px;
+  border-radius: var(--md-sys-shape-corner-large);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container);
+}
+
+.settings-panel .health-metric strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.settings-panel .health-metric span,
+.settings-panel .health-root-row p,
+.settings-panel .health-task-row p,
+.settings-panel .health-missing-main span,
+.settings-panel .health-candidate-row span,
+.settings-panel .health-duplicate-row p {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.settings-panel .health-safety-note {
+  padding: 12px 14px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  color: var(--md-sys-color-on-success-container);
+  background: var(--md-sys-color-success-container);
+}
+
+.settings-panel .health-hash-result {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-secondary-container);
+}
+
+.settings-panel .health-root-list,
+.settings-panel .health-task-list,
+.settings-panel .health-missing-list,
+.settings-panel .health-duplicate-list,
+.settings-panel .health-candidate-list {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-panel .health-root-row,
+.settings-panel .health-task-row,
+.settings-panel .health-missing-row,
+.settings-panel .health-duplicate-row,
+.settings-panel .health-candidate-row {
+  padding: 13px;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container);
+  overflow-wrap: anywhere;
+}
+
+.settings-panel .health-row-heading,
+.settings-panel .health-row-actions,
+.settings-panel .health-duplicate-row,
+.settings-panel .health-candidate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-panel .health-row-heading strong,
+.settings-panel .health-missing-main,
+.settings-panel .health-candidate-row > div,
+.settings-panel .health-duplicate-row > div {
+  min-width: 0;
+}
+
+.settings-panel .health-root-row p,
+.settings-panel .health-task-row p,
+.settings-panel .health-duplicate-row p {
+  margin: 6px 0 0;
+}
+
+.settings-panel .health-missing-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-panel .health-missing-main,
+.settings-panel .health-candidate-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-panel .health-candidate-list {
+  grid-column: 1 / -1;
+  padding-top: 4px;
+}
+
+.settings-panel .health-candidate-row {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+@media (max-width: 900px) {
+  .settings-panel .health-metrics {
+    grid-template-columns: repeat(2, minmax(100px, 1fr));
+  }
+
+  .settings-panel .health-candidate-row,
+  .settings-panel .health-duplicate-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .settings-panel .backup-restore-banner,
 .settings-panel .backup-restore-result {
   margin: 12px 0 0;

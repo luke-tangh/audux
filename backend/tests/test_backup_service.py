@@ -11,6 +11,7 @@ from app.models import (
     AITask,
     AudioItem,
     AudioTag,
+    LibraryHealthTask,
     LibraryRoot,
     Playlist,
     PlaylistItem,
@@ -185,14 +186,19 @@ class TestDatabaseBackupService:
         backup = self.create_backup()
         with Session(self.engine) as session:
             session.add(AITask(audio_id=999, task_type="analyze", status="running"))
+            session.add(LibraryHealthTask(task_type="health_check", status="running"))
             session.commit()
             blocked = backup_service.restore_preflight(session, backup["id"])
             assert blocked["ok"] is False
             assert blocked["active_ai_tasks"] == 1
+            assert blocked["active_health_tasks"] == 1
 
             task = session.exec(select(AITask)).one()
             task.status = "done"
             session.add(task)
+            health_task = session.exec(select(LibraryHealthTask)).one()
+            health_task.status = "done"
+            session.add(health_task)
             session.commit()
             pending = backup_service.schedule_database_restore(session, backup["id"])
 

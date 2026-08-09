@@ -11,6 +11,8 @@ import type {
   DatabaseRestorePreflight,
   DatabaseRestoreStatus,
   LibraryRoot,
+  LibraryHealthSummary,
+  LibraryHealthTask,
   LLMConfigPayload,
   LLMTestResult,
   PaginatedAudioItems,
@@ -18,6 +20,8 @@ import type {
   Playlist,
   PlaylistDetail,
   ScanTask,
+  SafeRelinkCandidates,
+  SafeRelinkPreview,
   SavedView,
   SavedViewQuery,
   Tag,
@@ -396,6 +400,45 @@ export const api = {
   cancelScanTask: (id: number) =>
     request<ScanTask>(`/scan-tasks/${id}/cancel`, {
       method: "POST"
+    }),
+
+  getLibraryHealth: () => request<LibraryHealthSummary>("/library-health"),
+
+  listLibraryHealthTasks: (limit = 20) =>
+    request<LibraryHealthTask[]>(`/library-health/tasks?limit=${limit}`),
+
+  startLibraryHealthCheck: () =>
+    request<LibraryHealthTask>("/library-health/checks", { method: "POST" }),
+
+  confirmDuplicateHashes: (audioIds: number[]) =>
+    request<LibraryHealthTask>("/library-health/duplicates/confirm", {
+      method: "POST",
+      body: JSON.stringify({ audio_ids: audioIds })
+    }),
+
+  cancelLibraryHealthTask: (id: number) =>
+    request<LibraryHealthTask>(`/library-health/tasks/${id}/cancel`, { method: "POST" }),
+
+  retryLibraryHealthTask: (id: number) =>
+    request<LibraryHealthTask>(`/library-health/tasks/${id}/retry`, { method: "POST" }),
+
+  findRelinkCandidates: (audioId: number) =>
+    request<SafeRelinkCandidates>(`/library-health/audio/${audioId}/relink-candidates`),
+
+  previewSafeRelink: (audioId: number, candidatePath: string) =>
+    request<SafeRelinkPreview>(`/library-health/audio/${audioId}/relink-preview`, {
+      method: "POST",
+      body: JSON.stringify({ candidate_path: candidatePath })
+    }),
+
+  commitSafeRelink: (
+    audioId: number,
+    candidatePath: string,
+    confirmation: SafeRelinkPreview["confirmation"]
+  ) =>
+    request<{ preserved: boolean }>(`/library-health/audio/${audioId}/relink`, {
+      method: "POST",
+      body: JSON.stringify({ candidate_path: candidatePath, ...confirmation })
     }),
 
   listAudioItems: (params?: {

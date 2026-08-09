@@ -120,7 +120,7 @@ class TestDatabaseMigrations:
 
         backup_paths = list(self.backups_dir.glob("*.sqlite"))
         assert len(backup_paths) == 1
-        assert 'pre-migration-v4-to-v9' in backup_paths[0].name
+        assert 'pre-migration-v4-to-v10' in backup_paths[0].name
 
         with sqlite3.connect(backup_paths[0]) as backup:
             assert backup.execute('PRAGMA quick_check').fetchone()[0] == 'ok'
@@ -189,6 +189,20 @@ class TestDatabaseMigrations:
                 row[1] for row in connection.execute(text("PRAGMA index_list(playlists)"))
             }
             assert "ix_playlists_kind" in playlist_indexes
+            health_task_columns = {
+                row[1]
+                for row in connection.execute(
+                    text("PRAGMA table_info(library_health_tasks)")
+                )
+            }
+            assert {
+                "task_type",
+                "status",
+                "input_json",
+                "result_json",
+                "total_items",
+                "processed_items",
+            }.issubset(health_task_columns)
             assert connection.execute(
                 text(
                     """
@@ -265,7 +279,7 @@ class TestDatabaseMigrations:
             assert row == ("旧手动列表", "manual", None)
             assert connection.execute(
                 text("SELECT MAX(version) FROM schema_migrations")
-            ).scalar_one() == 9
+            ).scalar_one() == 10
 
     def test_backup_failure_prevents_schema_changes(
         self,

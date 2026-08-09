@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 
 from .. import db
-from ..models import AITask, ScanTask
+from ..models import AITask, LibraryHealthTask, ScanTask
 from ..time_utils import utc_now_iso, utc_timestamp_iso
 from ..version import APP_VERSION
 from .common import ServiceError
@@ -352,7 +352,7 @@ def delete_database_backup(snapshot_id: str) -> dict[str, Any]:
         return {"ok": True, "id": snapshot_id}
 
 
-def _active_task_counts(session: Session) -> tuple[int, int]:
+def _active_task_counts(session: Session) -> tuple[int, int, int]:
     ai_count = len(
         session.exec(select(AITask.id).where(AITask.status.in_(ACTIVE_STATUSES))).all()
     )
@@ -361,7 +361,14 @@ def _active_task_counts(session: Session) -> tuple[int, int]:
             select(ScanTask.id).where(ScanTask.status.in_(ACTIVE_STATUSES))
         ).all()
     )
-    return ai_count, scan_count
+    health_count = len(
+        session.exec(
+            select(LibraryHealthTask.id).where(
+                LibraryHealthTask.status.in_(ACTIVE_STATUSES)
+            )
+        ).all()
+    )
+    return ai_count, scan_count, health_count
 
 
 def restore_preflight(session: Session, snapshot_id: str) -> dict[str, Any]:
@@ -377,7 +384,7 @@ def restore_preflight(session: Session, snapshot_id: str) -> dict[str, Any]:
         + MIN_RESTORE_FREE_SPACE
     )
     free_bytes = shutil.disk_usage(BACKUPS_DIR).free
-    active_ai_tasks, active_scan_tasks = _active_task_counts(session)
+    active_ai_tasks, active_scan_tasks, active_health_tasks = _active_task_counts(session)
 
     blockers: list[dict[str, Any]] = []
     if backup["integrity_status"] != "valid":
@@ -394,14 +401,15 @@ def restore_preflight(session: Session, snapshot_id: str) -> dict[str, Any]:
                 "message": backup["compatibility_error"] or "Backup is incompatible",
             }
         )
-    if active_ai_tasks or active_scan_tasks:
+    if active_ai_tasks or active_scan_tasks or active_health_tasks:
         blockers.append(
             {
                 "code": "backup.active_tasks",
-                "message": "Finish or cancel active AI, ASR and scan tasks before restoring",
+                "message": "Finish or cancel active AI, ASR, scan and library health tasks before restoring",
                 "params": {
                     "ai_tasks": active_ai_tasks,
                     "scan_tasks": active_scan_tasks,
+                    "health_tasks": active_health_tasks,
                 },
             }
         )
@@ -427,6 +435,7 @@ def restore_preflight(session: Session, snapshot_id: str) -> dict[str, Any]:
         "blockers": blockers,
         "active_ai_tasks": active_ai_tasks,
         "active_scan_tasks": active_scan_tasks,
+        "active_health_tasks": active_health_tasks,
         "required_bytes": required_bytes,
         "free_bytes": free_bytes,
         "restart_required": True,

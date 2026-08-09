@@ -195,3 +195,21 @@ class ScanTask(SQLModel, table=True):
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     updated_at: str = Field(default_factory=now_iso)
+
+
+class LibraryHealthTask(SQLModel, table=True):
+    __tablename__ = "library_health_tasks"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_type: str = "health_check"
+    status: str = "pending"
+    input_json: Optional[str] = None
+    result_json: Optional[str] = None
+    total_items: int = 0
+    processed_items: int = 0
+    error_message: Optional[str] = None
+    error_code: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    updated_at: str = Field(default_factory=now_iso)

@@ -6,10 +6,12 @@ from fastapi.responses import JSONResponse
 
 from .api_routes import router as api_router
 from .logger import setup_logging, get_logger
+from .db import engine
 from .scanner import recover_interrupted_scan_tasks
 from .tasks import start_worker_once
 from .version import APP_VERSION
 from .services.backup_service import initialize_database_with_pending_restore
+from .services.health_service import recover_interrupted_health_tasks
 from .local_security import (
     ALLOW_ALL_CORS,
     LOCAL_ORIGIN_REGEX,
@@ -38,6 +40,11 @@ async def lifespan(_: FastAPI):
         recover_interrupted_scan_tasks()
     except Exception:
         logger.exception("Failed to recover interrupted scan tasks")
+
+    try:
+        recover_interrupted_health_tasks(engine)
+    except Exception:
+        logger.exception("Failed to recover interrupted library health tasks")
 
     start_worker_once()
     logger.info("Local Audio Library backend started")

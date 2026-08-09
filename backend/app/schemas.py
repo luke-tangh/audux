@@ -44,6 +44,20 @@ class RelocateAudioRequest(BaseModel):
     file_path: str
 
 
+class DuplicateHashConfirmRequest(BaseModel):
+    audio_ids: List[int] = Field(min_length=2, max_length=50)
+
+
+class SafeRelinkPreviewRequest(BaseModel):
+    candidate_path: str = Field(min_length=1, max_length=4096)
+
+
+class SafeRelinkCommitRequest(SafeRelinkPreviewRequest):
+    expected_audio_updated_at: str = Field(min_length=1)
+    expected_file_size: int = Field(ge=0)
+    expected_mtime_ns: int = Field(ge=0)
+
+
 class TagsAddRequest(BaseModel):
     tags: List[str]
     source: str = "user"

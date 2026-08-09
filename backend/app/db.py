@@ -9,7 +9,7 @@ from .time_utils import utc_now_iso
 
 
 logger = logging.getLogger(__name__)
-CURRENT_SCHEMA_VERSION = 9
+CURRENT_SCHEMA_VERSION = 10
 
 APP_DATA_DIR = Path.home() / ".local_audio_library"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -533,3 +533,52 @@ def run_migrations():
                     )
                 )
             _mark_migration_applied(conn, 9, "smart_playlists")
+
+        if not _migration_applied(conn, 10):
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS library_health_tasks (
+                        id INTEGER PRIMARY KEY,
+                        task_type TEXT NOT NULL DEFAULT 'health_check',
+                        status TEXT NOT NULL DEFAULT 'pending',
+                        input_json TEXT,
+                        result_json TEXT,
+                        total_items INTEGER NOT NULL DEFAULT 0,
+                        processed_items INTEGER NOT NULL DEFAULT 0,
+                        error_message TEXT,
+                        error_code TEXT,
+                        created_at TEXT NOT NULL,
+                        started_at TEXT,
+                        finished_at TEXT,
+                        updated_at TEXT NOT NULL
+                    );
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_library_health_tasks_status
+                    ON library_health_tasks(status, created_at);
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    CREATE INDEX IF NOT EXISTS ix_library_health_tasks_type
+                    ON library_health_tasks(task_type, created_at);
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS ux_library_health_tasks_active_type
+                    ON library_health_tasks(task_type)
+                    WHERE status IN ('pending', 'running', 'cancel_requested');
+                    """
+                )
+            )
+            _mark_migration_applied(conn, 10, "library_health_tasks")

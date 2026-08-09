@@ -254,6 +254,133 @@ export type ScanTask = {
   updated_at: string;
 };
 
+export type LibraryHealthTask = {
+  id: number;
+  task_type: "health_check" | "duplicate_hash" | string;
+  status: "pending" | "running" | "done" | "failed" | "canceled" | "cancel_requested" | string;
+  input: { audio_ids?: number[] };
+  result?: {
+    confirmed_groups?: LibraryDuplicateGroup[];
+    errors?: Array<{ audio_id: number; code: string; error?: string }>;
+  } | null;
+  total_items: number;
+  processed_items: number;
+  error_message?: string;
+  error_code?: string;
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+  updated_at: string;
+};
+
+export type LibraryDuplicateAudio = {
+  id: number;
+  title: string;
+  file_path: string;
+  library_root_id?: number | null;
+};
+
+export type LibraryDuplicateGroup = {
+  candidate_key?: string;
+  reason?: string;
+  hash_prefix?: string;
+  file_size?: number;
+  duration_seconds?: number;
+  title?: string;
+  audio_items: LibraryDuplicateAudio[];
+};
+
+export type LibraryHealthRoot = {
+  root: LibraryRoot;
+  path_available: boolean;
+  database_total: number;
+  available: number;
+  missing: number;
+  unsupported_count: number | null;
+  unsupported_examples: string[];
+  supported_files_on_disk: number | null;
+  failed_scan_count: number;
+  latest_scan: ScanTask | null;
+};
+
+export type MissingAudioHealthItem = {
+  id: number;
+  title: string;
+  file_path: string;
+  library_root_id?: number | null;
+  file_size?: number | null;
+  duration_seconds?: number | null;
+  updated_at: string;
+};
+
+export type LibraryHealthSummary = {
+  generated_at: string | null;
+  roots: LibraryHealthRoot[];
+  totals: {
+    roots: number;
+    disabled_roots: number;
+    available: number;
+    missing: number;
+    unsupported: number;
+    scan_failures: number;
+    duplicate_groups: number;
+    detached_audio: number;
+  };
+  missing_audio: MissingAudioHealthItem[];
+  duplicate_groups: LibraryDuplicateGroup[];
+  active_tasks: LibraryHealthTask[];
+  latest_task: LibraryHealthTask | null;
+};
+
+export type SafeRelinkCandidate = {
+  path: string;
+  library_root_id: number;
+  library_root_path: string;
+  file_size: number;
+  mtime_ns: number;
+  duration_seconds?: number | null;
+  title?: string | null;
+  author?: string | null;
+  album?: string | null;
+  checks: {
+    size: boolean | null;
+    duration: boolean | null;
+    metadata: boolean | null;
+    fingerprint: boolean | null;
+  };
+  eligible: boolean;
+  confidence: "high" | "medium" | "rejected";
+  conflict_audio_id?: number | null;
+};
+
+export type SafeRelinkCandidates = {
+  audio: MissingAudioHealthItem;
+  candidates: SafeRelinkCandidate[];
+};
+
+export type SafeRelinkPreview = {
+  audio: { id: number; title: string; old_path: string; updated_at: string };
+  candidate: SafeRelinkCandidate;
+  impacts: {
+    transcript_preserved: boolean;
+    transcript_segments: number;
+    tags_preserved: number;
+    manual_playlists_preserved: number;
+    cover_preserved: boolean;
+    cover_source?: string | null;
+    play_count_preserved: number;
+    playback_position_preserved: number;
+    user_metadata_preserved: boolean;
+    files_deleted: number;
+    database_records_deleted: number;
+  };
+  confirmation: {
+    expected_audio_updated_at: string;
+    expected_file_size: number;
+    expected_mtime_ns: number;
+  };
+};
+
 export type WhisperComponentStatus = {
   status: "not_installed" | "downloading" | "installing" | "installed" | "failed";
   available: boolean;
@@ -292,6 +419,7 @@ export type DatabaseRestorePreflight = {
   blockers: DatabaseRestoreBlocker[];
   active_ai_tasks: number;
   active_scan_tasks: number;
+  active_health_tasks: number;
   required_bytes: number;
   free_bytes: number;
   restart_required: boolean;
