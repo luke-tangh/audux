@@ -103,6 +103,8 @@ ERROR_CODE_BY_DETAIL = {
     "Playlist item not found": "playlist.item_not_found",
     "Duplicate playlist item ids": "playlist.duplicate_items",
     "item_ids must exactly match current playlist items": "playlist.items_mismatch",
+    "Smart playlist membership is rule-driven": "playlist.rule_driven",
+    "Smart playlist definition is invalid": "playlist.definition_invalid",
     "Tag not found": "tag.not_found",
     "Tag name is required": "tag.name_required",
     "Tag name already exists": "tag.name_exists",

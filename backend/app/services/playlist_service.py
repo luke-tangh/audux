@@ -5,8 +5,9 @@ from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import and_, func, or_
 from sqlmodel import Session, select
 
-from ..models import AudioItem, AudioTag, Playlist, PlaylistItem, Tag, now_iso
+from ..models import AudioItem, AudioTag, Playlist, PlaylistItem, SavedView, Tag, now_iso
 from ..search import search_audio_ids_with_meta
+from . import audio_service
 from .common import (
     ServiceError,
     _apply_enabled_roots_filter,
@@ -15,13 +16,21 @@ from .common import (
     _audio_sort_clauses,
     _audio_with_tags_dict,
 )
+from .saved_view_service import (
+    audio_query_kwargs,
+    decode_saved_view_query,
+    serialize_saved_view_definition,
+)
+
+
+SMART_PLAYLIST_KIND = "smart"
 
 
 def create_playlist(
     session: Session,
     name: str,
     description: Optional[str] = None,
-) -> Playlist:
+) -> dict:
     normalized_name = name.strip()
     if not normalized_name:
         raise ServiceError(400, "Playlist name is required")
@@ -30,18 +39,152 @@ def create_playlist(
     session.add(playlist)
     session.commit()
     session.refresh(playlist)
-    return playlist
+    return _serialize_playlist(session, playlist, include_count=False)
 
 
-def list_playlists(session: Session) -> list[Playlist]:
-    return session.exec(select(Playlist).order_by(Playlist.created_at)).all()
+def create_smart_playlist(
+    session: Session,
+    saved_view_id: int,
+    name: str | None = None,
+    description: str | None = None,
+) -> dict:
+    saved_view = session.get(SavedView, saved_view_id)
+    if not saved_view:
+        raise ServiceError(404, "Saved view not found", "saved_view.not_found")
+
+    query, definition_error = decode_saved_view_query(
+        saved_view.query_json,
+        saved_view.schema_version,
+    )
+    if not query:
+        raise ServiceError(
+            409,
+            "Saved view definition is invalid",
+            "saved_view.definition_invalid",
+            {"reason": definition_error or "invalid definition"},
+        )
+
+    normalized_name = (name if name is not None else saved_view.name).strip()
+    if not normalized_name:
+        raise ServiceError(400, "Playlist name is required")
+
+    playlist = Playlist(
+        name=normalized_name,
+        description=description,
+        kind=SMART_PLAYLIST_KIND,
+        query_json=saved_view.query_json,
+        query_schema_version=saved_view.schema_version,
+    )
+    session.add(playlist)
+    session.commit()
+    session.refresh(playlist)
+    return _serialize_playlist(session, playlist, include_count=True)
+
+
+def _smart_playlist_query(playlist: Playlist):
+    query, definition_error = decode_saved_view_query(
+        playlist.query_json,
+        playlist.query_schema_version,
+    )
+    if not query:
+        raise ServiceError(
+            409,
+            "Smart playlist definition is invalid",
+            "playlist.definition_invalid",
+            {"reason": definition_error or "invalid definition"},
+        )
+    return query
+
+
+def _list_smart_playlist_audio_items(
+    session: Session,
+    playlist: Playlist,
+    *,
+    include_disabled_roots: bool = False,
+    limit: int = 100,
+    offset: int = 0,
+    record_refresh: bool = False,
+) -> dict:
+    query = _smart_playlist_query(playlist)
+    page = audio_service.list_audio_items(
+        session,
+        **audio_query_kwargs(session, query),
+        include_disabled_roots=include_disabled_roots,
+        limit=limit,
+        offset=offset,
+    )
+    if record_refresh:
+        playlist.last_refreshed_at = now_iso()
+        session.add(playlist)
+        session.commit()
+        session.refresh(playlist)
+    return {
+        **page,
+        "playlist_kind": SMART_PLAYLIST_KIND,
+        "refreshed_at": playlist.last_refreshed_at,
+    }
+
+
+def _serialize_playlist(
+    session: Session,
+    playlist: Playlist,
+    *,
+    include_count: bool,
+) -> dict:
+    data = playlist.model_dump(exclude={"query_json"})
+    if playlist.kind != SMART_PLAYLIST_KIND:
+        return {
+            **data,
+            "query": None,
+            "tag_name": None,
+            "library_root_path": None,
+            "invalid_references": [],
+            "definition_error": None,
+            "current_count": None,
+        }
+
+    definition = serialize_saved_view_definition(
+        session,
+        playlist.query_json,
+        playlist.query_schema_version,
+    )
+    current_count: int | None = None
+    if include_count and definition["query"] is not None:
+        try:
+            current_count = _list_smart_playlist_audio_items(
+                session,
+                playlist,
+                limit=1,
+                offset=0,
+            )["total"]
+        except ServiceError:
+            current_count = None
+    return {
+        **data,
+        **definition,
+        "current_count": current_count,
+    }
+
+
+def _ensure_manual_playlist(playlist: Playlist) -> None:
+    if playlist.kind == SMART_PLAYLIST_KIND:
+        raise ServiceError(
+            409,
+            "Smart playlist membership is rule-driven",
+            "playlist.rule_driven",
+        )
+
+
+def list_playlists(session: Session) -> list[dict]:
+    rows = session.exec(select(Playlist).order_by(Playlist.created_at)).all()
+    return [_serialize_playlist(session, row, include_count=True) for row in rows]
 
 
 def update_playlist(
     session: Session,
     playlist_id: int,
     name: str,
-) -> Playlist:
+) -> dict:
     playlist = session.get(Playlist, playlist_id)
     if not playlist:
         raise ServiceError(404, "Playlist not found")
@@ -55,14 +198,13 @@ def update_playlist(
     session.add(playlist)
     session.commit()
     session.refresh(playlist)
-    return playlist
+    return _serialize_playlist(session, playlist, include_count=False)
 
 
 def delete_playlist(session: Session, playlist_id: int) -> dict:
     playlist = session.get(Playlist, playlist_id)
     if not playlist:
         raise ServiceError(404, "Playlist not found")
-
     items = session.exec(
         select(PlaylistItem).where(PlaylistItem.playlist_id == playlist_id)
     ).all()
@@ -85,6 +227,11 @@ def get_playlist(
     playlist = session.get(Playlist, playlist_id)
     if not playlist:
         raise ServiceError(404, "Playlist not found")
+    if playlist.kind == SMART_PLAYLIST_KIND:
+        return {
+            "playlist": _serialize_playlist(session, playlist, include_count=True),
+            "items": [],
+        }
 
     stmt = (
         select(PlaylistItem, AudioItem)
@@ -104,7 +251,7 @@ def get_playlist(
     audio_by_id = {row["id"]: row for row in audio_dicts}
 
     return {
-        "playlist": playlist,
+        "playlist": _serialize_playlist(session, playlist, include_count=True),
         "items": [
             {
                 "playlist_item": pi,
@@ -135,6 +282,16 @@ def list_playlist_audio_items(
     playlist = session.get(Playlist, playlist_id)
     if not playlist:
         raise ServiceError(404, "Playlist not found")
+
+    if playlist.kind == SMART_PLAYLIST_KIND:
+        return _list_smart_playlist_audio_items(
+            session,
+            playlist,
+            include_disabled_roots=include_disabled_roots,
+            limit=limit,
+            offset=offset,
+            record_refresh=offset == 0,
+        )
 
     search_result = search_audio_ids_with_meta(session, q) if q else None
 
@@ -271,6 +428,7 @@ def add_audio_to_playlist(
     playlist = session.get(Playlist, playlist_id)
     if not playlist:
         raise ServiceError(404, "Playlist not found")
+    _ensure_manual_playlist(playlist)
 
     audio = session.get(AudioItem, audio_id)
     if not audio:
@@ -307,6 +465,7 @@ def reorder_playlist_items(
     playlist = session.get(Playlist, playlist_id)
     if not playlist:
         raise ServiceError(404, "Playlist not found")
+    _ensure_manual_playlist(playlist)
 
     items = session.exec(
         select(PlaylistItem).where(PlaylistItem.playlist_id == playlist_id)
@@ -342,11 +501,14 @@ def remove_playlist_item(
     playlist_id: int,
     item_id: int,
 ) -> dict:
+    playlist = session.get(Playlist, playlist_id)
+    if not playlist:
+        raise ServiceError(404, "Playlist not found")
+    _ensure_manual_playlist(playlist)
+
     item = session.get(PlaylistItem, item_id)
     if not item or item.playlist_id != playlist_id:
         raise ServiceError(404, "Playlist item not found")
-
-    playlist = session.get(Playlist, playlist_id)
 
     session.delete(item)
 
@@ -368,27 +530,50 @@ def export_playlist_response(
     if not playlist:
         raise ServiceError(404, "Playlist not found")
 
-    stmt = (
-        select(PlaylistItem, AudioItem)
-        .join(AudioItem, PlaylistItem.audio_id == AudioItem.id)
-        .where(PlaylistItem.playlist_id == playlist_id)
-    )
+    rows = []
+    smart_audio_rows: list[dict] = []
+    if playlist.kind == SMART_PLAYLIST_KIND:
+        offset = 0
+        while True:
+            page = _list_smart_playlist_audio_items(
+                session,
+                playlist,
+                include_disabled_roots=include_disabled_roots,
+                limit=500,
+                offset=offset,
+                record_refresh=offset == 0,
+            )
+            smart_audio_rows.extend(page["items"])
+            if not page["has_more"]:
+                break
+            offset += len(page["items"])
+    else:
+        stmt = (
+            select(PlaylistItem, AudioItem)
+            .join(AudioItem, PlaylistItem.audio_id == AudioItem.id)
+            .where(PlaylistItem.playlist_id == playlist_id)
+        )
 
-    stmt = _apply_enabled_roots_filter(
-        stmt,
-        session,
-        include_disabled_roots=include_disabled_roots,
-    )
+        stmt = _apply_enabled_roots_filter(
+            stmt,
+            session,
+            include_disabled_roots=include_disabled_roots,
+        )
 
-    rows = session.exec(stmt.order_by(PlaylistItem.order_index)).all()
+        rows = session.exec(stmt.order_by(PlaylistItem.order_index)).all()
 
     if format == "m3u":
         lines = ["#EXTM3U"]
-        for _, audio in rows:
-            duration = int(audio.duration_seconds or -1)
-            title = audio.title_user or audio.title_original or audio.file_name
+        audio_rows = smart_audio_rows or [audio.model_dump() for _, audio in rows]
+        for audio in audio_rows:
+            duration = int(audio.get("duration_seconds") or -1)
+            title = (
+                audio.get("title_user")
+                or audio.get("title_original")
+                or audio["file_name"]
+            )
             lines.append(f"#EXTINF:{duration},{title}")
-            lines.append(audio.file_path)
+            lines.append(audio["file_path"])
 
         return PlainTextResponse(
             "\n".join(lines),
@@ -397,14 +582,18 @@ def export_playlist_response(
         )
 
     data = {
-        "playlist": playlist.model_dump(),
-        "items": [
-            {
-                "playlist_item": pi.model_dump(),
-                "audio": audio.model_dump(),
-            }
-            for pi, audio in rows
-        ],
+        "playlist": _serialize_playlist(session, playlist, include_count=False),
+        "items": (
+            [{"audio": audio} for audio in smart_audio_rows]
+            if playlist.kind == SMART_PLAYLIST_KIND
+            else [
+                {
+                    "playlist_item": pi.model_dump(),
+                    "audio": audio.model_dump(),
+                }
+                for pi, audio in rows
+            ]
+        ),
     }
 
     return Response(

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import type { AudioItem, SavedView, SavedViewQuery } from "../types";
+import type { AudioItem, Playlist, SavedView, SavedViewQuery } from "../types";
 import { useDialog } from "../components/dialog/UnifiedDialog";
 import { useBackendReady } from "./useBackendReady";
 import { useToast } from "./useToast";
@@ -8,6 +8,7 @@ import {
   buildAudioListParams as buildAudioListParamsForState,
   buildPlaylistListParams as buildPlaylistListParamsForState,
   buildSavedViewQuery,
+  describeSmartPlaylistRules,
   isBusyStatus,
   isSmartView,
   listCopyForView,
@@ -20,6 +21,7 @@ import { useNavigationData } from "./library/useNavigationData";
 import { usePlaybackQueue } from "./library/usePlaybackQueue";
 import { usePlaylistActions } from "./library/usePlaylistActions";
 import { useTranslation } from "react-i18next";
+import { formatDateTime } from "../i18n/format";
 import type {
   AudioListParams,
   MissingFilter,
@@ -39,7 +41,7 @@ function isSavableView(view: ViewMode): view is SavedViewQuery["view"] {
 }
 
 export function useLibraryController() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [view, setView] = useState<ViewMode>("library");
   const [audioItems, setAudioItems] = useState<AudioItem[]>([]);
   const [audioTotal, setAudioTotal] = useState(0);
@@ -64,6 +66,7 @@ export function useLibraryController() {
   const [sortMode, setSortMode] = useState<SortMode>("default");
 
   const [playlistItemsRaw, setPlaylistItemsRaw] = useState<AudioItem[]>([]);
+  const [smartPlaylistRefreshedAt, setSmartPlaylistRefreshedAt] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [playbackQueueValidationToken, setPlaybackQueueValidationToken] = useState(0);
 
@@ -79,6 +82,9 @@ export function useLibraryController() {
   const dialog = useDialog();
   const { toasts, notify, closeToast } = useToast();
   const { tags, playlists, roots, savedViews, loadNavigation } = useNavigationData();
+  const activePlaylist = playlists.find((playlist) => playlist.id === selectedPlaylistId);
+  const isSmartPlaylist = activePlaylist?.kind === "smart";
+  const manualPlaylists = playlists.filter((playlist) => playlist.kind !== "smart");
 
   function refresh() {
     setRefreshToken((value) => value + 1);
@@ -126,7 +132,7 @@ export function useLibraryController() {
 
     try {
       await ensureBackendReady();
-      await loadNavigation();
+      const navigation = await loadNavigation();
 
       if (loadSeq !== loadSeqRef.current) return;
       setPlaybackQueueValidationToken((value) => value + 1);
@@ -160,22 +166,30 @@ export function useLibraryController() {
           return;
         }
 
-        const [detail, page] = await Promise.all([
-          api.getPlaylist(selectedPlaylistId, { include_disabled_roots: true }),
-          api.listPlaylistItems(selectedPlaylistId, {
-            ...currentPlaylistListParams(),
-            limit: AUDIO_PAGE_LIMIT,
-            offset: 0
-          })
-        ]);
+        const navigationPlaylist = navigation.playlists.find(
+          (playlist) => playlist.id === selectedPlaylistId
+        );
+        const page = await api.listPlaylistItems(selectedPlaylistId, {
+          ...currentPlaylistListParams(),
+          limit: AUDIO_PAGE_LIMIT,
+          offset: 0
+        });
 
-        const rawItems: AudioItem[] = detail.items.map((row) => ({
-          ...row.audio,
-          playlist_item_id: row.playlist_item.id,
-          playlist_order_index: row.playlist_item.order_index
-        }));
-
-        setPlaylistItemsRaw(rawItems);
+        if (navigationPlaylist?.kind === "smart") {
+          setPlaylistItemsRaw([]);
+          setSmartPlaylistRefreshedAt(page.refreshed_at ?? null);
+        } else {
+          const detail = await api.getPlaylist(selectedPlaylistId, {
+            include_disabled_roots: true
+          });
+          const rawItems: AudioItem[] = detail.items.map((row) => ({
+            ...row.audio,
+            playlist_item_id: row.playlist_item.id,
+            playlist_order_index: row.playlist_item.order_index
+          }));
+          setPlaylistItemsRaw(rawItems);
+          setSmartPlaylistRefreshedAt(null);
+        }
 
         items = page.items;
         total = page.total;
@@ -184,6 +198,7 @@ export function useLibraryController() {
         nextSearchLimit = page.search_limit ?? null;
       } else {
         setPlaylistItemsRaw([]);
+        setSmartPlaylistRefreshedAt(null);
 
         const page = await api.listAudioItems({
           ...currentAudioListParams(),
@@ -257,6 +272,9 @@ export function useLibraryController() {
         setAudioHasMore(page.has_more);
         setSearchLimited(Boolean(page.search_limited));
         setSearchLimit(page.search_limit ?? null);
+        if (page.playlist_kind === "smart") {
+          setSmartPlaylistRefreshedAt(page.refreshed_at ?? null);
+        }
       } else {
         const page = await api.listAudioItems({
           ...currentAudioListParams(),
@@ -437,9 +455,11 @@ export function useLibraryController() {
   const batchOrganization = useBatchOrganization({
     selectedAudioIds: Array.from(selectedAudioIds),
     tags,
-    playlists,
+    playlists: manualPlaylists,
     clearSelection: clearAudioSelection,
-    loadNavigation,
+    loadNavigation: async () => {
+      await loadNavigation();
+    },
     refresh,
     notify
   });
@@ -496,13 +516,74 @@ export function useLibraryController() {
       currentViewQuery &&
       !savedViewQueriesEqual(activeSavedView.query, currentViewQuery)
   );
+  const smartPlaylistSubtitle = isSmartPlaylist && activePlaylist
+    ? t("smartPlaylists.subtitle", {
+        count: audioTotal,
+        rules: describeSmartPlaylistRules(activePlaylist, t),
+        refreshed: smartPlaylistRefreshedAt || activePlaylist.last_refreshed_at
+          ? formatDateTime(
+              smartPlaylistRefreshedAt || activePlaylist.last_refreshed_at || undefined,
+              i18n.resolvedLanguage || i18n.language
+            )
+          : t("smartPlaylists.neverRefreshed")
+      })
+    : null;
   const listTitle = activeSavedView?.name || defaultListCopy.listTitle;
   const listSubtitle = activeSavedView
     ? t("savedViews.appliedSubtitle")
-    : defaultListCopy.listSubtitle;
+    : smartPlaylistSubtitle || defaultListCopy.listSubtitle;
 
   function deactivateSavedView() {
     setActiveSavedViewId(null);
+  }
+
+  function openPlaylist(playlist: Playlist) {
+    setActiveSavedViewId(null);
+    setView("playlist");
+    setSelectedPlaylistId(playlist.id);
+    setSelectedTag(undefined);
+    setSmartPlaylistRefreshedAt(playlist.last_refreshed_at ?? null);
+
+    if (playlist.kind !== "smart" || !playlist.query) return;
+    const invalidReferences = playlist.invalid_references || [];
+    setQ(playlist.query.q);
+    setSelectedTag(
+      invalidReferences.includes("tag") ? undefined : playlist.tag_name || undefined
+    );
+    setSelectedLibraryRootId(
+      invalidReferences.includes("library_root")
+        ? undefined
+        : playlist.query.library_root_id ?? undefined
+    );
+    setHasTranscriptFilter(playlist.query.transcript_filter);
+    setMissingFilter(playlist.query.missing_filter);
+    setSortMode(playlist.query.sort);
+  }
+
+  async function createSmartPlaylist(savedView: SavedView) {
+    if (!savedView.query) {
+      notify(t("savedViews.definitionInvalid"), "error");
+      return;
+    }
+    const name = await dialog.prompt({
+      title: t("smartPlaylists.createTitle"),
+      message: t("smartPlaylists.createMessage", { name: savedView.name }),
+      inputLabel: t("smartPlaylists.name"),
+      defaultValue: savedView.name,
+      required: true,
+      confirmLabel: t("smartPlaylists.createConfirm"),
+      cancelLabel: t("common.actions.cancel"),
+      validate: (value) => (value.trim() ? null : t("savedViews.nameRequired"))
+    });
+    if (name === null) return;
+    try {
+      const created = await api.createSmartPlaylist(savedView.id, name.trim());
+      await loadNavigation();
+      openPlaylist(created);
+      notify(t("smartPlaylists.created"), "success");
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err), "error");
+    }
   }
 
   function applySavedView(savedView: SavedView) {
@@ -706,11 +787,13 @@ export function useLibraryController() {
 
     tags,
     playlists,
+    manualPlaylists,
     roots,
     savedViews,
     activeSavedViewId,
     savedViewDirty,
     canSaveView: isSavableView(view),
+    isSmartPlaylist,
 
     loading,
     refreshing,
@@ -730,6 +813,8 @@ export function useLibraryController() {
     openSettings,
     deactivateSavedView,
     applySavedView,
+    openPlaylist,
+    createSmartPlaylist,
     saveCurrentView,
     updateActiveSavedView,
     renameSavedView,

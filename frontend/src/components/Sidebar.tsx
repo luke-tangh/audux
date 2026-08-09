@@ -26,9 +26,11 @@ type Props = {
   onApplySavedView: (savedView: SavedView) => void;
   onRenameSavedView: (savedView: SavedView) => void;
   onCopySavedView: (savedView: SavedView) => void;
+  onCreateSmartPlaylist: (savedView: SavedView) => void;
   onDeleteSavedView: (savedView: SavedView) => void;
   onMoveSavedView: (savedViewId: number, direction: -1 | 1) => void;
   onDeactivateSavedView: () => void;
+  onOpenPlaylist: (playlist: Playlist) => void;
 };
 
 export default function Sidebar(props: Props) {
@@ -206,6 +208,14 @@ export default function Sidebar(props: Props) {
                     </IconButton>
                     <IconButton
                       size="sm"
+                      label={t("smartPlaylists.createFromView", { name: savedView.name })}
+                      disabled={!savedView.query}
+                      onClick={() => props.onCreateSmartPlaylist(savedView)}
+                    >
+                      <MaterialIcon name="playlist_play" size={17} />
+                    </IconButton>
+                    <IconButton
+                      size="sm"
                       variant="danger"
                       label={t("savedViews.delete", { name: savedView.name })}
                       onClick={() => props.onDeleteSavedView(savedView)}
@@ -244,21 +254,28 @@ export default function Sidebar(props: Props) {
                   ? "page"
                   : undefined
               }
-              className={
+              className={`${
                 props.view === "playlist" && props.selectedPlaylistId === playlist.id
                   ? "playlist-row active"
                   : "playlist-row"
-              }
+              } ${playlist.kind === "smart" ? "smart-playlist-row" : "manual-playlist-row"}`}
               title={playlist.description || playlist.name}
-              onClick={() => {
-                props.onDeactivateSavedView();
-                props.setView("playlist");
-                props.setSelectedTag(undefined);
-                props.setSelectedPlaylistId(playlist.id);
-              }}
+              onClick={() => props.onOpenPlaylist(playlist)}
             >
-              <MaterialIcon name="chevron_right" size={18} />
-              <strong>{playlist.name}</strong>
+              <MaterialIcon
+                name={playlist.kind === "smart" ? "playlist_play" : "chevron_right"}
+                size={18}
+              />
+              <span className="playlist-row-copy">
+                <strong>{playlist.name}</strong>
+                {playlist.kind === "smart" && (
+                  <em>
+                    {t("smartPlaylists.dynamicCount", {
+                      count: playlist.current_count ?? "—"
+                    })}
+                  </em>
+                )}
+              </span>
             </Button>
           ))}
         </div>

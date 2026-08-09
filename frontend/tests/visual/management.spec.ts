@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import type { SavedView, SavedViewQuery } from "../../src/types";
+import type { Playlist, SavedView, SavedViewQuery } from "../../src/types";
 
 const NOW = "2026-08-08T00:00:00Z";
 
@@ -29,13 +29,7 @@ type MockState = {
       context_after?: string;
     }>;
   }>;
-  playlists: Array<{
-    id: number;
-    name: string;
-    description?: string;
-    created_at: string;
-    updated_at: string;
-  }>;
+  playlists: Playlist[];
   tags: Array<{
     id: number;
     name: string;
@@ -419,6 +413,50 @@ async function mockManagementApi(page: Page, state: MockState) {
       return;
     }
 
+    if (method === "POST" && url.pathname === "/playlists/smart") {
+      const body = parseRequestBody(request) as {
+        saved_view_id: number;
+        name?: string;
+      };
+      const savedView = state.savedViews.find((row) => row.id === body.saved_view_id)!;
+      const playlist: Playlist = {
+        id: Math.max(0, ...state.playlists.map((row) => row.id)) + 1,
+        name: body.name || savedView.name,
+        kind: "smart",
+        query_schema_version: 1,
+        query: savedView.query,
+        tag_name: savedView.tag_name,
+        library_root_path: savedView.library_root_path,
+        invalid_references: [],
+        definition_error: null,
+        current_count: state.audioItems.length,
+        last_refreshed_at: null,
+        created_at: NOW,
+        updated_at: NOW
+      };
+      state.playlists.push(playlist);
+      state.mutations.push({ method, path: url.pathname, body });
+      await route.fulfill({ json: playlist, headers });
+      return;
+    }
+
+    const playlistItemsMatch = url.pathname.match(/^\/playlists\/(\d+)\/items$/);
+    if (method === "GET" && playlistItemsMatch) {
+      await route.fulfill({
+        json: {
+          items: state.audioItems,
+          total: state.audioItems.length,
+          limit: Number(url.searchParams.get("limit") || 120),
+          offset: Number(url.searchParams.get("offset") || 0),
+          has_more: false,
+          playlist_kind: "smart",
+          refreshed_at: "2026-08-08T00:10:00Z"
+        },
+        headers
+      });
+      return;
+    }
+
     if (method === "GET" && url.pathname === "/saved-views") {
       await route.fulfill({ json: state.savedViews, headers });
       return;
@@ -690,6 +728,35 @@ async function openSettings(page: Page) {
 }
 
 test.describe("v0.5 management workflows", () => {
+  test("creates and opens a rule-driven smart playlist from a saved view", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "保存视图", exact: true }).click();
+    let dialog = page.getByRole("dialog", { name: "保存当前视图" });
+    await dialog.getByRole("textbox", { name: "视图名称" }).fill("动态通勤规则");
+    await dialog.getByRole("button", { name: "保存视图" }).click();
+
+    await page.getByRole("button", { name: /从视图.*创建智能 Playlist/ }).click();
+    dialog = page.getByRole("dialog", { name: "创建智能 Playlist" });
+    await dialog.getByRole("textbox", { name: "智能 Playlist 名称" }).fill("动态通勤");
+    await dialog.getByRole("button", { name: "创建", exact: true }).click();
+
+    await expect(page.getByRole("heading", { name: "动态通勤" })).toBeVisible();
+    await expect(page.getByText(/智能 Playlist.*2 项动态结果/)).toBeVisible();
+    await expect(page.getByRole("searchbox", { name: /搜索标题/ })).toBeDisabled();
+    const smartRow = page.getByRole("button", { name: /动态通勤.*2 项动态结果/ });
+    await expect(smartRow).toHaveClass(/smart-playlist-row/);
+    expect(state.mutations).toContainEqual({
+      method: "POST",
+      path: "/playlists/smart",
+      body: { saved_view_id: 1, name: "动态通勤" }
+    });
+  });
+
   test("saves, applies and explicitly updates a database-backed view", async ({
     page
   }) => {

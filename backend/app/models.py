@@ -91,6 +91,10 @@ class Playlist(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     description: Optional[str] = None
+    kind: str = Field(default="manual", index=True)
+    query_json: Optional[str] = None
+    query_schema_version: Optional[int] = None
+    last_refreshed_at: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 

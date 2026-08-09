@@ -120,7 +120,7 @@ class TestDatabaseMigrations:
 
         backup_paths = list(self.backups_dir.glob("*.sqlite"))
         assert len(backup_paths) == 1
-        assert 'pre-migration-v4-to-v8' in backup_paths[0].name
+        assert 'pre-migration-v4-to-v9' in backup_paths[0].name
 
         with sqlite3.connect(backup_paths[0]) as backup:
             assert backup.execute('PRAGMA quick_check').fetchone()[0] == 'ok'
@@ -176,6 +176,19 @@ class TestDatabaseMigrations:
             }
             assert "ux_saved_views_name_nocase" in saved_view_indexes
             assert "ix_saved_views_sort_order" in saved_view_indexes
+            playlist_columns = {
+                row[1] for row in connection.execute(text("PRAGMA table_info(playlists)"))
+            }
+            assert {
+                "kind",
+                "query_json",
+                "query_schema_version",
+                "last_refreshed_at",
+            }.issubset(playlist_columns)
+            playlist_indexes = {
+                row[1] for row in connection.execute(text("PRAGMA index_list(playlists)"))
+            }
+            assert "ix_playlists_kind" in playlist_indexes
             assert connection.execute(
                 text(
                     """
@@ -187,6 +200,72 @@ class TestDatabaseMigrations:
 
         db.create_db_and_tables()
         assert len(list(self.backups_dir.glob('*.sqlite'))) == 1
+
+    def test_v9_adds_smart_playlist_columns_to_a_v8_playlist_table(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE schema_migrations (
+                        version INTEGER PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        applied_at TEXT NOT NULL
+                    )
+                    """
+                )
+            )
+            for version in range(1, 9):
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO schema_migrations(version, name, applied_at)
+                        VALUES (:version, :name, '2026-01-01T00:00:00')
+                        """
+                    ),
+                    {"version": version, "name": f"migration-{version}"},
+                )
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE playlists (
+                        id INTEGER PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        description TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO playlists(name, created_at, updated_at)
+                    VALUES ('旧手动列表', '2026-01-01T00:00:00', '2026-01-01T00:00:00')
+                    """
+                )
+            )
+
+        db.run_migrations()
+        db.run_migrations()
+
+        with self.engine.connect() as connection:
+            columns = {
+                row[1] for row in connection.execute(text("PRAGMA table_info(playlists)"))
+            }
+            assert {
+                "kind",
+                "query_json",
+                "query_schema_version",
+                "last_refreshed_at",
+            }.issubset(columns)
+            row = connection.execute(
+                text("SELECT name, kind, query_json FROM playlists")
+            ).one()
+            assert row == ("旧手动列表", "manual", None)
+            assert connection.execute(
+                text("SELECT MAX(version) FROM schema_migrations")
+            ).scalar_one() == 9
 
     def test_backup_failure_prevents_schema_changes(
         self,

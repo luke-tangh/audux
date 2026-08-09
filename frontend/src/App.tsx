@@ -45,11 +45,13 @@ export default function App() {
 
     tags,
     playlists,
+    manualPlaylists,
     roots,
     savedViews,
     activeSavedViewId,
     savedViewDirty,
     canSaveView,
+    isSmartPlaylist,
 
     loading,
     refreshing,
@@ -69,6 +71,8 @@ export default function App() {
     openSettings,
     deactivateSavedView,
     applySavedView,
+    openPlaylist,
+    createSmartPlaylist,
     saveCurrentView,
     updateActiveSavedView,
     renameSavedView,
@@ -123,9 +127,11 @@ export default function App() {
           onApplySavedView={applySavedView}
           onRenameSavedView={(savedView) => void renameSavedView(savedView)}
           onCopySavedView={(savedView) => void copySavedView(savedView)}
+          onCreateSmartPlaylist={(savedView) => void createSmartPlaylist(savedView)}
           onDeleteSavedView={(savedView) => void deleteSavedView(savedView)}
           onMoveSavedView={(savedViewId, direction) => void moveSavedView(savedViewId, direction)}
           onDeactivateSavedView={deactivateSavedView}
+          onOpenPlaylist={openPlaylist}
         />
 
         {view === "settings" ? (
@@ -144,6 +150,7 @@ export default function App() {
                 q={q}
                 setQ={setQ}
                 isLoading={loading}
+                queryLocked={isSmartPlaylist}
                 hasActiveFilter={hasActiveFilter}
                 onClearFilters={clearFilters}
                 hasTranscriptFilter={hasTranscriptFilter}
@@ -187,17 +194,19 @@ export default function App() {
                 onPlayAt={(item, seconds) => playAudioAt(item, seconds, audioItems)}
                 onAddToQueue={addToQueue}
                 onPlayNext={playNextAudio}
-                isPlaylistView={view === "playlist"}
+                isPlaylistView={view === "playlist" && !isSmartPlaylist}
                 onRemoveFromPlaylist={
-                  view === "playlist" ? removeFromCurrentPlaylist : undefined
+                  view === "playlist" && !isSmartPlaylist
+                    ? removeFromCurrentPlaylist
+                    : undefined
                 }
                 onMovePlaylistItem={
-                  view === "playlist" && sortMode === "default"
+                  view === "playlist" && !isSmartPlaylist && sortMode === "default"
                     ? movePlaylistItem
                     : undefined
                 }
                 onMovePlaylistItemTo={
-                  view === "playlist" && sortMode === "default"
+                  view === "playlist" && !isSmartPlaylist && sortMode === "default"
                     ? movePlaylistItemTo
                     : undefined
                 }
@@ -219,7 +228,7 @@ export default function App() {
               onPlay={(item) => playAudio(item, audioItems)}
               onAddToQueue={addToQueue}
               onPlayNext={playNextAudio}
-              playlists={playlists}
+              playlists={manualPlaylists}
               selectedPlaylistId={selectedPlaylistId}
               onDeleted={handleAudioDeleted}
               notify={notify}

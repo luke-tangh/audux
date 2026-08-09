@@ -158,6 +158,12 @@ class SavedViewsReorder(BaseModel):
     view_ids: List[int] = Field(max_length=200)
 
 
+class SmartPlaylistCreate(BaseModel):
+    saved_view_id: int = Field(gt=0)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    description: Optional[str] = Field(default=None, max_length=500)
+
+
 class LLMConfig(BaseModel):
     endpoint: str
     model_name: str

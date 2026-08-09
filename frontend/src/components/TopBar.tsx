@@ -15,6 +15,7 @@ type Props = {
   q: string;
   setQ: (value: string) => void;
   isLoading?: boolean;
+  queryLocked?: boolean;
 
   hasActiveFilter: boolean;
   onClearFilters: () => void;
@@ -52,6 +53,7 @@ export default function TopBar({
   q,
   setQ,
   isLoading = false,
+  queryLocked = false,
   hasActiveFilter,
   onClearFilters,
   hasTranscriptFilter,
@@ -133,6 +135,7 @@ export default function TopBar({
             onValueChange={setQ}
             placeholder={t("topbar.searchPlaceholder")}
             aria-label={t("topbar.searchPlaceholder")}
+            disabled={queryLocked}
           />
         </div>
 
@@ -153,6 +156,7 @@ export default function TopBar({
               options={rootOptions}
               aria-label={t("topbar.libraryRootFilter")}
               title={t("topbar.libraryRootFilter")}
+              disabled={queryLocked}
               onValueChange={(value) =>
                 setSelectedLibraryRootId(value ? Number(value) : undefined)
               }
@@ -169,6 +173,7 @@ export default function TopBar({
               options={sortOptions}
               aria-label={t("topbar.sortLabel")}
               title={t("topbar.sortLabel")}
+              disabled={queryLocked}
               onValueChange={(value) => setSortMode(value as SortMode)}
             />
 
@@ -183,6 +188,7 @@ export default function TopBar({
               options={transcriptFilterOptions}
               aria-label={t("topbar.transcriptFilter")}
               title={t("topbar.transcriptFilter")}
+              disabled={queryLocked}
               onValueChange={(value) => setHasTranscriptFilter(value as TranscriptFilter)}
             />
 
@@ -197,6 +203,7 @@ export default function TopBar({
               options={fileFilterOptions}
               aria-label={t("topbar.fileFilter")}
               title={t("topbar.fileFilter")}
+              disabled={queryLocked}
               onValueChange={(value) => setMissingFilter(value as MissingFilter)}
             />
           </div>
@@ -243,7 +250,7 @@ export default function TopBar({
                 aria-label={t("topbar.batchTranscribe")}
                 title={t("topbar.batchTranscribe")}
                 onClick={onBatchTranscribe}
-                disabled={!hasItems}
+                disabled={!hasItems || queryLocked}
               >
                 {t("topbar.transcript")}
               </Button>
@@ -254,13 +261,13 @@ export default function TopBar({
                 aria-label={t("topbar.batchAnalyze")}
                 title={t("topbar.batchAnalyze")}
                 onClick={onBatchAnalyze}
-                disabled={!hasItems}
+                disabled={!hasItems || queryLocked}
               >
                 AI
               </Button>
             </div>
 
-            {hasActiveFilter && (
+            {hasActiveFilter && !queryLocked && (
               <Button
                 variant="text"
                 className="top-clear-filter-button"

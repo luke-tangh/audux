@@ -9,7 +9,7 @@ from .time_utils import utc_now_iso
 
 
 logger = logging.getLogger(__name__)
-CURRENT_SCHEMA_VERSION = 8
+CURRENT_SCHEMA_VERSION = 9
 
 APP_DATA_DIR = Path.home() / ".local_audio_library"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -497,3 +497,39 @@ def run_migrations():
                 )
             )
             _mark_migration_applied(conn, 8, "saved_views")
+
+        if not _migration_applied(conn, 9):
+            if _table_exists(conn, "playlists"):
+                _add_column_if_missing(
+                    conn,
+                    "playlists",
+                    "kind",
+                    "kind TEXT NOT NULL DEFAULT 'manual'",
+                )
+                _add_column_if_missing(
+                    conn,
+                    "playlists",
+                    "query_json",
+                    "query_json TEXT",
+                )
+                _add_column_if_missing(
+                    conn,
+                    "playlists",
+                    "query_schema_version",
+                    "query_schema_version INTEGER",
+                )
+                _add_column_if_missing(
+                    conn,
+                    "playlists",
+                    "last_refreshed_at",
+                    "last_refreshed_at TEXT",
+                )
+                conn.execute(
+                    text(
+                        """
+                        CREATE INDEX IF NOT EXISTS ix_playlists_kind
+                        ON playlists(kind);
+                        """
+                    )
+                )
+            _mark_migration_applied(conn, 9, "smart_playlists")

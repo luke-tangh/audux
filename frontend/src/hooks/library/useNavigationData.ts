@@ -16,10 +16,20 @@ export function useNavigationData() {
       api.listSavedViews().catch(() => [])
     ]);
 
-    setTags(Array.isArray(tagRows) ? tagRows : []);
-    setPlaylists(Array.isArray(playlistRows) ? playlistRows : []);
-    setRoots(Array.isArray(rootRows) ? rootRows : []);
-    setSavedViews(Array.isArray(savedViewRows) ? savedViewRows : []);
+    const nextTags = Array.isArray(tagRows) ? tagRows : [];
+    const nextPlaylists = Array.isArray(playlistRows) ? playlistRows : [];
+    const nextRoots = Array.isArray(rootRows) ? rootRows : [];
+    const nextSavedViews = Array.isArray(savedViewRows) ? savedViewRows : [];
+    setTags(nextTags);
+    setPlaylists(nextPlaylists);
+    setRoots(nextRoots);
+    setSavedViews(nextSavedViews);
+    return {
+      tags: nextTags,
+      playlists: nextPlaylists,
+      roots: nextRoots,
+      savedViews: nextSavedViews
+    };
   }, []);
 
   return {

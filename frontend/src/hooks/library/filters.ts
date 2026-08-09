@@ -205,3 +205,64 @@ export function listCopyForView(
     listSubtitle: t("library.views.librarySubtitle")
   };
 }
+
+export function describeSmartPlaylistRules(
+  playlist: Playlist,
+  t: TFunction
+): string {
+  const query = playlist.query;
+  if (!query) return t("smartPlaylists.invalidRule");
+
+  const parts: string[] = [];
+  const viewRules: Partial<Record<SavedViewQuery["view"], string>> = {
+    favorites: t("library.views.favoritesTitle"),
+    missingDescription: t("library.views.missingDescriptionTitle"),
+    transcribed: t("library.views.transcribedTitle"),
+    missing: t("library.views.missingTitle"),
+    aiFailed: t("library.views.aiFailedTitle")
+  };
+  const viewRule = viewRules[query.view];
+  if (viewRule) parts.push(viewRule);
+  if (query.q) parts.push(t("smartPlaylists.searchRule", { query: query.q }));
+  if (playlist.tag_name) {
+    parts.push(t("smartPlaylists.tagRule", { name: playlist.tag_name }));
+  }
+  if (playlist.library_root_path) {
+    parts.push(t("smartPlaylists.rootRule", { path: playlist.library_root_path }));
+  }
+  if (query.view !== "transcribed" && query.transcript_filter !== "all") {
+    parts.push(
+      t(
+        query.transcript_filter === "yes"
+          ? "smartPlaylists.transcriptYesRule"
+          : "smartPlaylists.transcriptNoRule"
+      )
+    );
+  }
+  if (query.view !== "missing" && query.missing_filter !== "all") {
+    parts.push(
+      t(
+        query.missing_filter === "missing"
+          ? "smartPlaylists.missingRule"
+          : "smartPlaylists.availableRule"
+      )
+    );
+  }
+  if (query.sort !== "default") {
+    const sortKeys: Record<Exclude<SortMode, "default">, string> = {
+      title_asc: "topbar.sortTitleAsc",
+      title_desc: "topbar.sortTitleDesc",
+      author_asc: "topbar.sortAuthorAsc",
+      created_desc: "topbar.sortCreatedDesc",
+      updated_desc: "topbar.sortUpdatedDesc",
+      duration_asc: "topbar.sortDurationAsc",
+      duration_desc: "topbar.sortDurationDesc",
+      play_count_desc: "topbar.sortPlayCountDesc"
+    };
+    parts.push(t("smartPlaylists.sortRule", { sort: t(sortKeys[query.sort]) }));
+  }
+  if (playlist.invalid_references?.length) {
+    parts.push(t("smartPlaylists.invalidRule"));
+  }
+  return parts.join(" · ") || t("smartPlaylists.allAudioRule");
+}

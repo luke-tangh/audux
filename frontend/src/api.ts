@@ -632,6 +632,16 @@ export const api = {
       body: JSON.stringify({ name, description })
     }),
 
+  createSmartPlaylist: (savedViewId: number, name?: string, description?: string) =>
+    request<Playlist>("/playlists/smart", {
+      method: "POST",
+      body: JSON.stringify({
+        saved_view_id: savedViewId,
+        name,
+        description
+      })
+    }),
+
   updatePlaylist: (playlistId: number, name: string) =>
     request<Playlist>(`/playlists/${playlistId}`, {
       method: "PATCH",

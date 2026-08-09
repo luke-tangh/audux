@@ -10,6 +10,7 @@ from ..schemas import (
     PlaylistItemAdd,
     PlaylistItemsReorder,
     PlaylistUpdate,
+    SmartPlaylistCreate,
 )
 from ..services import playlist_service
 from .utils import service_call
@@ -29,6 +30,20 @@ def create_playlist(
 @router.get("/playlists")
 def list_playlists(session: Session = Depends(get_session)):
     return playlist_service.list_playlists(session)
+
+
+@router.post("/playlists/smart")
+def create_smart_playlist(
+    payload: SmartPlaylistCreate,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        playlist_service.create_smart_playlist,
+        session,
+        payload.saved_view_id,
+        payload.name,
+        payload.description,
+    )
 
 
 @router.patch("/playlists/{playlist_id}")

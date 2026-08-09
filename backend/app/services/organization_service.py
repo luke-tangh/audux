@@ -157,6 +157,12 @@ def batch_organize_audio(session: Session, payload: dict) -> dict:
             playlist = session.get(Playlist, playlist_id)
             if not playlist:
                 raise ServiceError(404, "Playlist not found")
+            if playlist.kind == "smart":
+                raise ServiceError(
+                    409,
+                    "Smart playlist membership is rule-driven",
+                    "playlist.rule_driven",
+                )
 
             existing_audio_ids = set(
                 session.exec(

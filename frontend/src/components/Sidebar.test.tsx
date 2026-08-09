@@ -36,9 +36,11 @@ describe("saved views in the sidebar", () => {
       onApplySavedView: vi.fn(),
       onRenameSavedView: vi.fn(),
       onCopySavedView: vi.fn(),
+      onCreateSmartPlaylist: vi.fn(),
       onDeleteSavedView: vi.fn(),
       onMoveSavedView: vi.fn(),
-      onDeactivateSavedView: vi.fn()
+      onDeactivateSavedView: vi.fn(),
+      onOpenPlaylist: vi.fn()
     };
 
     render(
@@ -62,13 +64,57 @@ describe("saved views in the sidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: savedView.name }));
     fireEvent.click(screen.getByRole("button", { name: /重命名视图|Rename view/ }));
     fireEvent.click(screen.getByRole("button", { name: /复制视图|Copy view/ }));
+    fireEvent.click(screen.getByRole("button", { name: /创建智能 Playlist|Create a smart playlist/ }));
     fireEvent.click(screen.getByRole("button", { name: /下移视图|Move view.*down/ }));
     fireEvent.click(screen.getByRole("button", { name: /删除视图|Delete view/ }));
 
     expect(actions.onApplySavedView).toHaveBeenCalledWith(savedView);
     expect(actions.onRenameSavedView).toHaveBeenCalledWith(savedView);
     expect(actions.onCopySavedView).toHaveBeenCalledWith(savedView);
+    expect(actions.onCreateSmartPlaylist).toHaveBeenCalledWith(savedView);
     expect(actions.onMoveSavedView).toHaveBeenCalledWith(savedView.id, 1);
     expect(actions.onDeleteSavedView).toHaveBeenCalledWith(savedView);
+  });
+
+  it("visually distinguishes and opens a smart playlist", () => {
+    const smartPlaylist = {
+      id: 22,
+      name: "动态通勤",
+      kind: "smart" as const,
+      current_count: 18,
+      created_at: "2026-08-10T00:00:00Z",
+      updated_at: "2026-08-10T00:00:00Z"
+    };
+    const onOpenPlaylist = vi.fn();
+
+    render(
+      <LocaleProvider>
+        <Sidebar
+          view="playlist"
+          setView={vi.fn()}
+          tags={[]}
+          selectedTag={undefined}
+          setSelectedTag={vi.fn()}
+          playlists={[smartPlaylist]}
+          selectedPlaylistId={smartPlaylist.id}
+          setSelectedPlaylistId={vi.fn()}
+          savedViews={[]}
+          activeSavedViewId={null}
+          onApplySavedView={vi.fn()}
+          onRenameSavedView={vi.fn()}
+          onCopySavedView={vi.fn()}
+          onCreateSmartPlaylist={vi.fn()}
+          onDeleteSavedView={vi.fn()}
+          onMoveSavedView={vi.fn()}
+          onDeactivateSavedView={vi.fn()}
+          onOpenPlaylist={onOpenPlaylist}
+        />
+      </LocaleProvider>
+    );
+
+    const row = screen.getByRole("button", { name: /动态通勤.*18/ });
+    expect(row.className).toContain("smart-playlist-row");
+    fireEvent.click(row);
+    expect(onOpenPlaylist).toHaveBeenCalledWith(smartPlaylist);
   });
 });

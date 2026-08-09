@@ -138,6 +138,8 @@ export type PaginatedAudioItems = {
   has_more: boolean;
   search_limited?: boolean;
   search_limit?: number | null;
+  playlist_kind?: "manual" | "smart";
+  refreshed_at?: string | null;
 };
 
 export type AudioDetail = {
@@ -157,6 +159,15 @@ export type Playlist = {
   id: number;
   name: string;
   description?: string;
+  kind?: "manual" | "smart";
+  query_schema_version?: number | null;
+  last_refreshed_at?: string | null;
+  query?: SavedViewQuery | null;
+  tag_name?: string | null;
+  library_root_path?: string | null;
+  invalid_references?: Array<"tag" | "library_root">;
+  definition_error?: string | null;
+  current_count?: number | null;
   created_at: string;
   updated_at: string;
 };

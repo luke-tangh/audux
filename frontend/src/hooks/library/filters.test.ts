@@ -3,6 +3,7 @@ import type { AudioItem } from "../../types";
 import {
   buildAudioListParams,
   buildPlaylistListParams,
+  describeSmartPlaylistRules,
   buildSavedViewQuery,
   isBusyStatus,
   isSmartView,
@@ -36,6 +37,43 @@ describe("library filters", () => {
     expect(missingFilterToParam("missing")).toBe(true);
     expect(missingFilterToParam("available")).toBe(false);
     expect(missingFilterToParam("all")).toBeUndefined();
+  });
+
+  it("describes smart playlist rules and invalid references", () => {
+    const t = ((key: string, params?: Record<string, unknown>) => {
+      if (key === "smartPlaylists.searchRule") return `search ${params?.query}`;
+      if (key === "smartPlaylists.tagRule") return `tag ${params?.name}`;
+      if (key === "smartPlaylists.invalidRule") return "invalid ignored";
+      if (key === "smartPlaylists.sortRule") return `sort ${params?.sort}`;
+      if (key === "topbar.sortUpdatedDesc") return "updated";
+      return key;
+    }) as never;
+
+    expect(
+      describeSmartPlaylistRules(
+        {
+          id: 8,
+          name: "Smart",
+          kind: "smart",
+          created_at: "2026-08-10T00:00:00Z",
+          updated_at: "2026-08-10T00:00:00Z",
+          query: {
+            schema_version: 1,
+            view: "library",
+            q: "meeting",
+            tag_id: 3,
+            library_root_id: null,
+            transcript_filter: "all",
+            missing_filter: "all",
+            sort: "updated_desc",
+            display_mode: "list"
+          },
+          tag_name: "work",
+          invalid_references: ["library_root"]
+        },
+        t
+      )
+    ).toBe("search meeting · tag work · sort updated · invalid ignored");
   });
 
   it("builds smart-view parameters without leaking unrelated filters", () => {

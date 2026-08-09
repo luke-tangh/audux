@@ -51,7 +51,7 @@ def _ensure_name_available(
         )
 
 
-def _encode_query(query: SavedViewQuery) -> str:
+def encode_saved_view_query(query: SavedViewQuery) -> str:
     return json.dumps(
         query.model_dump(),
         ensure_ascii=False,
@@ -72,32 +72,38 @@ def _commit_name_change(session: Session) -> None:
         ) from error
 
 
-def _serialize_view(session: Session, row: SavedView) -> dict:
+def decode_saved_view_query(
+    query_json: str | None,
+    schema_version: int | None,
+) -> tuple[SavedViewQuery | None, str | None]:
     query: SavedViewQuery | None = None
-    definition_error: str | None = None
     try:
-        raw_query = json.loads(row.query_json)
+        raw_query = json.loads(query_json or "")
         if not isinstance(raw_query, dict):
             raise ValueError("definition must be an object")
         if (
-            raw_query.get("schema_version", row.schema_version) != 1
-            or row.schema_version != 1
+            raw_query.get("schema_version", schema_version) != 1
+            or schema_version != 1
         ):
             raise ValueError("unsupported schema version")
         query = SavedViewQuery.model_validate(raw_query)
     except (json.JSONDecodeError, ValidationError, ValueError, TypeError) as error:
-        definition_error = str(error)
+        return None, str(error)
+    return query, None
+
+
+def resolve_saved_view_query(session: Session, query: SavedViewQuery) -> dict:
 
     tag_name: str | None = None
     library_root_path: str | None = None
     invalid_references: list[str] = []
-    if query and query.tag_id is not None:
+    if query.tag_id is not None:
         tag = session.get(Tag, query.tag_id)
         if tag:
             tag_name = tag.name
         else:
             invalid_references.append("tag")
-    if query and query.library_root_id is not None:
+    if query.library_root_id is not None:
         root = session.get(LibraryRoot, query.library_root_id)
         if root:
             library_root_path = root.path
@@ -105,12 +111,75 @@ def _serialize_view(session: Session, row: SavedView) -> dict:
             invalid_references.append("library_root")
 
     return {
-        **row.model_dump(exclude={"query_json"}),
-        "query": query.model_dump() if query else None,
         "tag_name": tag_name,
         "library_root_path": library_root_path,
         "invalid_references": invalid_references,
+    }
+
+
+def audio_query_kwargs(session: Session, query: SavedViewQuery) -> dict:
+    references = resolve_saved_view_query(session, query)
+    transcript_filter = query.transcript_filter
+    missing_filter = query.missing_filter
+    return {
+        "q": query.q or None,
+        "tag": references["tag_name"],
+        "library_root_id": (
+            query.library_root_id
+            if "library_root" not in references["invalid_references"]
+            else None
+        ),
+        "favorite": True if query.view == "favorites" else None,
+        "missing_description": True if query.view == "missingDescription" else None,
+        "has_transcript": (
+            True
+            if query.view == "transcribed"
+            else True
+            if transcript_filter == "yes"
+            else False
+            if transcript_filter == "no"
+            else None
+        ),
+        "missing": (
+            True
+            if query.view == "missing"
+            else True
+            if missing_filter == "missing"
+            else False
+            if missing_filter == "available"
+            else None
+        ),
+        "ai_status": "failed" if query.view == "aiFailed" else None,
+        "sort": query.sort,
+    }
+
+
+def serialize_saved_view_definition(
+    session: Session,
+    query_json: str | None,
+    schema_version: int | None,
+) -> dict:
+    query, definition_error = decode_saved_view_query(query_json, schema_version)
+    references = (
+        resolve_saved_view_query(session, query)
+        if query
+        else {
+            "tag_name": None,
+            "library_root_path": None,
+            "invalid_references": [],
+        }
+    )
+    return {
+        "query": query.model_dump() if query else None,
+        **references,
         "definition_error": definition_error,
+    }
+
+
+def _serialize_view(session: Session, row: SavedView) -> dict:
+    return {
+        **row.model_dump(exclude={"query_json"}),
+        **serialize_saved_view_definition(session, row.query_json, row.schema_version),
     }
 
 
@@ -131,7 +200,7 @@ def create_saved_view(
     max_order = session.exec(select(func.max(SavedView.sort_order))).one()
     row = SavedView(
         name=normalized_name,
-        query_json=_encode_query(query),
+        query_json=encode_saved_view_query(query),
         schema_version=query.schema_version,
         sort_order=0 if max_order is None else max_order + 1,
     )
@@ -154,7 +223,7 @@ def update_saved_view(
         _ensure_name_available(session, normalized_name, excluding_id=view_id)
         row.name = normalized_name
     if query is not None:
-        row.query_json = _encode_query(query)
+        row.query_json = encode_saved_view_query(query)
         row.schema_version = query.schema_version
     row.updated_at = now_iso()
     session.add(row)
