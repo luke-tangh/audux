@@ -100,6 +100,94 @@
   grid-column: 1 / -1;
 }
 
+.settings-panel .settings-card-wide {
+  grid-column: 1 / -1;
+}
+
+.settings-panel .backup-restore-banner,
+.settings-panel .backup-restore-result {
+  margin: 12px 0 0;
+  padding: 13px 14px;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-warning-container);
+  color: var(--md-sys-color-on-warning-container);
+}
+
+.settings-panel .backup-restore-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.settings-panel .backup-restore-banner p,
+.settings-panel .backup-restore-result {
+  line-height: 1.5;
+}
+
+.settings-panel .backup-restore-banner p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-panel .backup-restore-result.succeeded {
+  color: var(--md-sys-color-on-success-container);
+  background: var(--md-sys-color-success-container);
+}
+
+.settings-panel .backup-restore-result.failed,
+.settings-panel .backup-restore-result.rollback_failed {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.settings-panel .backup-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.settings-panel .backup-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container);
+}
+
+.settings-panel .backup-row-heading,
+.settings-panel .backup-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-panel .backup-row-meta,
+.settings-panel .backup-row-error {
+  margin: 5px 0 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.settings-panel .backup-row-error {
+  color: var(--md-sys-color-error);
+}
+
+.settings-panel .status-pill.valid {
+  color: var(--md-sys-color-on-success-container);
+  background: var(--md-sys-color-success-container);
+}
+
+.settings-panel .status-pill.invalid {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
 .settings-panel .max-form-card {
   max-width: 780px;
 }
@@ -310,6 +398,15 @@
 
   .settings-panel .playlist-maintenance-row {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settings-panel .backup-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-panel .backup-restore-banner {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 /* Settings header controls: end */

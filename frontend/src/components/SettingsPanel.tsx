@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { api, asrEndpointPrivacyWarning, endpointPrivacyWarning } from "../api";
 import type {
+  DatabaseBackup,
+  DatabaseRestoreStatus,
   LibraryRoot,
   Playlist,
   ScanTask,
   Tag,
   WhisperComponentStatus
 } from "../types";
-import { pickAudioFolder } from "../tauri";
+import { pickAudioFolder, restartApplication } from "../tauri";
 import TaskPanel from "./TaskPanel";
 import { PanelCard, Tabs } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
@@ -44,6 +46,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [playlistName, setPlaylistName] = useState("");
   const [settingsPlaylists, setSettingsPlaylists] = useState<Playlist[]>([]);
   const [maintenanceTags, setMaintenanceTags] = useState<Tag[]>([]);
+  const [databaseBackups, setDatabaseBackups] = useState<DatabaseBackup[]>([]);
+  const [databaseRestoreStatus, setDatabaseRestoreStatus] =
+    useState<DatabaseRestoreStatus | null>(null);
+  const [backupAction, setBackupAction] = useState<string | null>(null);
 
   const [asrProvider, setAsrProvider] = useState("faster_whisper");
   const [asrModelName, setAsrModelName] = useState("small");
@@ -138,6 +144,20 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     setMaintenanceTags(tagRows);
   }
 
+  async function loadBackups() {
+    setBackupAction("load");
+    try {
+      const [backups, restoreStatus] = await Promise.all([
+        api.listDatabaseBackups(),
+        api.getDatabaseRestoreStatus()
+      ]);
+      setDatabaseBackups(backups);
+      setDatabaseRestoreStatus(restoreStatus);
+    } finally {
+      setBackupAction(null);
+    }
+  }
+
   async function loadWhisperComponentStatus() {
     const status = await api.getWhisperComponentStatus();
     setWhisperComponent(status);
@@ -162,6 +182,13 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       setMaintenanceTags(tagRows);
       setSettingsPlaylists(playlistRows);
       setWhisperComponent(componentStatus);
+
+      const [backups, restoreStatus] = await Promise.all([
+        api.listDatabaseBackups().catch(() => []),
+        api.getDatabaseRestoreStatus().catch(() => null)
+      ]);
+      setDatabaseBackups(backups);
+      setDatabaseRestoreStatus(restoreStatus);
 
       setAsrProvider(
         settings.find((setting) => setting.key === "asr.provider")?.value ||
@@ -694,6 +721,153 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     }
   }
 
+  async function createDatabaseBackup() {
+    const name = await dialog.prompt({
+      title: t("settings.backup.createTitle"),
+      message: t("settings.backup.createMessage"),
+      inputLabel: t("settings.backup.name"),
+      placeholder: t("settings.backup.namePlaceholder"),
+      required: false,
+      confirmLabel: t("settings.backup.create"),
+      cancelLabel: t("common.actions.cancel"),
+      validate: (value) => value.trim().length > 80 ? t("settings.backup.nameTooLong") : null
+    });
+    if (name === null) return;
+
+    setBackupAction("create");
+    try {
+      await api.createDatabaseBackup(name.trim() || undefined);
+      await loadBackups();
+      notify?.(t("settings.backup.created"), "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setBackupAction(null);
+    }
+  }
+
+  async function validateDatabaseBackup(backup: DatabaseBackup) {
+    setBackupAction(`validate:${backup.id}`);
+    try {
+      const result = await api.validateDatabaseBackup(backup.id);
+      await loadBackups();
+      notify?.(
+        result.integrity_status === "valid"
+          ? t("settings.backup.valid")
+          : t("settings.backup.invalid", { error: result.integrity_error || "" }),
+        result.integrity_status === "valid" ? "success" : "error"
+      );
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setBackupAction(null);
+    }
+  }
+
+  async function deleteDatabaseBackup(backup: DatabaseBackup) {
+    const ok = await dialog.confirm({
+      title: t("settings.backup.deleteTitle"),
+      message: t("settings.backup.deleteMessage", { name: backup.name }),
+      confirmLabel: t("settings.backup.deleteConfirm"),
+      cancelLabel: t("common.actions.cancel"),
+      tone: "danger",
+      destructive: true
+    });
+    if (!ok) return;
+
+    setBackupAction(`delete:${backup.id}`);
+    try {
+      await api.deleteDatabaseBackup(backup.id);
+      await loadBackups();
+      notify?.(t("settings.backup.deleted"), "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setBackupAction(null);
+    }
+  }
+
+  async function restoreDatabaseBackup(backup: DatabaseBackup) {
+    setBackupAction(`preflight:${backup.id}`);
+    try {
+      const preflight = await api.preflightDatabaseRestore(backup.id);
+      if (!preflight.ok) {
+        const reasons = preflight.blockers.map((blocker) => {
+          if (blocker.code === "backup.integrity_invalid") {
+            return t("settings.backup.blocker.integrity");
+          }
+          if (blocker.code === "backup.incompatible") {
+            return t("settings.backup.blocker.incompatible");
+          }
+          if (blocker.code === "backup.active_tasks") {
+            return t("settings.backup.blocker.activeTasks", {
+              aiTasks: preflight.active_ai_tasks,
+              scanTasks: preflight.active_scan_tasks
+            });
+          }
+          if (blocker.code === "backup.insufficient_space") {
+            return t("settings.backup.blocker.space");
+          }
+          if (blocker.code === "backup.restore_pending") {
+            return t("settings.backup.blocker.pending");
+          }
+          return blocker.message;
+        }).join("\n");
+        await dialog.alert({
+          title: t("settings.backup.preflightFailedTitle"),
+          message: t("settings.backup.preflightFailedMessage", { reasons }),
+          confirmLabel: t("common.dialog.acknowledge"),
+          tone: "warning"
+        });
+        return;
+      }
+
+      const ok = await dialog.confirm({
+        title: t("settings.backup.restoreTitle"),
+        message: t("settings.backup.restoreMessage", {
+          name: backup.name,
+          aiTasks: preflight.active_ai_tasks,
+          scanTasks: preflight.active_scan_tasks
+        }),
+        details: t("settings.backup.restoreDetails"),
+        confirmLabel: t("settings.backup.restoreConfirm"),
+        cancelLabel: t("common.actions.cancel"),
+        tone: "danger",
+        destructive: true
+      });
+      if (!ok) return;
+
+      await api.scheduleDatabaseRestore(backup.id);
+      await loadBackups();
+      const restarted = await restartApplication();
+      if (!restarted) {
+        await dialog.alert({
+          title: t("settings.backup.restartTitle"),
+          message: t("settings.backup.restartManual"),
+          confirmLabel: t("common.dialog.acknowledge"),
+          tone: "warning"
+        });
+      }
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setBackupAction(null);
+    }
+  }
+
+  async function cancelPendingDatabaseRestore() {
+    setBackupAction("cancel-restore");
+    try {
+      await api.cancelPendingDatabaseRestore();
+      await loadBackups();
+      notify?.(t("settings.backup.pendingCanceled"), "success");
+    } catch (err) {
+      notify?.(err instanceof Error ? err.message : String(err), "error");
+    } finally {
+      setBackupAction(null);
+    }
+  }
+
   const llmWarning = endpointPrivacyWarning(llmEndpoint);
   const asrExternalWarning = asrEndpointPrivacyWarning(asrExternalEndpoint);
 
@@ -816,6 +990,15 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         {activeTab === "maintenance" && (
           <MaintenanceSettingsTab
             maintenanceTags={maintenanceTags}
+            databaseBackups={databaseBackups}
+            databaseRestoreStatus={databaseRestoreStatus}
+            backupAction={backupAction}
+            onCreateBackup={createDatabaseBackup}
+            onLoadBackups={() => loadBackups().catch((err) => notify?.(String(err), "error"))}
+            onValidateBackup={validateDatabaseBackup}
+            onRestoreBackup={restoreDatabaseBackup}
+            onDeleteBackup={deleteDatabaseBackup}
+            onCancelRestore={cancelPendingDatabaseRestore}
             onRebuildSearch={rebuildSearch}
             onCleanupTags={cleanupTags}
             onLoadTags={loadTags}

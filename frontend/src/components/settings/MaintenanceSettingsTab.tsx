@@ -1,10 +1,23 @@
-import { api } from "../../api";
-import type { Tag } from "../../types";
 import { useTranslation } from "react-i18next";
-import { Button, PanelCard } from "../ui";
+
+import { api } from "../../api";
+import { formatDateTime } from "../../i18n/format";
+import { useLocale } from "../../i18n/LocaleProvider";
+import type { DatabaseBackup, DatabaseRestoreStatus, Tag } from "../../types";
+import { Button, PanelCard, StatusPill } from "../ui";
+import { formatFileSize } from "./settingsUtils";
 
 type MaintenanceSettingsTabProps = {
   maintenanceTags: Tag[];
+  databaseBackups: DatabaseBackup[];
+  databaseRestoreStatus: DatabaseRestoreStatus | null;
+  backupAction: string | null;
+  onCreateBackup: () => void;
+  onLoadBackups: () => void;
+  onValidateBackup: (backup: DatabaseBackup) => void;
+  onRestoreBackup: (backup: DatabaseBackup) => void;
+  onDeleteBackup: (backup: DatabaseBackup) => void;
+  onCancelRestore: () => void;
   onRebuildSearch: () => void;
   onCleanupTags: () => void;
   onLoadTags: () => void;
@@ -15,6 +28,15 @@ type MaintenanceSettingsTabProps = {
 
 export default function MaintenanceSettingsTab({
   maintenanceTags,
+  databaseBackups,
+  databaseRestoreStatus,
+  backupAction,
+  onCreateBackup,
+  onLoadBackups,
+  onValidateBackup,
+  onRestoreBackup,
+  onDeleteBackup,
+  onCancelRestore,
   onRebuildSearch,
   onCleanupTags,
   onLoadTags,
@@ -23,8 +45,122 @@ export default function MaintenanceSettingsTab({
   onDeleteTag
 }: MaintenanceSettingsTabProps) {
   const { t } = useTranslation();
+  const { resolvedLanguage } = useLocale();
+  const pendingRestore = databaseRestoreStatus?.pending;
+  const lastRestore = databaseRestoreStatus?.last_result;
+
   return (
     <div className="settings-grid-layout">
+      <PanelCard
+        title={t("settings.backup.title")}
+        className="settings-card-wide"
+        actions={
+          <>
+            <Button variant="outlined" disabled={backupAction !== null} onClick={onLoadBackups}>
+              {t("common.actions.refresh")}
+            </Button>
+            <Button
+              variant="filled"
+              disabled={backupAction !== null || Boolean(pendingRestore)}
+              onClick={onCreateBackup}
+            >
+              {t("settings.backup.create")}
+            </Button>
+          </>
+        }
+      >
+        <p className="muted">{t("settings.backup.description")}</p>
+
+        {pendingRestore && (
+          <div className="backup-restore-banner" role="status">
+            <div>
+              <strong>{t("settings.backup.pendingTitle")}</strong>
+              <p>
+                {t("settings.backup.pendingDescription", {
+                  id: pendingRestore.snapshot_id,
+                  time: formatDateTime(pendingRestore.requested_at, resolvedLanguage)
+                })}
+              </p>
+            </div>
+            <Button
+              variant="outlined"
+              disabled={backupAction !== null}
+              onClick={onCancelRestore}
+            >
+              {t("settings.backup.cancelPending")}
+            </Button>
+          </div>
+        )}
+
+        {lastRestore && (
+          <p className={`backup-restore-result ${lastRestore.status}`} role="status">
+            {t(`settings.backup.result.${lastRestore.status}`, {
+              time: formatDateTime(lastRestore.completed_at, resolvedLanguage),
+              error: lastRestore.error || ""
+            })}
+          </p>
+        )}
+
+        {databaseBackups.length === 0 && (
+          <p className="muted">{t("settings.backup.empty")}</p>
+        )}
+
+        <div className="backup-list">
+          {databaseBackups.map((backup) => (
+            <article className="backup-row" key={backup.id}>
+              <div className="backup-row-main">
+                <div className="backup-row-heading">
+                  <strong>{backup.name}</strong>
+                  <StatusPill value={backup.integrity_status}>
+                    {t(`settings.backup.integrity.${backup.integrity_status}`)}
+                  </StatusPill>
+                </div>
+                <p className="backup-row-meta">
+                  {t(`settings.backup.kind.${backup.kind}`)} · {formatFileSize(backup.size_bytes)} ·{" "}
+                  {formatDateTime(backup.created_at, resolvedLanguage)} ·{" "}
+                  {t("settings.backup.schema", { version: backup.schema_version ?? "-" })}
+                </p>
+                {(backup.integrity_error || backup.compatibility_error) && (
+                  <p className="backup-row-error">
+                    {backup.integrity_error || backup.compatibility_error}
+                  </p>
+                )}
+              </div>
+              <div className="backup-row-actions">
+                <Button
+                  size="sm"
+                  variant="outlined"
+                  disabled={backupAction !== null}
+                  onClick={() => onValidateBackup(backup)}
+                >
+                  {t("settings.backup.validate")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="tonal"
+                  disabled={backupAction !== null || Boolean(pendingRestore) || !backup.restore_compatible}
+                  onClick={() => onRestoreBackup(backup)}
+                >
+                  {t("settings.backup.restore")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={
+                    backupAction !== null ||
+                    pendingRestore?.snapshot_id === backup.id ||
+                    pendingRestore?.safety_snapshot_id === backup.id
+                  }
+                  onClick={() => onDeleteBackup(backup)}
+                >
+                  {t("common.actions.delete")}
+                </Button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </PanelCard>
+
       <PanelCard title={t("settings.maintenance.exportIndex")}>
         <div className="section-actions">
           <Button variant="outlined" onClick={() => window.open(api.metadataExportUrl("json"), "_blank")}>

@@ -2220,6 +2220,23 @@ GET  /logs/app
 GET  /logs/app/file
 ```
 
+数据库快照与恢复：
+
+```http
+GET    /maintenance/database-backups
+POST   /maintenance/database-backups
+POST   /maintenance/database-backups/{snapshot_id}/validate
+DELETE /maintenance/database-backups/{snapshot_id}
+POST   /maintenance/database-backups/{snapshot_id}/restore/preflight
+POST   /maintenance/database-backups/{snapshot_id}/restore
+GET    /maintenance/database-restore
+DELETE /maintenance/database-restore/pending
+```
+
+快照只能位于应用管理的 `backups/` 目录，客户端不能提交任意恢复路径。恢复预检覆盖
+SQLite 完整性、schema 兼容性、磁盘空间与活动任务；提交恢复时自动生成当前数据库安全
+快照，并在重启时切换。目标数据库初始化失败后自动回滚。
+
 ---
 
 # 10. 用户界面需求
@@ -2822,7 +2839,7 @@ MVP+ 完成标准：
 - 批量收藏 / 取消收藏
 - 事务化批量 API、结果汇总和行为回归测试
 
-## 当前 P0：Transcript 保真修订与搜索上下文
+## 已完成 F2：Transcript 保真修订与搜索上下文
 
 - 逐段编辑并保留时间轴
 - 自动同步全文和搜索索引
@@ -2846,6 +2863,9 @@ MVP+ 完成标准：
 - 插件式模型接口
 - 更精细的 ASR 进度和 running 任务中断
 
+当前 P0 是保存筛选条件形成可复用视图；R1 手动数据库备份与安全恢复已经完成。
+v0.x 保持内部 Beta，不创建公开 Release，首次公开发布统一为 v1.0。
+
 ---
 
 # 17. 后续版本规划
@@ -2856,14 +2876,14 @@ MVP+ 完成标准：
 - [x] F1：显式多选与批量整理
 - [x] F2：Transcript 保真修订与搜索上下文
 - [x] F3：播放队列与会话连续性
-- [ ] F4：范围收口评估，再决定 Beta 发布时间与版本号
+- [x] F4：范围收口评估，继续内部 Beta 验证
 
 ---
 
 ## v0.6：组织能力与数据可恢复性
 
 - 保存筛选条件与智能 Playlist
-- 手动备份管理和安全恢复流程
+- [x] R1：手动备份管理和安全恢复流程
 - 自动章节切分、音频章节导航和可选 AI 章节摘要
 
 ---

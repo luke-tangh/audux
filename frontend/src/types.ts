@@ -220,6 +220,58 @@ export type WhisperComponentStatus = {
   error_message: string | null;
 };
 
+export type DatabaseBackup = {
+  id: string;
+  name: string;
+  kind: "manual" | "pre_migration" | "pre_restore" | string;
+  created_at: string;
+  app_version: string | null;
+  schema_version: number | null;
+  size_bytes: number;
+  integrity_status: "unchecked" | "valid" | "invalid" | string;
+  integrity_error: string | null;
+  sha256: string | null;
+  restore_compatible: boolean;
+  compatibility_error: string | null;
+};
+
+export type DatabaseRestoreBlocker = {
+  code: string;
+  message: string;
+  params?: Record<string, unknown>;
+};
+
+export type DatabaseRestorePreflight = {
+  ok: boolean;
+  backup: DatabaseBackup;
+  blockers: DatabaseRestoreBlocker[];
+  active_ai_tasks: number;
+  active_scan_tasks: number;
+  required_bytes: number;
+  free_bytes: number;
+  restart_required: boolean;
+};
+
+export type PendingDatabaseRestore = {
+  snapshot_id: string;
+  safety_snapshot_id: string;
+  requested_at: string;
+};
+
+export type DatabaseRestoreResult = {
+  status: "succeeded" | "failed" | "rolled_back" | "rollback_failed" | string;
+  snapshot_id: string | null;
+  safety_snapshot_id: string | null;
+  requested_at: string | null;
+  completed_at: string;
+  error: string | null;
+};
+
+export type DatabaseRestoreStatus = {
+  pending: PendingDatabaseRestore | null;
+  last_result: DatabaseRestoreResult | null;
+};
+
 export type AISuggestions = {
   task_id: number | null;
   description?: string;

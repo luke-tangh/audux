@@ -6,7 +6,7 @@ const tauriMocks = vi.hoisted(() => ({
 
 vi.mock("@tauri-apps/api/core", () => tauriMocks);
 
-import { isTauriRuntime, pickAudioFile, pickAudioFolder } from "./tauri";
+import { isTauriRuntime, pickAudioFile, pickAudioFolder, restartApplication } from "./tauri";
 
 describe("Tauri command wrappers", () => {
   beforeEach(() => {
@@ -42,5 +42,15 @@ describe("Tauri command wrappers", () => {
     await expect(pickAudioFolder()).resolves.toBeNull();
     await expect(pickAudioFile()).resolves.toBeNull();
     expect(error).toHaveBeenCalledTimes(2);
+  });
+
+  it("restarts only inside the Tauri runtime", async () => {
+    await expect(restartApplication()).resolves.toBe(false);
+    expect(tauriMocks.invoke).not.toHaveBeenCalled();
+
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    tauriMocks.invoke.mockResolvedValue(undefined);
+    await expect(restartApplication()).resolves.toBe(true);
+    expect(tauriMocks.invoke).toHaveBeenCalledWith("restart_application");
   });
 });

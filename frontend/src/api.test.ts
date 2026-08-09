@@ -270,4 +270,20 @@ describe("local API client", () => {
     await expect(ensureApiBase()).resolves.toBe("http://127.0.0.1:49152");
     expect(invoke).toHaveBeenCalledWith("backend_base_url");
   });
+
+  it("encodes managed database backup ids in maintenance requests", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: "backup-token" }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, blockers: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("./api");
+    await api.preflightDatabaseRestore("database manual.sqlite");
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "http://127.0.0.1:8765/maintenance/database-backups/database%20manual.sqlite/restore/preflight"
+    );
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe("POST");
+  });
 });

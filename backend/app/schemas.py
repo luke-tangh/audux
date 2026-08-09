@@ -108,6 +108,10 @@ class SettingUpdate(BaseModel):
     value: str
 
 
+class DatabaseBackupCreate(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=80)
+
+
 class LLMConfig(BaseModel):
     endpoint: str
     model_name: str

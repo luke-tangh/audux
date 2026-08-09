@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ScanTask } from "../../types";
-import { scanProgress, terminalStatus } from "./settingsUtils";
+import { formatFileSize, scanProgress, terminalStatus } from "./settingsUtils";
 
 function scanTask(totalFiles: number, processedFiles: number): ScanTask {
   return {
@@ -19,6 +19,13 @@ function scanTask(totalFiles: number, processedFiles: number): ScanTask {
 }
 
 describe("settings utilities", () => {
+  it("formats database backup sizes", () => {
+    expect(formatFileSize(0)).toBe("0 B");
+    expect(formatFileSize(1024)).toBe("1.00 KB");
+    expect(formatFileSize(5 * 1024 * 1024)).toBe("5.00 MB");
+    expect(formatFileSize(-1)).toBe("-");
+  });
+
   it("computes rounded scan progress and handles an unknown total", () => {
     expect(scanProgress(scanTask(0, 0))).toBe(0);
     expect(scanProgress(scanTask(3, 2))).toBe(67);

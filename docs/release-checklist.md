@@ -1,8 +1,7 @@
-# Beta Release Checklist
+# Internal Beta Validation Checklist
 
-> F4 已决定进入 Beta 发布验证。执行本清单不代表已经批准发布；所有 publish gate
-> 项目通过后，才确定并创建实际版本标签。评估记录见
-> [`v0.5-f4-evaluation.md`](v0.5-f4-evaluation.md)。
+> v1.0 前所有版本均保留为内部 Beta。执行本清单只验证候选构建，不创建公开 GitHub
+> Release；首次公开发布统一为 v1.0。
 
 这份清单用于后续 Beta 候选版本。测试必须使用临时媒体库和测试数据目录，不要直接
 拿唯一一份真实用户数据做升级或卸载测试。
@@ -30,7 +29,8 @@ cargo check --locked
 
 ## 2. Build dry-run
 
-在 GitHub Actions 中手动运行 `Release` workflow。确认三个构建任务成功并下载：
+在 GitHub Actions 中手动运行 `Internal Builds and v1 Release` workflow。确认三个构建
+任务成功并下载：
 
 - Linux x64 bundle
 - Windows x64 NSIS (`.exe`) bundle
@@ -70,6 +70,12 @@ browser-lite 每个平台至少验证：
 - 搜索可用；必要时在设置中重建 FTS 索引。
 - 第二次启动不会为同一 schema 重复创建升级备份。
 - 用旧版本打开较新 schema 时应拒绝修改数据库。
+- 在设置中创建并校验一个手动数据库快照，修改临时标签、Playlist 和 Transcript 后
+  执行恢复，确认重启后数据回到快照状态。
+- 恢复前自动生成 `database.pre-restore-*.sqlite`；损坏快照、较新 schema、活动任务和
+  空间不足均应在切换前被拒绝。
+- Tauri 提交恢复后自动重启；browser-lite 保留待恢复请求并明确提示手动重启。
+- 模拟目标库初始化失败时自动换回恢复前快照，并在设置中显示 rolled-back 结果。
 
 ## 5. Backend lifecycle and providers
 
@@ -82,14 +88,10 @@ browser-lite 每个平台至少验证：
 - External ASR 使用 mock/测试服务完成一次 multipart 上传并写入 transcript。
 - 非 loopback ASR 和 LLM endpoint 仍显示隐私警告并需要显式允许。
 
-## 6. Publish gate
+## 6. No-public-release gate
 
-只有重新确定发布版本，且三个平台的 clean-install、升级和生命周期检查全部通过后，
-才创建并推送对应标签。例如：
+v0.x 阶段只允许手动运行 workflow 并下载内部 artifacts，不推送会触发公开 Release 的
+版本标签。workflow 只接受 `v1.0.*` 标签进入首次公开发布任务。
 
-```bash
-git tag vX.Y.Z-beta.N
-git push origin vX.Y.Z-beta.N
-```
-
-发布后下载 GitHub Release 中的文件，再做一次安装包哈希和启动抽查。
+只有 v1.0 的兼容、迁移、隐私和三平台门槛全部通过后，才创建首次公开版本标签并发布；
+发布后仍需下载 GitHub Release 文件做安装包哈希和启动抽查。

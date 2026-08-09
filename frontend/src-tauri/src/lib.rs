@@ -113,6 +113,12 @@ async fn backend_base_url(app: tauri::AppHandle) -> Result<String, String> {
     Ok(config.base_url.clone())
 }
 
+#[tauri::command]
+fn restart_application(app: tauri::AppHandle) {
+    stop_backend_sidecar(&app);
+    app.restart();
+}
+
 fn start_backend_sidecar(app: &tauri::AppHandle) {
     let config = app.state::<BackendConfig>();
 
@@ -345,7 +351,8 @@ pub fn run() {
             pick_audio_folder,
             pick_audio_file,
             backend_health,
-            backend_base_url
+            backend_base_url,
+            restart_application
         ])
         .setup(|app| {
             let handle = app.handle().clone();

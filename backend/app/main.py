@@ -5,11 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .api_routes import router as api_router
-from .db import create_db_and_tables
 from .logger import setup_logging, get_logger
 from .scanner import recover_interrupted_scan_tasks
 from .tasks import start_worker_once
 from .version import APP_VERSION
+from .services.backup_service import initialize_database_with_pending_restore
 from .local_security import (
     ALLOW_ALL_CORS,
     LOCAL_ORIGIN_REGEX,
@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    create_db_and_tables()
+    initialize_database_with_pending_restore()
     _get_or_create_local_api_token()
 
     try:

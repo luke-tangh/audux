@@ -23,3 +23,14 @@ export async function pickAudioFile(): Promise<string | null> {
     return null;
   }
 }
+
+export async function restartApplication(): Promise<boolean> {
+  if (!(await isTauriRuntime())) return false;
+  try {
+    await invoke("restart_application");
+    return true;
+  } catch (err) {
+    console.error("restart_application failed", err);
+    return false;
+  }
+}

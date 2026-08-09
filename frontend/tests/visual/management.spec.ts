@@ -87,6 +87,25 @@ type MockState = {
   batchErrors: Array<{ audio_id: number; error: string }>;
   transcriptConflictOnce: boolean;
   whisperStatus: "not_installed" | "downloading" | "installed";
+  backups: Array<{
+    id: string;
+    name: string;
+    kind: string;
+    created_at: string;
+    app_version: string;
+    schema_version: number;
+    size_bytes: number;
+    integrity_status: string;
+    integrity_error: null;
+    sha256: string;
+    restore_compatible: boolean;
+    compatibility_error: null;
+  }>;
+  pendingRestore: null | {
+    snapshot_id: string;
+    safety_snapshot_id: string;
+    requested_at: string;
+  };
 };
 
 function createMockState(): MockState {
@@ -186,7 +205,9 @@ function createMockState(): MockState {
     mutations: [],
     batchErrors: [],
     transcriptConflictOnce: false,
-    whisperStatus: "not_installed"
+    whisperStatus: "not_installed",
+    backups: [],
+    pendingRestore: null
   };
 }
 
@@ -262,6 +283,80 @@ async function mockManagementApi(page: Page, state: MockState) {
 
     if (method === "GET" && url.pathname === "/settings") {
       await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/maintenance/database-backups") {
+      await route.fulfill({ json: state.backups, headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/maintenance/database-restore") {
+      await route.fulfill({
+        json: { pending: state.pendingRestore, last_result: null },
+        headers
+      });
+      return;
+    }
+
+    if (method === "POST" && url.pathname === "/maintenance/database-backups") {
+      const body = parseRequestBody(request) as { name?: string };
+      const backup = {
+        id: "database.manual-visual.sqlite",
+        name: body.name || "手动备份",
+        kind: "manual",
+        created_at: NOW,
+        app_version: "0.5.0-beta.1",
+        schema_version: 7,
+        size_bytes: 1048576,
+        integrity_status: "valid",
+        integrity_error: null,
+        sha256: "visual-sha256",
+        restore_compatible: true,
+        compatibility_error: null
+      };
+      state.backups = [backup, ...state.backups];
+      state.mutations.push({ method, path: url.pathname, body });
+      await route.fulfill({ json: backup, headers });
+      return;
+    }
+
+    const backupActionMatch = url.pathname.match(
+      /^\/maintenance\/database-backups\/([^/]+)\/(validate|restore(?:\/preflight)?)$/
+    );
+    if (method === "POST" && backupActionMatch) {
+      const backup = state.backups.find((row) => row.id === backupActionMatch[1])!;
+      const action = backupActionMatch[2];
+      state.mutations.push({ method, path: url.pathname, body: null });
+      if (action === "validate") {
+        await route.fulfill({ json: backup, headers });
+        return;
+      }
+      if (action === "restore/preflight") {
+        await route.fulfill({
+          json: {
+            ok: true,
+            backup,
+            blockers: [],
+            active_ai_tasks: 0,
+            active_scan_tasks: 0,
+            required_bytes: 2097152,
+            free_bytes: 1073741824,
+            restart_required: true
+          },
+          headers
+        });
+        return;
+      }
+      state.pendingRestore = {
+        snapshot_id: backup.id,
+        safety_snapshot_id: "database.pre-restore-visual.sqlite",
+        requested_at: NOW
+      };
+      await route.fulfill({
+        json: { ...state.pendingRestore, status: "pending", restart_required: true },
+        headers
+      });
       return;
     }
 
@@ -704,6 +799,45 @@ test.describe("v0.5 management workflows", () => {
     expect(state.mutations).toContainEqual({
       method: "POST",
       path: "/asr/whisper-component/install",
+      body: null
+    });
+  });
+
+  test("creates a verified snapshot and schedules a restart-safe restore", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await openSettings(page);
+    await page.getByRole("tab", { name: "维护" }).click();
+
+    await page.getByRole("button", { name: "创建快照" }).click();
+    const createDialog = page.getByRole("dialog", { name: "创建数据库快照" });
+    await createDialog.getByRole("textbox", { name: "快照名称（可选）" }).fill("恢复演练");
+    await createDialog.getByRole("button", { name: "创建快照" }).click();
+
+    const backupRow = page.locator(".backup-row").filter({ hasText: "恢复演练" });
+    await expect(backupRow).toContainText("校验通过");
+    await backupRow.getByRole("button", { name: "恢复" }).click();
+
+    const restoreDialog = page.getByRole("dialog", { name: "恢复数据库快照？" });
+    await expect(restoreDialog).toContainText("不会修改或删除磁盘上的原始音频");
+    await expect(restoreDialog).toContainText("自动换回恢复前安全快照");
+    await restoreDialog.getByRole("button", { name: "创建安全快照并重启" }).click();
+
+    const restartDialog = page.getByRole("dialog", { name: "需要重启应用" });
+    await expect(restartDialog).toContainText("browser-lite 无法自行重启");
+    await restartDialog.getByRole("button", { name: "知道了" }).click();
+    await expect(page.getByText("数据库恢复等待重启")).toBeVisible();
+
+    expect(state.mutations).toContainEqual({
+      method: "POST",
+      path: "/maintenance/database-backups",
+      body: { name: "恢复演练" }
+    });
+    expect(state.mutations).toContainEqual({
+      method: "POST",
+      path: "/maintenance/database-backups/database.manual-visual.sqlite/restore",
       body: null
     });
   });

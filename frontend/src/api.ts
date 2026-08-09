@@ -7,6 +7,9 @@ import type {
   BatchTaskResult,
   BatchOrganizationPayload,
   BatchOrganizationResult,
+  DatabaseBackup,
+  DatabaseRestorePreflight,
+  DatabaseRestoreStatus,
   LibraryRoot,
   LLMConfigPayload,
   LLMTestResult,
@@ -747,6 +750,47 @@ export const api = {
   cleanupTags: () =>
     request<{ ok: boolean; deleted: number }>("/maintenance/cleanup-tags", {
       method: "POST"
+    }),
+
+  listDatabaseBackups: () =>
+    request<DatabaseBackup[]>("/maintenance/database-backups"),
+
+  createDatabaseBackup: (name?: string) =>
+    request<DatabaseBackup>("/maintenance/database-backups", {
+      method: "POST",
+      body: JSON.stringify({ name: name || null })
+    }),
+
+  validateDatabaseBackup: (snapshotId: string) =>
+    request<DatabaseBackup>(
+      `/maintenance/database-backups/${encodeURIComponent(snapshotId)}/validate`,
+      { method: "POST" }
+    ),
+
+  deleteDatabaseBackup: (snapshotId: string) =>
+    request<{ ok: boolean; id: string }>(
+      `/maintenance/database-backups/${encodeURIComponent(snapshotId)}`,
+      { method: "DELETE" }
+    ),
+
+  preflightDatabaseRestore: (snapshotId: string) =>
+    request<DatabaseRestorePreflight>(
+      `/maintenance/database-backups/${encodeURIComponent(snapshotId)}/restore/preflight`,
+      { method: "POST" }
+    ),
+
+  scheduleDatabaseRestore: (snapshotId: string) =>
+    request<import("./types").PendingDatabaseRestore & { status: string; restart_required: boolean }>(
+      `/maintenance/database-backups/${encodeURIComponent(snapshotId)}/restore`,
+      { method: "POST" }
+    ),
+
+  getDatabaseRestoreStatus: () =>
+    request<DatabaseRestoreStatus>("/maintenance/database-restore"),
+
+  cancelPendingDatabaseRestore: () =>
+    request<{ ok: boolean }>("/maintenance/database-restore/pending", {
+      method: "DELETE"
     }),
 
   getLogs: (lines = 300) => request<{ file: string; content: string }>(`/logs/app?lines=${lines}`),

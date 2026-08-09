@@ -86,6 +86,11 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 schema 版本。备份失败时应用会停止升级，不会继续修改原数据库。较新版本数据库也
 不会被旧版本应用降级修改。
 
+“设置 → 维护 → 数据库备份与恢复”支持创建、命名、校验和删除受管数据库快照。恢复前
+会检查完整性、schema、磁盘空间和活动任务，并自动创建当前数据库的安全快照。Tauri
+提交后会重启执行切换；browser-lite 需要按提示手动重启。目标数据库初始化失败时会
+自动换回安全快照。数据库快照不包含原始音频、模型缓存或导出文件。
+
 ## 后端开发环境
 
 后端使用 uv 管理 Python 3.12、项目虚拟环境和锁定依赖。先安装
@@ -462,17 +467,19 @@ Release 构建前请确认：
 
 显式多选与批量整理、Transcript 保真修订与搜索上下文、播放队列与会话连续性以及
 F4 收口评估已经完成。v0.5 现已冻结功能范围并进入 Beta 发布验证，不再追加 F5。
-评估结论见 [`docs/v0.5-f4-evaluation.md`](docs/v0.5-f4-evaluation.md)，详细范围见
-[`docs/roadmap.md`](docs/roadmap.md)。仓库中的 `0.5.0-beta.1` 仍是内部候选标识，
-不代表已经发布。
+详细范围见 [`docs/roadmap.md`](docs/roadmap.md)。仓库中的 `0.5.0-beta.1` 仍是内部候选
+标识，不代表已经发布；v1.0 前所有版本均保留为内部 Beta，首次公开 Release 统一为
+v1.0。
 
-GitHub Actions 的 `Release` workflow 支持手动触发。手动运行会在 Linux、Windows
-和 macOS 同时构建 Tauri 安装包、browser-lite 单文件包与对应 Whisper companion，
-并保留 artifacts，但不会创建 GitHub Release。只有推送 `v*.*.*` tag 才会发布这些
-产物和组件 manifest。
+GitHub Actions 的 `Internal Builds and v1 Release` workflow 支持手动触发。手动运行会
+在 Linux、Windows 和 macOS 同时构建 Tauri 安装包、browser-lite 单文件包与对应
+Whisper companion，
+并保留 artifacts，但不会创建 GitHub Release。workflow 只允许 `v1.0.*` 标签发布这些
+产物和组件 manifest，v0.x 不创建公开 Release。
 
 按照 [`docs/release-checklist.md`](docs/release-checklist.md) 完成三平台安装、升级、
-端口冲突、后端退出和 ASR smoke test 后，才能创建发布标签。
+端口冲突、后端退出、数据库恢复和 ASR smoke test；这些结果在 v1.0 前只作为内部验证
+证据。
 
 Beta 发布说明草案见
 [`docs/releases/v0.5.0-beta.1.md`](docs/releases/v0.5.0-beta.1.md)。
