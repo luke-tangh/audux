@@ -295,6 +295,9 @@ export default function AudioList({
 }: Props) {
   const { t } = useTranslation();
   const [draggedPlaylistItemId, setDraggedPlaylistItemId] = useState<number | null>(null);
+  const canReorderPlaylist = Boolean(
+    isPlaylistView && onMovePlaylistItem && onMovePlaylistItemTo
+  );
 
   function findDraggedItem(): AudioItem | undefined {
     if (!draggedPlaylistItemId) return undefined;
@@ -413,7 +416,7 @@ export default function AudioList({
       <div className="audio-scroll-list" role="list" aria-label={t("audioList.listLabel", { title })}>
         {items.map((item, index) => {
           const draggable = Boolean(
-            !selectionMode && isPlaylistView && item.playlist_item_id
+            !selectionMode && canReorderPlaylist && item.playlist_item_id
           );
           const description = displayDescription(item);
           const rowIsSelected = selectedId === item.id;
@@ -635,29 +638,33 @@ export default function AudioList({
 
                 {isPlaylistView && item.playlist_item_id && (
                   <>
-                    <Button preserveChildren
-                      type="button"
-                      aria-label={t("audioList.moveUpLabel", { title: displayTitle(item) })}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMovePlaylistItem?.(item, "up");
-                      }}
-                      title={t("audioList.moveUp")}
-                    >
-                      <MaterialIcon name="keyboard_arrow_up" size={18} />
-                    </Button>
+                    {canReorderPlaylist && (
+                      <>
+                        <Button preserveChildren
+                          type="button"
+                          aria-label={t("audioList.moveUpLabel", { title: displayTitle(item) })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onMovePlaylistItem?.(item, "up");
+                          }}
+                          title={t("audioList.moveUp")}
+                        >
+                          <MaterialIcon name="keyboard_arrow_up" size={18} />
+                        </Button>
 
-                    <Button preserveChildren
-                      type="button"
-                      aria-label={t("audioList.moveDownLabel", { title: displayTitle(item) })}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMovePlaylistItem?.(item, "down");
-                      }}
-                      title={t("audioList.moveDown")}
-                    >
-                      <MaterialIcon name="keyboard_arrow_down" size={18} />
-                    </Button>
+                        <Button preserveChildren
+                          type="button"
+                          aria-label={t("audioList.moveDownLabel", { title: displayTitle(item) })}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onMovePlaylistItem?.(item, "down");
+                          }}
+                          title={t("audioList.moveDown")}
+                        >
+                          <MaterialIcon name="keyboard_arrow_down" size={18} />
+                        </Button>
+                      </>
+                    )}
 
                     <Button preserveChildren
                       type="button"

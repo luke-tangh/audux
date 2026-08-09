@@ -38,6 +38,44 @@ ACTIVE_SCAN_TASK_STATUSES = {"pending", "running", "cancel_requested"}
 SAFE_DOWNLOAD_NAME_PATTERN = re.compile(r'[\r\n\\/"<>|:*?]+')
 
 
+def _audio_sort_clauses(sort: str):
+    """Return deterministic ordering clauses shared by library and playlist pages."""
+    title = func.lower(
+        func.coalesce(
+            func.nullif(AudioItem.title_user, ""),
+            func.nullif(AudioItem.title_original, ""),
+            AudioItem.file_name,
+        )
+    )
+    author_value = func.coalesce(
+        func.nullif(AudioItem.author_user, ""),
+        func.nullif(AudioItem.author_original, ""),
+    )
+    author = func.lower(author_value)
+
+    clauses = {
+        "title_asc": (title.asc(),),
+        "title_desc": (title.desc(),),
+        "author_asc": (author_value.is_(None), author.asc(), title.asc()),
+        "created_desc": (AudioItem.created_at.desc(),),
+        "updated_desc": (AudioItem.updated_at.desc(),),
+        "duration_asc": (
+            AudioItem.duration_seconds.is_(None),
+            AudioItem.duration_seconds.asc(),
+        ),
+        "duration_desc": (
+            AudioItem.duration_seconds.is_(None),
+            AudioItem.duration_seconds.desc(),
+        ),
+        "play_count_desc": (AudioItem.play_count.desc(),),
+    }.get(sort)
+
+    if clauses is None:
+        return None
+
+    return (*clauses, AudioItem.id.asc())
+
+
 ERROR_CODE_BY_DETAIL = {
     "Audio not found": "audio.not_found",
     "Audio item not found": "audio.not_found",

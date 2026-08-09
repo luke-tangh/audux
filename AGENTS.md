@@ -21,6 +21,9 @@ update the API schema/types, implementation, and verification together.
 - `frontend/src/components/`: UI and feature components.
 - `frontend/src/hooks/`: application and library state/controllers.
 - `frontend/src/styles/`: global tokens, layout, and component CSS.
+- `frontend/src/**/*.test.ts(x)`: Vitest unit and logic tests colocated with source.
+- `frontend/vitest.config.ts`: jsdom and V8 coverage configuration.
+- `frontend/tests/visual/`: Playwright behavior, accessibility, and screenshot tests.
 - `backend/app/main.py`: FastAPI app, middleware, startup, and security guard.
 - `backend/app/api_routes.py`: top-level API router assembly.
 - `backend/app/routes/`: HTTP request/response layer.
@@ -28,6 +31,7 @@ update the API schema/types, implementation, and verification together.
 - `backend/app/models.py` and `schemas.py`: persistence and API models.
 - `backend/app/db.py`: SQLite setup, FTS, and migrations.
 - `backend/app/tasks.py`: background task lifecycle.
+- `backend/tests/`: pytest unit and API integration tests.
 - `backend/build_backend.py`: PyInstaller sidecar builder.
 - `frontend/src-tauri/src/lib.rs`: Tauri commands and backend process management.
 - `frontend/src-tauri/build.rs`: target-specific sidecar validation/placeholder.
@@ -49,6 +53,7 @@ Backend:
 
 ```bash
 uv sync --locked
+uv sync --locked --group test
 ```
 
 Use `uv sync --locked --extra asr` when ASR/faster-whisper behavior must be
@@ -69,6 +74,10 @@ Backend development and tests:
 cd backend
 uv run --locked python run.py
 uv run --locked --group test python -m pytest tests
+uv run --locked --group test python -m pytest tests \
+  --cov=app --cov-branch \
+  --cov-report=term-missing:skip-covered --cov-report=xml \
+  --cov-fail-under=64
 ```
 
 Frontend development and verification:
@@ -76,6 +85,8 @@ Frontend development and verification:
 ```bash
 cd frontend
 npm run dev
+npm test
+npm run test:coverage
 npm run typecheck
 npm run build
 ```
@@ -178,6 +189,24 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 - Keep long-running scan, transcription, and AI work out of request handlers.
 - Preserve cancellation and interrupted-task recovery semantics.
 
+### Tests
+
+- Backend tests must use temporary databases, media roots, covers, logs, and
+  token files. Never point automated tests at `~/.local_audio_library/`.
+- API integration tests that use `tests.api_test_support` must import it before
+  application modules that initialize runtime paths; this keeps module-level
+  paths inside the temporary test home.
+- Backend coverage uses branch coverage over `backend/app`. CI enforces a 64%
+  minimum; do not lower the threshold to accommodate untested changes.
+- Keep frontend Vitest tests colocated as `*.test.ts` or `*.test.tsx`. Prefer
+  Vitest for API/auth, pure helpers, hooks, storage, and deterministic component
+  behavior.
+- Use Playwright under `frontend/tests/visual/` for browser workflows, keyboard
+  and focus behavior, responsive layout, and screenshots. Mock local API calls
+  unless the test is explicitly designed as a real-backend integration test.
+- Do not place real API keys, local API tokens, user media, or user database
+  copies in fixtures, snapshots, coverage output, or failure artifacts.
+
 ### Tauri and packaging
 
 - Keep platform-specific behavior behind Rust `cfg` checks or explicit target
@@ -209,11 +238,18 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 
 Run the smallest relevant checks first, then broaden for cross-layer changes.
 
-- Backend-only change: relevant unit test(s), then full backend unittest suite.
-- Frontend logic/style change: `npm run typecheck` and `npm run build`.
+- Backend-only change: relevant unit test(s), then the full backend pytest suite
+  with branch coverage. The result must satisfy the 64% CI threshold.
+- Frontend logic change: relevant Vitest test(s), then `npm test`,
+  `npm run typecheck`, and `npm run build`.
+- Frontend style-only change: `npm run typecheck` and `npm run build`.
+- Frontend coverage work or new testable logic: also run
+  `npm run test:coverage` and review the changed modules, not only the global
+  percentage.
 - Significant UI/layout change: also run `npm run test:visual`.
-- Rust/Tauri change: `cargo check --locked`.
-- API contract change: backend tests plus frontend typecheck/build.
+- Rust/Tauri change: relevant `cargo test --locked` tests plus
+  `cargo check --locked`.
+- API contract change: backend tests plus frontend Vitest, typecheck, and build.
 - Database, task-state, security, path-validation, or token change: add or update
   focused regression tests.
 - Release/sidecar change: build the sidecar and run `npm run tauri:build` on the

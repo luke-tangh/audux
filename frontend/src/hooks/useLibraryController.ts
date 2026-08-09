@@ -21,6 +21,7 @@ import type {
   AudioListParams,
   MissingFilter,
   PlaylistListParams,
+  SortMode,
   TranscriptFilter,
   ViewMode
 } from "./library/types";
@@ -51,6 +52,7 @@ export function useLibraryController() {
 
   const [hasTranscriptFilter, setHasTranscriptFilter] = useState<TranscriptFilter>("all");
   const [missingFilter, setMissingFilter] = useState<MissingFilter>("all");
+  const [sortMode, setSortMode] = useState<SortMode>("default");
 
   const [playlistItemsRaw, setPlaylistItemsRaw] = useState<AudioItem[]>([]);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -78,7 +80,8 @@ export function useLibraryController() {
       debouncedQ,
       selectedTag,
       hasTranscriptFilter,
-      missingFilter
+      missingFilter,
+      sortMode
     });
   }
 
@@ -87,7 +90,8 @@ export function useLibraryController() {
       debouncedQ,
       selectedTag,
       hasTranscriptFilter,
-      missingFilter
+      missingFilter,
+      sortMode
     });
   }
 
@@ -273,6 +277,7 @@ export function useLibraryController() {
     selectedPlaylistId,
     hasTranscriptFilter,
     missingFilter,
+    sortMode,
     refreshToken
   ]);
 
@@ -285,7 +290,8 @@ export function useLibraryController() {
     selectedTag,
     selectedPlaylistId,
     hasTranscriptFilter,
-    missingFilter
+    missingFilter,
+    sortMode
   ]);
 
   const hasBusyVisibleTask =
@@ -488,6 +494,8 @@ export function useLibraryController() {
     setHasTranscriptFilter,
     missingFilter,
     setMissingFilter,
+    sortMode,
+    setSortMode,
 
     tags,
     playlists,

@@ -12,6 +12,7 @@ from .common import (
     _apply_enabled_roots_filter,
     _attachment_headers,
     _audio_rows_with_tags_dicts,
+    _audio_sort_clauses,
     _audio_with_tags_dict,
 )
 
@@ -126,6 +127,7 @@ def list_playlist_audio_items(
     missing: Optional[bool] = None,
     missing_description: Optional[bool] = None,
     include_disabled_roots: bool = False,
+    sort: str = "default",
     limit: int = 100,
     offset: int = 0,
 ) -> dict:
@@ -230,9 +232,11 @@ def list_playlist_audio_items(
         select(func.count()).select_from(stmt.subquery())
     ).scalar_one()
 
-    rows = session.exec(
-        stmt.order_by(PlaylistItem.order_index).offset(offset).limit(limit)
-    ).all()
+    sort_clauses = _audio_sort_clauses(sort) or (
+        PlaylistItem.order_index.asc(),
+        PlaylistItem.id.asc(),
+    )
+    rows = session.exec(stmt.order_by(*sort_clauses).offset(offset).limit(limit)).all()
 
     audio_rows = [audio for _, audio in rows]
     audio_dicts = _audio_rows_with_tags_dicts(session, audio_rows, search_query=q)

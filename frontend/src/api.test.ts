@@ -18,6 +18,26 @@ afterEach(() => {
 });
 
 describe("local API client", () => {
+  it("serializes library and playlist sorting parameters", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: "sort-token" }))
+      .mockResolvedValueOnce(jsonResponse({ items: [], total: 0 }))
+      .mockResolvedValueOnce(jsonResponse({ items: [], total: 0 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("./api");
+    await api.listAudioItems({ sort: "title_asc", limit: 20 });
+    await api.listPlaylistItems(7, { sort: "duration_desc", offset: 20 });
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "http://127.0.0.1:8765/audio-items?sort=title_asc&limit=20"
+    );
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      "http://127.0.0.1:8765/playlists/7/items?sort=duration_desc&offset=20"
+    );
+  });
+
   it("shares one token request across concurrent protected calls", async () => {
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const url = String(input);

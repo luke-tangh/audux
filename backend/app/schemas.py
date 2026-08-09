@@ -2,6 +2,19 @@ from typing import Any, List, Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
+AudioSortMode = Literal[
+    "default",
+    "title_asc",
+    "title_desc",
+    "author_asc",
+    "created_desc",
+    "updated_desc",
+    "duration_asc",
+    "duration_desc",
+    "play_count_desc",
+]
+
+
 class LibraryRootCreate(BaseModel):
     path: str
 

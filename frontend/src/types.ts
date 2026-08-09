@@ -6,6 +6,17 @@ export type LibraryRoot = {
   updated_at: string;
 };
 
+export type AudioSortMode =
+  | "default"
+  | "title_asc"
+  | "title_desc"
+  | "author_asc"
+  | "created_desc"
+  | "updated_desc"
+  | "duration_asc"
+  | "duration_desc"
+  | "play_count_desc";
+
 export type Tag = {
   id: number;
   name: string;

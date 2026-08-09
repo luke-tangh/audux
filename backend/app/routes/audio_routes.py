@@ -6,6 +6,7 @@ from sqlmodel import Session
 from ..db import get_session
 from ..schemas import (
     AudioUpdate,
+    AudioSortMode,
     BatchAudioRequest,
     BatchOrganizationRequest,
     PlaybackPositionUpdate,
@@ -31,6 +32,7 @@ def list_audio_items(
     missing: Optional[bool] = None,
     missing_description: Optional[bool] = None,
     include_disabled_roots: bool = False,
+    sort: AudioSortMode = "default",
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
@@ -46,6 +48,7 @@ def list_audio_items(
         missing=missing,
         missing_description=missing_description,
         include_disabled_roots=include_disabled_roots,
+        sort=sort,
         limit=limit,
         offset=offset,
     )

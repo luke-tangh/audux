@@ -3,6 +3,7 @@ import type {
   AITask,
   AudioDetail,
   AudioItem,
+  AudioSortMode,
   BatchTaskResult,
   BatchOrganizationPayload,
   BatchOrganizationResult,
@@ -402,6 +403,7 @@ export const api = {
     include_disabled_roots?: boolean;
     ai_status?: string;
     transcript_status?: string;
+    sort?: AudioSortMode;
     limit?: number;
     offset?: number;
   }) => {
@@ -422,6 +424,7 @@ export const api = {
     }
     if (params?.ai_status) sp.set("ai_status", params.ai_status);
     if (params?.transcript_status) sp.set("transcript_status", params.transcript_status);
+    if (params?.sort) sp.set("sort", params.sort);
     if (params?.limit !== undefined) sp.set("limit", String(params.limit));
     if (params?.offset !== undefined) sp.set("offset", String(params.offset));
 
@@ -549,6 +552,7 @@ export const api = {
       missing_description?: boolean;
       ai_status?: string;
       transcript_status?: string;
+      sort?: AudioSortMode;
       limit?: number;
       offset?: number;
     }
@@ -567,6 +571,7 @@ export const api = {
     }
     if (params?.ai_status) sp.set("ai_status", params.ai_status);
     if (params?.transcript_status) sp.set("transcript_status", params.transcript_status);
+    if (params?.sort) sp.set("sort", params.sort);
     if (params?.limit !== undefined) sp.set("limit", String(params.limit));
     if (params?.offset !== undefined) sp.set("offset", String(params.offset));
 

@@ -1,5 +1,6 @@
 import { Button, IconButton, SearchField, SelectField, MaterialIcon } from "./ui";
 import { useTranslation } from "react-i18next";
+import type { SortMode } from "../hooks/library/types";
 
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing";
@@ -23,6 +24,9 @@ type Props = {
   missingFilter: MissingFilter;
   setMissingFilter: (value: MissingFilter) => void;
 
+  sortMode: SortMode;
+  setSortMode: (value: SortMode) => void;
+
   onBatchTranscribe: () => void;
   onBatchAnalyze: () => void;
   onOpenSettings: () => void;
@@ -43,6 +47,8 @@ export default function TopBar({
   setHasTranscriptFilter,
   missingFilter,
   setMissingFilter,
+  sortMode,
+  setSortMode,
   onBatchTranscribe,
   onBatchAnalyze,
   onOpenSettings
@@ -58,6 +64,17 @@ export default function TopBar({
     { value: "all", label: t("topbar.fileAll") },
     { value: "available", label: t("topbar.fileAvailable") },
     { value: "missing", label: t("topbar.fileMissing") }
+  ];
+  const sortOptions = [
+    { value: "default", label: t("topbar.sortDefault") },
+    { value: "title_asc", label: t("topbar.sortTitleAsc") },
+    { value: "title_desc", label: t("topbar.sortTitleDesc") },
+    { value: "author_asc", label: t("topbar.sortAuthorAsc") },
+    { value: "created_desc", label: t("topbar.sortCreatedDesc") },
+    { value: "updated_desc", label: t("topbar.sortUpdatedDesc") },
+    { value: "duration_asc", label: t("topbar.sortDurationAsc") },
+    { value: "duration_desc", label: t("topbar.sortDurationDesc") },
+    { value: "play_count_desc", label: t("topbar.sortPlayCountDesc") }
   ];
 
   return (
@@ -81,13 +98,29 @@ export default function TopBar({
       </div>
 
       <div className="top-action-row">
-        <SearchField
-          wrapperClassName="top-command-search"
-          value={q}
-          onValueChange={setQ}
-          placeholder={t("topbar.searchPlaceholder")}
-          aria-label={t("topbar.searchPlaceholder")}
-        />
+        <div className="top-query-row">
+          <SearchField
+            wrapperClassName="top-command-search"
+            value={q}
+            onValueChange={setQ}
+            placeholder={t("topbar.searchPlaceholder")}
+            aria-label={t("topbar.searchPlaceholder")}
+          />
+
+          <SelectField
+            density="compact"
+            wrapperClassName="topbar-select-field top-sort-field"
+            controlSize="toolbar"
+            controlWidth={156}
+            controlMinWidth={156}
+            label={t("topbar.sort")}
+            value={sortMode}
+            options={sortOptions}
+            aria-label={t("topbar.sortLabel")}
+            title={t("topbar.sortLabel")}
+            onValueChange={(value) => setSortMode(value as SortMode)}
+          />
+        </div>
 
         <div className="top-toolbar-controls">
           <div

@@ -43,6 +43,7 @@ from .common import (
     IMAGE_EXTS,
     ServiceError,
     _audio_rows_with_tags_dicts,
+    _audio_sort_clauses,
     _build_audio_items_stmt,
     _cover_media_type,
     _delete_managed_cover_file,
@@ -95,6 +96,7 @@ def list_audio_items(
     missing: Optional[bool] = None,
     missing_description: Optional[bool] = None,
     include_disabled_roots: bool = False,
+    sort: str = "default",
     limit: int = 100,
     offset: int = 0,
 ) -> dict:
@@ -129,7 +131,11 @@ def list_audio_items(
         select(func.count()).select_from(base_stmt.subquery())
     ).scalar_one()
 
-    stmt = base_stmt.order_by(AudioItem.updated_at.desc()).offset(offset).limit(limit)
+    sort_clauses = _audio_sort_clauses(sort) or (
+        AudioItem.updated_at.desc(),
+        AudioItem.id.asc(),
+    )
+    stmt = base_stmt.order_by(*sort_clauses).offset(offset).limit(limit)
     rows = session.exec(stmt).all()
 
     return {

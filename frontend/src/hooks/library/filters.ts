@@ -4,6 +4,7 @@ import type {
   AudioListParams,
   MissingFilter,
   PlaylistListParams,
+  SortMode,
   TranscriptFilter,
   ViewMode
 } from "./types";
@@ -51,13 +52,15 @@ export function buildAudioListParams({
   debouncedQ,
   selectedTag,
   hasTranscriptFilter,
-  missingFilter
+  missingFilter,
+  sortMode
 }: {
   view: ViewMode;
   debouncedQ: string;
   selectedTag?: string;
   hasTranscriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
+  sortMode: SortMode;
 }): AudioListParams {
   return {
     q: debouncedQ || undefined,
@@ -67,7 +70,8 @@ export function buildAudioListParams({
     has_transcript:
       view === "transcribed" ? true : transcriptFilterToParam(hasTranscriptFilter),
     missing: view === "missing" ? true : missingFilterToParam(missingFilter),
-    ai_status: view === "aiFailed" ? "failed" : undefined
+    ai_status: view === "aiFailed" ? "failed" : undefined,
+    sort: sortMode === "default" ? undefined : sortMode
   };
 }
 
@@ -75,18 +79,21 @@ export function buildPlaylistListParams({
   debouncedQ,
   selectedTag,
   hasTranscriptFilter,
-  missingFilter
+  missingFilter,
+  sortMode
 }: {
   debouncedQ: string;
   selectedTag?: string;
   hasTranscriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
+  sortMode: SortMode;
 }): PlaylistListParams {
   return {
     q: debouncedQ || undefined,
     tag: selectedTag,
     has_transcript: transcriptFilterToParam(hasTranscriptFilter),
-    missing: missingFilterToParam(missingFilter)
+    missing: missingFilterToParam(missingFilter),
+    sort: sortMode === "default" ? undefined : sortMode
   };
 }
 

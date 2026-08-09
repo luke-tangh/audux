@@ -62,7 +62,20 @@
 }
 
 .top-command-search {
+  min-width: 0;
+  flex: 1 1 auto;
   width: 100%;
+}
+
+.top-query-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.top-query-row .top-sort-field {
+  flex: 0 0 auto;
 }
 
 .top-toolbar-controls {

@@ -43,7 +43,8 @@ describe("library filters", () => {
         debouncedQ: "lecture",
         selectedTag: "work",
         hasTranscriptFilter: "no",
-        missingFilter: "available"
+        missingFilter: "available",
+        sortMode: "title_asc"
       })
     ).toEqual({
       q: "lecture",
@@ -52,7 +53,8 @@ describe("library filters", () => {
       missing_description: true,
       has_transcript: false,
       missing: false,
-      ai_status: undefined
+      ai_status: undefined,
+      sort: "title_asc"
     });
 
     expect(
@@ -60,7 +62,8 @@ describe("library filters", () => {
         view: "transcribed",
         debouncedQ: "",
         hasTranscriptFilter: "no",
-        missingFilter: "all"
+        missingFilter: "all",
+        sortMode: "default"
       })
     ).toMatchObject({ has_transcript: true, q: undefined });
   });
@@ -71,13 +74,15 @@ describe("library filters", () => {
         debouncedQ: "meeting",
         selectedTag: "todo",
         hasTranscriptFilter: "yes",
-        missingFilter: "missing"
+        missingFilter: "missing",
+        sortMode: "duration_desc"
       })
     ).toEqual({
       q: "meeting",
       tag: "todo",
       has_transcript: true,
-      missing: true
+      missing: true,
+      sort: "duration_desc"
     });
     expect(["pending", "running", "cancel_requested"].every(isBusyStatus)).toBe(true);
     expect(isBusyStatus("done")).toBe(false);

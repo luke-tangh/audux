@@ -38,6 +38,8 @@ export default function App() {
     setHasTranscriptFilter,
     missingFilter,
     setMissingFilter,
+    sortMode,
+    setSortMode,
 
     tags,
     playlists,
@@ -125,6 +127,8 @@ export default function App() {
                 setHasTranscriptFilter={setHasTranscriptFilter}
                 missingFilter={missingFilter}
                 setMissingFilter={setMissingFilter}
+                sortMode={sortMode}
+                setSortMode={setSortMode}
                 onBatchTranscribe={batchTranscribeCurrentList}
                 onBatchAnalyze={batchAnalyzeCurrentList}
                 onOpenSettings={openSettings}
@@ -156,9 +160,15 @@ export default function App() {
                 onRemoveFromPlaylist={
                   view === "playlist" ? removeFromCurrentPlaylist : undefined
                 }
-                onMovePlaylistItem={view === "playlist" ? movePlaylistItem : undefined}
+                onMovePlaylistItem={
+                  view === "playlist" && sortMode === "default"
+                    ? movePlaylistItem
+                    : undefined
+                }
                 onMovePlaylistItemTo={
-                  view === "playlist" ? movePlaylistItemTo : undefined
+                  view === "playlist" && sortMode === "default"
+                    ? movePlaylistItemTo
+                    : undefined
                 }
                 onEnterSelectionMode={enterSelectionMode}
                 onExitSelectionMode={exitSelectionMode}
