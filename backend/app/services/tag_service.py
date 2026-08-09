@@ -41,6 +41,7 @@ def update_tag(session: Session, tag_id: int, name_value: str | None) -> Tag:
     for audio_id in audio_ids:
         rebuild_audio_search_index(session, audio_id)
 
+    session.refresh(tag)
     logger.info("Tag renamed id=%s name=%s", tag_id, name)
     return tag
 
@@ -117,6 +118,7 @@ def merge_tag(session: Session, source_tag_id: int, target_tag_id: int) -> dict:
         rebuild_audio_search_index(session, audio_id, commit=False)
 
     session.commit()
+    session.refresh(target)
 
     logger.info(
         "Tag merged source_id=%s target_id=%s affected_audio=%s",
@@ -173,6 +175,10 @@ def add_tags_to_audio(
     session.add(item)
     session.commit()
     rebuild_audio_search_index(session, audio_id)
+
+    for tag in result:
+        session.refresh(tag)
+
     return result
 
 

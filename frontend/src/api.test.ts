@@ -14,6 +14,8 @@ function requestHeaders(fetchMock: ReturnType<typeof vi.fn>, callIndex: number) 
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.doUnmock("@tauri-apps/api/core");
+  delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
   vi.resetModules();
 });
 
@@ -173,5 +175,99 @@ describe("local API client", () => {
     expect(api.metadataExportUrl("csv")).toContain(
       "format=csv&access_token=a%20token%2F%2B"
     );
+  });
+
+  it("classifies loopback endpoints and produces remote privacy warnings", async () => {
+    const {
+      asrEndpointPrivacyWarning,
+      endpointPrivacyWarning,
+      isProbablyLocalEndpoint
+    } = await import("./api");
+
+    for (const endpoint of [
+      "http://localhost:1234/v1",
+      "http://model.localhost/v1",
+      "http://127.9.8.7:9000/v1",
+      "http://[::1]:8080/v1"
+    ]) {
+      expect(isProbablyLocalEndpoint(endpoint)).toBe(true);
+      expect(endpointPrivacyWarning(endpoint)).toBeNull();
+      expect(asrEndpointPrivacyWarning(endpoint)).toBeNull();
+    }
+
+    expect(isProbablyLocalEndpoint("not-a-url")).toBe(false);
+    expect(isProbablyLocalEndpoint("https://example.com/v1")).toBe(false);
+    expect(endpointPrivacyWarning("https://example.com/v1")).toBeTruthy();
+    expect(asrEndpointPrivacyWarning("https://example.com/v1")).toBeTruthy();
+    expect(endpointPrivacyWarning("   ")).toBeNull();
+  });
+
+  it("serializes audio filters and pagination without dropping false values", async () => {
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      const url = String(input);
+      return Promise.resolve(
+        url.endsWith("/auth/token")
+          ? jsonResponse({ token: "query-token" })
+          : jsonResponse({ items: [], total: 0, limit: 25, offset: 50, has_more: false })
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("./api");
+    await api.listAudioItems({
+      q: "meeting notes",
+      tag: "待办",
+      favorite: false,
+      missing: true,
+      has_transcript: false,
+      missing_description: true,
+      include_disabled_roots: false,
+      ai_status: "failed",
+      transcript_status: "none",
+      limit: 25,
+      offset: 50
+    });
+
+    const requestUrl = new URL(String(fetchMock.mock.calls[1]?.[0]));
+    expect(Object.fromEntries(requestUrl.searchParams)).toEqual({
+      q: "meeting notes",
+      tag: "待办",
+      favorite: "false",
+      missing: "true",
+      has_transcript: "false",
+      missing_description: "true",
+      include_disabled_roots: "false",
+      ai_status: "failed",
+      transcript_status: "none",
+      limit: "25",
+      offset: "50"
+    });
+  });
+
+  it("handles empty success responses and plain-text backend errors", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: "response-token" }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response("gateway unavailable", { status: 502 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api } = await import("./api");
+    await expect(api.deleteCover(4)).resolves.toBeUndefined();
+    await expect(api.getPlaylist(4)).rejects.toMatchObject({
+      status: 502,
+      message: "gateway unavailable",
+      raw: "gateway unavailable"
+    });
+  });
+
+  it("normalizes the dynamic backend URL supplied by Tauri", async () => {
+    const invoke = vi.fn().mockResolvedValue("http://127.0.0.1:49152///");
+    vi.doMock("@tauri-apps/api/core", () => ({ invoke }));
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+
+    const { ensureApiBase } = await import("./api");
+    await expect(ensureApiBase()).resolves.toBe("http://127.0.0.1:49152");
+    expect(invoke).toHaveBeenCalledWith("backend_base_url");
   });
 });

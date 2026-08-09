@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from app import scanner
 from app.scanner import (
     SAMPLED_HASH_PREFIX,
     _collect_audio_candidates,
@@ -88,3 +89,93 @@ class TestScannerHashing:
 
         assert _same_audio_path(str(file_path), str(file_path.resolve()))
         assert not _same_audio_path(str(file_path), str(self.root / "other.mp3"))
+
+
+class TestScannerMetadataAndCovers:
+    def test_read_audio_metadata_normalizes_info_and_common_tags(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        class Info:
+            length = 42.5
+            bitrate = 192000
+            sample_rate = 48000
+            channels = 2
+
+        class Audio:
+            info = Info()
+            tags = {
+                "TIT2": ["Episode title"],
+                "TPE1": "Speaker",
+                "TALB": ["Series"],
+                "COMM": "Summary",
+            }
+
+        monkeypatch.setattr(scanner, "MutagenFile", lambda path: Audio())
+        metadata = scanner.read_audio_metadata(tmp_path / "episode.mp3")
+
+        assert metadata == {
+            "title_original": "Episode title",
+            "author_original": "Speaker",
+            "album_original": "Series",
+            "description_original": "Summary",
+            "duration_seconds": 42.5,
+            "bitrate": 192000,
+            "sample_rate": 48000,
+            "channels": 2,
+        }
+
+    def test_read_audio_metadata_returns_defaults_on_parser_failure(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        def fail(path: str):
+            raise ValueError(f"invalid media: {path}")
+
+        monkeypatch.setattr(scanner, "MutagenFile", fail)
+        metadata = scanner.read_audio_metadata(tmp_path / "broken.mp3")
+
+        assert set(metadata.values()) == {None}
+
+    def test_extract_embedded_cover_replaces_old_managed_cover(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        cover_dir = tmp_path / "covers"
+        cover_dir.mkdir()
+        old_cover = cover_dir / "audio_7.jpg"
+        old_cover.write_bytes(b"old")
+
+        class Picture:
+            data = b"new-png-cover"
+            mime = "image/png"
+
+        class Audio:
+            tags = {"APIC:front": Picture()}
+
+        monkeypatch.setattr(scanner, "COVERS_DIR", cover_dir)
+        monkeypatch.setattr(scanner, "MutagenFile", lambda path: Audio())
+
+        extracted = scanner.extract_embedded_cover(tmp_path / "audio.mp3", 7)
+        expected_path = cover_dir / "audio_7.png"
+        assert extracted == {
+            "cover_path": str(expected_path),
+            "cover_source": "embedded",
+        }
+        assert expected_path.read_bytes() == b"new-png-cover"
+        assert not old_cover.exists()
+
+    def test_cover_storage_rejects_empty_and_oversized_data(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(scanner, "COVERS_DIR", tmp_path / "covers")
+        monkeypatch.setattr(scanner, "MAX_COVER_BYTES", 4)
+
+        assert scanner._save_cover_bytes(1, b"", "image/jpeg") is None
+        assert scanner._save_cover_bytes(1, b"12345", "image/jpeg") is None
+        assert not (tmp_path / "covers").exists()

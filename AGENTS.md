@@ -193,14 +193,19 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 
 - Backend tests must use temporary databases, media roots, covers, logs, and
   token files. Never point automated tests at `~/.local_audio_library/`.
-- API integration tests that use `tests.api_test_support` must import it before
-  application modules that initialize runtime paths; this keeps module-level
-  paths inside the temporary test home.
+- `backend/tests/conftest.py` establishes a process-wide temporary home before
+  test collection. Do not bypass this isolation when creating alternate test
+  entry points; API tests should also use `tests.api_test_support` for their
+  temporary database, token, and dependency overrides.
 - Backend coverage uses branch coverage over `backend/app`. CI enforces a 64%
   minimum; do not lower the threshold to accommodate untested changes.
 - Keep frontend Vitest tests colocated as `*.test.ts` or `*.test.tsx`. Prefer
   Vitest for API/auth, pure helpers, hooks, storage, and deterministic component
   behavior.
+- Frontend CI runs V8 coverage with minimum global thresholds of 10% statements,
+  8% branches, 10% functions, and 10% lines. Treat these as a ratcheting floor;
+  review coverage in changed modules rather than optimizing only the global
+  number.
 - Use Playwright under `frontend/tests/visual/` for browser workflows, keyboard
   and focus behavior, responsive layout, and screenshots. Mock local API calls
   unless the test is explicitly designed as a real-backend integration test.

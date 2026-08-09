@@ -169,6 +169,73 @@ class TestMediaPlaylistExportApi(ApiIntegrationTest):
                 select(Transcript).where(Transcript.audio_id == self.first.id)
             ).all() == []
 
+    def test_audio_delete_can_remove_the_managed_media_file(self):
+        path = self.library / "second.wav"
+        assert path.exists()
+
+        deleted = self.client.request(
+            "DELETE",
+            f"/audio-items/{self.second.id}?delete_file=true",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert deleted.status_code == 200, deleted.text
+        assert not path.exists()
+
+    def test_ai_suggestions_skip_invalid_newer_payloads_and_keep_defaults(self):
+        with Session(self.engine) as session:
+            first = session.get(AudioItem, self.first.id)
+            second = session.get(AudioItem, self.second.id)
+            second.description_ai = "Existing description"
+            second.language = "en"
+            session.add_all([first, second])
+            session.add_all(
+                [
+                    AITask(
+                        audio_id=self.first.id,
+                        task_type="analyze",
+                        status="done",
+                        output_payload=json.dumps(
+                            {
+                                "description": "Useful summary",
+                                "tags": [" topic ", "", 3],
+                                "language": "zh",
+                            }
+                        ),
+                        created_at="2026-08-10T00:00:00Z",
+                    ),
+                    AITask(
+                        audio_id=self.first.id,
+                        task_type="analyze",
+                        status="done",
+                        output_payload=json.dumps({"tags": "not-a-list"}),
+                        created_at="2026-08-10T01:00:00Z",
+                    ),
+                ]
+            )
+            session.commit()
+
+        suggestions = self.client.get(
+            f"/audio-items/{self.first.id}/ai-suggestions",
+            headers=self.auth_headers(),
+        )
+        assert suggestions.status_code == 200, suggestions.text
+        assert suggestions.json()["description"] == "Useful summary"
+        assert suggestions.json()["tags"] == ["topic", "3"]
+        assert suggestions.json()["language"] == "zh"
+
+        defaults = self.client.get(
+            f"/audio-items/{self.second.id}/ai-suggestions",
+            headers=self.auth_headers(),
+        )
+        assert defaults.status_code == 200, defaults.text
+        assert defaults.json() == {
+            "task_id": None,
+            "description": "Existing description",
+            "tags": [],
+            "language": "en",
+            "raw_content": None,
+        }
+
     def test_playlist_reorder_filter_remove_and_export(self):
         headers = self.auth_headers(include_client=True)
         created = self.client.post(

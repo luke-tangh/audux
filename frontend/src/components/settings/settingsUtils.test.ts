@@ -1,0 +1,32 @@
+import { describe, expect, it } from "vitest";
+
+import type { ScanTask } from "../../types";
+import { scanProgress, terminalStatus } from "./settingsUtils";
+
+function scanTask(totalFiles: number, processedFiles: number): ScanTask {
+  return {
+    id: 1,
+    root_id: 1,
+    status: "running",
+    total_files: totalFiles,
+    processed_files: processedFiles,
+    imported: 0,
+    updated: 0,
+    missing: 0,
+    created_at: "2026-08-10T00:00:00Z",
+    updated_at: "2026-08-10T00:00:00Z"
+  };
+}
+
+describe("settings utilities", () => {
+  it("computes rounded scan progress and handles an unknown total", () => {
+    expect(scanProgress(scanTask(0, 0))).toBe(0);
+    expect(scanProgress(scanTask(3, 2))).toBe(67);
+  });
+
+  it("classifies only terminal task states", () => {
+    expect(["done", "failed", "canceled"].every(terminalStatus)).toBe(true);
+    expect(terminalStatus("running")).toBe(false);
+    expect(terminalStatus("cancel_requested")).toBe(false);
+  });
+});
