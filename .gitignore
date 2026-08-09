@@ -1,3 +1,6 @@
 repomix-output.*
 apply.py
 .venv/
+.coverage
+coverage.xml
+htmlcov/

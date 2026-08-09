@@ -329,7 +329,25 @@ cd backend
 uv run --locked --group test python -m pytest tests
 ```
 
+生成包含分支覆盖率的报告：
+
+```bash
+cd backend
+uv run --locked --group test python -m pytest tests \
+  --cov=app --cov-report=term-missing:skip-covered --cov-report=xml
+```
+
 ## 构建前端
+
+前端逻辑测试使用 Vitest：
+
+```bash
+cd frontend
+npm test
+npm run test:coverage
+```
+
+类型检查和生产构建：
 
 ```bash
 cd frontend

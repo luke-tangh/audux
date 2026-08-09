@@ -440,6 +440,7 @@ def delete_audio_item(
         ).all():
             session.delete(seg)
 
+        session.flush()
         session.delete(transcript)
 
     if item.cover_path:
@@ -450,6 +451,9 @@ def delete_audio_item(
         {"audio_id": audio_id},
     )
 
+    # These models do not declare ORM relationships, so SQLAlchemy cannot infer
+    # the child-before-parent delete order from an in-memory relationship graph.
+    session.flush()
     session.delete(item)
     session.commit()
 

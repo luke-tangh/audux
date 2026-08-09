@@ -37,7 +37,13 @@ jobs:
         run: uv sync --locked --group test
 
       - name: Run backend tests
-        run: uv run --locked --group test python -m pytest tests
+        run: >-
+          uv run --locked --group test python -m pytest tests
+          --cov=app
+          --cov-branch
+          --cov-report=term-missing:skip-covered
+          --cov-report=xml
+          --cov-fail-under=64
 
   frontend-build:
     name: Frontend typecheck and build
@@ -63,6 +69,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
 
       - name: Build frontend
         run: npm run build

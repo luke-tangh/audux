@@ -5,14 +5,14 @@ import type { AudioItem } from "../../types";
 import { useDialog } from "../../components/dialog/UnifiedDialog";
 import type { ToastType } from "../useToast";
 import { useTranslation } from "react-i18next";
+import {
+  MAX_PLAYBACK_QUEUE_SIZE,
+  readPlaybackSession,
+  restoredCurrentIndex,
+  writePlaybackSession
+} from "./playbackSession";
 
 type Notify = (message: string, type?: ToastType) => void;
-
-type PlaybackSession = {
-  version: 1;
-  audio_ids: number[];
-  current_audio_id: number | null;
-};
 
 type UsePlaybackQueueParams = {
   audioItems: AudioItem[];
@@ -25,74 +25,6 @@ type UsePlaybackQueueParams = {
 };
 
 export const PLAYBACK_SESSION_STORAGE_KEY = "local-audio-library-playback-session";
-const MAX_PLAYBACK_QUEUE_SIZE = 500;
-
-function readPlaybackSession(): PlaybackSession | null {
-  try {
-    const raw = window.localStorage.getItem(PLAYBACK_SESSION_STORAGE_KEY);
-    if (!raw) return null;
-
-    const value = JSON.parse(raw) as Partial<PlaybackSession>;
-    if (value.version !== 1 || !Array.isArray(value.audio_ids)) return null;
-
-    const audioIds = value.audio_ids.filter(
-      (audioId): audioId is number => Number.isInteger(audioId) && audioId > 0
-    ).slice(0, MAX_PLAYBACK_QUEUE_SIZE);
-    const currentAudioId =
-      Number.isInteger(value.current_audio_id) && Number(value.current_audio_id) > 0
-        ? Number(value.current_audio_id)
-        : null;
-
-    return {
-      version: 1,
-      audio_ids: audioIds,
-      current_audio_id: currentAudioId
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writePlaybackSession(queue: AudioItem[], currentAudioId: number | null) {
-  try {
-    if (queue.length === 0) {
-      window.localStorage.removeItem(PLAYBACK_SESSION_STORAGE_KEY);
-      return;
-    }
-
-    const session: PlaybackSession = {
-      version: 1,
-      audio_ids: queue.map((item) => item.id),
-      current_audio_id: currentAudioId
-    };
-    window.localStorage.setItem(PLAYBACK_SESSION_STORAGE_KEY, JSON.stringify(session));
-  } catch (error) {
-    console.error("Failed to persist playback session", error);
-  }
-}
-
-function restoredCurrentIndex(
-  storedIds: number[],
-  currentAudioId: number | null,
-  resolved: AudioItem[]
-): number {
-  if (currentAudioId === null || resolved.length === 0) return -1;
-
-  const exactIndex = resolved.findIndex((item) => item.id === currentAudioId);
-  if (exactIndex >= 0) return exactIndex;
-
-  const storedIndex = storedIds.indexOf(currentAudioId);
-  if (storedIndex < 0) return -1;
-
-  const resolvedIds = new Set(resolved.map((item) => item.id));
-  const fallbackId =
-    storedIds.slice(storedIndex + 1).find((audioId) => resolvedIds.has(audioId)) ??
-    [...storedIds.slice(0, storedIndex)].reverse().find((audioId) => resolvedIds.has(audioId));
-
-  return fallbackId === undefined
-    ? -1
-    : resolved.findIndex((item) => item.id === fallbackId);
-}
 
 export function usePlaybackQueue({
   audioItems,
@@ -119,7 +51,10 @@ export function usePlaybackQueue({
   playingRef.current = playing;
 
   useEffect(() => {
-    const stored = readPlaybackSession();
+    const stored = readPlaybackSession(
+      window.localStorage,
+      PLAYBACK_SESSION_STORAGE_KEY
+    );
     let canceled = false;
 
     if (!stored || stored.audio_ids.length === 0) {
@@ -230,7 +165,12 @@ export function usePlaybackQueue({
       return;
     }
 
-    writePlaybackSession(playbackQueue, playing?.id ?? null);
+    writePlaybackSession(
+      window.localStorage,
+      PLAYBACK_SESSION_STORAGE_KEY,
+      playbackQueue,
+      playing?.id ?? null
+    );
   }, [sessionHydrated, playbackQueue, playing?.id]);
 
   function handlePlaybackPositionSaved(audioId: number, position: number) {

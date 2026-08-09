@@ -1,6 +1,7 @@
 dist
 node_modules
 test-results
+coverage
 src-tauri/.cargo
 src-tauri/binaries
 src-tauri/target

@@ -192,28 +192,28 @@ export async function ensureLocalApiToken(): Promise<string> {
     return localApiTokenPromise;
   }
 
-  const base = await resolveApiBase();
+  localApiTokenPromise = (async () => {
+    const base = await resolveApiBase();
+    const resp = await fetch(`${base}/auth/token`, {
+      headers: {
+        [LOCAL_AUDIO_CLIENT_HEADER]: LOCAL_AUDIO_CLIENT_ID
+      }
+    });
 
-  localApiTokenPromise = fetch(`${base}/auth/token`, {
-    headers: {
-      [LOCAL_AUDIO_CLIENT_HEADER]: LOCAL_AUDIO_CLIENT_ID
+    if (!resp.ok) {
+      throw await parseErrorResponse(resp);
     }
-  })
-    .then(async (resp) => {
-      if (!resp.ok) {
-        throw await parseErrorResponse(resp);
-      }
 
-      const json = await resp.json();
-      const token = String(json.token || "").trim();
+    const json = await resp.json();
+    const token = String(json.token || "").trim();
 
-      if (!token) {
-        throw new Error("Local API token is empty");
-      }
+    if (!token) {
+      throw new Error("Local API token is empty");
+    }
 
-      localApiToken = token;
-      return token;
-    })
+    localApiToken = token;
+    return token;
+  })()
     .finally(() => {
       localApiTokenPromise = null;
     });
@@ -223,7 +223,6 @@ export async function ensureLocalApiToken(): Promise<string> {
 
 function resetLocalApiToken() {
   localApiToken = null;
-  localApiTokenPromise = null;
 }
 
 function authQuery(): string {

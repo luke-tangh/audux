@@ -16,6 +16,7 @@ cd backend
 uv run --locked --group test python -m pytest tests
 
 cd ../frontend
+npm test
 npm run build
 npm run test:visual
 
