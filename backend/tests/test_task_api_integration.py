@@ -125,6 +125,25 @@ class TestTaskApiLifecycle(ApiIntegrationTest):
             assert stored_audio.transcript_status == 'cancel_requested'
             assert stored_audio.ai_status == 'pending'
 
+    def test_analyze_prompt_respects_independent_output_language(self):
+        context = {
+            "title": "Example",
+            "author": "Author",
+            "album": "Album",
+            "existing_description": "",
+            "duration_seconds": 60,
+            "language": "en",
+        }
+
+        english_prompt = tasks._build_analyze_prompt(context, "Hello", "en")
+        chinese_prompt = tasks._build_analyze_prompt(context, "Hello", "zh-CN")
+        automatic_prompt = tasks._build_analyze_prompt(context, "Hello", "auto")
+
+        assert "Use English for description and tags" in english_prompt
+        assert "description 和 tags 使用简体中文" in chinese_prompt
+        assert "主要语言" in automatic_prompt
+        assert '"language": "ISO 639-1 code"' in english_prompt
+
     def test_local_transcribe_requires_optional_whisper_component(self, monkeypatch):
         monkeypatch.setattr(
             transcript_service,
@@ -138,7 +157,7 @@ class TestTaskApiLifecycle(ApiIntegrationTest):
         )
 
         assert response.status_code == 409
-        assert "Whisper component is not installed" in response.json()["detail"]
+        assert response.json()["detail"]["code"] == "asr.component_missing"
 
     def test_whisper_component_api_is_protected_and_starts_install(self, monkeypatch):
         status = {
@@ -262,6 +281,8 @@ class TestInterruptedTaskRecovery(ApiIntegrationTest):
             ]
             assert [row.status for row in recovered_tasks] == ['failed', 'canceled', 'done', 'done']
             assert 'backend restart' in recovered_tasks[0].error_message
+            assert recovered_tasks[0].error_code == 'task.interrupted'
+            assert recovered_tasks[0].error_params == '{}'
             assert recovered_tasks[0].finished_at is not None
             assert recovered_tasks[1].finished_at is not None
 

@@ -83,7 +83,7 @@ async def local_request_guard(request: Request, call_next):
         if origin and not _is_allowed_request_origin(origin):
             return JSONResponse(
                 status_code=403,
-                content={"detail": "Forbidden origin"},
+                content={"detail": {"code": "security.forbidden_origin", "params": {}, "fallback": "Forbidden origin"}},
             )
 
         if path == "/auth/token":
@@ -91,7 +91,7 @@ async def local_request_guard(request: Request, call_next):
             if client_header != LOCAL_CLIENT_HEADER_VALUE:
                 return JSONResponse(
                     status_code=403,
-                    content={"detail": "Missing local client header"},
+                    content={"detail": {"code": "security.missing_client", "params": {}, "fallback": "Missing local client header"}},
                 )
 
         if request.method.upper() in UNSAFE_METHODS:
@@ -99,14 +99,14 @@ async def local_request_guard(request: Request, call_next):
             if client_header != LOCAL_CLIENT_HEADER_VALUE:
                 return JSONResponse(
                     status_code=403,
-                    content={"detail": "Missing local client header"},
+                    content={"detail": {"code": "security.missing_client", "params": {}, "fallback": "Missing local client header"}},
                 )
 
         if not _is_token_exempt_path(path):
             if not _request_has_valid_local_token(request):
                 return JSONResponse(
                     status_code=401,
-                    content={"detail": "Missing or invalid local API token"},
+                    content={"detail": {"code": "security.invalid_token", "params": {}, "fallback": "Missing or invalid local API token"}},
                 )
 
     return await call_next(request)

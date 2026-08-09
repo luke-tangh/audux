@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import type { AudioItem } from "../../types";
 import { useDialog } from "../dialog/UnifiedDialog";
+import { useTranslation } from "react-i18next";
 
 type UsePlayerControllerParams = {
   audio: AudioItem | null;
@@ -32,6 +33,7 @@ export function usePlayerController({
   onPositionSaved
 }: UsePlayerControllerParams) {
   const dialog = useDialog();
+  const { t } = useTranslation();
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastSavedRef = useRef<{ audioId: number; position: number } | null>(null);
@@ -111,11 +113,10 @@ export function usePlayerController({
 
       if (shouldAutoPlay && shouldPromptRestart(activeAudio)) {
         const restart = await dialog.confirm({
-          title: "从头播放？",
-          message:
-            "上次播放位置已接近结尾，是否从头播放？\n\n选择「从头播放」会把记忆位置重置为 0；选择「继续播放」会从上次位置继续。",
-          confirmLabel: "从头播放",
-          cancelLabel: "继续播放",
+          title: t("player.restartTitle"),
+          message: t("player.restartMessage"),
+          confirmLabel: t("player.restartConfirm"),
+          cancelLabel: t("player.restartCancel"),
           tone: "warning"
         });
 

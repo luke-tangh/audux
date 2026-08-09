@@ -2,6 +2,7 @@ import { api } from "../../api";
 import type { AudioItem } from "../../types";
 import { displayAuthor, displayTitle, formatDuration } from "../../types";
 import { Button, MaterialIcon, StatusPill } from "../ui";
+import { useTranslation } from "react-i18next";
 
 type DetailHeroProps = {
   audio: AudioItem;
@@ -24,6 +25,7 @@ export default function DetailHero({
   onAnalyze,
   onUploadCover
 }: DetailHeroProps) {
+  const { t } = useTranslation();
   return (
     <div className="inspector-hero">
       <div className="inspector-cover">
@@ -52,38 +54,38 @@ export default function DetailHero({
 
         <div className="detail-meta-strip">
           <span>{audio.file_ext || "audio"}</span>
-          <span>{audio.is_missing ? "文件缺失" : "文件可用"}</span>
-          <StatusPill label="转写" value={audio.transcript_status} />
-          <StatusPill label="AI" value={audio.ai_status} />
+          <span>{audio.is_missing ? t("detail.hero.missing") : t("detail.hero.available")}</span>
+          <StatusPill label={t("detail.hero.transcript")} value={audio.transcript_status} />
+          <StatusPill label={t("common.technical.ai")} value={audio.ai_status} />
         </div>
       </div>
 
       <div className="inspector-actions">
         <Button variant="filled" onClick={() => onPlay(audio)} disabled={audio.is_missing}>
-          播放
+          {t("detail.hero.play")}
         </Button>
         <Button
           variant="tonal"
           onClick={() => onPlayNext(audio)}
           disabled={audio.is_missing}
         >
-          下一首播放
+          {t("detail.hero.playNext")}
         </Button>
         <Button
           variant="outlined"
           onClick={() => onAddToQueue(audio)}
           disabled={audio.is_missing}
         >
-          加入队列
+          {t("detail.hero.addQueue")}
         </Button>
         <Button variant="text" onClick={onTranscribe}>
-          转写
+          {t("detail.hero.transcript")}
         </Button>
         <Button variant="text" onClick={onAnalyze}>
-          AI 分析
+          {t("detail.hero.analyze")}
         </Button>
         <label className="upload-button">
-          封面
+          {t("detail.hero.cover")}
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"

@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { KeyboardEvent, MutableRefObject, ReactNode } from "react";
 import { Button, MaterialIcon } from "../ui";
+import { useTranslation } from "react-i18next";
 
 export type UnifiedDialogTone = "default" | "danger" | "warning" | "privacy" | "success";
 
@@ -72,6 +73,7 @@ function toneIconName(tone: UnifiedDialogTone) {
 }
 
 export function DialogProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const idRef = useRef(1);
   const queueRef = useRef<ActiveDialog[]>([]);
   const dialogRef = useRef<ActiveDialog | null>(null);
@@ -218,7 +220,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     const trimmed = value.trim();
 
     if (dialog.options.required && !trimmed) {
-      setInputError("此项为必填");
+      setInputError(t("common.dialog.required"));
       return;
     }
 
@@ -305,8 +307,8 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     const showCancel = dialog.kind !== "alert";
     const confirmLabel =
       options.confirmLabel ||
-      (dialog.kind === "alert" ? "知道了" : dialog.kind === "prompt" ? "确认" : "确认");
-    const cancelLabel = options.cancelLabel || "取消";
+      (dialog.kind === "alert" ? t("common.dialog.acknowledge") : t("common.actions.confirm"));
+    const cancelLabel = options.cancelLabel || t("common.actions.cancel");
     const confirmVariant =
       options.destructive || tone === "danger" ? "danger" : "filled";
 
@@ -353,7 +355,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                     value={inputValue}
                     placeholder={dialog.options.placeholder}
                     aria-label={
-                      dialog.options.inputLabel || dialog.options.placeholder || "输入内容"
+                      dialog.options.inputLabel || dialog.options.placeholder || t("common.dialog.input")
                     }
                     aria-invalid={Boolean(inputError)}
                     onChange={(event) => {
@@ -368,7 +370,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                     value={inputValue}
                     placeholder={dialog.options.placeholder}
                     aria-label={
-                      dialog.options.inputLabel || dialog.options.placeholder || "输入内容"
+                      dialog.options.inputLabel || dialog.options.placeholder || t("common.dialog.input")
                     }
                     aria-invalid={Boolean(inputError)}
                     onChange={(event) => {

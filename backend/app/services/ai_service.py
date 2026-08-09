@@ -79,6 +79,7 @@ def enqueue_analyze(session: Session, audio_id: int) -> dict:
     return {
         **task.model_dump(),
         "privacy_warning": warning,
+        "privacy_warning_code": "llm.remote" if warning else None,
     }
 
 
@@ -115,6 +116,7 @@ async def test_llm_config(payload) -> dict:
             "content": content,
             "is_local_endpoint": warning is None,
             "privacy_warning": warning,
+            "privacy_warning_code": "llm.remote" if warning else None,
         }
 
     except Exception as e:
@@ -203,6 +205,8 @@ def retry_ai_task(session: Session, task_id: int) -> AITask:
     task.status = "pending"
     task.retry_count += 1
     task.error_message = None
+    task.error_code = None
+    task.error_params = None
     task.output_payload = None
     task.started_at = None
     task.finished_at = None

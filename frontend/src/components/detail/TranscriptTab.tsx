@@ -7,6 +7,7 @@ import type {
 import { formatDuration } from "../../types";
 import { useDialog } from "../dialog/UnifiedDialog";
 import { Button, PanelCard, TextareaField } from "../ui";
+import { useTranslation } from "react-i18next";
 
 type SaveOutcome = "saved" | "conflict" | "error";
 type EditMode = "segments" | "full" | null;
@@ -43,6 +44,7 @@ export default function TranscriptTab({
   canEdit
 }: TranscriptTabProps) {
   const dialog = useDialog();
+  const { t } = useTranslation();
   const [editMode, setEditMode] = useState<EditMode>(null);
   const [segmentDrafts, setSegmentDrafts] = useState<Record<number, string>>({});
   const [baseSegmentTexts, setBaseSegmentTexts] = useState<Record<number, string>>({});
@@ -126,10 +128,10 @@ export default function TranscriptTab({
   async function cancelEditing() {
     if (isDirty) {
       const discard = await dialog.confirm({
-        title: "放弃未保存修改？",
-        message: "当前 Transcript 草稿尚未保存，放弃后无法恢复。",
-        confirmLabel: "放弃修改",
-        cancelLabel: "继续编辑",
+        title: t("detail.transcript.discardTitle"),
+        message: t("detail.transcript.discardMessage"),
+        confirmLabel: t("detail.transcript.discardConfirm"),
+        cancelLabel: t("detail.transcript.keepEditing"),
         tone: "warning"
       });
       if (!discard) return;
@@ -174,15 +176,15 @@ export default function TranscriptTab({
   }
 
   const editStatus = hasConflict
-    ? "服务器版本已更新，当前草稿未保存"
+    ? t("detail.transcript.conflictStatus")
     : isDirty
-      ? "有未保存修改"
-      : "尚未修改";
+      ? t("detail.transcript.dirtyStatus")
+      : t("detail.transcript.cleanStatus");
 
   return (
     <div className="inspector-section-stack">
       <PanelCard
-        title="Transcript"
+        title={t("common.technical.transcript")}
         actions={
           transcript ? (
             <div className="compact-actions">
@@ -193,7 +195,7 @@ export default function TranscriptTab({
                   onClick={() => beginEditing("segments")}
                   disabled={!canEdit}
                 >
-                  编辑分段
+                  {t("detail.transcript.editSegments")}
                 </Button>
               )}
               {editMode === null && (
@@ -203,7 +205,7 @@ export default function TranscriptTab({
                   onClick={() => beginEditing("full")}
                   disabled={!canEdit}
                 >
-                  {transcript.segments.length > 0 ? "替换全文" : "编辑全文"}
+                  {transcript.segments.length > 0 ? t("detail.transcript.replaceFull") : t("detail.transcript.editFull")}
                 </Button>
               )}
               <Button variant="outlined" size="sm" onClick={() => onExportTranscript("txt")}>
@@ -221,9 +223,9 @@ export default function TranscriptTab({
       >
         {!transcript && (
           <div className="transcript-empty">
-            <p>暂无 transcript。</p>
+            <p>{t("detail.transcript.empty")}</p>
             <Button variant="filled" onClick={onTranscribe}>
-              开始转写
+              {t("detail.transcript.start")}
             </Button>
           </div>
         )}
@@ -235,16 +237,16 @@ export default function TranscriptTab({
               aria-live="polite"
             >
               <span>{editStatus}</span>
-              {!canEdit && <span>转写任务进行中，暂时无法保存。</span>}
+              {!canEdit && <span>{t("detail.transcript.activeTask")}</span>}
             </div>
 
             {hasConflict && (
               <div className="transcript-conflict" role="alert">
                 <p>
-                  服务器上的 Transcript 已在你编辑期间更新。为避免覆盖新内容，请加载最新版本后重新检查。
+                  {t("detail.transcript.conflictMessage")}
                 </p>
                 <Button variant="outlined" size="sm" onClick={loadLatestVersion}>
-                  放弃草稿并加载最新版本
+                  {t("detail.transcript.loadLatest")}
                 </Button>
               </div>
             )}
@@ -256,20 +258,20 @@ export default function TranscriptTab({
                     <Button
                       preserveChildren
                       type="button"
-                      aria-label={`从 ${formatDuration(segment.start_seconds)} 开始播放`}
+                      aria-label={t("detail.transcript.playFrom", { time: formatDuration(segment.start_seconds) })}
                       onClick={() => onJumpToSegment(segment.start_seconds)}
                     >
                       {formatDuration(segment.start_seconds)}
                     </Button>
                     <TextareaField
-                      label={`第 ${segment.segment_index + 1} 段文本`}
+                      label={t("detail.transcript.segmentLabel", { number: segment.segment_index + 1 })}
                       value={segmentDrafts[segment.id] ?? segment.text}
                       rows={3}
                       wide
                       disabled={saving || !canEdit || hasConflict}
                       errorText={
                         !(segmentDrafts[segment.id] ?? segment.text).trim()
-                          ? "分段文本不能为空"
+                          ? t("detail.transcript.segmentRequired")
                           : undefined
                       }
                       onValueChange={(value) => {
@@ -286,15 +288,15 @@ export default function TranscriptTab({
 
             {editMode === "full" && (
               <TextareaField
-                label="Transcript 全文（高级替换）"
+                label={t("detail.transcript.fullLabel")}
                 value={fullDraft}
                 rows={18}
                 wide
                 disabled={saving || !canEdit || hasConflict}
                 helperText={
                   transcript.segments.length > 0
-                    ? "这是高级操作：保存后会清除现有时间轴分段。优先使用“编辑分段”保留时间轴。"
-                    : "修改会同步更新全文搜索索引。"
+                    ? t("detail.transcript.fullWarning")
+                    : t("detail.transcript.fullHelper")
                 }
                 onValueChange={setFullDraft}
               />
@@ -316,17 +318,17 @@ export default function TranscriptTab({
                 }
               >
                 {saving
-                  ? "保存中…"
+                  ? t("detail.transcript.saving")
                   : editMode === "segments"
-                    ? "保存分段修订"
-                    : "保存全文替换"}
+                    ? t("detail.transcript.saveSegments")
+                    : t("detail.transcript.saveFull")}
               </Button>
               <Button
                 variant="text"
                 onClick={() => void cancelEditing()}
                 disabled={saving}
               >
-                取消
+                {t("common.actions.cancel")}
               </Button>
             </div>
           </div>
@@ -340,7 +342,7 @@ export default function TranscriptTab({
                   <Button
                     preserveChildren
                     type="button"
-                    aria-label={`从 ${formatDuration(segment.start_seconds)} 开始播放`}
+                    aria-label={t("detail.transcript.playFrom", { time: formatDuration(segment.start_seconds) })}
                     onClick={() => onJumpToSegment(segment.start_seconds)}
                   >
                     {formatDuration(segment.start_seconds)}

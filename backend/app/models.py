@@ -139,6 +139,8 @@ class AITask(SQLModel, table=True):
     input_payload: Optional[str] = None
     output_payload: Optional[str] = None
     error_message: Optional[str] = None
+    error_code: Optional[str] = None
+    error_params: Optional[str] = None
     retry_count: int = 0
     created_at: str = Field(default_factory=now_iso)
     started_at: Optional[str] = None
@@ -170,6 +172,8 @@ class ScanTask(SQLModel, table=True):
     missing: int = 0
 
     error_message: Optional[str] = None
+    error_code: Optional[str] = None
+    error_params: Optional[str] = None
 
     created_at: str = Field(default_factory=now_iso)
     started_at: Optional[str] = None

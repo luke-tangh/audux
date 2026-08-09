@@ -20,6 +20,7 @@ import type {
   TranscriptSegmentEdit,
   WhisperComponentStatus
 } from "./types";
+import i18n from "./i18n";
 
 export const DEFAULT_API_BASE = "http://127.0.0.1:8765";
 const BROWSER_LITE_MODE = import.meta.env.VITE_BROWSER_LITE === "true";
@@ -87,6 +88,8 @@ export class ApiError extends Error {
   status: number;
   detail?: unknown;
   raw?: string;
+  code?: string;
+  params?: Record<string, unknown>;
 
   constructor(message: string, status: number, detail?: unknown, raw?: string) {
     super(message);
@@ -94,6 +97,10 @@ export class ApiError extends Error {
     this.status = status;
     this.detail = detail;
     this.raw = raw;
+    if (isJsonObject(detail) && typeof detail.code === "string") {
+      this.code = detail.code;
+      this.params = isJsonObject(detail.params) ? detail.params : undefined;
+    }
   }
 }
 
@@ -110,6 +117,17 @@ function readableErrorFromJson(value: unknown): string {
     } catch {
       return String(value);
     }
+  }
+
+  if (isJsonObject(value.detail) && typeof value.detail.code === "string") {
+    const fallback = typeof value.detail.fallback === "string"
+      ? value.detail.fallback
+      : `HTTP error: ${value.detail.code}`;
+    const params = isJsonObject(value.detail.params) ? value.detail.params : {};
+    return i18n.t(`errors.${value.detail.code}`, {
+      ...params,
+      defaultValue: fallback
+    });
   }
 
   if (typeof value.detail === "string") {
@@ -316,7 +334,7 @@ export function endpointPrivacyWarning(endpoint: string): string | null {
     return null;
   }
 
-  return "当前 LLM endpoint 不是 localhost / 127.0.0.1。AI 分析会把音频 metadata 和 transcript 发送到该地址。请确认这是你信任的本地或内网模型服务。";
+  return i18n.t("warnings.llm.remote");
 }
 
 export function asrEndpointPrivacyWarning(endpoint: string): string | null {
@@ -326,7 +344,7 @@ export function asrEndpointPrivacyWarning(endpoint: string): string | null {
     return null;
   }
 
-  return "当前 ASR endpoint 不是 localhost / 127.0.0.1。转写会把完整音频文件发送到该地址。请确认这是你信任的本地或内网模型服务。";
+  return i18n.t("warnings.asr.remote");
 }
 
 export const api = {

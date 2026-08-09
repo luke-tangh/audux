@@ -11,6 +11,7 @@ from .models import AudioItem, LibraryRoot, ScanTask, Setting, now_iso
 from .search import rebuild_audio_search_index
 from .logger import get_logger
 from .time_utils import utc_timestamp_iso
+from .services.common import error_code_for_detail
 
 logger = get_logger(__name__)
 
@@ -1013,6 +1014,8 @@ def recover_interrupted_scan_tasks() -> int:
             else:
                 task.status = "failed"
                 task.error_message = task.error_message or "Scan interrupted by backend restart"
+                task.error_code = task.error_code or "scan.interrupted"
+                task.error_params = task.error_params or "{}"
 
             task.finished_at = task.finished_at or now_iso()
             task.updated_at = now_iso()
@@ -1038,6 +1041,8 @@ def scan_library_root_task(root_id: int, scan_task_id: int):
             if task:
                 task.status = "failed"
                 task.error_message = str(e)
+                task.error_code = error_code_for_detail(str(e))
+                task.error_params = "{}"
                 task.finished_at = now_iso()
                 task.updated_at = now_iso()
                 session.add(task)

@@ -1,5 +1,6 @@
 import { Button, MaterialIcon } from "./ui";
 import type { Playlist, Tag } from "../types";
+import { useTranslation } from "react-i18next";
 
 type ViewMode =
   | "library"
@@ -23,6 +24,7 @@ type Props = {
 };
 
 export default function Sidebar(props: Props) {
+  const { t } = useTranslation();
   function openView(view: ViewMode) {
     props.setView(view);
     props.setSelectedPlaylistId(null);
@@ -54,7 +56,7 @@ export default function Sidebar(props: Props) {
 
         <div className="brand-copy">
           <h2>Local Audio</h2>
-          <p>私人音频知识库</p>
+          <p>{t("navigation.brandSubtitle")}</p>
         </div>
       </div>
 
@@ -71,8 +73,8 @@ export default function Sidebar(props: Props) {
         >
           <span className="nav-symbol"><MaterialIcon name="home" size={22} /></span>
           <span>
-            <strong>资料库</strong>
-            <em>全部音频</em>
+            <strong>{t("navigation.library")}</strong>
+            <em>{t("navigation.allAudio")}</em>
           </span>
         </Button>
 
@@ -84,8 +86,8 @@ export default function Sidebar(props: Props) {
         >
           <span className="nav-symbol"><MaterialIcon name="star" size={22} /></span>
           <span>
-            <strong>收藏</strong>
-            <em>常听内容</em>
+            <strong>{t("navigation.favorites")}</strong>
+            <em>{t("navigation.frequent")}</em>
           </span>
         </Button>
 
@@ -97,8 +99,8 @@ export default function Sidebar(props: Props) {
         >
           <span className="nav-symbol"><MaterialIcon name="article" size={22} /></span>
           <span>
-            <strong>已转写</strong>
-            <em>可全文检索</em>
+            <strong>{t("navigation.transcribed")}</strong>
+            <em>{t("navigation.searchable")}</em>
           </span>
         </Button>
 
@@ -110,8 +112,8 @@ export default function Sidebar(props: Props) {
         >
           <span className="nav-symbol"><MaterialIcon name="report" size={22} /></span>
           <span>
-            <strong>文件缺失</strong>
-            <em>需要重新定位</em>
+            <strong>{t("navigation.missing")}</strong>
+            <em>{t("navigation.relocate")}</em>
           </span>
         </Button>
 
@@ -123,23 +125,23 @@ export default function Sidebar(props: Props) {
         >
           <span className="nav-symbol"><MaterialIcon name="bolt" size={22} /></span>
           <span>
-            <strong>AI 失败</strong>
-            <em>重试分析</em>
+            <strong>{t("navigation.aiFailed")}</strong>
+            <em>{t("navigation.retryAnalysis")}</em>
           </span>
         </Button>
       </nav>
 
       <div className="sidebar-section">
         <div className="sidebar-section-heading">
-          <h3>播放列表</h3>
+          <h3>{t("navigation.playlists")}</h3>
           <span>{props.playlists.length}</span>
         </div>
 
         {props.playlists.length === 0 && (
           <div className="sidebar-empty">
-            暂无播放列表
+            {t("navigation.noPlaylists")}
             <br />
-            可在设置中创建
+            {t("navigation.createInSettings")}
           </div>
         )}
 
@@ -174,7 +176,7 @@ export default function Sidebar(props: Props) {
 
       <div className="sidebar-section tag-section">
         <div className="sidebar-section-heading">
-          <h3>标签</h3>
+          <h3>{t("navigation.tags")}</h3>
           <span>{props.tags.length}</span>
         </div>
 
@@ -189,7 +191,7 @@ export default function Sidebar(props: Props) {
               props.setSelectedPlaylistId(null);
             }}
           >
-            全部标签
+            {t("navigation.allTags")}
           </Button>
 
           {props.tags.map((tag) => (
@@ -203,7 +205,7 @@ export default function Sidebar(props: Props) {
                 props.setSelectedPlaylistId(null);
                 props.setSelectedTag(tag.name);
               }}
-              title={`查看标签：${tag.name}`}
+              title={t("navigation.viewTag", { name: tag.name })}
             >
               #{tag.name}
             </Button>
@@ -223,7 +225,7 @@ export default function Sidebar(props: Props) {
           }}
         >
           <MaterialIcon name="settings" size={20} />
-          <strong>设置中心</strong>
+          <strong>{t("navigation.settings")}</strong>
         </Button>
       </div>
       </div>

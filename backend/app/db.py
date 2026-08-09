@@ -8,7 +8,7 @@ from .time_utils import utc_now_iso
 
 
 logger = logging.getLogger(__name__)
-CURRENT_SCHEMA_VERSION = 6
+CURRENT_SCHEMA_VERSION = 7
 
 APP_DATA_DIR = Path.home() / ".local_audio_library"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -441,3 +441,14 @@ def run_migrations():
             _mark_migration_applied(
                 conn, 6, "scan_cancel_requested_and_audio_query_indexes"
             )
+
+        if not _migration_applied(conn, 7):
+            if _table_exists(conn, "ai_tasks"):
+                _add_column_if_missing(conn, "ai_tasks", "error_code", "error_code TEXT")
+                _add_column_if_missing(conn, "ai_tasks", "error_params", "error_params TEXT")
+
+            if _table_exists(conn, "scan_tasks"):
+                _add_column_if_missing(conn, "scan_tasks", "error_code", "error_code TEXT")
+                _add_column_if_missing(conn, "scan_tasks", "error_params", "error_params TEXT")
+
+            _mark_migration_applied(conn, 7, "structured_task_errors")

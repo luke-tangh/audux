@@ -1,4 +1,5 @@
 import type { AudioItem, Playlist } from "../../types";
+import type { TFunction } from "i18next";
 import type {
   AudioListParams,
   MissingFilter,
@@ -92,54 +93,55 @@ export function buildPlaylistListParams({
 export function listCopyForView(
   view: ViewMode,
   playlists: Playlist[],
-  selectedPlaylistId: number | null
+  selectedPlaylistId: number | null,
+  t: TFunction
 ): { listTitle: string; listSubtitle: string } {
   const activePlaylist = playlists.find((playlist) => playlist.id === selectedPlaylistId);
 
   if (view === "favorites") {
     return {
-      listTitle: "收藏",
-      listSubtitle: "你标记为常听或重要的音频"
+      listTitle: t("library.views.favoritesTitle"),
+      listSubtitle: t("library.views.favoritesSubtitle")
     };
   }
 
   if (view === "playlist") {
     return {
-      listTitle: activePlaylist ? activePlaylist.name : "播放列表",
-      listSubtitle: activePlaylist?.description || "管理当前播放列表中的音频顺序"
+      listTitle: activePlaylist ? activePlaylist.name : t("library.views.playlistTitle"),
+      listSubtitle: activePlaylist?.description || t("library.views.playlistSubtitle")
     };
   }
 
   if (view === "missingDescription") {
     return {
-      listTitle: "缺少描述",
-      listSubtitle: "需要补充用户描述或 AI 描述的音频"
+      listTitle: t("library.views.missingDescriptionTitle"),
+      listSubtitle: t("library.views.missingDescriptionSubtitle")
     };
   }
 
   if (view === "transcribed") {
     return {
-      listTitle: "已转写",
-      listSubtitle: "已经生成 transcript，可全文搜索和导出的音频"
+      listTitle: t("library.views.transcribedTitle"),
+      listSubtitle: t("library.views.transcribedSubtitle")
     };
   }
 
   if (view === "missing") {
     return {
-      listTitle: "文件缺失",
-      listSubtitle: "数据库中存在，但本地文件路径不可用的音频"
+      listTitle: t("library.views.missingTitle"),
+      listSubtitle: t("library.views.missingSubtitle")
     };
   }
 
   if (view === "aiFailed") {
     return {
-      listTitle: "AI 失败",
-      listSubtitle: "AI 分析失败或需要重新处理的音频"
+      listTitle: t("library.views.aiFailedTitle"),
+      listSubtitle: t("library.views.aiFailedSubtitle")
     };
   }
 
   return {
-    listTitle: "资料库",
-    listSubtitle: "浏览、搜索和整理你的本地音频知识库"
+    listTitle: t("library.views.libraryTitle"),
+    listSubtitle: t("library.views.librarySubtitle")
   };
 }

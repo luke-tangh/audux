@@ -1,5 +1,6 @@
 import { api } from "../../api";
 import { Button, PanelCard } from "../ui";
+import { useTranslation } from "react-i18next";
 
 type LogsSettingsTabProps = {
   logs: string;
@@ -12,24 +13,25 @@ export default function LogsSettingsTab({
   onLoadLogs,
   onReloadBackend
 }: LogsSettingsTabProps) {
+  const { t } = useTranslation();
   return (
     <PanelCard
-      title="日志"
+      title={t("settings.tabs.logs")}
       actions={
         <>
           <Button variant="outlined" onClick={onLoadLogs}>
-            刷新日志
+            {t("settings.logs.refresh")}
           </Button>
           <Button variant="outlined" onClick={() => window.open(api.logsFileUrl(), "_blank")}>
-            下载日志文件
+            {t("settings.logs.download")}
           </Button>
           <Button variant="outlined" onClick={onReloadBackend}>
-            重新检查后端
+            {t("settings.logs.recheck")}
           </Button>
         </>
       }
     >
-      <pre className="log-viewer">{logs || "暂无日志"}</pre>
+      <pre className="log-viewer">{logs || t("settings.logs.empty")}</pre>
     </PanelCard>
   );
 }

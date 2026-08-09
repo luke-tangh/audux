@@ -16,6 +16,7 @@ import { useDebouncedValue } from "./library/useDebouncedValue";
 import { useNavigationData } from "./library/useNavigationData";
 import { usePlaybackQueue } from "./library/usePlaybackQueue";
 import { usePlaylistActions } from "./library/usePlaylistActions";
+import { useTranslation } from "react-i18next";
 import type {
   AudioListParams,
   MissingFilter,
@@ -30,6 +31,7 @@ const AUDIO_PAGE_LIMIT = 120;
 const MAX_BATCH_SELECTION = 500;
 
 export function useLibraryController() {
+  const { t } = useTranslation();
   const [view, setView] = useState<ViewMode>("library");
   const [audioItems, setAudioItems] = useState<AudioItem[]>([]);
   const [audioTotal, setAudioTotal] = useState(0);
@@ -371,7 +373,7 @@ export function useLibraryController() {
       !selectedAudioIds.has(audioId) &&
       selectedAudioIds.size >= MAX_BATCH_SELECTION
     ) {
-      notify(`单次最多选择 ${MAX_BATCH_SELECTION} 个音频。`, "info");
+      notify(t("library.selection.maximum", { count: MAX_BATCH_SELECTION }), "info");
       return;
     }
 
@@ -393,7 +395,7 @@ export function useLibraryController() {
       selectableItems.every((item) => selectedAudioIds.has(item.id));
 
     if (!allSelectableSelected && audioItems.length > MAX_BATCH_SELECTION) {
-      notify(`已选择前 ${MAX_BATCH_SELECTION} 个音频。`, "info");
+      notify(t("library.selection.firstSelected", { count: MAX_BATCH_SELECTION }), "info");
     }
 
     setSelectedAudioIds((current) => {
@@ -445,7 +447,8 @@ export function useLibraryController() {
   const { listTitle, listSubtitle } = listCopyForView(
     view,
     playlists,
-    selectedPlaylistId
+    selectedPlaylistId,
+    t
   );
 
   const hasActiveFilter =

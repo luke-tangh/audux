@@ -366,6 +366,7 @@ def batch_analyze(session: Session, audio_ids: list[int]) -> dict:
         "created": len(created_task_ids),
         "skipped": len(skipped),
         "privacy_warning": warning,
+        "privacy_warning_code": "llm.remote" if warning else None,
         "errors": errors,
         "task_ids": created_task_ids,
     }

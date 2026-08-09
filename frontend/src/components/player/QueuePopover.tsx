@@ -3,6 +3,7 @@ import type { DragEvent, FocusEvent, KeyboardEvent, RefObject } from "react";
 import type { AudioItem } from "../../types";
 import { displayTitle } from "../../types";
 import { Button, MaterialIcon } from "../ui";
+import { useTranslation } from "react-i18next";
 
 const QUEUE_DRAG_TYPE = "application/x-local-audio-queue-index";
 
@@ -27,6 +28,7 @@ export default function QueuePopover({
   onMove,
   onClear
 }: QueuePopoverProps) {
+  const { t } = useTranslation();
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const managedCurrentItemRef = useRef<HTMLElement | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
@@ -140,26 +142,26 @@ export default function QueuePopover({
       id="player-queue-popover"
       className="queue-popover"
       role="dialog"
-      aria-label="播放队列"
+      aria-label={t("player.playQueue")}
       tabIndex={-1}
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
     >
       <div className="queue-popover-header">
-        <strong>播放队列</strong>
+        <strong>{t("player.playQueue")}</strong>
 
         <Button
           preserveChildren
           type="button"
-          aria-label="清空播放队列"
+          aria-label={t("player.clearQueue")}
           onClick={onClear}
           disabled={queue.length === 0}
         >
-          清空
+          {t("player.clear")}
         </Button>
       </div>
 
-      {queue.length === 0 && <div className="queue-empty">空队列</div>}
+      {queue.length === 0 && <div className="queue-empty">{t("player.queueEmpty")}</div>}
 
       {queue.length > 0 && (
         <div className="queue-list" role="list">
@@ -192,8 +194,8 @@ export default function QueuePopover({
                 type="button"
                 className="queue-drag-handle"
                 draggable
-                aria-label={`调整 ${displayTitle(item)} 的队列顺序`}
-                title="拖拽排序；也可使用上下方向键"
+                aria-label={t("player.reorderQueue", { title: displayTitle(item) })}
+                title={t("player.reorderHint")}
                 onDragStart={(event) => handleDragStart(event, index)}
                 onDragEnd={() => {
                   setDraggingIndex(null);
@@ -237,9 +239,9 @@ export default function QueuePopover({
                 preserveChildren
                 type="button"
                 className="queue-remove"
-                aria-label={`从队列移除 ${displayTitle(item)}`}
+                aria-label={t("player.removeQueueLabel", { title: displayTitle(item) })}
                 onClick={() => onRemove(index)}
-                title="从队列移除"
+                title={t("player.removeQueue")}
               >
                 <MaterialIcon name="close" size={16} />
               </Button>

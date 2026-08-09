@@ -1,6 +1,9 @@
 import type { AudioItem } from "../../types";
 import { formatDuration } from "../../types";
 import { Button, PanelCard, TextField } from "../ui";
+import { useTranslation } from "react-i18next";
+import { useLocale } from "../../i18n/LocaleProvider";
+import { formatDateTime } from "../../i18n/format";
 
 type FileTabProps = {
   audio: AudioItem;
@@ -21,70 +24,72 @@ export default function FileTab({
   onDeleteCover,
   onDeleteFromDatabase
 }: FileTabProps) {
+  const { t } = useTranslation();
+  const { resolvedLanguage } = useLocale();
   return (
     <div className="inspector-section-stack">
-      <PanelCard title="文件信息" className="file-info-card">
+      <PanelCard title={t("detail.file.info")} className="file-info-card">
         <dl>
-          <dt>文件名</dt>
+          <dt>{t("detail.file.name")}</dt>
           <dd>{audio.file_name}</dd>
 
-          <dt>路径</dt>
+          <dt>{t("detail.file.path")}</dt>
           <dd>{audio.file_path}</dd>
 
-          <dt>格式</dt>
+          <dt>{t("detail.file.format")}</dt>
           <dd>{audio.file_ext || "-"}</dd>
 
-          <dt>时长</dt>
+          <dt>{t("detail.file.duration")}</dt>
           <dd>{formatDuration(audio.duration_seconds)}</dd>
 
-          <dt>大小</dt>
+          <dt>{t("detail.file.size")}</dt>
           <dd>{audio.file_size ? `${Math.round(audio.file_size / 1024 / 1024)} MB` : "-"}</dd>
 
-          <dt>修改时间</dt>
-          <dd>{audio.file_mtime || "-"}</dd>
+          <dt>{t("detail.file.modified")}</dt>
+          <dd>{formatDateTime(audio.file_mtime, resolvedLanguage)}</dd>
 
-          <dt>Bitrate</dt>
+          <dt>{t("detail.file.bitrate")}</dt>
           <dd>{audio.bitrate || "-"}</dd>
 
-          <dt>Sample Rate</dt>
+          <dt>{t("detail.file.sampleRate")}</dt>
           <dd>{audio.sample_rate || "-"}</dd>
 
-          <dt>Channels</dt>
+          <dt>{t("detail.file.channels")}</dt>
           <dd>{audio.channels || "-"}</dd>
 
-          <dt>播放位置</dt>
+          <dt>{t("detail.file.position")}</dt>
           <dd>{formatDuration(audio.last_position_seconds)}</dd>
 
-          <dt>播放次数</dt>
+          <dt>{t("detail.file.playCount")}</dt>
           <dd>{audio.play_count}</dd>
 
-          <dt>上次播放</dt>
-          <dd>{audio.last_played_at || "-"}</dd>
+          <dt>{t("detail.file.lastPlayed")}</dt>
+          <dd>{formatDateTime(audio.last_played_at, resolvedLanguage)}</dd>
         </dl>
       </PanelCard>
 
-      <PanelCard title="重新定位">
+      <PanelCard title={t("detail.file.relocate")}>
         <div className="inline-form">
           <TextField
             wrapperClassName="inline-field"
             hideLabel
-            label="新的音频文件路径"
+            label={t("detail.file.newPath")}
             value={relocatePath}
-            placeholder="新的音频文件路径"
+            placeholder={t("detail.file.newPath")}
             onValueChange={onRelocatePathChange}
           />
           <Button variant="outlined" onClick={onChooseRelocateFile}>
-            选择
+            {t("common.actions.select")}
           </Button>
         </div>
 
         <Button className="section-button" variant="filled" onClick={onRelocate}>
-          重新定位文件
+          {t("detail.file.relocateFile")}
         </Button>
       </PanelCard>
 
-      <PanelCard title="危险操作" className="danger-zone">
-        <p>这些操作会影响数据库记录或封面文件，请谨慎使用。</p>
+      <PanelCard title={t("detail.file.danger")} className="danger-zone">
+        <p>{t("detail.file.dangerDescription")}</p>
 
         <div className="section-actions">
           <Button
@@ -93,11 +98,11 @@ export default function FileTab({
             onClick={onDeleteCover}
             disabled={!audio.cover_path}
           >
-            删除封面
+            {t("detail.file.deleteCover")}
           </Button>
 
           <Button variant="danger" onClick={onDeleteFromDatabase}>
-            从数据库移除
+            {t("detail.file.removeDatabase")}
           </Button>
         </div>
       </PanelCard>

@@ -1,4 +1,5 @@
 import { Button, CheckboxField, PanelCard, SelectField, TextField } from "../ui";
+import { useTranslation } from "react-i18next";
 import type { WhisperComponentStatus } from "../../types";
 
 type AsrSettingsTabProps = {
@@ -72,6 +73,7 @@ export default function AsrSettingsTab({
   onRemoveWhisperComponent,
   onSaveAsr
 }: AsrSettingsTabProps) {
+  const { t } = useTranslation();
   const installing =
     whisperComponent?.status === "downloading" ||
     whisperComponent?.status === "installing";
@@ -83,20 +85,20 @@ export default function AsrSettingsTab({
   return (
     <div className="asr-settings-stack">
       <PanelCard
-        title="Whisper 本地转写组件"
+        title={t("settings.asr.whisperTitle")}
         className="max-form-card"
         actions={
           installing ? (
             <Button variant="outlined" onClick={onCancelWhisperComponentInstall}>
-              取消下载
+              {t("settings.asr.cancelDownload")}
             </Button>
           ) : whisperComponent?.available && whisperComponent.source === "component" ? (
             <Button variant="danger" onClick={onRemoveWhisperComponent}>
-              移除组件
+              {t("settings.asr.removeComponent")}
             </Button>
           ) : whisperComponent?.source === "development" ? null : (
             <Button variant="filled" onClick={onInstallWhisperComponent}>
-              下载并安装
+              {t("settings.asr.install")}
             </Button>
           )
         }
@@ -106,24 +108,24 @@ export default function AsrSettingsTab({
             <strong>
               {whisperComponent?.available
                 ? whisperComponent.source === "development"
-                  ? "开发环境可用"
-                  : "已安装"
+                  ? t("settings.asr.devAvailable")
+                  : t("settings.asr.installed")
                 : installing
                   ? whisperComponent?.status === "installing"
-                    ? "正在安装"
-                    : "正在下载"
+                    ? t("settings.asr.installing")
+                    : t("settings.asr.downloading")
                   : whisperComponent?.status === "failed"
-                    ? "安装失败"
-                    : "未安装"}
+                    ? t("settings.asr.installFailed")
+                    : t("settings.asr.notInstalled")}
             </strong>
-            <span>{whisperComponent?.target || "正在读取平台信息…"}</span>
+            <span>{whisperComponent?.target || t("settings.asr.loadingPlatform")}</span>
           </div>
           {installing && (
             <>
               <div
                 className="progress-line"
                 role="progressbar"
-                aria-label="Whisper 组件下载进度"
+                aria-label={t("settings.asr.downloadProgress")}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(progress)}
@@ -142,18 +144,15 @@ export default function AsrSettingsTab({
             <p className="privacy-warning">{whisperComponent.error_message}</p>
           )}
         </div>
-        <p className="muted">
-          主程序不再内置 faster-whisper 运行时。组件按当前系统独立下载；选择 small、medium、
-          large-v3 等模型时，模型文件会在首次转写时另行下载并缓存。
-        </p>
+        <p className="muted">{t("settings.asr.componentDescription")}</p>
       </PanelCard>
 
       <PanelCard
-        title="ASR Provider 设置"
+        title={t("settings.asr.providerTitle")}
         className="max-form-card"
         actions={
           <Button variant="filled" onClick={onSaveAsr}>
-            保存 ASR 设置
+            {t("settings.asr.save")}
           </Button>
         }
       >
@@ -164,7 +163,7 @@ export default function AsrSettingsTab({
           </span>
 
           <SelectField
-            label="Provider"
+            label={t("settings.asr.provider")}
             hideLabel
             controlHeight={48}
             controlWidth="100%"
@@ -173,8 +172,8 @@ export default function AsrSettingsTab({
             menuWidth="control"
             value={asrProvider}
             options={[
-              { value: "faster_whisper", label: "faster-whisper（可选组件）" },
-              { value: "external", label: "External API（本地服务）" }
+              { value: "faster_whisper", label: t("settings.asr.localComponent") },
+              { value: "external", label: t("settings.asr.externalLocal") }
             ]}
             onValueChange={onAsrProviderChange}
           />
@@ -183,9 +182,9 @@ export default function AsrSettingsTab({
         {asrProvider === "faster_whisper" && (
           <>
             <TextField
-              label="Model Name / Path"
+              label={t("settings.asr.modelPath")}
               value={asrModelName}
-              placeholder="small 或本地模型路径"
+              placeholder={t("settings.asr.modelPlaceholder")}
               onValueChange={onAsrModelNameChange}
             />
 
@@ -195,7 +194,7 @@ export default function AsrSettingsTab({
               </span>
 
               <SelectField
-                label="Device"
+                label={t("settings.asr.device")}
                 hideLabel
                 controlHeight={48}
                 controlWidth="100%"
@@ -212,14 +211,14 @@ export default function AsrSettingsTab({
             </div>
 
             <TextField
-              label="Compute Type"
+              label={t("settings.asr.computeType")}
               value={asrComputeType}
               placeholder="int8 / float16 / float32"
               onValueChange={onAsrComputeTypeChange}
             />
 
             <TextField
-              label="Beam Size"
+              label={t("settings.asr.beamSize")}
               value={asrBeamSize}
               placeholder="5"
               onValueChange={onAsrBeamSizeChange}
@@ -230,30 +229,30 @@ export default function AsrSettingsTab({
         {asrProvider === "external" && (
           <>
             <TextField
-              label="Endpoint"
+              label={t("settings.common.endpoint")}
               value={externalEndpoint}
               placeholder="http://127.0.0.1:8000/v1"
               onValueChange={onExternalEndpointChange}
             />
 
             <TextField
-              label="Model Name"
+              label={t("settings.common.modelName")}
               value={externalModelName}
               placeholder="qwen3-asr-1.7b"
               onValueChange={onExternalModelNameChange}
             />
 
             <TextField
-              label="API Key，可为空"
+              label={t("settings.common.apiKey")}
               type="password"
               autoComplete="off"
               value={externalApiKey}
-              placeholder="可为空"
+              placeholder={t("settings.common.optional")}
               onValueChange={onExternalApiKeyChange}
             />
 
             <TextField
-              label="Language"
+              label={t("settings.asr.language")}
               value={externalLanguage}
               placeholder="auto / zh / en"
               onValueChange={onExternalLanguageChange}
@@ -261,11 +260,11 @@ export default function AsrSettingsTab({
 
             <div className="asr-device-field">
               <span className="ui-field-label" aria-hidden="true">
-                时间戳策略
+                {t("settings.asr.timestampPolicy")}
               </span>
 
               <SelectField
-                label="时间戳策略"
+                label={t("settings.asr.timestampPolicy")}
                 hideLabel
                 controlHeight={48}
                 controlWidth="100%"
@@ -274,16 +273,16 @@ export default function AsrSettingsTab({
                 menuWidth="control"
                 value={externalTimestampPolicy}
                 options={[
-                  { value: "off", label: "关闭" },
-                  { value: "preferred", label: "优先使用，可无时间轴" },
-                  { value: "required", label: "必须返回时间轴" }
+                  { value: "off", label: t("settings.asr.timestampOff") },
+                  { value: "preferred", label: t("settings.asr.timestampPreferred") },
+                  { value: "required", label: t("settings.asr.timestampRequired") }
                 ]}
                 onValueChange={onExternalTimestampPolicyChange}
               />
             </div>
 
             <TextField
-              label="Timeout 秒"
+              label={t("settings.common.timeout")}
               inputMode="numeric"
               value={externalTimeout}
               placeholder="3600"
@@ -292,8 +291,8 @@ export default function AsrSettingsTab({
 
             <CheckboxField
               wrapperClassName="wide"
-              label="允许非本机 / 内网 ASR endpoint"
-              description="启用后，转写会把完整音频文件发送到该 endpoint，请只用于你信任的服务。"
+              label={t("settings.asr.allowRemote")}
+              description={t("settings.asr.allowRemoteDescription")}
               checked={externalAllowRemoteEndpoint}
               onCheckedChange={onExternalAllowRemoteEndpointChange}
             />
@@ -302,18 +301,13 @@ export default function AsrSettingsTab({
       </div>
 
       {externalWarning && asrProvider === "external" && (
-        <p className="privacy-warning">隐私提醒：{externalWarning}</p>
+        <p className="privacy-warning">{t("settings.common.privacy", { warning: externalWarning })}</p>
       )}
 
       {asrProvider === "faster_whisper" ? (
-        <p className="muted">
-          使用前需要安装上方 Whisper 组件。若希望完全离线，请填写已缓存或可访问的本地模型路径。
-        </p>
+        <p className="muted">{t("settings.asr.localHelp")}</p>
       ) : (
-        <p className="muted">
-          后端会向 Endpoint 下的 /audio/transcriptions 上传媒体库音频。服务应接受
-          multipart/form-data，并返回 text、language、model 和可选 segments。
-        </p>
+        <p className="muted">{t("settings.asr.externalHelp")}</p>
       )}
       </PanelCard>
     </div>

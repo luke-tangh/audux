@@ -1,5 +1,6 @@
 import { api } from "../../api";
 import type { Tag } from "../../types";
+import { useTranslation } from "react-i18next";
 import { Button, PanelCard } from "../ui";
 
 type MaintenanceSettingsTabProps = {
@@ -21,40 +22,41 @@ export default function MaintenanceSettingsTab({
   onMergeTag,
   onDeleteTag
 }: MaintenanceSettingsTabProps) {
+  const { t } = useTranslation();
   return (
     <div className="settings-grid-layout">
-      <PanelCard title="导出与索引">
+      <PanelCard title={t("settings.maintenance.exportIndex")}>
         <div className="section-actions">
           <Button variant="outlined" onClick={() => window.open(api.metadataExportUrl("json"), "_blank")}>
-            导出 Metadata JSON
+            {t("settings.maintenance.exportJson")}
           </Button>
 
           <Button variant="outlined" onClick={() => window.open(api.metadataExportUrl("csv"), "_blank")}>
-            导出 Metadata CSV
+            {t("settings.maintenance.exportCsv")}
           </Button>
 
           <Button variant="outlined" onClick={onRebuildSearch}>
-            重建搜索索引
+            {t("settings.maintenance.rebuild")}
           </Button>
         </div>
       </PanelCard>
 
       <PanelCard
-        title="标签维护"
+        title={t("settings.maintenance.tags")}
         actions={
           <>
             <Button variant="outlined" onClick={onCleanupTags}>
-              清理未使用标签
+              {t("settings.maintenance.cleanup")}
             </Button>
             <Button variant="outlined" onClick={onLoadTags}>
-              刷新标签
+              {t("settings.maintenance.refresh")}
             </Button>
           </>
         }
       >
-        <p className="muted">可重命名、合并标签，或清理没有关联任何音频的 orphan tags。</p>
+        <p className="muted">{t("settings.maintenance.description")}</p>
 
-        {maintenanceTags.length === 0 && <p className="muted">暂无标签</p>}
+        {maintenanceTags.length === 0 && <p className="muted">{t("settings.maintenance.noTags")}</p>}
 
         <div className="tag-list">
           {maintenanceTags.map((tag) => (
@@ -67,7 +69,7 @@ export default function MaintenanceSettingsTab({
                 variant="text"
                 onClick={() => onRenameTag(tag)}
               >
-                重命名
+                {t("settings.maintenance.rename")}
               </Button>
               <Button
                 preserveChildren
@@ -76,7 +78,7 @@ export default function MaintenanceSettingsTab({
                 variant="text"
                 onClick={() => onMergeTag(tag)}
               >
-                合并
+                {t("settings.maintenance.merge")}
               </Button>
               <Button
                 preserveChildren
@@ -85,7 +87,7 @@ export default function MaintenanceSettingsTab({
                 variant="danger"
                 onClick={() => onDeleteTag(tag)}
               >
-                删除
+                {t("common.actions.delete")}
               </Button>
             </span>
           ))}

@@ -4,7 +4,9 @@ from ..services.common import ServiceError
 
 
 def raise_http(error: ServiceError):
-    raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    raise HTTPException(
+        status_code=error.status_code, detail=error.structured_detail()
+    ) from error
 
 
 def service_call(fn, *args, **kwargs):

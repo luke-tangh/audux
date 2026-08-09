@@ -4,6 +4,7 @@ import type { AudioItem } from "../../types";
 import { displayTitle } from "../../types";
 import { useDialog } from "../../components/dialog/UnifiedDialog";
 import type { ToastType } from "../useToast";
+import { useTranslation } from "react-i18next";
 
 type Notify = (message: string, type?: ToastType) => void;
 
@@ -31,15 +32,16 @@ export function usePlaylistActions({
   refresh
 }: UsePlaylistActionsParams) {
   const dialog = useDialog();
+  const { t } = useTranslation();
 
   async function removeFromCurrentPlaylist(item: AudioItem) {
     if (!selectedPlaylistId || !item.playlist_item_id) return;
 
     const ok = await dialog.confirm({
-      title: "从当前 Playlist 移除？",
-      message: `确认从当前 playlist 移除「${displayTitle(item)}」？`,
-      confirmLabel: "移除",
-      cancelLabel: "取消",
+      title: t("playlist.remove.title"),
+      message: t("playlist.remove.message", { title: displayTitle(item) }),
+      confirmLabel: t("common.actions.remove"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "warning"
     });
 
@@ -62,7 +64,7 @@ export function usePlaylistActions({
         setSelected(null);
       }
 
-      notify("已从 playlist 移除", "success");
+      notify(t("playlist.removed"), "success");
       refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
@@ -131,7 +133,7 @@ export function usePlaylistActions({
 
     try {
       await persistPlaylistOrder(nextRaw);
-      notify("Playlist 顺序已更新", "success");
+      notify(t("playlist.orderUpdated"), "success");
       refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
@@ -158,7 +160,7 @@ export function usePlaylistActions({
 
     try {
       await persistPlaylistOrder(nextRaw);
-      notify("Playlist 顺序已更新", "success");
+      notify(t("playlist.orderUpdated"), "success");
       refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");

@@ -1,5 +1,6 @@
 import { formatDuration } from "../../types";
 import { Button, MaterialIcon } from "../ui";
+import { useTranslation } from "react-i18next";
 
 type PlaybackControlsProps = {
   hasAudio: boolean;
@@ -30,19 +31,20 @@ export default function PlaybackControls({
   onStop,
   onSeek
 }: PlaybackControlsProps) {
+  const { t } = useTranslation();
   const safeDuration = Number.isFinite(duration) ? duration : 0;
 
   return (
     <div className="player-center">
-      <div className="player-controls" aria-label="播放器控制">
+      <div className="player-controls" aria-label={t("player.controls")}>
         <Button
           preserveChildren
           type="button"
           className="icon-button"
           onClick={onPrevious}
           disabled={!hasAudio || !canPrevious}
-          aria-label="播放上一条"
-          title="播放上一条"
+          aria-label={t("player.previous")}
+          title={t("player.previous")}
         >
           <MaterialIcon name="skip_previous" size={24} />
         </Button>
@@ -53,8 +55,8 @@ export default function PlaybackControls({
           className="play-toggle"
           onClick={onToggle}
           disabled={!hasAudio}
-          aria-label={isPlaying ? "暂停播放" : "开始播放"}
-          title={isPlaying ? "暂停" : "播放"}
+          aria-label={isPlaying ? t("player.pausePlayback") : t("player.startPlayback")}
+          title={isPlaying ? t("player.pause") : t("player.play")}
         >
           <span className="play-toggle-icon" aria-hidden="true">
             {isPlaying ? (
@@ -71,8 +73,8 @@ export default function PlaybackControls({
           className="icon-button"
           onClick={onStop}
           disabled={!hasAudio}
-          aria-label="停止播放并回到开头"
-          title="停止并重置进度（保留队列）"
+          aria-label={t("player.stopLabel")}
+          title={t("player.stopTitle")}
         >
           <MaterialIcon name="stop" size={22} />
         </Button>
@@ -83,8 +85,8 @@ export default function PlaybackControls({
           className="icon-button"
           onClick={onNext}
           disabled={!hasAudio || !canNext}
-          aria-label="播放下一条"
-          title="播放下一条"
+          aria-label={t("player.next")}
+          title={t("player.next")}
         >
           <MaterialIcon name="skip_next" size={24} />
         </Button>

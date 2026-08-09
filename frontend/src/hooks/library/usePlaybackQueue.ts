@@ -4,6 +4,7 @@ import { api } from "../../api";
 import type { AudioItem } from "../../types";
 import { useDialog } from "../../components/dialog/UnifiedDialog";
 import type { ToastType } from "../useToast";
+import { useTranslation } from "react-i18next";
 
 type Notify = (message: string, type?: ToastType) => void;
 
@@ -103,6 +104,7 @@ export function usePlaybackQueue({
   notify
 }: UsePlaybackQueueParams) {
   const dialog = useDialog();
+  const { t } = useTranslation();
   const preserveStoredSessionOnceRef = useRef(false);
 
   const [playing, setPlaying] = useState<AudioItem | null>(null);
@@ -147,7 +149,7 @@ export function usePlaybackQueue({
 
         if (resolution.skipped.length > 0) {
           notify(
-            `已恢复播放队列，并跳过 ${resolution.skipped.length} 个不可用项目。`,
+            t("queue.restoredSkipped", { count: resolution.skipped.length }),
             "info"
           );
         }
@@ -156,9 +158,7 @@ export function usePlaybackQueue({
         preserveStoredSessionOnceRef.current = true;
         setSessionHydrated(true);
         notify(
-          `播放队列暂时无法恢复，已保留上次会话：${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          t("queue.restoreFailed", { error: error instanceof Error ? error.message : String(error) }),
           "error"
         );
       }
@@ -206,7 +206,7 @@ export function usePlaybackQueue({
 
         if (resolution.skipped.length > 0) {
           notify(
-            `播放队列已更新，并移除 ${resolution.skipped.length} 个不可用项目。`,
+            t("queue.updatedSkipped", { count: resolution.skipped.length }),
             "info"
           );
         }
@@ -293,22 +293,22 @@ export function usePlaybackQueue({
 
   function addToQueue(item: AudioItem) {
     if (playbackQueue.some((row) => row.id === item.id)) {
-      notify("该音频已在播放队列中", "info");
+      notify(t("queue.alreadyAdded"), "info");
       return;
     }
 
     if (playbackQueue.length >= MAX_PLAYBACK_QUEUE_SIZE) {
-      notify(`播放队列最多包含 ${MAX_PLAYBACK_QUEUE_SIZE} 个音频。`, "info");
+      notify(t("queue.maximum", { count: MAX_PLAYBACK_QUEUE_SIZE }), "info");
       return;
     }
 
     setPlaybackQueue((rows) => [...rows, item]);
-    notify("已加入播放队列", "success");
+    notify(t("queue.added"), "success");
   }
 
   function playNextAudio(item: AudioItem) {
     if (playing?.id === item.id) {
-      notify("该音频正在播放", "info");
+      notify(t("queue.playing"), "info");
       return;
     }
 
@@ -316,7 +316,7 @@ export function usePlaybackQueue({
       playbackQueue.length >= MAX_PLAYBACK_QUEUE_SIZE &&
       !playbackQueue.some((row) => row.id === item.id)
     ) {
-      notify(`播放队列最多包含 ${MAX_PLAYBACK_QUEUE_SIZE} 个音频。`, "info");
+      notify(t("queue.maximum", { count: MAX_PLAYBACK_QUEUE_SIZE }), "info");
       return;
     }
 
@@ -335,7 +335,7 @@ export function usePlaybackQueue({
         ? -1
         : nextQueue.findIndex((row) => row.id === currentAudioId)
     );
-    notify("已设为下一首播放", "success");
+    notify(t("queue.playNext"), "success");
   }
 
   function playPrevious() {
@@ -358,13 +358,13 @@ export function usePlaybackQueue({
         setPlaybackQueue([]);
         setPlayingIndex(-1);
         setPlaying(null);
-        notify("播放队列已清空", "info");
+        notify(t("queue.cleared"), "info");
         return;
       }
 
       const nextIndex = Math.min(index, nextQueue.length - 1);
       await playQueueIndex(nextIndex, nextQueue);
-      notify("已移除当前音频并播放下一条", "info");
+      notify(t("queue.removedCurrent"), "info");
       return;
     }
 
@@ -374,18 +374,17 @@ export function usePlaybackQueue({
       setPlayingIndex((value) => value - 1);
     }
 
-    notify("已从播放队列移除", "success");
+    notify(t("queue.removed"), "success");
   }
 
   async function clearQueue() {
     if (playbackQueue.length === 0) return;
 
     const ok = await dialog.confirm({
-      title: "清空播放队列？",
-      message:
-        "清空会移除队列中的所有音频并停止播放。若只想停止当前音频，请使用播放器的停止按钮。",
-      confirmLabel: "清空队列",
-      cancelLabel: "取消",
+      title: t("queue.clearTitle"),
+      message: t("queue.clearMessage"),
+      confirmLabel: t("queue.clearConfirm"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "warning"
     });
 
@@ -394,7 +393,7 @@ export function usePlaybackQueue({
     setPlaybackQueue([]);
     setPlayingIndex(-1);
     setPlaying(null);
-    notify("播放队列已清空", "info");
+    notify(t("queue.cleared"), "info");
   }
 
   function moveQueueItem(sourceIndex: number, targetIndex: number) {
@@ -424,7 +423,7 @@ export function usePlaybackQueue({
 
     setPlaybackQueue(nextQueue);
     setPlayingIndex(nextPlayingIndex);
-    notify("播放队列顺序已更新", "success");
+    notify(t("queue.orderUpdated"), "success");
   }
 
   function handleAudioDeleted(audioId: number) {

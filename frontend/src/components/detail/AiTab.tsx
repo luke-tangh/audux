@@ -1,4 +1,5 @@
 import { Button, PanelCard } from "../ui";
+import { useTranslation } from "react-i18next";
 
 type AiTabProps = {
   description?: string;
@@ -21,16 +22,17 @@ export default function AiTab({
   onAcceptTag,
   onAcceptAllTags
 }: AiTabProps) {
+  const { t } = useTranslation();
   const hasAiDescription = Boolean(description);
 
   return (
     <div className="inspector-section-stack">
       <PanelCard
         className="ai-card"
-        title="AI 建议描述"
+        title={t("detail.ai.description")}
         actions={
           <Button variant="text" onClick={onAnalyze}>
-            重新分析
+            {t("detail.ai.reanalyze")}
           </Button>
         }
       >
@@ -38,27 +40,27 @@ export default function AiTab({
           <>
             <p>{description}</p>
             <Button variant="filled" onClick={onAcceptDescription}>
-              接受为用户描述
+              {t("detail.ai.acceptDescription")}
             </Button>
           </>
         ) : (
           <div className="soft-empty">
-            暂无 AI 建议。点击「AI 分析」后，会根据 metadata 和 transcript 生成描述。
+            {t("detail.ai.emptyDescription")}
           </div>
         )}
       </PanelCard>
 
       <PanelCard
-        title="AI 标签建议"
+        title={t("detail.ai.tags")}
         actions={
           aiTags.length > 0 ? (
             <Button variant="text" onClick={onAcceptAllTags}>
-              接受全部未添加标签
+              {t("detail.ai.acceptAll")}
             </Button>
           ) : null
         }
       >
-        {aiTags.length === 0 && <div className="soft-empty">暂无 AI 标签建议</div>}
+        {aiTags.length === 0 && <div className="soft-empty">{t("detail.ai.emptyTags")}</div>}
 
         {aiTags.length > 0 && (
           <div className="tag-list">
@@ -72,7 +74,7 @@ export default function AiTab({
                 >
                   #{tagName}
                   {accepted ? (
-                    <em>已接受</em>
+                    <em>{t("detail.ai.accepted")}</em>
                   ) : (
                     <Button
                       preserveChildren
@@ -81,7 +83,7 @@ export default function AiTab({
                       variant="text"
                       onClick={() => onAcceptTag(tagName)}
                     >
-                      接受
+                      {t("detail.ai.accept")}
                     </Button>
                   )}
                 </span>
@@ -94,7 +96,7 @@ export default function AiTab({
       {rawContent && (
         <PanelCard>
           <details>
-            <summary>查看原始 AI 输出</summary>
+            <summary>{t("detail.ai.raw")}</summary>
             <pre className="raw-ai-output">{rawContent}</pre>
           </details>
         </PanelCard>

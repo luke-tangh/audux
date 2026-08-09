@@ -7,6 +7,8 @@ import type {
 } from "../../types";
 import { useDialog } from "../../components/dialog/UnifiedDialog";
 import type { ToastType } from "../useToast";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 type Notify = (message: string, type?: ToastType) => void;
 
@@ -20,21 +22,14 @@ type UseBatchOrganizationParams = {
   notify: Notify;
 };
 
-function resultMessage(label: string, result: BatchOrganizationResult): string {
-  const parts = [
-    `${label}完成：修改 ${result.changed_count} 个`,
-    `未变化 ${result.unchanged_count} 个`
-  ];
-
-  if (result.duplicate_count > 0) {
-    parts.push(`重复 ID ${result.duplicate_count} 个`);
-  }
-
-  if (result.errors.length > 0) {
-    parts.push(`错误 ${result.errors.length} 个`);
-  }
-
-  return `${parts.join("，")}。`;
+function resultMessage(t: TFunction, label: string, result: BatchOrganizationResult): string {
+  return t("batch.organization.result", {
+    label,
+    changed: result.changed_count,
+    unchanged: result.unchanged_count,
+    duplicates: result.duplicate_count > 0 ? t("batch.organization.duplicates", { count: result.duplicate_count }) : "",
+    errors: result.errors.length > 0 ? t("batch.organization.errors", { count: result.errors.length }) : ""
+  });
 }
 
 export function useBatchOrganization({
@@ -47,12 +42,13 @@ export function useBatchOrganization({
   notify
 }: UseBatchOrganizationParams) {
   const dialog = useDialog();
+  const { t } = useTranslation();
 
   async function execute(payload: BatchOrganizationPayload, label: string) {
     try {
       const result = await api.organizeAudioBatch(payload);
       notify(
-        resultMessage(label, result),
+        resultMessage(t, label, result),
         result.errors.length > 0 ? "info" : "success"
       );
       clearSelection();
@@ -67,15 +63,15 @@ export function useBatchOrganization({
     if (selectedAudioIds.length === 0) return;
 
     const value = await dialog.prompt({
-      title: "批量添加标签",
-      message: `将为已选 ${selectedAudioIds.length} 个音频添加标签。多个标签请用逗号分隔。`,
-      inputLabel: "标签名称",
-      placeholder: "学习, 待整理",
+      title: t("batch.organization.addTags"),
+      message: t("batch.organization.addTagsMessage", { count: selectedAudioIds.length }),
+      inputLabel: t("batch.organization.tagNames"),
+      placeholder: t("batch.organization.tagPlaceholder"),
       required: true,
-      confirmLabel: "添加标签",
-      cancelLabel: "取消",
+      confirmLabel: t("audioList.addTags"),
+      cancelLabel: t("common.actions.cancel"),
       validate: (input) =>
-        input.split(",").some((name) => name.trim()) ? null : "请至少输入一个标签"
+        input.split(",").some((name) => name.trim()) ? null : t("batch.organization.tagRequired")
     });
 
     if (value === null) return;
@@ -86,31 +82,31 @@ export function useBatchOrganization({
 
     await execute(
       { audio_ids: selectedAudioIds, action: "add_tags", tag_names: tagNames },
-      "批量添加标签"
+      t("batch.organization.addTags")
     );
   }
 
   async function removeTag() {
     if (selectedAudioIds.length === 0) return;
     if (tags.length === 0) {
-      notify("当前没有可移除的标签。", "info");
+      notify(t("batch.organization.noTags"), "info");
       return;
     }
 
     const value = await dialog.prompt({
-      title: "批量移除标签",
-      message: `将从已选 ${selectedAudioIds.length} 个音频移除一个现有标签。`,
-      details: `可用标签：${tags.map((tag) => `#${tag.name}`).join("、")}`,
-      inputLabel: "标签完整名称",
+      title: t("batch.organization.removeTag"),
+      message: t("batch.organization.removeTagMessage", { count: selectedAudioIds.length }),
+      details: t("batch.organization.availableTags", { tags: tags.map((tag) => `#${tag.name}`).join(", ") }),
+      inputLabel: t("batch.organization.fullTagName"),
       placeholder: tags[0]?.name,
       required: true,
-      confirmLabel: "移除标签",
-      cancelLabel: "取消",
+      confirmLabel: t("audioList.removeTags"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "warning",
       validate: (input) =>
         tags.some((tag) => tag.name === input.trim())
           ? null
-          : "标签不存在，请输入现有标签的完整名称"
+          : t("batch.organization.tagMissing")
     });
 
     if (value === null) return;
@@ -119,7 +115,7 @@ export function useBatchOrganization({
 
     await execute(
       { audio_ids: selectedAudioIds, action: "remove_tags", tag_ids: [tag.id] },
-      "批量移除标签"
+      t("batch.organization.removeTag")
     );
   }
 
@@ -137,25 +133,25 @@ export function useBatchOrganization({
   async function addToPlaylist() {
     if (selectedAudioIds.length === 0) return;
     if (playlists.length === 0) {
-      notify("请先创建 Playlist。", "info");
+      notify(t("batch.organization.noPlaylists"), "info");
       return;
     }
 
     const value = await dialog.prompt({
-      title: "批量加入 Playlist",
-      message: `将把已选 ${selectedAudioIds.length} 个音频加入一个 Playlist。`,
-      details: `可用 Playlist：${playlists
+      title: t("batch.organization.addPlaylist"),
+      message: t("batch.organization.addPlaylistMessage", { count: selectedAudioIds.length }),
+      details: t("batch.organization.availablePlaylists", { playlists: playlists
         .map((playlist) => `#${playlist.id} ${playlist.name}`)
-        .join("、")}`,
-      inputLabel: "Playlist 名称或 #ID",
+        .join(", ") }),
+      inputLabel: t("batch.organization.playlistInput"),
       placeholder: playlists[0]?.name,
       required: true,
-      confirmLabel: "加入 Playlist",
-      cancelLabel: "取消",
+      confirmLabel: t("audioList.addPlaylist"),
+      cancelLabel: t("common.actions.cancel"),
       validate: (input) =>
         playlistFromInput(input)
           ? null
-          : "Playlist 不存在或名称不唯一，请输入列表中的 #ID"
+          : t("batch.organization.playlistMissing")
     });
 
     if (value === null) return;
@@ -168,19 +164,22 @@ export function useBatchOrganization({
         action: "add_to_playlist",
         playlist_id: playlist.id
       },
-      "批量加入 Playlist"
+      t("batch.organization.addPlaylist")
     );
   }
 
   async function setFavorite(isFavorite: boolean) {
     if (selectedAudioIds.length === 0) return;
 
-    const label = isFavorite ? "批量收藏" : "批量取消收藏";
+    const label = isFavorite ? t("batch.organization.favorite") : t("batch.organization.unfavorite");
     const ok = await dialog.confirm({
       title: `${label}？`,
-      message: `将${isFavorite ? "收藏" : "取消收藏"}已选 ${selectedAudioIds.length} 个音频。`,
-      confirmLabel: isFavorite ? "设为收藏" : "取消收藏",
-      cancelLabel: "取消",
+      message: t("batch.organization.favoriteMessage", {
+        action: isFavorite ? t("batch.organization.favoriteAction") : t("batch.organization.unfavoriteAction"),
+        count: selectedAudioIds.length
+      }),
+      confirmLabel: isFavorite ? t("batch.organization.favoriteConfirm") : t("audioList.unfavorite"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "warning"
     });
     if (!ok) return;

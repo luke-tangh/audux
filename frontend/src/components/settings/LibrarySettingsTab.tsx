@@ -1,6 +1,8 @@
 import type { LibraryRoot, Playlist, ScanTask } from "../../types";
 import { Button, CheckboxField, PanelCard, TextField } from "../ui";
 import { scanProgress } from "./settingsUtils";
+import { useTranslation } from "react-i18next";
+import { localizedStoredError } from "../../i18n/errors";
 
 type LibrarySettingsTabProps = {
   roots: LibraryRoot[];
@@ -41,48 +43,49 @@ export default function LibrarySettingsTab({
   onRenamePlaylist,
   onDeletePlaylist
 }: LibrarySettingsTabProps) {
+  const { t } = useTranslation();
   return (
     <div className="settings-grid-layout">
-      <PanelCard title="媒体库目录">
+      <PanelCard title={t("settings.library.roots")}>
         <div className="inline-form">
           <TextField
             wrapperClassName="inline-field"
             hideLabel
-            label="媒体库路径"
+            label={t("settings.library.path")}
             value={path}
-            placeholder="输入或选择本地目录路径"
+            placeholder={t("settings.library.pathPlaceholder")}
             onValueChange={onPathChange}
           />
           <Button variant="outlined" onClick={onChooseFolder}>
-            选择文件夹
+            {t("settings.library.chooseFolder")}
           </Button>
           <Button variant="filled" onClick={onAddRoot}>
-            添加目录
+            {t("settings.library.addFolder")}
           </Button>
         </div>
 
-        {roots.length === 0 && <p className="muted">暂无媒体库目录。</p>}
+        {roots.length === 0 && <p className="muted">{t("settings.library.noRoots")}</p>}
 
         {roots.map((root) => (
           <div key={root.id} className={`root-card ${root.is_enabled ? "" : "disabled"}`}>
             <div>
               <strong>{root.path}</strong>
-              <span>{root.is_enabled ? "启用中" : "已禁用"}</span>
+              <span>{root.is_enabled ? t("settings.library.enabled") : t("settings.library.disabled")}</span>
             </div>
 
             <CheckboxField
               wrapperClassName="root-toggle"
-              label={root.is_enabled ? "启用" : "禁用"}
+              label={root.is_enabled ? t("settings.library.enable") : t("settings.library.disable")}
               checked={root.is_enabled}
               onCheckedChange={(checked) => onToggleRoot(root, checked)}
             />
 
             <Button variant="text" onClick={() => onScan(root.id)}>
-              扫描
+              {t("settings.library.scan")}
             </Button>
 
             <Button variant="danger" onClick={() => onRemoveRoot(root)}>
-              移除
+              {t("common.actions.remove")}
             </Button>
           </div>
         ))}
@@ -90,8 +93,8 @@ export default function LibrarySettingsTab({
         {scanResult && <p className="test-result">{scanResult}</p>}
       </PanelCard>
 
-      <PanelCard title="扫描任务">
-        {scanTasks.length === 0 && <p className="muted">暂无扫描任务</p>}
+      <PanelCard title={t("settings.library.scanTasks")}>
+        {scanTasks.length === 0 && <p className="muted">{t("settings.library.noScanTasks")}</p>}
 
         {scanTasks.map((task) => (
           <div key={task.id} className="scan-task-row">
@@ -104,7 +107,7 @@ export default function LibrarySettingsTab({
             <div
               className="progress-line"
               role="progressbar"
-              aria-label={`扫描任务 #${task.id} 进度`}
+              aria-label={t("settings.library.scanProgress", { id: task.id })}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={scanProgress(task)}
@@ -117,33 +120,37 @@ export default function LibrarySettingsTab({
               {task.updated} · missing {task.missing}
             </div>
 
-            {task.error_message && <div className="task-error">{task.error_message}</div>}
+            {(task.error_message || task.error_code) && (
+              <div className="task-error">
+                {localizedStoredError(t, task.error_code, task.error_params, task.error_message)}
+              </div>
+            )}
 
             {(task.status === "pending" || task.status === "running") && (
               <Button variant="text" onClick={() => onCancelScan(task)}>
-                取消
+                {t("common.actions.cancel")}
               </Button>
             )}
           </div>
         ))}
       </PanelCard>
 
-      <PanelCard title="创建 Playlist">
+      <PanelCard title={t("settings.library.createPlaylist")}>
         <div className="inline-form">
           <TextField
             wrapperClassName="inline-field"
             hideLabel
-            label="Playlist 名称"
+            label={t("settings.library.playlistName")}
             value={playlistName}
-            placeholder="Playlist 名称"
+            placeholder={t("settings.library.playlistName")}
             onValueChange={onPlaylistNameChange}
           />
           <Button variant="filled" onClick={onCreatePlaylist}>
-            创建
+            {t("settings.library.create")}
           </Button>
         </div>
 
-        {playlists.length === 0 && <p className="muted">暂无 Playlist。</p>}
+        {playlists.length === 0 && <p className="muted">{t("settings.library.noPlaylists")}</p>}
 
         <div className="playlist-maintenance-list">
           {playlists.map((playlist) => (
@@ -154,10 +161,10 @@ export default function LibrarySettingsTab({
               </div>
 
               <Button variant="text" onClick={() => onRenamePlaylist(playlist)}>
-                重命名
+                {t("settings.library.rename")}
               </Button>
               <Button variant="danger" onClick={() => onDeletePlaylist(playlist)}>
-                删除
+                {t("common.actions.delete")}
               </Button>
             </div>
           ))}

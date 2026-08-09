@@ -14,7 +14,7 @@ class TestLocalApiSecurity(ApiIntegrationTest):
 
         missing_client = self.client.get("/auth/token")
         assert missing_client.status_code == 403
-        assert missing_client.json()['detail'] == 'Missing local client header'
+        assert missing_client.json()['detail']['code'] == 'security.missing_client'
 
         assert self.client.get('/settings').status_code == 401
         invalid_token = self.client.get(
@@ -44,7 +44,7 @@ class TestLocalApiSecurity(ApiIntegrationTest):
             headers=self.auth_headers(origin="https://example.com"),
         )
         assert forbidden_origin.status_code == 403
-        assert forbidden_origin.json()['detail'] == 'Forbidden origin'
+        assert forbidden_origin.json()['detail']['code'] == 'security.forbidden_origin'
 
         allowed_origin = self.client.get(
             "/settings",
@@ -59,7 +59,7 @@ class TestLocalApiSecurity(ApiIntegrationTest):
             json={"key": "scanner.hash_strategy", "value": "sampled"},
         )
         assert missing_unsafe_header.status_code == 403
-        assert missing_unsafe_header.json()['detail'] == 'Missing local client header'
+        assert missing_unsafe_header.json()['detail']['code'] == 'security.missing_client'
 
         accepted = self.put_setting("scanner.hash_strategy", "sampled")
         assert accepted.status_code == 200
@@ -98,7 +98,7 @@ class TestLibraryRootPathRestrictions(ApiIntegrationTest):
             json={"path": str(missing)},
         )
         assert missing_response.status_code == 400
-        assert missing_response.json()['detail'] == 'Invalid directory'
+        assert missing_response.json()['detail']['code'] == 'library.invalid_directory'
 
         file_path = self.root_path / "not-a-directory"
         file_path.write_text("file", encoding="utf-8")
@@ -141,7 +141,7 @@ class TestLibraryRootPathRestrictions(ApiIntegrationTest):
             json={"file_path": str(outside)},
         )
         assert outside_response.status_code == 400
-        assert 'configured library root' in outside_response.json()['detail']
+        assert outside_response.json()['detail']['code'] == 'audio.outside_library'
 
         symlink = library / "escaped.mp3"
         symlink.symlink_to(outside)
@@ -151,7 +151,7 @@ class TestLibraryRootPathRestrictions(ApiIntegrationTest):
             json={"file_path": str(symlink)},
         )
         assert symlink_response.status_code == 400
-        assert 'configured library root' in symlink_response.json()['detail']
+        assert symlink_response.json()['detail']['code'] == 'audio.outside_library'
 
         replacement = library / "replacement.mp3"
         replacement.write_bytes(b"replacement")
@@ -179,4 +179,4 @@ class TestLibraryRootPathRestrictions(ApiIntegrationTest):
         )
 
         assert response.status_code == 400
-        assert 'configured library root' in response.json()['detail']
+        assert response.json()['detail']['code'] == 'audio.outside_library'

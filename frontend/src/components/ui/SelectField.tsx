@@ -6,6 +6,7 @@ import type {
   ReactNode,
   SelectHTMLAttributes
 } from "react";
+import { useTranslation } from "react-i18next";
 
 export type SelectFieldOption = {
   value: string;
@@ -114,6 +115,7 @@ export default function SelectField({
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid
 }: SelectFieldProps) {
+  const { t } = useTranslation();
   const generatedId = useId();
   const rootId = id || `${generatedId}-select-field`;
   const labelId = `${rootId}-label`;
@@ -159,7 +161,7 @@ export default function SelectField({
   });
 
   const controlLabel =
-    ariaLabel || readableLabel(label) || readableLabel(selectedOption?.label) || "选择";
+    ariaLabel || readableLabel(label) || readableLabel(selectedOption?.label) || t("common.actions.select");
 
   const activeOptionId =
     open && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined;
@@ -571,7 +573,7 @@ export default function SelectField({
           onKeyDown={handleButtonKeyDown}
         >
           <span id={valueId} className="ui-select-field-value">
-            {selectedOption?.label ?? "请选择"}
+            {selectedOption?.label ?? t("common.actions.selectPrompt")}
           </span>
         </button>
 

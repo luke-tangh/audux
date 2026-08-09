@@ -30,6 +30,7 @@ from .services.whisper_component_service import (
     WhisperCompanionCanceled,
     transcribe_with_whisper_companion,
 )
+from .services.common import ServiceError, error_code_for_detail
 
 
 logger = get_logger(__name__)
@@ -268,12 +269,16 @@ def recover_interrupted_tasks() -> int:
             if _task_has_completed_output(session, task):
                 final_status = "done"
                 error_message = None
+                task.error_code = None
+                task.error_params = None
             elif task.status == "cancel_requested":
                 final_status = "canceled"
                 error_message = task.error_message
             else:
                 final_status = "failed"
                 error_message = task.error_message or "Task interrupted by backend restart"
+                task.error_code = task.error_code or "task.interrupted"
+                task.error_params = task.error_params or "{}"
 
             task.status = final_status
             task.error_message = error_message
@@ -462,6 +467,12 @@ def _mark_task_failed_or_canceled_after_exception(task_id: int, exc: Exception):
 
         fresh.status = "failed"
         fresh.error_message = str(exc)
+        fresh.error_code = (
+            exc.code if isinstance(exc, ServiceError) else error_code_for_detail(str(exc))
+        )
+        fresh.error_params = json.dumps(
+            exc.params if isinstance(exc, ServiceError) else {}, ensure_ascii=False
+        )
         fresh.finished_at = now_iso()
         fresh.updated_at = now_iso()
         session.add(fresh)
@@ -636,6 +647,18 @@ def _ensure_llm_endpoint_allowed_for_worker(session: Session, endpoint: str) -> 
     except Exception as e:
         detail = getattr(e, "detail", None)
 
+        if isinstance(detail, dict) and isinstance(detail.get("code"), str):
+            raise ServiceError(
+                getattr(e, "status_code", 400),
+                str(detail.get("fallback") or detail["code"]),
+                code=detail["code"],
+                params=(
+                    detail.get("params")
+                    if isinstance(detail.get("params"), dict)
+                    else {}
+                ),
+            ) from e
+
         if detail:
             raise ValueError(str(detail)) from e
 
@@ -648,13 +671,35 @@ def _ensure_asr_endpoint_allowed_for_worker(session: Session, endpoint: str) -> 
     except Exception as e:
         detail = getattr(e, "detail", None)
 
+        if isinstance(detail, dict) and isinstance(detail.get("code"), str):
+            raise ServiceError(
+                getattr(e, "status_code", 400),
+                str(detail.get("fallback") or detail["code"]),
+                code=detail["code"],
+                params=(
+                    detail.get("params")
+                    if isinstance(detail.get("params"), dict)
+                    else {}
+                ),
+            ) from e
+
         if detail:
             raise ValueError(str(detail)) from e
 
         raise
 
 
-def _build_analyze_prompt(audio_context: dict, transcript_text: str) -> str:
+def _build_analyze_prompt(
+    audio_context: dict, transcript_text: str, output_language: str = "auto"
+) -> str:
+    language_instruction = {
+        "zh-CN": "description 和 tags 使用简体中文，language 返回 zh。",
+        "en": "Use English for description and tags, and return en for language.",
+    }.get(
+        output_language,
+        "description 和 tags 使用 transcript 或音频 metadata 的主要语言；language 返回对应的 ISO 639-1 代码。",
+    )
+
     return f"""
 请根据以下本地音频信息生成结构化 JSON。
 
@@ -664,6 +709,7 @@ def _build_analyze_prompt(audio_context: dict, transcript_text: str) -> str:
 - 只输出 JSON，不要输出 Markdown
 
 内容要求：
+- {language_instruction}
 - description 为 80 到 200 字
 - tags 为 5 到 8 个
 - tags 应具体、可检索
@@ -689,7 +735,7 @@ transcript 结束
 {{
   "description": "string",
   "tags": ["string"],
-  "language": "zh"
+  "language": "ISO 639-1 code"
 }}
 """
 
@@ -713,6 +759,9 @@ async def handle_analyze_task(task: TaskSnapshot):
         timeout = get_setting_int(session, "llm.timeout", 60)
         max_tokens = get_setting_int(session, "llm.max_tokens", 800)
         temperature = get_setting_float(session, "llm.temperature", 0.2)
+        output_language = get_setting(session, "ai.output_language", "auto")
+        if output_language not in {"auto", "zh-CN", "en"}:
+            output_language = "auto"
 
         if not endpoint or not model_name:
             raise ValueError("LLM endpoint or model_name is not configured")
@@ -742,7 +791,7 @@ async def handle_analyze_task(task: TaskSnapshot):
         session.add(audio)
         session.commit()
 
-    prompt = _build_analyze_prompt(audio_context, transcript_text)
+    prompt = _build_analyze_prompt(audio_context, transcript_text, output_language)
 
     response = await _run_with_task_heartbeat(
         task_id,

@@ -1,26 +1,43 @@
 import type { ResolvedTheme, ThemeMode } from "../../theme";
+import type { UiLanguagePreference } from "../../i18n";
+import { useTranslation } from "react-i18next";
 import { SelectField } from "../ui";
-import { THEME_OPTIONS } from "./types";
 
 type SettingsHeaderProps = {
   themeMode: ThemeMode;
   resolvedTheme: ResolvedTheme;
   onThemeModeChange: (mode: ThemeMode) => void;
   backendStatus: string;
+  languagePreference: UiLanguagePreference;
+  onLanguagePreferenceChange: (language: UiLanguagePreference) => void;
 };
 
 export default function SettingsHeader({
   themeMode,
   resolvedTheme,
   onThemeModeChange,
-  backendStatus
+  backendStatus,
+  languagePreference,
+  onLanguagePreferenceChange
 }: SettingsHeaderProps) {
+  const { t } = useTranslation();
+  const themeOptions = [
+    { value: "system", label: t("settings.theme.system") },
+    { value: "dark", label: t("settings.theme.dark") },
+    { value: "light", label: t("settings.theme.light") }
+  ];
+  const languageOptions = [
+    { value: "system", label: t("common.language.system") },
+    { value: "zh-CN", label: t("common.language.zhCN") },
+    { value: "en", label: t("common.language.en") }
+  ];
+
   return (
     <header className="settings-header">
       <div>
-        <span className="eyebrow">Control Center</span>
-        <h2>设置中心</h2>
-        <p>管理媒体库、ASR、LLM、任务、维护和日志。</p>
+        <span className="eyebrow">{t("settings.header.eyebrow")}</span>
+        <h2>{t("settings.header.title")}</h2>
+        <p>{t("settings.header.description")}</p>
       </div>
 
       <div className="settings-header-actions">
@@ -28,22 +45,36 @@ export default function SettingsHeader({
           density="compact"
           controlSize="compact"
           controlHeight={42}
-          controlWidth={154}
-          controlMinWidth={154}
-          controlMaxWidth={154}
+          controlMinWidth={148}
+          controlMaxWidth={190}
           controlRadius={16}
-          label="主题"
+          label={t("settings.header.theme")}
           value={themeMode}
-          options={THEME_OPTIONS}
-          title={`当前实际主题：${resolvedTheme === "light" ? "浅色" : "深色"}`}
+          options={themeOptions}
+          title={t("settings.header.resolvedTheme", {
+            theme: t(`settings.theme.${resolvedTheme}`)
+          })}
           onValueChange={(value) => onThemeModeChange(value as ThemeMode)}
+        />
+
+        <SelectField
+          density="compact"
+          controlSize="compact"
+          controlHeight={42}
+          controlMinWidth={148}
+          controlMaxWidth={190}
+          controlRadius={16}
+          label={t("settings.header.language")}
+          value={languagePreference}
+          options={languageOptions}
+          onValueChange={(value) => onLanguagePreferenceChange(value as UiLanguagePreference)}
         />
 
         <div className={`backend-status ${backendStatus}`}>
           <span />
-          {backendStatus === "checking" && "检查中"}
-          {backendStatus === "ok" && "后端正常"}
-          {backendStatus === "failed" && "后端未连接"}
+          {backendStatus === "checking" && t("settings.backend.checking")}
+          {backendStatus === "ok" && t("settings.backend.ok")}
+          {backendStatus === "failed" && t("settings.backend.failed")}
         </div>
       </div>
     </header>

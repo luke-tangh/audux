@@ -3,6 +3,7 @@ import { api } from "../api";
 import type { AudioItem } from "../types";
 import { displayAuthor, displayDescription, displayTitle, formatDuration } from "../types";
 import { Button, StatusPill, MaterialIcon } from "./ui";
+import { useTranslation } from "react-i18next";
 
 const MAX_BATCH_SELECTION = 500;
 
@@ -138,6 +139,7 @@ function SearchHits({
   query: string;
   onPlayAt: (item: AudioItem, startSeconds: number) => void;
 }) {
+  const { t } = useTranslation();
   const hits = item.search_hits || [];
 
   if (!query.trim() || hits.length === 0) return null;
@@ -152,12 +154,12 @@ function SearchHits({
           {hit.start_seconds !== undefined ? (
             <Button preserveChildren
               type="button"
-              aria-label={`从 ${formatDuration(hit.start_seconds)} 开始播放 ${displayTitle(item)}`}
+              aria-label={t("audioList.playFromHit", { time: formatDuration(hit.start_seconds), title: displayTitle(item) })}
               onClick={(e) => {
                 e.stopPropagation();
                 onPlayAt(item, hit.start_seconds || 0);
               }}
-              title="从该 transcript 命中位置播放"
+              title={t("audioList.playFromHitTitle")}
             >
               {formatDuration(hit.start_seconds)}
             </Button>
@@ -196,6 +198,7 @@ function EmptyState({
   onOpenSettings: () => void;
   onClearFilters: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="empty-state">
       <div className="empty-illustration" aria-hidden="true">
@@ -203,41 +206,42 @@ function EmptyState({
       </div>
 
       <div className="empty-title">
-        {hasActiveFilter ? "没有找到匹配的音频" : "还没有导入音频"}
+        {hasActiveFilter ? t("audioList.noMatches") : t("audioList.noAudio")}
       </div>
 
       <div className="empty-subtitle">
         {hasActiveFilter
-          ? "当前搜索或筛选条件没有命中结果。可以清空筛选后重新浏览。"
-          : "添加本地媒体库目录后，系统会自动读取 metadata、封面，并支持转写和 AI 标签整理。"}
+          ? t("audioList.noMatchesDescription")
+          : t("audioList.noAudioDescription")}
       </div>
 
       <div className="empty-actions">
         {hasActiveFilter ? (
           <Button variant="filled" onClick={onClearFilters}>
-            清空筛选
+            {t("audioList.clearFilters")}
           </Button>
         ) : (
           <Button variant="filled" onClick={onOpenSettings}>
-            添加媒体库
+            {t("audioList.addLibrary")}
           </Button>
         )}
 
         <Button variant="outlined" onClick={onOpenSettings}>
-          打开设置
+          {t("audioList.openSettings")}
         </Button>
       </div>
 
       <div className="empty-support">
-        支持 MP3 / M4A / FLAC / WAV / OGG · 可转写 · 可 AI 生成描述和标签
+        {t("audioList.supportedFormats")}
       </div>
     </div>
   );
 }
 
 function ListSkeleton() {
+  const { t } = useTranslation();
   return (
-    <div className="list-skeleton" aria-label="正在加载音频列表">
+    <div className="list-skeleton" aria-label={t("audioList.loadingLabel")}>
       {Array.from({ length: 7 }).map((_, index) => (
         <div className="skeleton-row" key={index}>
           <span className="skeleton-cover" />
@@ -289,6 +293,7 @@ export default function AudioList({
   onBatchAddToPlaylist,
   onBatchSetFavorite
 }: Props) {
+  const { t } = useTranslation();
   const [draggedPlaylistItemId, setDraggedPlaylistItemId] = useState<number | null>(null);
 
   function findDraggedItem(): AudioItem | undefined {
@@ -318,9 +323,9 @@ export default function AudioList({
     >
       {loadError && (
         <div className="list-error">
-          <strong>列表加载失败</strong>
+          <strong>{t("audioList.loadFailed")}</strong>
           <span>{loadError}</span>
-          <Button preserveChildren onClick={onClearFilters}>清空筛选后重试</Button>
+          <Button preserveChildren onClick={onClearFilters}>{t("audioList.clearAndRetry")}</Button>
         </div>
       )}
 
@@ -343,21 +348,21 @@ export default function AudioList({
       {!isLoading && !loadError && items.length > 0 && (
         <div
           className={`batch-selection-toolbar ${selectionMode ? "active" : ""}`}
-          aria-label="批量整理"
+          aria-label={t("audioList.batchOrganize")}
         >
           {!selectionMode ? (
             <Button variant="outlined" size="sm" onClick={onEnterSelectionMode}>
-              多选整理
+              {t("audioList.multiSelect")}
             </Button>
           ) : (
             <>
-              <strong aria-live="polite">已选择 {selectedCount} 个</strong>
+              <strong aria-live="polite">{t("audioList.selectedCount", { count: selectedCount })}</strong>
               <Button variant="text" size="sm" onClick={onToggleSelectAllLoaded}>
                 {allLoadedSelected
-                  ? "取消全选"
+                  ? t("audioList.deselectAll")
                   : items.length > MAX_BATCH_SELECTION
-                    ? `选择前 ${MAX_BATCH_SELECTION} 个`
-                    : `全选已加载 (${items.length})`}
+                    ? t("audioList.selectFirst", { count: MAX_BATCH_SELECTION })
+                    : t("audioList.selectAllLoaded", { count: items.length })}
               </Button>
               <Button
                 variant="text"
@@ -365,21 +370,21 @@ export default function AudioList({
                 onClick={onClearAudioSelection}
                 disabled={selectedCount === 0}
               >
-                清空选择
+                {t("audioList.clearSelection")}
               </Button>
               <span className="batch-selection-divider" aria-hidden="true" />
               <Button size="sm" onClick={onBatchAddTags} disabled={selectedCount === 0}>
-                添加标签
+                {t("audioList.addTags")}
               </Button>
               <Button size="sm" onClick={onBatchRemoveTag} disabled={selectedCount === 0}>
-                移除标签
+                {t("audioList.removeTags")}
               </Button>
               <Button
                 size="sm"
                 onClick={onBatchAddToPlaylist}
                 disabled={selectedCount === 0}
               >
-                加入 Playlist
+                {t("audioList.addPlaylist")}
               </Button>
               <Button
                 variant="tonal"
@@ -387,7 +392,7 @@ export default function AudioList({
                 onClick={() => onBatchSetFavorite(true)}
                 disabled={selectedCount === 0}
               >
-                收藏
+                {t("audioList.favorite")}
               </Button>
               <Button
                 variant="tonal"
@@ -395,17 +400,17 @@ export default function AudioList({
                 onClick={() => onBatchSetFavorite(false)}
                 disabled={selectedCount === 0}
               >
-                取消收藏
+                {t("audioList.unfavorite")}
               </Button>
               <Button variant="outlined" size="sm" onClick={onExitSelectionMode}>
-                完成
+                {t("audioList.done")}
               </Button>
             </>
           )}
         </div>
       )}
 
-      <div className="audio-scroll-list" role="list" aria-label={`${title} 音频列表`}>
+      <div className="audio-scroll-list" role="list" aria-label={t("audioList.listLabel", { title })}>
         {items.map((item, index) => {
           const draggable = Boolean(
             !selectionMode && isPlaylistView && item.playlist_item_id
@@ -432,7 +437,7 @@ export default function AudioList({
               role="listitem"
               tabIndex={rowIsTabbable ? 0 : -1}
               aria-current={rowIsSelected ? "true" : undefined}
-              aria-label={`音频：${displayTitle(item)}`}
+              aria-label={t("audioList.audioLabel", { title: displayTitle(item) })}
               aria-keyshortcuts="Enter Space ArrowUp ArrowDown Home End"
               data-audio-row="true"
               data-audio-row-index={index}
@@ -531,7 +536,7 @@ export default function AudioList({
                   <input
                     type="checkbox"
                     checked={rowIsBatchSelected}
-                    aria-label={`选择 ${displayTitle(item)}`}
+                    aria-label={t("audioList.selectAudio", { title: displayTitle(item) })}
                     onChange={() => onToggleAudioSelection(item.id)}
                   />
                 </label>
@@ -546,10 +551,10 @@ export default function AudioList({
                     <HighlightText text={displayTitle(item)} query={q} />
                   </div>
 
-                  {item.is_missing ? <span className="badge danger">missing</span> : null}
+                  {item.is_missing ? <span className="badge danger">{t("audioList.missingBadge")}</span> : null}
 
                   {draggable && (
-                    <span className="drag-hint" title="拖拽可调整 playlist 顺序">
+                    <span className="drag-hint" title={t("audioList.dragHint")}>
                       <MaterialIcon name="drag_indicator" size={18} />
                     </span>
                   )}
@@ -578,8 +583,8 @@ export default function AudioList({
                 <RowTags item={item} query={q} />
 
                 <div className="row-status">
-                  <StatusPill label="转写" value={item.transcript_status} />
-                  <StatusPill label="AI" value={item.ai_status} />
+                  <StatusPill label={t("audioList.transcript")} value={item.transcript_status} />
+                  <StatusPill label={t("common.technical.ai")} value={item.ai_status} />
                 </div>
 
                 <SearchHits item={item} query={q} onPlayAt={onPlayAt} />
@@ -589,8 +594,8 @@ export default function AudioList({
                 <Button
                   preserveChildren
                   type="button"
-                  aria-label={`将 ${displayTitle(item)} 设为下一首播放`}
-                  title="下一首播放"
+                  aria-label={t("audioList.playNextLabel", { title: displayTitle(item) })}
+                  title={t("audioList.playNext")}
                   disabled={item.is_missing}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -603,8 +608,8 @@ export default function AudioList({
                 <Button
                   preserveChildren
                   type="button"
-                  aria-label={`加入播放队列 ${displayTitle(item)}`}
-                  title="加入播放队列"
+                  aria-label={t("audioList.addQueueLabel", { title: displayTitle(item) })}
+                  title={t("audioList.addQueue")}
                   disabled={item.is_missing}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -618,52 +623,52 @@ export default function AudioList({
                   type="button"
                   variant="filled"
                   className="row-play-button"
-                  aria-label={`播放 ${displayTitle(item)}`}
+                  aria-label={t("audioList.playLabel", { title: displayTitle(item) })}
                   disabled={item.is_missing}
                   onClick={(e) => {
                     e.stopPropagation();
                     onPlay(item);
                   }}
                 >
-                  播放
+                  {t("audioList.play")}
                 </Button>
 
                 {isPlaylistView && item.playlist_item_id && (
                   <>
                     <Button preserveChildren
                       type="button"
-                      aria-label={`在当前 playlist 中上移 ${displayTitle(item)}`}
+                      aria-label={t("audioList.moveUpLabel", { title: displayTitle(item) })}
                       onClick={(e) => {
                         e.stopPropagation();
                         onMovePlaylistItem?.(item, "up");
                       }}
-                      title="在当前 playlist 中上移"
+                      title={t("audioList.moveUp")}
                     >
                       <MaterialIcon name="keyboard_arrow_up" size={18} />
                     </Button>
 
                     <Button preserveChildren
                       type="button"
-                      aria-label={`在当前 playlist 中下移 ${displayTitle(item)}`}
+                      aria-label={t("audioList.moveDownLabel", { title: displayTitle(item) })}
                       onClick={(e) => {
                         e.stopPropagation();
                         onMovePlaylistItem?.(item, "down");
                       }}
-                      title="在当前 playlist 中下移"
+                      title={t("audioList.moveDown")}
                     >
                       <MaterialIcon name="keyboard_arrow_down" size={18} />
                     </Button>
 
                     <Button preserveChildren
                       type="button"
-                      aria-label={`从当前 playlist 移除 ${displayTitle(item)}`}
+                      aria-label={t("audioList.removePlaylistLabel", { title: displayTitle(item) })}
                       onClick={(e) => {
                         e.stopPropagation();
                         onRemoveFromPlaylist?.(item);
                       }}
-                      title="从当前 playlist 移除"
+                      title={t("audioList.removePlaylist")}
                     >
-                      移除
+                      {t("common.actions.remove")}
                     </Button>
                   </>
                 )}
@@ -685,13 +690,15 @@ export default function AudioList({
             }}
           >
             <span>
-              已加载 {items.length}
-              {typeof totalCount === "number" ? ` / ${totalCount}` : ""} 个音频
+              {t("audioList.loadedCount", {
+                loaded: items.length,
+                total: typeof totalCount === "number" ? ` / ${totalCount}` : ""
+              })}
             </span>
 
             {hasMore && (
               <Button variant="outlined" onClick={onLoadMore} disabled={isLoadingMore}>
-                {isLoadingMore ? "加载中..." : "加载更多"}
+                {isLoadingMore ? t("audioList.loadingMore") : t("audioList.loadMore")}
               </Button>
             )}
           </div>

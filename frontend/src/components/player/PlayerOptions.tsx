@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { AudioItem } from "../../types";
 import { Button, MaterialIcon, SelectField } from "../ui";
 import QueuePopover from "./QueuePopover";
+import { useTranslation } from "react-i18next";
 
 const PLAYBACK_RATE_OPTIONS = [0.75, 1, 1.25, 1.5, 2].map((value) => ({
   value: String(value),
@@ -37,6 +38,7 @@ export default function PlayerOptions({
   onQueueMove,
   onQueueClear
 }: PlayerOptionsProps) {
+  const { t } = useTranslation();
   const queueToggleRef = useRef<HTMLButtonElement | null>(null);
 
   function closeQueue(restoreFocus = false) {
@@ -71,11 +73,11 @@ export default function PlayerOptions({
         controlRadius="var(--md-sys-shape-corner-full)"
         menuWidth="control"
         menuMinWidth={118}
-        label="速度"
+        label={t("player.speed")}
         value={String(rate)}
         options={PLAYBACK_RATE_OPTIONS}
-        aria-label="播放速度"
-        title="播放速度"
+        aria-label={t("player.playbackSpeed")}
+        title={t("player.playbackSpeed")}
         onValueChange={(value) => onRateChange(Number(value))}
       />
 
@@ -84,7 +86,7 @@ export default function PlayerOptions({
           <MaterialIcon name="volume_up" size={18} />
         </span>
 
-        <span className="sr-only">音量</span>
+        <span className="sr-only">{t("player.volume")}</span>
         <input
           type="range"
           min={0}
@@ -101,14 +103,14 @@ export default function PlayerOptions({
           preserveChildren
           type="button"
           className="queue-toggle-button"
-          aria-label={queueOpen ? "关闭播放队列" : "打开播放队列"}
+          aria-label={queueOpen ? t("player.closeQueue") : t("player.openQueue")}
           aria-haspopup="dialog"
           aria-expanded={queueOpen}
           aria-controls="player-queue-popover"
           onClick={() => onQueueOpenChange((value) => !value)}
           disabled={queue.length === 0}
         >
-          队列 {queue.length > 0 ? `${queueIndex + 1}/${queue.length}` : ""}
+          {t("player.queue")} {queue.length > 0 ? `${queueIndex + 1}/${queue.length}` : ""}
         </Button>
 
         {queueOpen && (

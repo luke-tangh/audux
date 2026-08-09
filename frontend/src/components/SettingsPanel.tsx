@@ -12,6 +12,9 @@ import TaskPanel from "./TaskPanel";
 import { PanelCard, Tabs } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
 import { useTheme } from "../theme";
+import { useLocale } from "../i18n/LocaleProvider";
+import { useTranslation } from "react-i18next";
+import { localizedPrivacyWarning, localizedStoredError } from "../i18n/errors";
 import AsrSettingsTab from "./settings/AsrSettingsTab";
 import LibrarySettingsTab from "./settings/LibrarySettingsTab";
 import LlmSettingsTab from "./settings/LlmSettingsTab";
@@ -29,6 +32,8 @@ type Props = {
 export default function SettingsPanel({ refresh, notify }: Props) {
   const dialog = useDialog();
   const { themeMode, setThemeMode, resolvedTheme } = useTheme();
+  const { languagePreference, setLanguagePreference } = useLocale();
+  const { t } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("library");
 
@@ -64,6 +69,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [llmMaxTokens, setLlmMaxTokens] = useState("800");
   const [llmTemperature, setLlmTemperature] = useState("0.2");
   const [llmAllowRemoteEndpoint, setLlmAllowRemoteEndpoint] = useState(false);
+  const [aiOutputLanguage, setAiOutputLanguage] = useState("auto");
 
   const [llmTestResult, setLlmTestResult] = useState("");
   const [backendStatus, setBackendStatus] = useState("checking");
@@ -82,17 +88,20 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         if (previous && previous !== task.status && terminalStatus(task.status)) {
           if (task.status === "done") {
             notify?.(
-              `扫描任务 #${task.id} 已完成，导入 ${task.imported}，更新 ${task.updated}，缺失 ${task.missing}`,
+              t("settings.notifications.scanDone", { id: task.id, imported: task.imported, updated: task.updated, missing: task.missing }),
               "success"
             );
           }
 
           if (task.status === "failed") {
-            notify?.(`扫描任务 #${task.id} 失败：${task.error_message || "未知错误"}`, "error");
+            notify?.(t("settings.notifications.scanFailed", {
+              id: task.id,
+              error: localizedStoredError(t, task.error_code, task.error_params, task.error_message)
+            }), "error");
           }
 
           if (task.status === "canceled") {
-            notify?.(`扫描任务 #${task.id} 已取消`, "info");
+            notify?.(t("settings.notifications.scanCanceled", { id: task.id }), "info");
           }
 
           shouldRefresh = true;
@@ -199,6 +208,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       setLlmTimeout(settings.find((setting) => setting.key === "llm.timeout")?.value || "60");
       setLlmMaxTokens(settings.find((setting) => setting.key === "llm.max_tokens")?.value || "800");
       setLlmTemperature(settings.find((setting) => setting.key === "llm.temperature")?.value || "0.2");
+      setAiOutputLanguage(
+        settings.find((setting) => setting.key === "ai.output_language")?.value || "auto"
+      );
       setLlmAllowRemoteEndpoint(
         ["1", "true", "yes", "on"].includes(
           (
@@ -231,7 +243,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     if (selected) {
       setPath(selected);
     } else {
-      notify?.("未选择文件夹，或当前不是 Tauri 运行环境。", "error");
+      notify?.(t("settings.notifications.noFolder"), "error");
     }
   }
 
@@ -244,7 +256,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
       await load();
       refresh();
-      notify?.("媒体库目录已添加", "success");
+      notify?.(t("settings.notifications.rootAdded"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -258,7 +270,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
       await load();
       refresh();
-      notify?.(isEnabled ? "媒体库目录已启用" : "媒体库目录已禁用", "success");
+      notify?.(isEnabled ? t("settings.notifications.rootEnabled") : t("settings.notifications.rootDisabled"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -266,12 +278,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function removeRoot(root: LibraryRoot) {
     const ok = await dialog.confirm({
-      title: "移除媒体库目录？",
-      message:
-        `确认移除「${root.path}」？\n\n` +
-        "音频文件和数据库中的音频、标签、playlist、transcript 都会保留；该目录的扫描历史会删除。",
-      confirmLabel: "移除目录",
-      cancelLabel: "取消",
+      title: t("settings.removeRoot.title"),
+      message: t("settings.removeRoot.message", { path: root.path }),
+      confirmLabel: t("settings.removeRoot.confirm"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "danger",
       destructive: true
     });
@@ -283,7 +293,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await load();
       refresh();
       notify?.(
-        `目录已移除，保留 ${result.detached_audio_items} 条音频记录`,
+        t("settings.notifications.rootRemoved", { count: result.detached_audio_items }),
         "success"
       );
     } catch (err) {
@@ -293,10 +303,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function scan(id: number) {
     try {
-      setScanResult("已创建扫描任务...");
+      setScanResult(t("settings.scan.creating"));
       const task = await api.scanLibraryRoot(id);
-      setScanResult(`扫描任务 #${task.id} 已创建`);
-      notify?.(`扫描任务 #${task.id} 已创建`, "success");
+      setScanResult(t("settings.scan.created", { id: task.id }));
+      notify?.(t("settings.scan.created", { id: task.id }), "success");
       await loadScanTasks();
       refresh();
     } catch (err) {
@@ -306,10 +316,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function cancelScan(task: ScanTask) {
     const ok = await dialog.confirm({
-      title: "取消扫描任务？",
-      message: `确认取消扫描任务 #${task.id}？`,
-      confirmLabel: "取消扫描",
-      cancelLabel: "继续扫描",
+      title: t("settings.scan.cancelTitle"),
+      message: t("settings.scan.cancelMessage", { id: task.id }),
+      confirmLabel: t("settings.scan.cancelConfirm"),
+      cancelLabel: t("settings.scan.keep"),
       tone: "warning"
     });
 
@@ -317,7 +327,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
     try {
       await api.cancelScanTask(task.id);
-      notify?.(`扫描任务 #${task.id} 已请求取消`, "info");
+      notify?.(t("settings.scan.cancelRequested", { id: task.id }), "info");
       await loadScanTasks();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -334,7 +344,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       refresh();
       await load();
 
-      notify?.("Playlist 已创建", "success");
+      notify?.(t("settings.playlist.created"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -342,17 +352,17 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function renamePlaylist(playlist: Playlist) {
     const name = await dialog.prompt({
-      title: "重命名 Playlist",
-      message: `为「${playlist.name}」输入新的名称。`,
-      inputLabel: "Playlist 名称",
+      title: t("settings.playlist.renameTitle"),
+      message: t("settings.playlist.renameMessage", { name: playlist.name }),
+      inputLabel: t("settings.library.playlistName"),
       defaultValue: playlist.name,
       required: true,
-      confirmLabel: "保存",
-      cancelLabel: "取消",
+      confirmLabel: t("common.actions.save"),
+      cancelLabel: t("common.actions.cancel"),
       validate: (value) => {
         const trimmed = value.trim();
-        if (!trimmed) return "Playlist 名称不能为空";
-        if (trimmed === playlist.name) return "请输入不同的名称";
+        if (!trimmed) return t("settings.playlist.nameRequired");
+        if (trimmed === playlist.name) return t("settings.playlist.nameDifferent");
         return null;
       }
     });
@@ -363,7 +373,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.updatePlaylist(playlist.id, name.trim());
       await load();
       refresh();
-      notify?.("Playlist 已重命名", "success");
+      notify?.(t("settings.playlist.renamed"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -371,10 +381,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function deletePlaylist(playlist: Playlist) {
     const ok = await dialog.confirm({
-      title: "删除 Playlist？",
-      message: `确认删除「${playlist.name}」？\n\n只会删除播放列表及其排序，不会删除任何音频。`,
-      confirmLabel: "删除 Playlist",
-      cancelLabel: "取消",
+      title: t("settings.playlist.deleteTitle"),
+      message: t("settings.playlist.deleteMessage", { name: playlist.name }),
+      confirmLabel: t("settings.playlist.deleteConfirm"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "danger",
       destructive: true
     });
@@ -385,7 +395,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       const result = await api.deletePlaylist(playlist.id);
       await load();
       refresh();
-      notify?.(`Playlist 已删除，移除 ${result.removed_items} 个列表项`, "success");
+      notify?.(t("settings.playlist.deleted", { count: result.removed_items }), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -393,7 +403,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function saveAsr() {
     if (asrProvider === "faster_whisper" && !whisperComponent?.available) {
-      notify?.("请先下载并安装 Whisper 本地转写组件。", "error");
+      notify?.(t("settings.asr.installRequired"), "error");
       return;
     }
 
@@ -403,7 +413,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       warning &&
       !asrExternalAllowRemoteEndpoint
     ) {
-      notify?.("如需使用非本机 ASR endpoint，请先勾选明确允许远程 / 内网 endpoint。", "error");
+      notify?.(t("settings.asr.allowRemoteRequired"), "error");
       return;
     }
 
@@ -436,7 +446,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         asrExternalAllowRemoteEndpoint ? "true" : "false"
       );
 
-      notify?.("ASR 设置已保存", "success");
+      notify?.(t("settings.asr.saved"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -446,7 +456,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     try {
       const status = await api.installWhisperComponent();
       setWhisperComponent(status);
-      notify?.("Whisper 组件已开始下载", "info");
+      notify?.(t("settings.asr.downloadStarted"), "info");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -456,7 +466,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     try {
       const status = await api.cancelWhisperComponentInstall();
       setWhisperComponent(status);
-      notify?.("已请求取消 Whisper 组件下载", "info");
+      notify?.(t("settings.asr.cancelRequested"), "info");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -464,10 +474,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function removeWhisperComponent() {
     const ok = await dialog.confirm({
-      title: "移除 Whisper 组件？",
-      message: "组件运行时会被移除，已下载的模型缓存将保留，之后可再次安装组件。",
-      confirmLabel: "移除组件",
-      cancelLabel: "取消",
+      title: t("settings.asr.removeTitle"),
+      message: t("settings.asr.removeMessage"),
+      confirmLabel: t("settings.asr.removeComponent"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "danger",
       destructive: true
     });
@@ -477,7 +487,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     try {
       const status = await api.removeWhisperComponent();
       setWhisperComponent(status);
-      notify?.("Whisper 组件已移除，模型缓存已保留", "success");
+      notify?.(t("settings.asr.removed"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -486,7 +496,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   async function saveLlm() {
     const warning = endpointPrivacyWarning(llmEndpoint);
     if (warning && !llmAllowRemoteEndpoint) {
-      notify?.("如需使用非本机 LLM endpoint，请先勾选明确允许远程 / 内网 endpoint。", "error");
+      notify?.(t("settings.llm.allowRemoteRequired"), "error");
       return;
     }
 
@@ -497,12 +507,13 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.setSetting("llm.timeout", llmTimeout.trim() || "60");
       await api.setSetting("llm.max_tokens", llmMaxTokens.trim() || "800");
       await api.setSetting("llm.temperature", llmTemperature.trim() || "0.2");
+      await api.setSetting("ai.output_language", aiOutputLanguage);
       await api.setSetting(
         "llm.allow_remote_endpoint",
         llmAllowRemoteEndpoint ? "true" : "false"
       );
 
-      notify?.("LLM 设置已保存", "success");
+      notify?.(t("settings.llm.saved"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -512,17 +523,17 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     const warning = endpointPrivacyWarning(llmEndpoint);
     if (warning && !llmAllowRemoteEndpoint) {
       const ok = await dialog.confirm({
-        title: "仅测试非本机 LLM endpoint？",
-        message: `${warning}\n\n当前尚未勾选允许远程 endpoint。仅继续测试连接？`,
-        confirmLabel: "继续测试",
-        cancelLabel: "取消",
+        title: t("settings.llm.testRemoteTitle"),
+        message: t("settings.llm.testRemoteMessage", { warning }),
+        confirmLabel: t("settings.llm.testContinue"),
+        cancelLabel: t("common.actions.cancel"),
         tone: "privacy"
       });
 
       if (!ok) return;
     }
 
-    setLlmTestResult("测试中...");
+    setLlmTestResult(t("settings.llm.testing"));
 
     try {
       const result = await api.testLlm({
@@ -535,24 +546,27 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       });
 
       if (result.privacy_warning) {
-        notify?.(result.privacy_warning, "error");
+        notify?.(
+          localizedPrivacyWarning(t, result.privacy_warning_code, result.privacy_warning),
+          "error"
+        );
       }
 
-      setLlmTestResult(`连接成功：${result.content}`);
-      notify?.("LLM 连接测试成功", "success");
+      setLlmTestResult(t("settings.llm.testSuccessResult", { content: result.content }));
+      notify?.(t("settings.llm.testSuccess"), "success");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setLlmTestResult(`连接失败：${message}`);
-      notify?.(`LLM 连接测试失败：${message}`, "error");
+      setLlmTestResult(t("settings.llm.testFailedResult", { error: message }));
+      notify?.(t("settings.llm.testFailed", { error: message }), "error");
     }
   }
 
   async function rebuildSearch() {
     const ok = await dialog.confirm({
-      title: "重建搜索索引？",
-      message: "确认重建所有音频的搜索索引？这可能需要一些时间。",
-      confirmLabel: "重建索引",
-      cancelLabel: "取消",
+      title: t("settings.search.rebuildTitle"),
+      message: t("settings.search.rebuildMessage"),
+      confirmLabel: t("settings.search.rebuildConfirm"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "warning"
     });
 
@@ -560,7 +574,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
     try {
       const result = await api.rebuildSearchIndex();
-      notify?.(`已重建 ${result.count} 条搜索索引`, "success");
+      notify?.(t("settings.search.rebuilt", { count: result.count }), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -568,19 +582,19 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function renameTag(tag: Tag) {
     const name = await dialog.prompt({
-      title: "重命名标签",
-      message: `为 #${tag.name} 输入新的标签名称。`,
-      inputLabel: "标签名称",
+      title: t("settings.tags.renameTitle"),
+      message: t("settings.tags.renameMessage", { name: tag.name }),
+      inputLabel: t("settings.tags.name"),
       defaultValue: tag.name,
-      placeholder: "输入新的标签名称",
+      placeholder: t("settings.tags.newName"),
       required: true,
-      confirmLabel: "保存",
-      cancelLabel: "取消",
+      confirmLabel: t("common.actions.save"),
+      cancelLabel: t("common.actions.cancel"),
       validate: (value) => {
         const trimmed = value.trim();
 
-        if (!trimmed) return "标签名称不能为空";
-        if (trimmed === tag.name) return "请输入不同的标签名称";
+        if (!trimmed) return t("settings.tags.nameRequired");
+        if (trimmed === tag.name) return t("settings.tags.nameDifferent");
 
         return null;
       }
@@ -592,7 +606,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.updateTag(tag.id, { name: name.trim() });
       await loadTags();
       refresh();
-      notify?.("标签已重命名", "success");
+      notify?.(t("settings.tags.renamed"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -600,10 +614,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function deleteTag(tag: Tag) {
     const ok = await dialog.confirm({
-      title: "删除标签？",
-      message: `确认删除标签 #${tag.name}？\n\n如果该标签仍被音频使用，默认不会删除。`,
-      confirmLabel: "删除标签",
-      cancelLabel: "取消",
+      title: t("settings.tags.deleteTitle"),
+      message: t("settings.tags.deleteMessage", { name: tag.name }),
+      confirmLabel: t("settings.tags.deleteConfirm"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "danger",
       destructive: true
     });
@@ -614,7 +628,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.deleteTag(tag.id, false);
       await loadTags();
       refresh();
-      notify?.("标签已删除", "success");
+      notify?.(t("settings.tags.deleted"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -622,19 +636,19 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function mergeTag(tag: Tag) {
     const targetName = await dialog.prompt({
-      title: "合并标签",
-      message: `把 #${tag.name} 的全部音频关联合并到另一个现有标签。源标签随后会删除。`,
-      inputLabel: "目标标签名称",
-      placeholder: "输入现有标签的完整名称",
+      title: t("settings.tags.mergeTitle"),
+      message: t("settings.tags.mergeMessage", { name: tag.name }),
+      inputLabel: t("settings.tags.targetName"),
+      placeholder: t("settings.tags.targetPlaceholder"),
       required: true,
-      confirmLabel: "合并",
-      cancelLabel: "取消",
+      confirmLabel: t("settings.maintenance.merge"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "warning",
       validate: (value) => {
         const normalized = value.trim();
-        if (normalized === tag.name) return "源标签和目标标签必须不同";
+        if (normalized === tag.name) return t("settings.tags.same");
         if (!maintenanceTags.some((candidate) => candidate.name === normalized)) {
-          return "目标标签不存在，请输入现有标签的完整名称";
+          return t("settings.tags.targetMissing");
         }
         return null;
       }
@@ -651,7 +665,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await loadTags();
       refresh();
       notify?.(
-        `已将 #${tag.name} 合并到 #${result.target_tag.name}，影响 ${result.affected_audio_items} 条音频`,
+        t("settings.tags.merged", { source: tag.name, target: result.target_tag.name, count: result.affected_audio_items }),
         "success"
       );
     } catch (err) {
@@ -661,10 +675,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   async function cleanupTags() {
     const ok = await dialog.confirm({
-      title: "清理未使用标签？",
-      message: "确认清理所有没有关联音频的 orphan tags？",
-      confirmLabel: "清理标签",
-      cancelLabel: "取消",
+      title: t("settings.tags.cleanupTitle"),
+      message: t("settings.tags.cleanupMessage"),
+      confirmLabel: t("settings.tags.cleanupConfirm"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "warning"
     });
 
@@ -674,7 +688,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       const result = await api.cleanupTags();
       await loadTags();
       refresh();
-      notify?.(`已清理 ${result.deleted} 个未使用标签`, "success");
+      notify?.(t("settings.tags.cleaned", { count: result.deleted }), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -690,14 +704,16 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         resolvedTheme={resolvedTheme}
         onThemeModeChange={setThemeMode}
         backendStatus={backendStatus}
+        languagePreference={languagePreference}
+        onLanguagePreferenceChange={setLanguagePreference}
       />
 
       <Tabs
         className="settings-tabs"
-        items={SETTINGS_TABS}
+        items={SETTINGS_TABS.map((id) => ({ id, label: t(`settings.tabs.${id}`) }))}
         activeId={activeTab}
         onChange={setActiveTab}
-        ariaLabel="设置分类"
+        ariaLabel={t("settings.header.title")}
         idPrefix="settings"
       />
 
@@ -775,6 +791,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             llmMaxTokens={llmMaxTokens}
             llmTemperature={llmTemperature}
             llmAllowRemoteEndpoint={llmAllowRemoteEndpoint}
+            aiOutputLanguage={aiOutputLanguage}
             llmWarning={llmWarning}
             llmTestResult={llmTestResult}
             onLlmEndpointChange={setLlmEndpoint}
@@ -784,6 +801,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onLlmMaxTokensChange={setLlmMaxTokens}
             onLlmTemperatureChange={setLlmTemperature}
             onLlmAllowRemoteEndpointChange={setLlmAllowRemoteEndpoint}
+            onAiOutputLanguageChange={setAiOutputLanguage}
             onSaveLlm={saveLlm}
             onTestLlm={testLlm}
           />

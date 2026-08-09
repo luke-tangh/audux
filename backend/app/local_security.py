@@ -227,7 +227,11 @@ def ensure_llm_endpoint_allowed(session: Session, endpoint: str) -> Optional[str
     if not allow_remote or not _setting_truthy(allow_remote.value):
         raise HTTPException(
             status_code=400,
-            detail=f"{warning} 如需继续，请在设置中启用允许非本机 LLM endpoint。",
+            detail={
+                "code": "security.remote_llm_not_allowed",
+                "params": {},
+                "fallback": "The non-local LLM endpoint has not been explicitly allowed.",
+            },
         )
 
     return warning
@@ -246,7 +250,11 @@ def ensure_asr_endpoint_allowed(session: Session, endpoint: str) -> Optional[str
     if not allow_remote or not _setting_truthy(allow_remote.value):
         raise HTTPException(
             status_code=400,
-            detail=f"{warning} 如需继续，请在设置中启用允许非本机 ASR endpoint。",
+            detail={
+                "code": "security.remote_asr_not_allowed",
+                "params": {},
+                "fallback": "The non-local ASR endpoint has not been explicitly allowed.",
+            },
         )
 
     return warning

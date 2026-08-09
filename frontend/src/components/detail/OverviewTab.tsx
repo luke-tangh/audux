@@ -11,6 +11,7 @@ import {
   TextField
 } from "../ui";
 import type { EditingPatch, NumericSelection } from "./types";
+import { useTranslation } from "react-i18next";
 
 type OverviewTabProps = {
   audio: AudioItem;
@@ -57,63 +58,64 @@ export default function OverviewTab({
   onAddToPlaylist,
   onExportPlaylist
 }: OverviewTabProps) {
+  const { t } = useTranslation();
   return (
     <div className="inspector-section-stack">
       <PanelCard
-        title="Metadata"
+        title={t("common.technical.metadata")}
         actions={
           <Button variant="filled" onClick={onSave}>
-            保存 metadata
+            {t("detail.overview.saveMetadata")}
           </Button>
         }
       >
         <div className="field-grid">
           <TextField
-            label="用户标题"
+            label={t("detail.overview.userTitle")}
             value={(editing.title_user as string) || ""}
             onValueChange={(value) => onEditingChange({ title_user: value })}
           />
 
           <TextField
-            label="作者"
+            label={t("detail.overview.author")}
             value={(editing.author_user as string) || ""}
             onValueChange={(value) => onEditingChange({ author_user: value })}
           />
 
           <TextField
-            label="专辑"
+            label={t("detail.overview.album")}
             value={(editing.album_user as string) || ""}
             onValueChange={(value) => onEditingChange({ album_user: value })}
           />
 
           <TextField
-            label="语言"
+            label={t("detail.overview.language")}
             value={(editing.language as string) || ""}
             onValueChange={(value) => onEditingChange({ language: value })}
           />
 
           <CheckboxField
             wide
-            label="收藏"
+            label={t("detail.overview.favorite")}
             checked={Boolean(editing.is_favorite)}
             onCheckedChange={(checked) => onEditingChange({ is_favorite: checked })}
           />
 
           <TextareaField
             wide
-            label="用户描述"
+            label={t("detail.overview.userDescription")}
             value={(editing.description_user as string) || ""}
             onValueChange={(value) => onEditingChange({ description_user: value })}
           />
         </div>
       </PanelCard>
 
-      <PanelCard title="Tags">
+      <PanelCard title={t("common.technical.tags")}>
         <div className="tag-list">
           {tags.map((tag) => (
             <span className="tag" key={tag.id}>
               #{tag.name}
-              <IconButton label={`移除标签 ${tag.name}`} onClick={() => onRemoveTag(tag.id)}>
+              <IconButton label={t("detail.overview.removeTag", { name: tag.name })} onClick={() => onRemoveTag(tag.id)}>
                 <MaterialIcon name="close" size={16} />
               </IconButton>
             </span>
@@ -124,22 +126,22 @@ export default function OverviewTab({
           <TextField
             wrapperClassName="inline-field"
             hideLabel
-            label="新标签"
+            label={t("detail.overview.newTag")}
             value={tagInput}
-            placeholder="新标签，可用逗号分隔"
+            placeholder={t("detail.overview.newTagPlaceholder")}
             onValueChange={onTagInputChange}
           />
           <Button variant="text" onClick={onAddTags}>
-            添加
+            {t("common.actions.add")}
           </Button>
         </div>
 
         <div className="inline-form">
           <SelectField
             value={selectedExistingTag === "" ? "" : String(selectedExistingTag)}
-            aria-label="选择已有标签"
+            aria-label={t("detail.overview.selectTag")}
             options={[
-              { value: "", label: "选择已有标签" },
+              { value: "", label: t("detail.overview.selectTag") },
               ...availableExistingTags.map((tag) => ({
                 value: String(tag.id),
                 label: `#${tag.name}`
@@ -150,18 +152,18 @@ export default function OverviewTab({
             }
           />
           <Button variant="text" onClick={onAddExistingTag} disabled={!selectedExistingTag}>
-            添加已有标签
+            {t("detail.overview.addExistingTag")}
           </Button>
         </div>
       </PanelCard>
 
-      <PanelCard title="Playlist">
+      <PanelCard title={t("common.technical.playlist")}>
         <div className="inline-form">
           <SelectField
             value={selectedPlaylist === "" ? "" : String(selectedPlaylist)}
-            aria-label="选择 playlist"
+            aria-label={t("detail.overview.selectPlaylist")}
             options={[
-              { value: "", label: "选择 playlist" },
+              { value: "", label: t("detail.overview.selectPlaylist") },
               ...playlists.map((playlist) => ({
                 value: String(playlist.id),
                 label: playlist.name
@@ -171,24 +173,24 @@ export default function OverviewTab({
           />
 
           <Button variant="text" onClick={onAddToPlaylist}>
-            加入
+            {t("detail.overview.join")}
           </Button>
         </div>
 
         {selectedPlaylistId && (
           <div className="section-actions">
             <Button variant="outlined" onClick={() => onExportPlaylist("json")}>
-              导出当前 JSON
+              {t("detail.overview.exportJson")}
             </Button>
             <Button variant="outlined" onClick={() => onExportPlaylist("m3u")}>
-              导出当前 M3U
+              {t("detail.overview.exportM3u")}
             </Button>
           </div>
         )}
       </PanelCard>
 
-      <PanelCard title="当前描述">
-        <p>{displayDescription(audio) || "暂无描述"}</p>
+      <PanelCard title={t("detail.overview.currentDescription")}>
+        <p>{displayDescription(audio) || t("detail.overview.noDescription")}</p>
       </PanelCard>
     </div>
   );

@@ -4,6 +4,8 @@ import { useDialog } from "../../components/dialog/UnifiedDialog";
 import type { ToastType } from "../useToast";
 import type { AudioListParams, PlaylistListParams, ViewMode } from "./types";
 import { isBusyStatus, uniqueAudioItems } from "./filters";
+import { useTranslation } from "react-i18next";
+import { localizedPrivacyWarning } from "../../i18n/errors";
 
 type Notify = (message: string, type?: ToastType) => void;
 
@@ -35,6 +37,7 @@ export function useBatchTasks({
   refresh
 }: UseBatchTasksParams) {
   const dialog = useDialog();
+  const { t } = useTranslation();
 
   async function fetchAllCurrentAudioItemsForBatch(): Promise<AudioItem[]> {
     await ensureBackendReady();
@@ -79,23 +82,25 @@ export function useBatchTasks({
       );
 
       if (eligible.length === 0) {
-        notify("当前筛选结果没有可创建转写任务的音频。缺失文件或进行中的任务会被跳过。", "info");
+        notify(t("batch.transcribe.none"), "info");
         return;
       }
 
       const skippedByClient = allItems.length - eligible.length;
       const limitedNote =
         searchLimited && debouncedQ.trim()
-          ? `\n\n注意：当前搜索结果仅包含后端返回的前 ${searchLimit || 200} 条。`
+          ? t("batch.limitNote", { count: searchLimit || 200 })
           : "";
 
       const ok = await dialog.confirm({
-        title: "批量创建转写任务？",
-        message: `将为当前筛选结果中的 ${eligible.length} 个音频创建转写任务${
-          skippedByClient ? `，并跳过 ${skippedByClient} 个缺失文件或进行中的音频` : ""
-        }。确认继续？${limitedNote}`,
-        confirmLabel: "创建转写任务",
-        cancelLabel: "取消",
+        title: t("batch.transcribe.title"),
+        message: t("batch.transcribe.message", {
+          count: eligible.length,
+          skipped: skippedByClient ? t("batch.transcribe.skipped", { count: skippedByClient }) : "",
+          note: limitedNote
+        }),
+        confirmLabel: t("batch.transcribe.confirm"),
+        cancelLabel: t("common.actions.cancel"),
         tone: "warning"
       });
 
@@ -103,9 +108,12 @@ export function useBatchTasks({
 
       const result = await api.batchTranscribe(eligible.map((item) => item.id));
       const skippedTotal = skippedByClient + result.skipped;
-      const errorText = result.errors.length ? `，错误 ${result.errors.length} 个` : "";
-
-      notify(`已创建 ${result.created} 个转写任务，跳过 ${skippedTotal} 个${errorText}。`, "success");
+      notify(t("batch.result", {
+        created: result.created,
+        skipped: skippedTotal,
+        errors: result.errors.length,
+        type: t("batch.result.transcribeType")
+      }), "success");
       refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
@@ -121,23 +129,25 @@ export function useBatchTasks({
       const eligible = allItems.filter((item) => !isBusyStatus(item.ai_status));
 
       if (eligible.length === 0) {
-        notify("当前筛选结果没有可创建 AI 分析任务的音频。进行中的任务会被跳过。", "info");
+        notify(t("batch.analyze.none"), "info");
         return;
       }
 
       const skippedByClient = allItems.length - eligible.length;
       const limitedNote =
         searchLimited && debouncedQ.trim()
-          ? `\n\n注意：当前搜索结果仅包含后端返回的前 ${searchLimit || 200} 条。`
+          ? t("batch.limitNote", { count: searchLimit || 200 })
           : "";
 
       const ok = await dialog.confirm({
-        title: "批量创建 AI 分析任务？",
-        message: `将为当前筛选结果中的 ${eligible.length} 个音频创建 AI 分析任务${
-          skippedByClient ? `，并跳过 ${skippedByClient} 个进行中的音频` : ""
-        }。确认继续？${limitedNote}`,
-        confirmLabel: "创建 AI 任务",
-        cancelLabel: "取消",
+        title: t("batch.analyze.title"),
+        message: t("batch.analyze.message", {
+          count: eligible.length,
+          skipped: skippedByClient ? t("batch.analyze.skipped", { count: skippedByClient }) : "",
+          note: limitedNote
+        }),
+        confirmLabel: t("batch.analyze.confirm"),
+        cancelLabel: t("common.actions.cancel"),
         tone: "warning"
       });
 
@@ -146,13 +156,19 @@ export function useBatchTasks({
       const result = await api.batchAnalyze(eligible.map((item) => item.id));
 
       if (result.privacy_warning) {
-        notify(result.privacy_warning, "error");
+        notify(
+          localizedPrivacyWarning(t, result.privacy_warning_code, result.privacy_warning),
+          "error"
+        );
       }
 
       const skippedTotal = skippedByClient + result.skipped;
-      const errorText = result.errors.length ? `，错误 ${result.errors.length} 个` : "";
-
-      notify(`已创建 ${result.created} 个 AI 分析任务，跳过 ${skippedTotal} 个${errorText}。`, "success");
+      notify(t("batch.result", {
+        created: result.created,
+        skipped: skippedTotal,
+        errors: result.errors.length,
+        type: t("batch.result.analyzeType")
+      }), "success");
       refresh();
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");

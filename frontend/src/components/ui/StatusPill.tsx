@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
-export const STATUS_TEXT: Record<string, string> = {
-  none: "未开始",
-  pending: "等待中",
-  running: "进行中",
-  done: "已完成",
-  failed: "失败",
-  canceled: "已取消",
-  cancel_requested: "取消中"
+const STATUS_KEYS: Record<string, string> = {
+  none: "common.status.none",
+  pending: "common.status.pending",
+  running: "common.status.running",
+  done: "common.status.done",
+  failed: "common.status.failed",
+  canceled: "common.status.canceled",
+  cancel_requested: "common.status.cancelRequested"
 };
 
 export function statusClass(value?: string): string {
@@ -29,8 +30,9 @@ export default function StatusPill({
   className = "",
   ariaLabel
 }: StatusPillProps) {
+  const { t } = useTranslation();
   const cls = statusClass(value);
-  const text = children ?? STATUS_TEXT[cls] ?? value ?? "未开始";
+  const text = children ?? (STATUS_KEYS[cls] ? t(STATUS_KEYS[cls]) : value) ?? t("common.status.none");
   const readable = label ? `${label} ${String(text)}` : String(text);
 
   return (

@@ -1,4 +1,5 @@
 import { api } from "../../api";
+import { useTranslation } from "react-i18next";
 import type { AudioItem } from "../../types";
 import { displayAuthor, displayTitle } from "../../types";
 import { MaterialIcon } from "../ui";
@@ -8,6 +9,7 @@ type PlayerNowCardProps = {
 };
 
 export default function PlayerNowCard({ audio }: PlayerNowCardProps) {
+  const { t } = useTranslation();
   return (
     <div className="player-now-card">
       <div className="player-cover">
@@ -29,9 +31,9 @@ export default function PlayerNowCard({ audio }: PlayerNowCardProps) {
       </div>
 
       <div className="player-now-text">
-        <span className="eyebrow">正在播放</span>
-        <strong>{audio ? displayTitle(audio) : "选择一个音频开始播放"}</strong>
-        <em>{audio ? displayAuthor(audio) || "Unknown" : "播放队列为空"}</em>
+        <span className="eyebrow">{t("player.nowPlaying")}</span>
+        <strong>{audio ? displayTitle(audio) : t("player.selectAudio")}</strong>
+        <em>{audio ? displayAuthor(audio) || "Unknown" : t("player.emptyQueue")}</em>
       </div>
     </div>
   );

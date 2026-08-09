@@ -1,6 +1,7 @@
 import type { InputHTMLAttributes, ReactNode } from "react";
 import IconButton from "./IconButton";
 import MaterialIcon from "./MaterialIcon";
+import { useTranslation } from "react-i18next";
 
 type SearchFieldProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -18,12 +19,14 @@ export default function SearchField({
   value,
   onValueChange,
   onClear,
-  clearLabel = "清空搜索",
+  clearLabel,
   icon,
   wrapperClassName = "",
   className = "",
   ...inputProps
 }: SearchFieldProps) {
+  const { t } = useTranslation();
+  const resolvedClearLabel = clearLabel || t("common.actions.clearSearch");
   function clear() {
     if (onClear) {
       onClear();
@@ -53,7 +56,7 @@ export default function SearchField({
       {value.trim() && (
         <IconButton
           className="ui-search-field-clear"
-          label={clearLabel}
+          label={resolvedClearLabel}
           onClick={clear}
         >
           <MaterialIcon name="close" size={18} />

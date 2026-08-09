@@ -1,5 +1,6 @@
 import type { Toast } from "../hooks/useToast";
 import { IconButton, MaterialIcon } from "./ui";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   toasts: Toast[];
@@ -7,6 +8,7 @@ type Props = {
 };
 
 export default function ToastStack({ toasts, onClose }: Props) {
+  const { t } = useTranslation();
   if (toasts.length === 0) return null;
 
   return (
@@ -26,7 +28,7 @@ export default function ToastStack({ toasts, onClose }: Props) {
 
             <IconButton
               className="toast-close"
-              label="关闭通知"
+              label={t("common.actions.closeNotification")}
               onClick={() => onClose(toast.id)}
             >
                 <MaterialIcon name="close" size={18} />

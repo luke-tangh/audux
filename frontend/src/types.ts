@@ -165,12 +165,15 @@ export type AITask = {
   input_payload?: string;
   output_payload?: string;
   error_message?: string;
+  error_code?: string;
+  error_params?: string;
   retry_count: number;
   created_at: string;
   started_at?: string;
   finished_at?: string;
   updated_at: string;
   privacy_warning?: string;
+  privacy_warning_code?: string;
 };
 
 export type ScanTask = {
@@ -186,6 +189,8 @@ export type ScanTask = {
   missing: number;
 
   error_message?: string;
+  error_code?: string;
+  error_params?: string;
 
   created_at: string;
   started_at?: string;
@@ -226,12 +231,14 @@ export type LLMTestResult = {
   content: string;
   is_local_endpoint?: boolean;
   privacy_warning?: string;
+  privacy_warning_code?: string;
 };
 
 export type BatchTaskResult = {
   created: number;
   skipped: number;
   privacy_warning?: string;
+  privacy_warning_code?: string;
   errors: {
     audio_id: number;
     error: string;

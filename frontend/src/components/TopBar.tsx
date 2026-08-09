@@ -1,4 +1,5 @@
 import { Button, IconButton, SearchField, SelectField, MaterialIcon } from "./ui";
+import { useTranslation } from "react-i18next";
 
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing";
@@ -27,18 +28,6 @@ type Props = {
   onOpenSettings: () => void;
 };
 
-const TRANSCRIPT_FILTER_OPTIONS = [
-  { value: "all", label: "全部转写" },
-  { value: "yes", label: "已有 transcript" },
-  { value: "no", label: "未完成 transcript" }
-];
-
-const FILE_FILTER_OPTIONS = [
-  { value: "all", label: "全部文件" },
-  { value: "available", label: "仅可播放" },
-  { value: "missing", label: "仅缺失" }
-];
-
 export default function TopBar({
   title,
   subtitle,
@@ -58,7 +47,18 @@ export default function TopBar({
   onBatchAnalyze,
   onOpenSettings
 }: Props) {
+  const { t } = useTranslation();
   const hasItems = totalCount > 0;
+  const transcriptFilterOptions = [
+    { value: "all", label: t("topbar.transcriptAll") },
+    { value: "yes", label: t("topbar.transcriptYes") },
+    { value: "no", label: t("topbar.transcriptNo") }
+  ];
+  const fileFilterOptions = [
+    { value: "all", label: t("topbar.fileAll") },
+    { value: "available", label: t("topbar.fileAvailable") },
+    { value: "missing", label: t("topbar.fileMissing") }
+  ];
 
   return (
     <header className="top-command-bar">
@@ -69,14 +69,14 @@ export default function TopBar({
           {subtitle && <p>{subtitle}</p>}
           {searchLimited && (
             <p className="search-limit-warning">
-              搜索命中较多，当前仅展示前 {searchLimit || 200} 条。请缩小关键词以获得更精确结果。
+              {t("topbar.searchLimited", { count: searchLimit || 200 })}
             </p>
           )}
         </div>
 
         <div className="top-count-card">
-          <strong>{isLoading ? "同步中" : totalCount}</strong>
-          <span>{isLoading ? "正在更新结果" : "个音频"}</span>
+          <strong>{isLoading ? t("topbar.syncing") : totalCount}</strong>
+          <span>{isLoading ? t("topbar.updating") : t("topbar.audioCount")}</span>
         </div>
       </div>
 
@@ -85,15 +85,15 @@ export default function TopBar({
           wrapperClassName="top-command-search"
           value={q}
           onValueChange={setQ}
-          placeholder="搜索标题、作者、标签、描述或 transcript"
-          aria-label="搜索标题、作者、标签、描述或 transcript"
+          placeholder={t("topbar.searchPlaceholder")}
+          aria-label={t("topbar.searchPlaceholder")}
         />
 
         <div className="top-toolbar-controls">
           <div
             className="filter-group top-filter-controls"
             role="group"
-            aria-label="资料库筛选"
+            aria-label={t("topbar.filterGroup")}
           >
             <SelectField
               density="compact"
@@ -101,11 +101,11 @@ export default function TopBar({
               controlSize="toolbar"
               controlWidth={152}
               controlMinWidth={152}
-              label="转写"
+              label={t("topbar.transcript")}
               value={hasTranscriptFilter}
-              options={TRANSCRIPT_FILTER_OPTIONS}
-              aria-label="按 transcript 状态筛选"
-              title="按 transcript 状态筛选"
+              options={transcriptFilterOptions}
+              aria-label={t("topbar.transcriptFilter")}
+              title={t("topbar.transcriptFilter")}
               onValueChange={(value) => setHasTranscriptFilter(value as TranscriptFilter)}
             />
 
@@ -115,11 +115,11 @@ export default function TopBar({
               controlSize="toolbar"
               controlWidth={136}
               controlMinWidth={136}
-              label="文件"
+              label={t("topbar.file")}
               value={missingFilter}
-              options={FILE_FILTER_OPTIONS}
-              aria-label="按文件状态筛选"
-              title="按文件状态筛选"
+              options={fileFilterOptions}
+              aria-label={t("topbar.fileFilter")}
+              title={t("topbar.fileFilter")}
               onValueChange={(value) => setMissingFilter(value as MissingFilter)}
             />
 
@@ -128,29 +128,29 @@ export default function TopBar({
           <div
             className="top-toolbar-actions"
             role="group"
-            aria-label="快捷操作"
+            aria-label={t("topbar.quickActions")}
           >
             <div
               className="top-batch-group"
               role="group"
-              aria-label="批处理"
+              aria-label={t("topbar.batch")}
             >
               <Button
                 variant="outlined"
                 className="top-quick-action top-batch-action top-batch-transcribe-action"
-                aria-label="批量转写当前筛选结果"
-                title="批量转写当前筛选结果"
+                aria-label={t("topbar.batchTranscribe")}
+                title={t("topbar.batchTranscribe")}
                 onClick={onBatchTranscribe}
                 disabled={!hasItems}
               >
-                转写
+                {t("topbar.transcript")}
               </Button>
 
               <Button
                 variant="filled"
                 className="top-quick-action top-batch-action top-batch-ai-action"
-                aria-label="批量 AI 分析当前筛选结果"
-                title="批量 AI 分析当前筛选结果"
+                aria-label={t("topbar.batchAnalyze")}
+                title={t("topbar.batchAnalyze")}
                 onClick={onBatchAnalyze}
                 disabled={!hasItems}
               >
@@ -162,10 +162,10 @@ export default function TopBar({
               <Button
                 variant="text"
                 className="top-clear-filter-button"
-                title="清空所有筛选条件"
+                title={t("topbar.clearFilters")}
                 onClick={onClearFilters}
               >
-                重置
+                {t("topbar.reset")}
               </Button>
             )}
           </div>
@@ -173,7 +173,7 @@ export default function TopBar({
           <IconButton
             className="top-settings-button"
             variant="soft"
-            label="打开设置"
+            label={t("topbar.openSettings")}
             onClick={onOpenSettings}
           >
             <MaterialIcon name="settings" size={20} />

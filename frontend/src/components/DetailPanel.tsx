@@ -24,6 +24,8 @@ import {
   type NumericSelection,
   type ToastType
 } from "./detail/types";
+import { useTranslation } from "react-i18next";
+import { localizedPrivacyWarning } from "../i18n/errors";
 
 type Props = {
   audio: AudioItem | null;
@@ -49,6 +51,7 @@ export default function DetailPanel({
   notify
 }: Props) {
   const dialog = useDialog();
+  const { t } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<InspectorTab>("overview");
 
@@ -173,7 +176,7 @@ export default function DetailPanel({
   async function save() {
     try {
       await api.updateAudio(audio!.id, editing);
-      notify?.("Metadata 已保存", "success");
+      notify?.(t("detail.notifications.metadataSaved"), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -193,7 +196,7 @@ export default function DetailPanel({
       setTagInput("");
 
       await reloadTagsAndSuggestions();
-      notify?.("标签已添加", "success");
+      notify?.(t("detail.notifications.tagsAdded"), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -211,7 +214,7 @@ export default function DetailPanel({
       setSelectedExistingTag("");
 
       await reloadTagsAndSuggestions();
-      notify?.("已有标签已添加", "success");
+      notify?.(t("detail.notifications.existingTagAdded"), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -223,7 +226,7 @@ export default function DetailPanel({
       await api.removeTag(audio!.id, tagId);
 
       await reloadTagsAndSuggestions();
-      notify?.("标签已移除", "success");
+      notify?.(t("detail.notifications.tagRemoved"), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -234,7 +237,7 @@ export default function DetailPanel({
     try {
       await api.transcribe(audio!.id);
       refresh();
-      notify?.("已创建转写任务，可在设置中心的任务页查看状态。", "success");
+      notify?.(t("detail.notifications.transcribeCreated"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -243,7 +246,7 @@ export default function DetailPanel({
   async function loadLatestTranscriptAfterConflict() {
     const latest = await api.getTranscript(audio!.id).catch(() => null);
     if (latest) setTranscript(latest);
-    notify?.("检测到较新的 Transcript，当前草稿尚未保存。请加载最新版本后重新检查。", "error");
+    notify?.(t("detail.notifications.transcriptConflict"), "error");
   }
 
   async function saveTranscriptEdit(
@@ -254,12 +257,10 @@ export default function DetailPanel({
 
     if (transcript.segments.length > 0) {
       const ok = await dialog.confirm({
-        title: "保存 Transcript 修订？",
-        message:
-          `当前 transcript 包含 ${transcript.segments.length} 个时间轴分段。` +
-          "保存全文修订后会清除这些分段，避免时间戳与文字不一致。",
-        confirmLabel: "保存并清除分段",
-        cancelLabel: "取消",
+        title: t("detail.saveTranscript.title"),
+        message: t("detail.saveTranscript.message", { count: transcript.segments.length }),
+        confirmLabel: t("detail.saveTranscript.confirm"),
+        cancelLabel: t("common.actions.cancel"),
         tone: "warning"
       });
 
@@ -276,8 +277,8 @@ export default function DetailPanel({
       refresh();
       notify?.(
         updated.cleared_segments
-          ? `Transcript 已保存，并清除 ${updated.cleared_segments} 个旧分段`
-          : "Transcript 已保存",
+          ? t("detail.notifications.transcriptSavedCleared", { count: updated.cleared_segments })
+          : t("detail.notifications.transcriptSaved"),
         "success"
       );
       return "saved";
@@ -306,7 +307,7 @@ export default function DetailPanel({
       );
       setTranscript(updated);
       refresh();
-      notify?.(`已保存 ${updated.updated_segments || segments.length} 个分段修订`, "success");
+      notify?.(t("detail.notifications.segmentsSaved", { count: updated.updated_segments || segments.length }), "success");
       return "saved";
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -326,17 +327,17 @@ export default function DetailPanel({
       const modelName = settings.find((setting) => setting.key === "llm.model_name")?.value;
 
       if (!endpoint || !modelName) {
-        notify?.("请先在设置中心配置本地 LLM endpoint 和 model_name。", "error");
+        notify?.(t("detail.notifications.llmRequired"), "error");
         return;
       }
 
       const warning = endpointPrivacyWarning(endpoint);
       if (warning) {
         const ok = await dialog.confirm({
-          title: "确认使用非本机 LLM endpoint？",
-          message: `${warning}\n\n确认继续发起 AI 分析？`,
-          confirmLabel: "继续分析",
-          cancelLabel: "取消",
+          title: t("detail.analyze.remoteTitle"),
+          message: t("detail.analyze.remoteMessage", { warning }),
+          confirmLabel: t("detail.analyze.continue"),
+          cancelLabel: t("common.actions.cancel"),
           tone: "privacy"
         });
 
@@ -346,11 +347,14 @@ export default function DetailPanel({
       const task = await api.analyze(audio!.id);
 
       if (task.privacy_warning) {
-        notify?.(task.privacy_warning, "error");
+        notify?.(
+          localizedPrivacyWarning(t, task.privacy_warning_code, task.privacy_warning),
+          "error"
+        );
       }
 
       refresh();
-      notify?.("已创建 AI 分析任务。完成后会显示 AI 建议描述和标签。", "success");
+      notify?.(t("detail.notifications.analyzeCreated"), "success");
       setActiveTab("ai");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -362,7 +366,7 @@ export default function DetailPanel({
 
     try {
       await api.addToPlaylist(Number(selectedPlaylist), audio!.id);
-      notify?.("已添加到 playlist", "success");
+      notify?.(t("detail.notifications.playlistAdded"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -378,7 +382,7 @@ export default function DetailPanel({
       });
 
       updateEditing({ description_user: description });
-      notify?.("AI 描述已接受为用户描述", "success");
+      notify?.(t("detail.notifications.descriptionAccepted"), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -390,7 +394,7 @@ export default function DetailPanel({
       await api.addTags(audio!.id, [tagName], "ai");
 
       await reloadTagsAndSuggestions();
-      notify?.(`已接受标签：${tagName}`, "success");
+      notify?.(t("detail.notifications.tagAccepted", { name: tagName }), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -409,7 +413,7 @@ export default function DetailPanel({
       await api.addTags(audio!.id, names, "ai");
 
       await reloadTagsAndSuggestions();
-      notify?.(`已接受 ${names.length} 个 AI 标签`, "success");
+      notify?.(t("detail.notifications.tagsAccepted", { count: names.length }), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -434,7 +438,7 @@ export default function DetailPanel({
     try {
       await api.uploadCover(audio!.id, file);
       setCoverVersion(Date.now());
-      notify?.("封面已上传", "success");
+      notify?.(t("detail.notifications.coverUploaded"), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -443,10 +447,10 @@ export default function DetailPanel({
 
   async function deleteCover() {
     const ok = await dialog.confirm({
-      title: "删除当前封面？",
-      message: "确认删除当前封面？此操作会移除应用管理的封面文件。",
-      confirmLabel: "删除封面",
-      cancelLabel: "取消",
+      title: t("detail.deleteCover.title"),
+      message: t("detail.deleteCover.message"),
+      confirmLabel: t("detail.file.deleteCover"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "danger",
       destructive: true
     });
@@ -456,7 +460,7 @@ export default function DetailPanel({
     try {
       await api.deleteCover(audio!.id);
       setCoverVersion(Date.now());
-      notify?.("封面已删除", "success");
+      notify?.(t("detail.notifications.coverDeleted"), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -477,7 +481,7 @@ export default function DetailPanel({
     try {
       await api.relocateAudio(audio!.id, path);
       setRelocatePath("");
-      notify?.("文件已重新定位", "success");
+      notify?.(t("detail.notifications.relocated"), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -486,10 +490,10 @@ export default function DetailPanel({
 
   async function deleteFromDatabase() {
     const ok = await dialog.confirm({
-      title: "从数据库移除音频？",
-      message: "确认从应用数据库中移除该条目？不会删除本地音频文件。",
-      confirmLabel: "移除条目",
-      cancelLabel: "取消",
+      title: t("detail.deleteAudio.title"),
+      message: t("detail.deleteAudio.message"),
+      confirmLabel: t("detail.deleteAudio.confirm"),
+      cancelLabel: t("common.actions.cancel"),
       tone: "danger",
       destructive: true
     });
@@ -498,7 +502,7 @@ export default function DetailPanel({
 
     try {
       await api.deleteAudio(audio!.id, false);
-      notify?.("音频条目已从数据库移除", "success");
+      notify?.(t("detail.notifications.audioRemoved"), "success");
       onDeleted(audio!.id);
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -532,10 +536,10 @@ export default function DetailPanel({
 
       <Tabs
         className="inspector-tabs"
-        items={INSPECTOR_TABS}
+        items={INSPECTOR_TABS.map((id) => ({ id, label: t(`detail.tabs.${id}`) }))}
         activeId={activeTab}
         onChange={setActiveTab}
-        ariaLabel="音频详情分类"
+        ariaLabel={t("detail.tabsLabel")}
         idPrefix="inspector"
       />
 

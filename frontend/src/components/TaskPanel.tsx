@@ -3,6 +3,10 @@ import { api } from "../api";
 import type { AITask } from "../types";
 import { Button, StatusPill } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
+import { useTranslation } from "react-i18next";
+import { useLocale } from "../i18n/LocaleProvider";
+import { localizedStoredError } from "../i18n/errors";
+import { formatDateTime } from "../i18n/format";
 
 type ToastType = "info" | "success" | "error";
 
@@ -11,23 +15,14 @@ type Props = {
   notify?: (message: string, type?: ToastType) => void;
 };
 
-function formatTime(value?: string): string {
-  if (!value) return "-";
-
-  try {
-    return new Date(value).toLocaleString();
-  } catch {
-    return value;
-  }
-}
-
-
 function terminalStatus(status: string): boolean {
   return status === "done" || status === "failed" || status === "canceled";
 }
 
 export default function TaskPanel({ onTaskChanged, notify }: Props) {
   const dialog = useDialog();
+  const { t } = useTranslation();
+  const { resolvedLanguage } = useLocale();
 
   const [tasks, setTasks] = useState<AITask[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,15 +39,18 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
 
         if (previous && previous !== task.status && terminalStatus(task.status)) {
           if (task.status === "done") {
-            notify?.(`任务 #${task.id} 已完成：${task.task_type}`, "success");
+            notify?.(t("tasks.completed", { id: task.id, type: t(`tasks.types.${task.task_type}`, { defaultValue: task.task_type }) }), "success");
           }
 
           if (task.status === "failed") {
-            notify?.(`任务 #${task.id} 失败：${task.error_message || task.task_type}`, "error");
+            notify?.(t("tasks.failed", {
+              id: task.id,
+              error: localizedStoredError(t, task.error_code, task.error_params, task.error_message || task.task_type)
+            }), "error");
           }
 
           if (task.status === "canceled") {
-            notify?.(`任务 #${task.id} 已取消`, "info");
+            notify?.(t("tasks.canceled", { id: task.id }), "info");
           }
 
           shouldRefreshLibrary = true;
@@ -102,7 +100,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
   async function retry(task: AITask) {
     try {
       await api.retryTask(task.id);
-      notify?.(`任务 #${task.id} 已重新加入队列`, "success");
+      notify?.(t("tasks.requeued", { id: task.id }), "success");
       await load();
       onTaskChanged?.();
     } catch (err) {
@@ -112,13 +110,13 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
 
   async function cancel(task: AITask) {
     const ok = await dialog.confirm({
-      title: "取消任务？",
+      title: t("tasks.cancelTitle"),
       message:
         task.status === "running"
-          ? "running 任务无法立即中断底层模型调用，但会在当前处理阶段结束后标记取消。确认取消？"
-          : "确认取消该任务？",
-      confirmLabel: "取消任务",
-      cancelLabel: "继续等待",
+          ? t("tasks.cancelRunning")
+          : t("tasks.cancelPending"),
+      confirmLabel: t("tasks.cancelConfirm"),
+      cancelLabel: t("tasks.keepWaiting"),
       tone: "warning"
     });
 
@@ -126,7 +124,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
 
     try {
       await api.cancelTask(task.id);
-      notify?.(`任务 #${task.id} 已请求取消`, "info");
+      notify?.(t("tasks.cancelRequested", { id: task.id }), "info");
       await load();
       onTaskChanged?.();
     } catch (err) {
@@ -137,27 +135,27 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
   return (
     <div className="task-panel">
       <div className="task-panel-header">
-        <h3>AI / ASR 任务队列</h3>
-        <Button variant="outlined" onClick={load}>{loading ? "刷新中..." : "刷新"}</Button>
+        <h3>{t("tasks.title")}</h3>
+        <Button variant="outlined" onClick={load}>{loading ? t("common.actions.refreshing") : t("common.actions.refresh")}</Button>
       </div>
 
-      {tasks.length === 0 && <p className="muted">暂无任务</p>}
+      {tasks.length === 0 && <p className="muted">{t("tasks.empty")}</p>}
 
       {tasks.length > 0 && (
         <div className="task-table-wrap">
           <table className="task-table">
-            <caption className="sr-only">AI / ASR 任务队列</caption>
+            <caption className="sr-only">{t("tasks.title")}</caption>
             <thead>
               <tr>
                 <th>ID</th>
-                <th>音频</th>
-                <th>类型</th>
-                <th>状态</th>
-                <th>重试</th>
-                <th>创建时间</th>
-                <th>更新时间</th>
-                <th>错误</th>
-                <th>操作</th>
+                <th>{t("tasks.audio")}</th>
+                <th>{t("tasks.type")}</th>
+                <th>{t("tasks.status")}</th>
+                <th>{t("tasks.retries")}</th>
+                <th>{t("tasks.created")}</th>
+                <th>{t("tasks.updated")}</th>
+                <th>{t("tasks.error")}</th>
+                <th>{t("tasks.actions")}</th>
               </tr>
             </thead>
 
@@ -166,15 +164,17 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
                 <tr key={task.id}>
                   <td>{task.id}</td>
                   <td>{task.audio_id}</td>
-                  <td>{task.task_type}</td>
+                  <td>{t(`tasks.types.${task.task_type}`, { defaultValue: task.task_type })}</td>
                   <td>
                     <StatusPill value={task.status} />
                   </td>
                   <td>{task.retry_count}</td>
-                  <td>{formatTime(task.created_at)}</td>
-                  <td>{formatTime(task.updated_at)}</td>
-                  <td className="task-error" title={task.error_message || ""}>
-                    {task.error_message || "-"}
+                  <td>{formatDateTime(task.created_at, resolvedLanguage)}</td>
+                  <td>{formatDateTime(task.updated_at, resolvedLanguage)}</td>
+                  <td className="task-error" title={localizedStoredError(t, task.error_code, task.error_params, task.error_message)}>
+                    {task.error_message || task.error_code
+                      ? localizedStoredError(t, task.error_code, task.error_params, task.error_message)
+                      : "-"}
                   </td>
                   <td>
                     <div className="task-actions">
@@ -182,10 +182,10 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
                         <Button
                           type="button"
                           variant="text"
-                          aria-label={`重试任务 #${task.id}`}
+                          aria-label={t("tasks.retryLabel", { id: task.id })}
                           onClick={() => retry(task)}
                         >
-                          重试
+                          {t("common.actions.retry")}
                         </Button>
                       )}
 
@@ -193,10 +193,10 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
                         <Button
                           type="button"
                           variant="text"
-                          aria-label={`取消任务 #${task.id}`}
+                          aria-label={t("tasks.cancelLabel", { id: task.id })}
                           onClick={() => cancel(task)}
                         >
-                          取消
+                          {t("common.actions.cancel")}
                         </Button>
                       )}
                     </div>

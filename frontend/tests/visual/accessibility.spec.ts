@@ -123,6 +123,33 @@ async function mockLibraryApi(page: import("@playwright/test").Page) {
 }
 
 test.describe("MD3 accessibility behavior", () => {
+  test("bootstraps and persists the selected UI language", async ({ page }) => {
+    await page.addInitScript(() => {
+      if (!window.localStorage.getItem("local-audio-library-language")) {
+        window.localStorage.setItem("local-audio-library-language", "en");
+      }
+    });
+
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page.getByRole("button", { name: "Open settings" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Open settings" }).click();
+    const language = page.getByRole("combobox", { name: "Language" });
+    await language.click();
+    await page.getByRole("option", { name: "简体中文" }).click();
+
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+    await expect(page.getByRole("heading", { name: "设置中心" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() =>
+      window.localStorage.getItem("local-audio-library-language")
+    )).toBe("zh-CN");
+
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+    await expect(page.getByRole("button", { name: "打开设置" })).toBeVisible();
+  });
+
   test("applies the stored theme during bootstrap", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem("local-audio-library-theme", "light");
@@ -132,6 +159,24 @@ test.describe("MD3 accessibility behavior", () => {
 
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     await expect(page.locator("html")).toHaveAttribute("data-theme-mode", "light");
+  });
+
+  test("aligns the AI output language control with LLM text fields", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "打开设置" }).click();
+    await page.getByRole("tab", { name: "LLM" }).click();
+
+    const endpointBox = await page
+      .getByRole("textbox", { name: "Endpoint", exact: true })
+      .boundingBox();
+    const outputLanguageBox = await page
+      .getByRole("combobox", { name: /^AI 内容输出语言/ })
+      .boundingBox();
+
+    expect(endpointBox).not.toBeNull();
+    expect(outputLanguageBox).not.toBeNull();
+    expect(Math.abs(endpointBox!.y - outputLanguageBox!.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(endpointBox!.height - outputLanguageBox!.height)).toBeLessThanOrEqual(1);
   });
 
   test("reduces motion when requested", async ({ page }) => {
