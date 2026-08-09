@@ -189,6 +189,42 @@ class TestDatabaseMigrations:
                 text("SELECT MAX(version) FROM schema_migrations")
             ).scalar_one() == 4
 
+    def test_backup_closes_sqlite_connections_before_replacing_temporary_file(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        with sqlite3.connect(self.db_path) as connection:
+            connection.execute("CREATE TABLE sentinel(value TEXT NOT NULL)")
+            connection.execute("INSERT INTO sentinel VALUES ('preserved')")
+
+        opened_connections: list[sqlite3.Connection] = []
+        original_connect = sqlite3.connect
+        original_replace = Path.replace
+
+        def tracked_connect(*args, **kwargs):
+            connection = original_connect(*args, **kwargs)
+            opened_connections.append(connection)
+            return connection
+
+        def replace_after_connections_close(path: Path, target: Path):
+            assert len(opened_connections) == 3
+            for connection in opened_connections:
+                with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+                    connection.execute("SELECT 1")
+            return original_replace(path, target)
+
+        monkeypatch.setattr(db.sqlite3, "connect", tracked_connect)
+        monkeypatch.setattr(Path, "replace", replace_after_connections_close)
+
+        backup_path = self.backups_dir / "database.sqlite"
+        self.backups_dir.mkdir()
+        db._verified_sqlite_backup(self.db_path, backup_path)
+
+        with original_connect(backup_path) as backup:
+            assert backup.execute("SELECT value FROM sentinel").fetchone()[0] == (
+                "preserved"
+            )
+
     def test_newer_schema_is_never_modified(self):
         with sqlite3.connect(self.db_path) as connection:
             connection.execute("CREATE TABLE sentinel(value TEXT NOT NULL)")

@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from sqlmodel import SQLModel, Session, create_engine
 from sqlalchemy import text, event
@@ -108,11 +109,14 @@ def _verified_sqlite_backup(source_path: Path, destination_path: Path):
     temporary_path = destination_path.with_suffix(destination_path.suffix + ".tmp")
 
     try:
-        with sqlite3.connect(source_path) as source:
-            with sqlite3.connect(temporary_path) as destination:
+        # sqlite3 connections used as context managers only commit or roll back;
+        # they do not close. Windows cannot replace the temporary backup while
+        # either the destination or verification connection still has it open.
+        with closing(sqlite3.connect(source_path)) as source:
+            with closing(sqlite3.connect(temporary_path)) as destination:
                 source.backup(destination)
 
-        with sqlite3.connect(temporary_path) as verification:
+        with closing(sqlite3.connect(temporary_path)) as verification:
             result = verification.execute("PRAGMA quick_check").fetchone()
             if result is None or result[0] != "ok":
                 raise RuntimeError(f"Database backup verification failed: {result}")
@@ -127,7 +131,14 @@ def _verified_sqlite_backup(source_path: Path, destination_path: Path):
                 destination_path,
             )
     except Exception:
-        temporary_path.unlink(missing_ok=True)
+        try:
+            temporary_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning(
+                "Could not remove failed temporary database backup: %s",
+                temporary_path,
+                exc_info=True,
+            )
         raise
 
 
