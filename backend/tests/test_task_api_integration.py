@@ -207,11 +207,17 @@ class TestTaskApiLifecycle(ApiIntegrationTest):
     def test_external_preprocessing_status_is_protected(self, monkeypatch):
         monkeypatch.setattr(
             external_asr_service,
-            "get_ffmpeg_status",
+            "get_preprocessing_status",
             lambda: {
                 "available": False,
                 "ffmpeg_available": True,
                 "ffprobe_available": False,
+                "vad_available": True,
+                "vad_model_available": True,
+                "vad_runtime_version": "1.23.2",
+                "vad_provider": "CPUExecutionProvider",
+                "vad_model": "silero_vad_16k_op15.onnx",
+                "vad_error": None,
                 "missing": ["ffprobe"],
             },
         )

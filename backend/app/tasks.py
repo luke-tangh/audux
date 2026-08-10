@@ -574,7 +574,7 @@ async def handle_transcribe_task(task: TaskSnapshot):
                 maximum_seconds=asr_config["chunk_seconds"],
                 overlap_seconds=asr_config["chunk_overlap_seconds"],
                 prefer_silence=asr_config["prefer_silence"],
-                silence_threshold_db=asr_config["silence_threshold_db"],
+                vad_threshold=asr_config["vad_threshold"],
                 minimum_silence_ms=asr_config["minimum_silence_ms"],
                 is_canceled=lambda: _is_task_canceled_by_id(task_id),
             )

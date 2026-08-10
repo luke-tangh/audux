@@ -9,6 +9,7 @@ from pathlib import Path
 from build_backend import (
     ensure_pyinstaller_available,
     exe_suffix,
+    onnxruntime_notice_files,
     tauri_target_triple,
 )
 
@@ -18,6 +19,7 @@ PROJECT_ROOT = ROOT.parent
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 TAURI_ICONS = PROJECT_ROOT / "frontend" / "src-tauri" / "icons"
 OUTPUT_DIR = ROOT / "dist" / "browser-lite"
+ASSETS_DIR = ROOT / "app" / "assets"
 ASR_MODULES = ["faster_whisper", "ctranslate2", "tokenizers", "av"]
 
 
@@ -50,10 +52,19 @@ def build_command(name: str) -> list[str]:
         [
             "--add-data",
             f"{FRONTEND_DIST}{os.pathsep}browser_frontend",
+            "--add-data",
+            f"{ASSETS_DIR}{os.pathsep}app/assets",
         ]
     )
     for module_name in ASR_MODULES:
         command.extend(["--exclude-module", module_name])
+    for notice_file in onnxruntime_notice_files():
+        command.extend(
+            [
+                "--add-data",
+                f"{notice_file}{os.pathsep}app/assets/onnxruntime",
+            ]
+        )
     command.extend(
         [
             "--collect-submodules",

@@ -24,7 +24,7 @@ SUPPORTED_ASR_TIMESTAMP_POLICIES = {
 
 EXTERNAL_CHUNK_SECONDS_DEFAULT = 28.0
 EXTERNAL_CHUNK_OVERLAP_SECONDS_DEFAULT = 1.0
-EXTERNAL_SILENCE_THRESHOLD_DB_DEFAULT = -35.0
+EXTERNAL_VAD_THRESHOLD_DEFAULT = 0.5
 EXTERNAL_MINIMUM_SILENCE_MS_DEFAULT = 400
 
 
@@ -142,17 +142,16 @@ def normalize_asr_task_config(config: dict) -> dict:
             )
 
         prefer_silence = _setting_truthy(config.get("prefer_silence", True))
-        raw_silence_threshold_db = config.get("silence_threshold_db")
-        silence_threshold_db = _finite_float(
-            raw_silence_threshold_db
-            if raw_silence_threshold_db is not None
-            and raw_silence_threshold_db != ""
-            else EXTERNAL_SILENCE_THRESHOLD_DB_DEFAULT,
-            "asr.external.silence_threshold_db",
+        raw_vad_threshold = config.get("vad_threshold")
+        vad_threshold = _finite_float(
+            raw_vad_threshold
+            if raw_vad_threshold is not None and raw_vad_threshold != ""
+            else EXTERNAL_VAD_THRESHOLD_DEFAULT,
+            "asr.external.vad_threshold",
         )
-        if silence_threshold_db < -80 or silence_threshold_db > -5:
+        if vad_threshold < 0.1 or vad_threshold > 0.9:
             raise ValueError(
-                "asr.external.silence_threshold_db must be between -80 and -5"
+                "asr.external.vad_threshold must be between 0.1 and 0.9"
             )
 
         try:
@@ -180,7 +179,7 @@ def normalize_asr_task_config(config: dict) -> dict:
             "chunk_seconds": chunk_seconds,
             "chunk_overlap_seconds": chunk_overlap_seconds,
             "prefer_silence": prefer_silence,
-            "silence_threshold_db": silence_threshold_db,
+            "vad_threshold": vad_threshold,
             "minimum_silence_ms": minimum_silence_ms,
         }
 
@@ -244,10 +243,10 @@ def build_asr_task_config(session: Session) -> dict:
                 "asr.external.prefer_silence",
                 "true",
             ),
-            "silence_threshold_db": _get_setting(
+            "vad_threshold": _get_setting(
                 session,
-                "asr.external.silence_threshold_db",
-                str(EXTERNAL_SILENCE_THRESHOLD_DB_DEFAULT),
+                "asr.external.vad_threshold",
+                str(EXTERNAL_VAD_THRESHOLD_DEFAULT),
             ),
             "minimum_silence_ms": _get_setting(
                 session,

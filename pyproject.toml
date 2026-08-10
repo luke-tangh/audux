@@ -10,6 +10,8 @@ dependencies = [
     "mutagen==1.48.1",
     "python-multipart==0.0.32",
     "httpx==0.28.1",
+    "numpy==2.2.6",
+    "onnxruntime==1.23.2",
 ]
 
 [project.optional-dependencies]
@@ -19,7 +21,8 @@ asr = [
 
 [dependency-groups]
 build = [
-    "pyinstaller",
+    "pyinstaller==6.21.0",
+    "pyinstaller-hooks-contrib==2026.6",
 ]
 test = [
     "pytest==9.1.1",

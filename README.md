@@ -205,7 +205,7 @@ asr.external.chunking_enabled = false
 asr.external.chunk_seconds = 28
 asr.external.chunk_overlap_seconds = 1
 asr.external.prefer_silence = true
-asr.external.silence_threshold_db = -35
+asr.external.vad_threshold = 0.5
 asr.external.minimum_silence_ms = 400
 ```
 
@@ -258,15 +258,21 @@ timestamp_granularities[]     时间戳策略不是 off 时发送 segment
 Linux 版 FFmpeg；Windows 桌面发布包由 Windows 后端运行，因此需要 Windows 版
 FFmpeg。两个环境的可执行文件不能互相替代。
 
+Silero VAD 模型和 CPU 版 ONNX Runtime 已整合进 backend sidecar，不需要用户另行
+安装 Torch、CUDA、ONNX Runtime 或下载 VAD 模型。FFmpeg 仍是音频解码和切片的系统
+依赖。
+
 启用后，后端会先用 ffprobe 读取时长，再按以下规则顺序上传 WAV 切片：
 
-- 在每片最长时限的后半段查找合适的静音中点，优先在那里切分。
+- FFmpeg 流式输出 16 kHz 单声道 PCM，Silero VAD 以 512 samples/frame 检测语音，
+  不会把完整长音频一次性载入内存。
+- 根据 VAD 的非语音区间，在每片最长时限的后半段优先选择切分点。
 - 没找到静音时按最长时限硬切，避免任何单片超过外部服务上限。
 - 相邻切片保留可配置重叠，并对完全重复的边界文本做保守去重。
 - 外部服务的 segment 时间会加上切片起点后合并；若只返回文本且时间戳策略不是
   `off`，应用会使用切片起止时间生成粗粒度时间轴。
-- 切片逐个请求，显存压力可控且容易取消，但总耗时和 HTTP 请求次数会增加。静音
-  检测也会额外完整读取一次长音频。
+- 切片逐个请求，显存压力可控且容易取消，但总耗时和 HTTP 请求次数会增加。VAD
+  也会额外完整流式读取一次长音频。
 
 Qwen3-ASR 建议由外部服务同时加载 `Qwen3-ForcedAligner-0.6B`，在服务端完成
 长音频切片、对齐及时间偏移合并，再返回上述结构。MiMo-V2.5-ASR 当前可以返回
@@ -389,7 +395,8 @@ npm run build
 
 ## 构建后端 sidecar
 
-主程序 sidecar 默认构建为 lite 版本，不包含 Whisper 运行时：
+主程序 sidecar 默认构建为 lite 版本，不包含 Whisper 运行时，但始终包含 Silero VAD、
+ONNX Runtime CPU runtime 和固定版本的 VAD 模型：
 
 ```bash
 uv run --locked --group build python backend/build_backend.py

@@ -1,7 +1,6 @@
 import asyncio
 import json
 import math
-import re
 import shutil
 import subprocess
 import tempfile
@@ -17,10 +16,14 @@ from ..asr_config import (
     ASR_TIMESTAMP_REQUIRED,
 )
 from .common import ServiceError
+from .silero_vad_service import (
+    SileroVadCanceled,
+    SileroVadError,
+    detect_silence_intervals,
+    get_vad_status,
+)
 
 
-SILENCE_START_RE = re.compile(r"silence_start:\s*([0-9]+(?:\.[0-9]+)?)")
-SILENCE_END_RE = re.compile(r"silence_end:\s*([0-9]+(?:\.[0-9]+)?)")
 MAX_NORMALIZED_OVERLAP_CHARACTERS = 2000
 OVERLAP_CONTEXT_SOURCE_CHARACTERS = 8000
 SEGMENT_TIMESTAMP_TOLERANCE_SECONDS = 0.75
@@ -49,6 +52,25 @@ def get_ffmpeg_status() -> dict:
         "ffmpeg_available": bool(ffmpeg),
         "ffprobe_available": bool(ffprobe),
         "missing": missing,
+    }
+
+
+def get_preprocessing_status() -> dict:
+    ffmpeg_status = get_ffmpeg_status()
+    vad_status = get_vad_status()
+    missing = list(ffmpeg_status["missing"])
+    if not vad_status["available"]:
+        missing.append("silero_vad")
+    return {
+        **ffmpeg_status,
+        "available": ffmpeg_status["available"] and vad_status["available"],
+        "missing": missing,
+        "vad_available": vad_status["available"],
+        "vad_model_available": vad_status["model_available"],
+        "vad_runtime_version": vad_status["runtime_version"],
+        "vad_provider": vad_status["provider"],
+        "vad_model": vad_status["model"],
+        "vad_error": vad_status["error"],
     }
 
 
@@ -117,52 +139,6 @@ async def _probe_duration(ffprobe: str, file_path: str) -> float:
             code="asr.audio_duration_invalid",
         )
     return duration
-
-
-def parse_silence_intervals(stderr: str, duration: float) -> list[tuple[float, float]]:
-    intervals: list[tuple[float, float]] = []
-    silence_start: float | None = None
-    for line in stderr.splitlines():
-        start_match = SILENCE_START_RE.search(line)
-        if start_match:
-            silence_start = max(0.0, float(start_match.group(1)))
-        end_match = SILENCE_END_RE.search(line)
-        if end_match and silence_start is not None:
-            silence_end = min(duration, float(end_match.group(1)))
-            if silence_end > silence_start:
-                intervals.append((silence_start, silence_end))
-            silence_start = None
-    if silence_start is not None and duration > silence_start:
-        intervals.append((silence_start, duration))
-    return intervals
-
-
-async def _detect_silences(
-    ffmpeg: str,
-    file_path: str,
-    duration: float,
-    threshold_db: float,
-    minimum_silence_ms: int,
-) -> list[tuple[float, float]]:
-    result = await _run_checked(
-        [
-            ffmpeg,
-            "-hide_banner",
-            "-nostdin",
-            "-i",
-            file_path,
-            "-af",
-            (
-                f"silencedetect=noise={threshold_db:g}dB:"
-                f"d={minimum_silence_ms / 1000:g}"
-            ),
-            "-f",
-            "null",
-            "-",
-        ],
-        "detecting silence in",
-    )
-    return parse_silence_intervals(result.stderr, duration)
 
 
 def plan_audio_chunks(
@@ -485,7 +461,7 @@ async def transcribe_external_audio_chunked(
     maximum_seconds: float,
     overlap_seconds: float,
     prefer_silence: bool,
-    silence_threshold_db: float,
+    vad_threshold: float,
     minimum_silence_ms: int,
     is_canceled: Callable[[], bool],
 ) -> dict:
@@ -496,13 +472,23 @@ async def transcribe_external_audio_chunked(
     duration = await _probe_duration(ffprobe, file_path)
     silence_intervals: list[tuple[float, float]] = []
     if prefer_silence and duration > maximum_seconds:
-        silence_intervals = await _detect_silences(
-            ffmpeg,
-            file_path,
-            duration,
-            silence_threshold_db,
-            minimum_silence_ms,
-        )
+        try:
+            silence_intervals = await detect_silence_intervals(
+                ffmpeg=ffmpeg,
+                file_path=file_path,
+                duration_seconds=duration,
+                threshold=vad_threshold,
+                minimum_silence_ms=minimum_silence_ms,
+                is_canceled=is_canceled,
+            )
+        except SileroVadCanceled as error:
+            raise ExternalAsrCanceled() from error
+        except SileroVadError as error:
+            raise ServiceError(
+                500,
+                str(error),
+                code="asr.vad_failed",
+            ) from error
     chunks = plan_audio_chunks(
         duration,
         maximum_seconds,

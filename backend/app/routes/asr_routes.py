@@ -16,7 +16,7 @@ def get_whisper_component_status():
 
 @router.get("/external-preprocessing")
 def get_external_preprocessing_status():
-    return external_asr_service.get_ffmpeg_status()
+    return external_asr_service.get_preprocessing_status()
 
 
 @router.post("/whisper-component/install")

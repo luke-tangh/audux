@@ -34,7 +34,7 @@ cargo check --locked
 
 - Linux x64 bundle
 - Windows x64 NSIS (`.exe`) bundle
-- macOS x64 bundle
+- macOS 13+ x64 bundle
 - 三个平台的 `local-audio-library-lite-<target>.zip`
 - 三个平台的 `local-audio-whisper-<target>.zip` 和 descriptor
 
@@ -86,6 +86,10 @@ browser-lite 每个平台至少验证：
 - 首次模型下载写入 `models/faster-whisper/`；移除/重装组件后模型缓存仍保留。
 - 取消运行中的本地转写后 companion 子进程退出，任务最终为 canceled。
 - External ASR 使用 mock/测试服务完成一次 multipart 上传并写入 transcript。
+- 设置页确认 Silero VAD、ONNX Runtime CPU provider、FFmpeg 和 ffprobe 均可用；用包含
+  明显停顿的长音频确认切片边界落在非语音区间，取消 VAD 中的任务后 FFmpeg 子进程退出。
+- 解包或运行主 backend sidecar，确认包含 `silero_vad_16k_op15.onnx`，并且模型 SHA-256
+  校验通过；离线环境不得尝试下载 VAD 模型或 runtime。
 - 非 loopback ASR 和 LLM endpoint 仍显示隐私警告并需要显式允许。
 
 ## 6. No-public-release gate

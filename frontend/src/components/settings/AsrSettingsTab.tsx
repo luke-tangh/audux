@@ -22,7 +22,7 @@ type AsrSettingsTabProps = {
   externalChunkSeconds: string;
   externalChunkOverlapSeconds: string;
   externalPreferSilence: boolean;
-  externalSilenceThresholdDb: string;
+  externalVadThreshold: string;
   externalMinimumSilenceMs: string;
   externalPreprocessing: ExternalAsrPreprocessingStatus | null;
   externalWarning: string | null;
@@ -43,7 +43,7 @@ type AsrSettingsTabProps = {
   onExternalChunkSecondsChange: (value: string) => void;
   onExternalChunkOverlapSecondsChange: (value: string) => void;
   onExternalPreferSilenceChange: (value: boolean) => void;
-  onExternalSilenceThresholdDbChange: (value: string) => void;
+  onExternalVadThresholdChange: (value: string) => void;
   onExternalMinimumSilenceMsChange: (value: string) => void;
   onInstallWhisperComponent: () => void;
   onCancelWhisperComponentInstall: () => void;
@@ -74,7 +74,7 @@ export default function AsrSettingsTab({
   externalChunkSeconds,
   externalChunkOverlapSeconds,
   externalPreferSilence,
-  externalSilenceThresholdDb,
+  externalVadThreshold,
   externalMinimumSilenceMs,
   externalPreprocessing,
   externalWarning,
@@ -95,7 +95,7 @@ export default function AsrSettingsTab({
   onExternalChunkSecondsChange,
   onExternalChunkOverlapSecondsChange,
   onExternalPreferSilenceChange,
-  onExternalSilenceThresholdDbChange,
+  onExternalVadThresholdChange,
   onExternalMinimumSilenceMsChange,
   onInstallWhisperComponent,
   onCancelWhisperComponentInstall,
@@ -338,7 +338,11 @@ export default function AsrSettingsTab({
               <>
                 <div className="wide" aria-live="polite">
                   {externalPreprocessing?.available ? (
-                    <p className="muted">{t("settings.asr.ffmpegAvailable")}</p>
+                    <p className="muted">
+                      {t("settings.asr.preprocessingAvailable", {
+                        version: externalPreprocessing.vad_runtime_version
+                      })}
+                    </p>
                   ) : (
                     <p className="privacy-warning">
                       {externalPreprocessing
@@ -375,11 +379,11 @@ export default function AsrSettingsTab({
                 {externalPreferSilence && (
                   <>
                     <TextField
-                      label={t("settings.asr.silenceThresholdDb")}
+                      label={t("settings.asr.vadThreshold")}
                       inputMode="decimal"
-                      value={externalSilenceThresholdDb}
-                      placeholder="-35"
-                      onValueChange={onExternalSilenceThresholdDbChange}
+                      value={externalVadThreshold}
+                      placeholder="0.5"
+                      onValueChange={onExternalVadThresholdChange}
                     />
 
                     <TextField

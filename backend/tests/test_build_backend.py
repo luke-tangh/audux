@@ -14,8 +14,22 @@ class TestBuildBackend:
             include_asr=False,
         )
 
-        collect_index = command.index("--collect-submodules")
-        assert command[collect_index + 1] == "app"
+        collected_modules = {
+            command[index + 1]
+            for index, argument in enumerate(command)
+            if argument == "--collect-submodules"
+        }
+        assert "app" in collected_modules
+        assert any(
+            value.endswith(f"{build_backend.os.pathsep}app/assets")
+            for value in command
+        )
+        assert any(
+            value.endswith(
+                f"ThirdPartyNotices.txt{build_backend.os.pathsep}app/assets/onnxruntime"
+            )
+            for value in command
+        )
         assert command[-1] == "run.py"
 
         excluded_modules = {

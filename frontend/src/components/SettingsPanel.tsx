@@ -82,8 +82,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [asrExternalChunkOverlapSeconds, setAsrExternalChunkOverlapSeconds] =
     useState("1");
   const [asrExternalPreferSilence, setAsrExternalPreferSilence] = useState(true);
-  const [asrExternalSilenceThresholdDb, setAsrExternalSilenceThresholdDb] =
-    useState("-35");
+  const [asrExternalVadThreshold, setAsrExternalVadThreshold] = useState("0.5");
   const [asrExternalMinimumSilenceMs, setAsrExternalMinimumSilenceMs] =
     useState("400");
   const [externalAsrPreprocessing, setExternalAsrPreprocessing] =
@@ -297,10 +296,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
           ).toLowerCase()
         )
       );
-      setAsrExternalSilenceThresholdDb(
+      setAsrExternalVadThreshold(
         settings.find(
-          (setting) => setting.key === "asr.external.silence_threshold_db"
-        )?.value || "-35"
+          (setting) => setting.key === "asr.external.vad_threshold"
+        )?.value || "0.5"
       );
       setAsrExternalMinimumSilenceMs(
         settings.find(
@@ -527,7 +526,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
     const chunkSeconds = Number(asrExternalChunkSeconds);
     const overlapSeconds = Number(asrExternalChunkOverlapSeconds);
-    const silenceThresholdDb = Number(asrExternalSilenceThresholdDb);
+    const vadThreshold = Number(asrExternalVadThreshold);
     const minimumSilenceMs = Number(asrExternalMinimumSilenceMs);
     if (
       asrProvider === "external" &&
@@ -539,9 +538,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         overlapSeconds < 0 ||
         overlapSeconds > 10 ||
         overlapSeconds >= chunkSeconds / 2 ||
-        !Number.isFinite(silenceThresholdDb) ||
-        silenceThresholdDb < -80 ||
-        silenceThresholdDb > -5 ||
+        !Number.isFinite(vadThreshold) ||
+        vadThreshold < 0.1 ||
+        vadThreshold > 0.9 ||
         !Number.isInteger(minimumSilenceMs) ||
         minimumSilenceMs < 100 ||
         minimumSilenceMs > 5000)
@@ -604,8 +603,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         asrExternalPreferSilence ? "true" : "false"
       );
       await api.setSetting(
-        "asr.external.silence_threshold_db",
-        asrExternalSilenceThresholdDb.trim() || "-35"
+        "asr.external.vad_threshold",
+        asrExternalVadThreshold.trim() || "0.5"
       );
       await api.setSetting(
         "asr.external.minimum_silence_ms",
@@ -1198,7 +1197,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             externalChunkSeconds={asrExternalChunkSeconds}
             externalChunkOverlapSeconds={asrExternalChunkOverlapSeconds}
             externalPreferSilence={asrExternalPreferSilence}
-            externalSilenceThresholdDb={asrExternalSilenceThresholdDb}
+            externalVadThreshold={asrExternalVadThreshold}
             externalMinimumSilenceMs={asrExternalMinimumSilenceMs}
             externalPreprocessing={externalAsrPreprocessing}
             externalWarning={asrExternalWarning}
@@ -1221,7 +1220,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onExternalChunkSecondsChange={setAsrExternalChunkSeconds}
             onExternalChunkOverlapSecondsChange={setAsrExternalChunkOverlapSeconds}
             onExternalPreferSilenceChange={setAsrExternalPreferSilence}
-            onExternalSilenceThresholdDbChange={setAsrExternalSilenceThresholdDb}
+            onExternalVadThresholdChange={setAsrExternalVadThreshold}
             onExternalMinimumSilenceMsChange={setAsrExternalMinimumSilenceMs}
             onInstallWhisperComponent={installWhisperComponent}
             onCancelWhisperComponentInstall={cancelWhisperComponentInstall}

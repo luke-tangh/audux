@@ -396,6 +396,12 @@ export type ExternalAsrPreprocessingStatus = {
   available: boolean;
   ffmpeg_available: boolean;
   ffprobe_available: boolean;
+  vad_available: boolean;
+  vad_model_available: boolean;
+  vad_runtime_version: string;
+  vad_provider: string | null;
+  vad_model: string;
+  vad_error: string | null;
   missing: string[];
 };
 

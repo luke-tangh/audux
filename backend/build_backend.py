@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = ROOT.parent
 FRONTEND_TAURI = PROJECT_ROOT / "frontend" / "src-tauri"
 BINARIES_DIR = FRONTEND_TAURI / "binaries"
+ASSETS_DIR = ROOT / "app" / "assets"
 
 BINARIES_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -89,6 +90,21 @@ def module_available(module_name: str) -> bool:
     return importlib.util.find_spec(module_name) is not None
 
 
+def onnxruntime_notice_files() -> list[Path]:
+    spec = importlib.util.find_spec("onnxruntime")
+    if spec is None or spec.origin is None:
+        raise RuntimeError("onnxruntime is required for bundled Silero VAD")
+
+    package_dir = Path(spec.origin).resolve().parent
+    notice_files = [package_dir / "LICENSE", package_dir / "ThirdPartyNotices.txt"]
+    missing = [path.name for path in notice_files if not path.is_file()]
+    if missing:
+        raise RuntimeError(
+            "onnxruntime license files are missing: " + ", ".join(missing)
+        )
+    return notice_files
+
+
 def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
     cmd = [
         sys.executable,
@@ -135,8 +151,18 @@ def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
             "Whisper companion to enable local transcription."
         )
 
+    for notice_file in onnxruntime_notice_files():
+        cmd.extend(
+            [
+                "--add-data",
+                f"{notice_file}{os.pathsep}app/assets/onnxruntime",
+            ]
+        )
+
     cmd.extend(
         [
+            "--add-data",
+            f"{ASSETS_DIR}{os.pathsep}app/assets",
             "--collect-submodules",
             "app",
             "--hidden-import",

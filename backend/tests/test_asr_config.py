@@ -53,7 +53,7 @@ class TestASRConfig:
         assert config["chunk_seconds"] == 28
         assert config["chunk_overlap_seconds"] == 1
         assert config["prefer_silence"] is True
-        assert config["silence_threshold_db"] == -35
+        assert config["vad_threshold"] == 0.5
         assert config["minimum_silence_ms"] == 400
 
     def test_normalizes_external_chunking_config(self):
@@ -66,7 +66,7 @@ class TestASRConfig:
                 "chunk_seconds": "25",
                 "chunk_overlap_seconds": "1.5",
                 "prefer_silence": "false",
-                "silence_threshold_db": "-42",
+                "vad_threshold": "0.65",
                 "minimum_silence_ms": "650",
             }
         )
@@ -75,7 +75,7 @@ class TestASRConfig:
         assert config["chunk_seconds"] == 25
         assert config["chunk_overlap_seconds"] == 1.5
         assert config["prefer_silence"] is False
-        assert config["silence_threshold_db"] == -42
+        assert config["vad_threshold"] == 0.65
         assert config["minimum_silence_ms"] == 650
 
     @pytest.mark.parametrize(
@@ -83,7 +83,7 @@ class TestASRConfig:
         [
             ("chunk_seconds", "4", "chunk_seconds"),
             ("chunk_overlap_seconds", "15", "chunk_overlap_seconds"),
-            ("silence_threshold_db", "-2", "silence_threshold_db"),
+            ("vad_threshold", "0.95", "vad_threshold"),
             ("minimum_silence_ms", "99", "minimum_silence_ms"),
         ],
     )
@@ -178,7 +178,7 @@ class TestASRConfig:
             "asr.external.chunk_seconds": "26",
             "asr.external.chunk_overlap_seconds": "2",
             "asr.external.prefer_silence": "true",
-            "asr.external.silence_threshold_db": "-40",
+            "asr.external.vad_threshold": "0.6",
             "asr.external.minimum_silence_ms": "500",
         }.items():
             settings_session.add(Setting(key=key, value=value))
@@ -201,3 +201,4 @@ class TestASRConfig:
         assert resolved["chunk_seconds"] == 26
         assert resolved["chunk_overlap_seconds"] == 2
         assert resolved["prefer_silence"] is True
+        assert resolved["vad_threshold"] == 0.6

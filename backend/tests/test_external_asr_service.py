@@ -8,7 +8,6 @@ from app.services.external_asr_service import (
     AudioChunk,
     ExternalAsrCanceled,
     merge_chunk_results,
-    parse_silence_intervals,
     plan_audio_chunks,
     transcribe_external_audio_chunked,
 )
@@ -37,14 +36,37 @@ def test_ffmpeg_status_lists_missing_tools(monkeypatch: pytest.MonkeyPatch):
     assert caught.value.code == "asr.ffmpeg_missing"
 
 
-def test_parses_silence_intervals_including_trailing_silence():
-    output = """
-    [silencedetect] silence_start: 5.25
-    [silencedetect] silence_end: 6.5 | silence_duration: 1.25
-    [silencedetect] silence_start: 19.0
-    """
+def test_preprocessing_status_requires_ffmpeg_and_bundled_vad(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        external_asr_service,
+        "get_ffmpeg_status",
+        lambda: {
+            "available": True,
+            "ffmpeg_available": True,
+            "ffprobe_available": True,
+            "missing": [],
+        },
+    )
+    monkeypatch.setattr(
+        external_asr_service,
+        "get_vad_status",
+        lambda: {
+            "available": False,
+            "model_available": False,
+            "runtime_version": "1.23.2",
+            "provider": None,
+            "model": "silero_vad_16k_op15.onnx",
+            "error": "missing",
+        },
+    )
 
-    assert parse_silence_intervals(output, 20) == [(5.25, 6.5), (19, 20)]
+    status = external_asr_service.get_preprocessing_status()
+
+    assert status["available"] is False
+    assert status["vad_available"] is False
+    assert status["missing"] == ["silero_vad"]
 
 
 def test_plans_chunks_at_silence_with_hard_cut_fallback():
@@ -233,7 +255,11 @@ async def test_long_audio_extracts_and_uploads_chunks_sequentially(
 
     monkeypatch.setattr(external_asr_service, "_require_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
     monkeypatch.setattr(external_asr_service, "_probe_duration", _async_value(65))
-    monkeypatch.setattr(external_asr_service, "_detect_silences", _async_value([(27, 29)]))
+    monkeypatch.setattr(
+        external_asr_service,
+        "detect_silence_intervals",
+        _async_value([(27, 29)]),
+    )
 
     async def fake_extract(ffmpeg, source_path, destination_path, chunk):
         extracted.append(chunk)
@@ -294,7 +320,7 @@ async def _transcribe(
         maximum_seconds=30,
         overlap_seconds=1,
         prefer_silence=True,
-        silence_threshold_db=-35,
+        vad_threshold=0.5,
         minimum_silence_ms=400,
         is_canceled=is_canceled,
     )

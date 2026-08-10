@@ -22,7 +22,7 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
     onExternalChunkSecondsChange: vi.fn(),
     onExternalChunkOverlapSecondsChange: vi.fn(),
     onExternalPreferSilenceChange: vi.fn(),
-    onExternalSilenceThresholdDbChange: vi.fn(),
+    onExternalVadThresholdChange: vi.fn(),
     onExternalMinimumSilenceMsChange: vi.fn(),
     onInstallWhisperComponent: vi.fn(),
     onCancelWhisperComponentInstall: vi.fn(),
@@ -49,12 +49,18 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
         externalChunkSeconds="28"
         externalChunkOverlapSeconds="1"
         externalPreferSilence
-        externalSilenceThresholdDb="-35"
+        externalVadThreshold="0.5"
         externalMinimumSilenceMs="400"
         externalPreprocessing={{
           available: ffmpegAvailable,
           ffmpeg_available: ffmpegAvailable,
           ffprobe_available: ffmpegAvailable,
+          vad_available: true,
+          vad_model_available: true,
+          vad_runtime_version: "1.23.2",
+          vad_provider: "CPUExecutionProvider",
+          vad_model: "silero_vad_16k_op15.onnx",
+          vad_error: null,
           missing: ffmpegAvailable ? [] : ["ffmpeg", "ffprobe"]
         }}
         externalWarning={null}
@@ -89,12 +95,15 @@ describe("external ASR chunk settings", () => {
       screen.getByLabelText(/单片最长秒数|Maximum chunk length/)
     ).toHaveValue("28");
     expect(
-      screen.getByText(/未检测到系统 FFmpeg|System FFmpeg or ffprobe was not found/)
+      screen.getByText(/外部 ASR 预处理不可用|External ASR preprocessing is unavailable/)
     ).toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", {
-        name: /优先在静音处切分|Prefer silence boundaries/
+        name: /启用 Silero VAD 智能切分|Enable Silero VAD boundary detection/
       })
     ).toBeChecked();
+    expect(
+      screen.getByLabelText(/VAD 语音概率阈值|VAD speech probability threshold/)
+    ).toHaveValue("0.5");
   });
 });
