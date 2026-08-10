@@ -1,6 +1,7 @@
 import asyncio
 import json
 import math
+import re
 import shutil
 import subprocess
 import tempfile
@@ -22,11 +23,19 @@ from .silero_vad_service import (
     detect_silence_intervals,
     get_vad_status,
 )
+from .transcript_format_service import (
+    format_transcript_segments,
+    format_transcript_text,
+)
 
 
 MAX_NORMALIZED_OVERLAP_CHARACTERS = 2000
 OVERLAP_CONTEXT_SOURCE_CHARACTERS = 8000
 SEGMENT_TIMESTAMP_TOLERANCE_SECONDS = 0.75
+SHORT_VAD_CONTINUATION_SECONDS = 0.7
+CUT_KIND_FINAL = "final"
+CUT_KIND_HARD = "hard"
+CUT_KIND_VAD = "vad"
 
 
 class ExternalAsrCanceled(Exception):
@@ -37,6 +46,8 @@ class ExternalAsrCanceled(Exception):
 class AudioChunk:
     start_seconds: float
     end_seconds: float
+    cut_kind: str = CUT_KIND_FINAL
+    silence_duration_seconds: float | None = None
 
 
 def get_ffmpeg_status() -> dict:
@@ -151,7 +162,7 @@ def plan_audio_chunks(
         return [AudioChunk(0.0, duration)]
 
     silence_points = sorted(
-        (clipped_start + clipped_end) / 2
+        ((clipped_start + clipped_end) / 2, clipped_end - clipped_start)
         for start, end in silence_intervals
         if (clipped_start := max(0.0, start))
         < (clipped_end := min(duration, end))
@@ -169,11 +180,12 @@ def plan_audio_chunks(
             break
 
         eligible = [
-            point
-            for point in silence_points
+            (point, silence_duration)
+            for point, silence_duration in silence_points
             if start + minimum_advance <= point <= hard_end
         ]
-        end = eligible[-1] if eligible else hard_end
+        selected_silence = eligible[-1] if eligible else None
+        end = selected_silence[0] if selected_silence else hard_end
 
         # A greedy hard cut can leave only a few seconds for the final request.
         # Short tail chunks have little context and tend to repeat or hallucinate.
@@ -182,20 +194,31 @@ def plan_audio_chunks(
         tail_duration = duration - max(0.0, end - overlap_seconds)
         if tail_duration < minimum_advance:
             safe_silences = [
-                point
-                for point in eligible
+                (point, silence_duration)
+                for point, silence_duration in eligible
                 if duration - max(0.0, point - overlap_seconds)
                 >= minimum_advance
             ]
             if safe_silences:
-                end = safe_silences[-1]
+                selected_silence = safe_silences[-1]
+                end = selected_silence[0]
             else:
+                selected_silence = None
                 balanced_end = (start + duration + overlap_seconds) / 2
                 end = min(
                     hard_end,
                     max(start + minimum_advance, balanced_end),
                 )
-        chunks.append(AudioChunk(start, end))
+        chunks.append(
+            AudioChunk(
+                start,
+                end,
+                cut_kind=CUT_KIND_VAD if selected_silence else CUT_KIND_HARD,
+                silence_duration_seconds=(
+                    selected_silence[1] if selected_silence else None
+                ),
+            )
+        )
 
         next_start = max(0.0, end - overlap_seconds)
         if next_start <= start:
@@ -337,18 +360,52 @@ def _trim_overlap(previous: str, current: str) -> tuple[str, int, int]:
     return current, 0, len(current_folded)
 
 
-def _remove_overlap(previous: str, current: str) -> str:
-    return _trim_overlap(previous, current)[0]
+def _strip_artificial_terminal_period(value: str) -> str:
+    match = re.search(r"([.。])([\"'”’）)\]]*)$", value.rstrip())
+    if not match:
+        return value.rstrip()
+
+    period_index = match.start(1)
+    if period_index > 0 and value[period_index - 1] in ".。…":
+        return value.rstrip()
+    return f"{value[:period_index].rstrip()}{match.group(2)}"
+
+
+def _is_artificial_continuation(
+    chunk: AudioChunk,
+    *,
+    overlap_characters: int,
+) -> bool:
+    if chunk.cut_kind == CUT_KIND_HARD:
+        return True
+    return (
+        chunk.cut_kind == CUT_KIND_VAD
+        and overlap_characters > 0
+        and chunk.silence_duration_seconds is not None
+        and chunk.silence_duration_seconds < SHORT_VAD_CONTINUATION_SECONDS
+    )
+
+
+def _continuation_separator(previous: str, current: str) -> str:
+    previous_match = re.search(r"[A-Za-z0-9_]\s*[\"'”’）)\]]*$", previous)
+    current_match = re.match(r"[\"'“‘(\[]*\s*[A-Za-z0-9_]", current)
+    return " " if previous_match and current_match else ""
 
 
 def merge_chunk_results(
     chunks: list[AudioChunk],
     results: list[dict],
     timestamp_policy: str,
+    *,
+    formatting_enabled: bool = False,
+    case_glossary: str = "",
 ) -> dict:
     text_parts: list[str] = []
+    text_separators: list[str] = []
     text_context = ""
     segments: list[dict] = []
+    stripped_boundary_chunks: set[int] = set()
+    previous_text_chunk_index: int | None = None
     language = None
     model_name = None
 
@@ -357,9 +414,36 @@ def merge_chunk_results(
     ):
         raw_text = str(result.get("full_text") or "").strip()
         previous_text = text_context
-        text = _remove_overlap(previous_text, raw_text) if text_parts else raw_text
+        if text_parts:
+            text, text_overlap_characters, _ = _trim_overlap(
+                previous_text,
+                raw_text,
+            )
+        else:
+            text = raw_text
+            text_overlap_characters = 0
         if text:
+            separator = "\n"
+            if (
+                formatting_enabled
+                and previous_text_chunk_index is not None
+                and previous_text_chunk_index + 1 == chunk_index
+                and _is_artificial_continuation(
+                    chunks[previous_text_chunk_index],
+                    overlap_characters=text_overlap_characters,
+                )
+            ):
+                repaired_previous = _strip_artificial_terminal_period(
+                    text_parts[-1]
+                )
+                if repaired_previous != text_parts[-1].rstrip():
+                    text_parts[-1] = repaired_previous
+                    stripped_boundary_chunks.add(previous_text_chunk_index)
+                    separator = _continuation_separator(repaired_previous, text)
+            if text_parts:
+                text_separators.append(separator)
             text_parts.append(text)
+            previous_text_chunk_index = chunk_index
             text_context = f"{text_context}\n{text}"[
                 -OVERLAP_CONTEXT_SOURCE_CHARACTERS:
             ].lstrip()
@@ -429,6 +513,7 @@ def merge_chunk_results(
                         "start_seconds": start_seconds,
                         "end_seconds": end_seconds,
                         "text": segment_text,
+                        "_chunk_index": chunk_index,
                     }
                 )
         elif text:
@@ -438,13 +523,42 @@ def merge_chunk_results(
                     "start_seconds": non_overlap_start,
                     "end_seconds": chunk.end_seconds,
                     "text": text,
+                    "_chunk_index": chunk_index,
                 }
             )
+
+    for boundary_chunk_index in stripped_boundary_chunks:
+        boundary_segments = [
+            segment
+            for segment in segments
+            if segment.get("_chunk_index") == boundary_chunk_index
+        ]
+        if boundary_segments:
+            boundary_segments[-1]["text"] = _strip_artificial_terminal_period(
+                str(boundary_segments[-1]["text"])
+            )
+
+    for segment in segments:
+        segment.pop("_chunk_index", None)
+
+    if text_parts:
+        full_text = text_parts[0]
+        for separator, text in zip(text_separators, text_parts[1:], strict=True):
+            full_text = f"{full_text}{separator}{text}"
+    else:
+        full_text = ""
+
+    if formatting_enabled:
+        full_text = format_transcript_text(
+            full_text,
+            custom_glossary=case_glossary,
+        )
+        format_transcript_segments(segments, custom_glossary=case_glossary)
 
     return {
         "language": language,
         "model_name": model_name,
-        "full_text": "\n".join(text_parts),
+        "full_text": full_text,
         "segments": segments,
     }
 
@@ -463,6 +577,8 @@ async def transcribe_external_audio_chunked(
     prefer_silence: bool,
     vad_threshold: float,
     minimum_silence_ms: int,
+    formatting_enabled: bool,
+    case_glossary: str,
     is_canceled: Callable[[], bool],
 ) -> dict:
     ffmpeg, ffprobe = _require_ffmpeg()
@@ -514,7 +630,13 @@ async def transcribe_external_audio_chunked(
             timestamp_policy=request_timestamp_policy,
             timeout=timeout,
         )
-        return merge_chunk_results(chunks, [result], timestamp_policy)
+        return merge_chunk_results(
+            chunks,
+            [result],
+            timestamp_policy,
+            formatting_enabled=formatting_enabled,
+            case_glossary=case_glossary,
+        )
 
     with tempfile.TemporaryDirectory(prefix="local-audio-asr-chunks-") as tmp_dir:
         for index, chunk in enumerate(chunks):
@@ -535,4 +657,10 @@ async def transcribe_external_audio_chunked(
             )
             results.append(result)
 
-    return merge_chunk_results(chunks, results, timestamp_policy)
+    return merge_chunk_results(
+        chunks,
+        results,
+        timestamp_policy,
+        formatting_enabled=formatting_enabled,
+        case_glossary=case_glossary,
+    )

@@ -55,6 +55,8 @@ class TestASRConfig:
         assert config["prefer_silence"] is True
         assert config["vad_threshold"] == 0.5
         assert config["minimum_silence_ms"] == 400
+        assert config["formatting_enabled"] is True
+        assert config["case_glossary"] == ""
 
     def test_normalizes_external_chunking_config(self):
         config = normalize_asr_task_config(
@@ -68,6 +70,8 @@ class TestASRConfig:
                 "prefer_silence": "false",
                 "vad_threshold": "0.65",
                 "minimum_silence_ms": "650",
+                "formatting_enabled": "false",
+                "case_glossary": "ark asr=ARK-ASR",
             }
         )
 
@@ -77,6 +81,33 @@ class TestASRConfig:
         assert config["prefer_silence"] is False
         assert config["vad_threshold"] == 0.65
         assert config["minimum_silence_ms"] == 650
+        assert config["formatting_enabled"] is False
+        assert config["case_glossary"] == "ark asr=ARK-ASR"
+
+    def test_rejects_invalid_case_glossary(self):
+        with pytest.raises(ValueError, match="case glossary line 1 is incomplete"):
+            normalize_asr_task_config(
+                {
+                    "provider": "external",
+                    "endpoint": "http://127.0.0.1:8000/v1",
+                    "model_name": "ark-asr",
+                    "case_glossary": "broken=",
+                }
+            )
+
+    def test_ignores_case_glossary_while_formatting_is_disabled(self):
+        config = normalize_asr_task_config(
+            {
+                "provider": "external",
+                "endpoint": "http://127.0.0.1:8000/v1",
+                "model_name": "ark-asr",
+                "formatting_enabled": "false",
+                "case_glossary": "broken=",
+            }
+        )
+
+        assert config["formatting_enabled"] is False
+        assert config["case_glossary"] == "broken="
 
     @pytest.mark.parametrize(
         ("field", "value", "message"),
@@ -180,6 +211,8 @@ class TestASRConfig:
             "asr.external.prefer_silence": "true",
             "asr.external.vad_threshold": "0.6",
             "asr.external.minimum_silence_ms": "500",
+            "asr.external.formatting_enabled": "true",
+            "asr.external.case_glossary": "ark asr=ARK-ASR",
         }.items():
             settings_session.add(Setting(key=key, value=value))
         settings_session.commit()
@@ -202,3 +235,5 @@ class TestASRConfig:
         assert resolved["chunk_overlap_seconds"] == 2
         assert resolved["prefer_silence"] is True
         assert resolved["vad_threshold"] == 0.6
+        assert resolved["formatting_enabled"] is True
+        assert resolved["case_glossary"] == "ark asr=ARK-ASR"

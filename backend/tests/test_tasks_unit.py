@@ -153,6 +153,8 @@ class TestTaskStateTransitions(ApiIntegrationTest):
                 "asr.external.prefer_silence": "true",
                 "asr.external.vad_threshold": "0.55",
                 "asr.external.minimum_silence_ms": "450",
+                "asr.external.formatting_enabled": "true",
+                "asr.external.case_glossary": "ark asr=ARK-ASR",
             }.items():
                 session.add(Setting(key=key, value=value))
             session.commit()
@@ -199,6 +201,8 @@ class TestTaskStateTransitions(ApiIntegrationTest):
         assert captured["prefer_silence"] is True
         assert captured["vad_threshold"] == 0.55
         assert captured["minimum_silence_ms"] == 450
+        assert captured["formatting_enabled"] is True
+        assert captured["case_glossary"] == "ark asr=ARK-ASR"
         assert captured["is_canceled"]() is False
 
         with Session(self.engine) as session:
@@ -208,3 +212,58 @@ class TestTaskStateTransitions(ApiIntegrationTest):
             audio = session.get(AudioItem, self.audio.id)
             assert transcript.full_text == "chunked transcript"
             assert audio.transcript_status == "done"
+
+    @pytest.mark.anyio
+    async def test_direct_external_transcription_applies_text_formatting(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        with Session(self.engine) as session:
+            for key, value in {
+                "asr.provider": "external",
+                "asr.external.endpoint": "http://127.0.0.1:8025/v1",
+                "asr.external.model_name": "ark-asr",
+                "asr.external.case_glossary": "ark asr=ARK-ASR-3B",
+            }.items():
+                session.add(Setting(key=key, value=value))
+            session.commit()
+
+            task = tasks.create_task(
+                session,
+                self.audio.id,
+                "transcribe",
+                build_asr_task_payload(session),
+            )
+            task.status = "running"
+            session.add(task)
+            session.commit()
+            snapshot = tasks._snapshot_task(task)
+
+        async def fake_external_transcription(**kwargs):
+            return {
+                "full_text": "ark asr uses pytorch.",
+                "language": "en",
+                "model_name": kwargs["model_name"],
+                "segments": [
+                    {
+                        "segment_index": 0,
+                        "start_seconds": 0,
+                        "end_seconds": 5,
+                        "text": "ark asr uses pytorch.",
+                    }
+                ],
+            }
+
+        monkeypatch.setattr(
+            tasks,
+            "transcribe_external_audio",
+            fake_external_transcription,
+        )
+
+        await tasks.handle_transcribe_task(snapshot)
+
+        with Session(self.engine) as session:
+            transcript = session.exec(
+                select(Transcript).where(Transcript.audio_id == self.audio.id)
+            ).one()
+            assert transcript.full_text == "ARK-ASR-3B uses PyTorch."

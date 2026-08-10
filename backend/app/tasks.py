@@ -34,6 +34,7 @@ from .services.external_asr_service import (
     ExternalAsrCanceled,
     transcribe_external_audio_chunked,
 )
+from .services.transcript_format_service import format_transcription_result
 from .services.common import ServiceError, error_code_for_detail
 
 
@@ -576,6 +577,8 @@ async def handle_transcribe_task(task: TaskSnapshot):
                 prefer_silence=asr_config["prefer_silence"],
                 vad_threshold=asr_config["vad_threshold"],
                 minimum_silence_ms=asr_config["minimum_silence_ms"],
+                formatting_enabled=asr_config["formatting_enabled"],
+                case_glossary=asr_config["case_glossary"],
                 is_canceled=lambda: _is_task_canceled_by_id(task_id),
             )
         else:
@@ -602,6 +605,16 @@ async def handle_transcribe_task(task: TaskSnapshot):
         result = await _run_with_task_heartbeat(task_id, transcribe_awaitable)
     except (ExternalAsrCanceled, WhisperCompanionCanceled) as error:
         raise TaskCanceled() from error
+
+    if (
+        asr_config["provider"] == ASR_PROVIDER_EXTERNAL
+        and not asr_config["chunking_enabled"]
+        and asr_config["formatting_enabled"]
+    ):
+        result = format_transcription_result(
+            result,
+            custom_glossary=asr_config["case_glossary"],
+        )
 
     with Session(engine) as session:
         if is_task_canceled(session, task_id):

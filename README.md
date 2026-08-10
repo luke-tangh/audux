@@ -207,7 +207,15 @@ asr.external.chunk_overlap_seconds = 1
 asr.external.prefer_silence = true
 asr.external.vad_threshold = 0.5
 asr.external.minimum_silence_ms = 400
+asr.external.formatting_enabled = true
+asr.external.case_glossary =
 ```
+
+开启 `formatting_enabled` 后，应用会恢复句首与内置技术词（如 `ASR`、`ONNX`、
+`PyTorch`）的大小写。在长音频合并时，硬切边界或带有重叠文本的极短 VAD 静音
+（小于 0.7 秒）会按连续语句处理，并移除模型在切片末尾误加的单个句号；较长静音、
+省略号和原本完整的句子仍会保留。`case_glossary` 支持每行一个 `识别文本=标准写法`
+（例如 `ark asr=ARK-ASR-3B`），也可以只写标准写法；支持 `#` 注释，最多 500 项。
 
 `endpoint` 是 API base URL。后端会向以下地址发送请求：
 

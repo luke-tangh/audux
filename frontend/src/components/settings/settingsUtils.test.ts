@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { ScanTask } from "../../types";
-import { formatFileSize, scanProgress, terminalStatus } from "./settingsUtils";
+import {
+  formatFileSize,
+  scanProgress,
+  terminalStatus,
+  validCaseGlossary
+} from "./settingsUtils";
 
 function scanTask(totalFiles: number, processedFiles: number): ScanTask {
   return {
@@ -35,5 +40,16 @@ describe("settings utilities", () => {
     expect(["done", "failed", "canceled"].every(terminalStatus)).toBe(true);
     expect(terminalStatus("running")).toBe(false);
     expect(terminalStatus("cancel_requested")).toBe(false);
+  });
+
+  it("validates custom casing glossary limits and mappings", () => {
+    expect(validCaseGlossary("# comment\nark asr=ARK-ASR\nPyTorch")).toBe(true);
+    expect(validCaseGlossary("broken=")).toBe(false);
+    expect(validCaseGlossary(`${"a".repeat(101)}=A`)).toBe(false);
+    expect(
+      validCaseGlossary(
+        Array.from({ length: 501 }, (_, index) => `term-${index}`).join("\n")
+      )
+    ).toBe(false);
   });
 });

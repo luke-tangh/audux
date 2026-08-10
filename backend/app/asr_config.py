@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from sqlmodel import Session
 
 from .models import Setting
+from .services.transcript_format_service import parse_case_glossary
 
 
 ASR_PROVIDER_FASTER_WHISPER = "faster_whisper"
@@ -168,6 +169,13 @@ def normalize_asr_task_config(config: dict) -> dict:
                 "asr.external.minimum_silence_ms must be between 100 and 5000"
             )
 
+        formatting_enabled = _setting_truthy(
+            config.get("formatting_enabled", True)
+        )
+        case_glossary = str(config.get("case_glossary") or "")
+        if formatting_enabled:
+            parse_case_glossary(case_glossary)
+
         return {
             "provider": ASR_PROVIDER_EXTERNAL,
             "endpoint": endpoint,
@@ -181,6 +189,8 @@ def normalize_asr_task_config(config: dict) -> dict:
             "prefer_silence": prefer_silence,
             "vad_threshold": vad_threshold,
             "minimum_silence_ms": minimum_silence_ms,
+            "formatting_enabled": formatting_enabled,
+            "case_glossary": case_glossary,
         }
 
     try:
@@ -252,6 +262,15 @@ def build_asr_task_config(session: Session) -> dict:
                 session,
                 "asr.external.minimum_silence_ms",
                 str(EXTERNAL_MINIMUM_SILENCE_MS_DEFAULT),
+            ),
+            "formatting_enabled": _get_setting(
+                session,
+                "asr.external.formatting_enabled",
+                "true",
+            ),
+            "case_glossary": _get_setting(
+                session,
+                "asr.external.case_glossary",
             ),
         }
     else:

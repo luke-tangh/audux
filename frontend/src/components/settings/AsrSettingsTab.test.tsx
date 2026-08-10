@@ -24,6 +24,8 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
     onExternalPreferSilenceChange: vi.fn(),
     onExternalVadThresholdChange: vi.fn(),
     onExternalMinimumSilenceMsChange: vi.fn(),
+    onExternalFormattingEnabledChange: vi.fn(),
+    onExternalCaseGlossaryChange: vi.fn(),
     onInstallWhisperComponent: vi.fn(),
     onCancelWhisperComponentInstall: vi.fn(),
     onRemoveWhisperComponent: vi.fn(),
@@ -51,6 +53,8 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
         externalPreferSilence
         externalVadThreshold="0.5"
         externalMinimumSilenceMs="400"
+        externalFormattingEnabled
+        externalCaseGlossary="pytorch=PyTorch"
         externalPreprocessing={{
           available: ffmpegAvailable,
           ffmpeg_available: ffmpegAvailable,
@@ -105,5 +109,23 @@ describe("external ASR chunk settings", () => {
     expect(
       screen.getByLabelText(/VAD 语音概率阈值|VAD speech probability threshold/)
     ).toHaveValue("0.5");
+  });
+
+  it("exposes text normalization and the custom casing glossary", () => {
+    const callbacks = renderTab(false);
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /规范外部 ASR 文本格式|Normalize external ASR text formatting/
+      })
+    ).toBeChecked();
+    const glossary = screen.getByLabelText(
+      /自定义大小写词典|Custom casing glossary/
+    );
+    expect(glossary).toHaveValue("pytorch=PyTorch");
+    fireEvent.change(glossary, { target: { value: "ark asr=ARK-ASR" } });
+    expect(callbacks.onExternalCaseGlossaryChange).toHaveBeenCalledWith(
+      "ark asr=ARK-ASR"
+    );
   });
 });

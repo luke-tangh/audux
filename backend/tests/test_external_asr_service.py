@@ -6,6 +6,8 @@ from app.services import external_asr_service
 from app.services.common import ServiceError
 from app.services.external_asr_service import (
     AudioChunk,
+    CUT_KIND_HARD,
+    CUT_KIND_VAD,
     ExternalAsrCanceled,
     merge_chunk_results,
     plan_audio_chunks,
@@ -78,23 +80,104 @@ def test_plans_chunks_at_silence_with_hard_cut_fallback():
     )
 
     assert chunks == [
-        AudioChunk(0, 26),
-        AudioChunk(25, 55),
+        AudioChunk(0, 26, CUT_KIND_VAD, 2),
+        AudioChunk(25, 55, CUT_KIND_VAD, 2),
         AudioChunk(54, 70),
     ]
     assert plan_audio_chunks(70, 30, 1, []) == [
-        AudioChunk(0, 30),
-        AudioChunk(29, 50),
+        AudioChunk(0, 30, CUT_KIND_HARD),
+        AudioChunk(29, 50, CUT_KIND_HARD),
         AudioChunk(49, 70),
     ]
 
 
 def test_planner_uses_an_earlier_silence_to_avoid_a_short_tail():
     assert plan_audio_chunks(70, 30, 1, [(48, 50), (57, 59)]) == [
-        AudioChunk(0, 30),
-        AudioChunk(29, 49),
+        AudioChunk(0, 30, CUT_KIND_HARD),
+        AudioChunk(29, 49, CUT_KIND_VAD, 2),
         AudioChunk(48, 70),
     ]
+
+
+def test_formatting_repairs_hard_cut_period_and_restores_casing():
+    result = merge_chunk_results(
+        [AudioChunk(0, 30, CUT_KIND_HARD), AudioChunk(29, 50)],
+        [
+            {
+                "full_text": "we use pytorch.",
+                "segments": [
+                    {"start_seconds": 1, "end_seconds": 29, "text": "we use pytorch."}
+                ],
+            },
+            {
+                "full_text": "on cuda.",
+                "segments": [
+                    {"start_seconds": 1, "end_seconds": 8, "text": "on cuda."}
+                ],
+            },
+        ],
+        "preferred",
+        formatting_enabled=True,
+    )
+
+    assert result["full_text"] == "We use PyTorch on CUDA."
+    assert [segment["text"] for segment in result["segments"]] == [
+        "We use PyTorch",
+        "on CUDA.",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("silence_duration", "expected_text", "expected_segments"),
+    [
+        (0.4, "We use PyTorch on CUDA.", ["We use PyTorch", "on CUDA."]),
+        (0.8, "We use PyTorch.\nOn CUDA.", ["We use PyTorch.", "On CUDA."]),
+    ],
+)
+def test_formatting_uses_vad_gap_duration_to_classify_a_sentence_boundary(
+    silence_duration: float,
+    expected_text: str,
+    expected_segments: list[str],
+):
+    result = merge_chunk_results(
+        [
+            AudioChunk(0, 30, CUT_KIND_VAD, silence_duration),
+            AudioChunk(29, 50),
+        ],
+        [
+            {
+                "full_text": "we use pytorch.",
+                "segments": [
+                    {"start_seconds": 1, "end_seconds": 29, "text": "we use pytorch."}
+                ],
+            },
+            {
+                "full_text": "pytorch on cuda.",
+                "segments": [
+                    {"start_seconds": 0.2, "end_seconds": 8, "text": "pytorch on cuda."}
+                ],
+            },
+        ],
+        "preferred",
+        formatting_enabled=True,
+    )
+
+    assert result["full_text"] == expected_text
+    assert [segment["text"] for segment in result["segments"]] == expected_segments
+
+
+def test_formatting_preserves_ellipsis_at_a_hard_cut():
+    result = merge_chunk_results(
+        [AudioChunk(0, 30, CUT_KIND_HARD), AudioChunk(29, 50)],
+        [
+            {"full_text": "we stopped...", "segments": []},
+            {"full_text": "then continued.", "segments": []},
+        ],
+        "off",
+        formatting_enabled=True,
+    )
+
+    assert result["full_text"] == "We stopped...\nThen continued."
 
 
 def test_merges_text_overlap_and_offsets_segments():
@@ -275,8 +358,8 @@ async def test_long_audio_extracts_and_uploads_chunks_sequentially(
     result = await _transcribe(source)
 
     assert extracted == [
-        AudioChunk(0, 28),
-        AudioChunk(27, 46.5),
+        AudioChunk(0, 28, CUT_KIND_VAD, 2),
+        AudioChunk(27, 46.5, CUT_KIND_HARD),
         AudioChunk(45.5, 65),
     ]
     assert len(uploads) == 3
@@ -322,5 +405,7 @@ async def _transcribe(
         prefer_silence=True,
         vad_threshold=0.5,
         minimum_silence_ms=400,
+        formatting_enabled=False,
+        case_glossary="",
         is_canceled=is_canceled,
     )

@@ -31,7 +31,7 @@ import LogsSettingsTab from "./settings/LogsSettingsTab";
 import MaintenanceSettingsTab from "./settings/MaintenanceSettingsTab";
 import SettingsHeader from "./settings/SettingsHeader";
 import { SETTINGS_TABS, type SettingsTab, type ToastType } from "./settings/types";
-import { terminalStatus } from "./settings/settingsUtils";
+import { terminalStatus, validCaseGlossary } from "./settings/settingsUtils";
 
 type Props = {
   refresh: () => void;
@@ -85,6 +85,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [asrExternalVadThreshold, setAsrExternalVadThreshold] = useState("0.5");
   const [asrExternalMinimumSilenceMs, setAsrExternalMinimumSilenceMs] =
     useState("400");
+  const [asrExternalFormattingEnabled, setAsrExternalFormattingEnabled] =
+    useState(true);
+  const [asrExternalCaseGlossary, setAsrExternalCaseGlossary] = useState("");
   const [externalAsrPreprocessing, setExternalAsrPreprocessing] =
     useState<ExternalAsrPreprocessingStatus | null>(null);
   const [whisperComponent, setWhisperComponent] =
@@ -305,6 +308,20 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         settings.find(
           (setting) => setting.key === "asr.external.minimum_silence_ms"
         )?.value || "400"
+      );
+      setAsrExternalFormattingEnabled(
+        !["0", "false", "no", "off"].includes(
+          (
+            settings.find(
+              (setting) => setting.key === "asr.external.formatting_enabled"
+            )?.value || "true"
+          ).toLowerCase()
+        )
+      );
+      setAsrExternalCaseGlossary(
+        settings.find(
+          (setting) => setting.key === "asr.external.case_glossary"
+        )?.value || ""
       );
 
       setLlmEndpoint(settings.find((setting) => setting.key === "llm.endpoint")?.value || "");
@@ -551,6 +568,15 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
     if (
       asrProvider === "external" &&
+      asrExternalFormattingEnabled &&
+      !validCaseGlossary(asrExternalCaseGlossary)
+    ) {
+      notify?.(t("settings.asr.caseGlossaryInvalid"), "error");
+      return;
+    }
+
+    if (
+      asrProvider === "external" &&
       asrExternalChunkingEnabled &&
       !externalAsrPreprocessing?.available
     ) {
@@ -609,6 +635,14 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.setSetting(
         "asr.external.minimum_silence_ms",
         asrExternalMinimumSilenceMs.trim() || "400"
+      );
+      await api.setSetting(
+        "asr.external.formatting_enabled",
+        asrExternalFormattingEnabled ? "true" : "false"
+      );
+      await api.setSetting(
+        "asr.external.case_glossary",
+        asrExternalCaseGlossary
       );
 
       notify?.(t("settings.asr.saved"), "success");
@@ -1199,6 +1233,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             externalPreferSilence={asrExternalPreferSilence}
             externalVadThreshold={asrExternalVadThreshold}
             externalMinimumSilenceMs={asrExternalMinimumSilenceMs}
+            externalFormattingEnabled={asrExternalFormattingEnabled}
+            externalCaseGlossary={asrExternalCaseGlossary}
             externalPreprocessing={externalAsrPreprocessing}
             externalWarning={asrExternalWarning}
             whisperComponent={whisperComponent}
@@ -1222,6 +1258,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onExternalPreferSilenceChange={setAsrExternalPreferSilence}
             onExternalVadThresholdChange={setAsrExternalVadThreshold}
             onExternalMinimumSilenceMsChange={setAsrExternalMinimumSilenceMs}
+            onExternalFormattingEnabledChange={setAsrExternalFormattingEnabled}
+            onExternalCaseGlossaryChange={setAsrExternalCaseGlossary}
             onInstallWhisperComponent={installWhisperComponent}
             onCancelWhisperComponentInstall={cancelWhisperComponentInstall}
             onRemoveWhisperComponent={removeWhisperComponent}

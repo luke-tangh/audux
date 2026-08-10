@@ -1,4 +1,11 @@
-import { Button, CheckboxField, PanelCard, SelectField, TextField } from "../ui";
+import {
+  Button,
+  CheckboxField,
+  PanelCard,
+  SelectField,
+  TextareaField,
+  TextField
+} from "../ui";
 import { useTranslation } from "react-i18next";
 import type {
   ExternalAsrPreprocessingStatus,
@@ -24,6 +31,8 @@ type AsrSettingsTabProps = {
   externalPreferSilence: boolean;
   externalVadThreshold: string;
   externalMinimumSilenceMs: string;
+  externalFormattingEnabled: boolean;
+  externalCaseGlossary: string;
   externalPreprocessing: ExternalAsrPreprocessingStatus | null;
   externalWarning: string | null;
   whisperComponent: WhisperComponentStatus | null;
@@ -45,6 +54,8 @@ type AsrSettingsTabProps = {
   onExternalPreferSilenceChange: (value: boolean) => void;
   onExternalVadThresholdChange: (value: string) => void;
   onExternalMinimumSilenceMsChange: (value: string) => void;
+  onExternalFormattingEnabledChange: (value: boolean) => void;
+  onExternalCaseGlossaryChange: (value: string) => void;
   onInstallWhisperComponent: () => void;
   onCancelWhisperComponentInstall: () => void;
   onRemoveWhisperComponent: () => void;
@@ -76,6 +87,8 @@ export default function AsrSettingsTab({
   externalPreferSilence,
   externalVadThreshold,
   externalMinimumSilenceMs,
+  externalFormattingEnabled,
+  externalCaseGlossary,
   externalPreprocessing,
   externalWarning,
   whisperComponent,
@@ -97,6 +110,8 @@ export default function AsrSettingsTab({
   onExternalPreferSilenceChange,
   onExternalVadThresholdChange,
   onExternalMinimumSilenceMsChange,
+  onExternalFormattingEnabledChange,
+  onExternalCaseGlossaryChange,
   onInstallWhisperComponent,
   onCancelWhisperComponentInstall,
   onRemoveWhisperComponent,
@@ -325,6 +340,26 @@ export default function AsrSettingsTab({
               checked={externalAllowRemoteEndpoint}
               onCheckedChange={onExternalAllowRemoteEndpointChange}
             />
+
+            <CheckboxField
+              wrapperClassName="wide"
+              label={t("settings.asr.formattingEnabled")}
+              description={t("settings.asr.formattingDescription")}
+              checked={externalFormattingEnabled}
+              onCheckedChange={onExternalFormattingEnabledChange}
+            />
+
+            {externalFormattingEnabled && (
+              <TextareaField
+                wide
+                label={t("settings.asr.caseGlossary")}
+                helperText={t("settings.asr.caseGlossaryDescription")}
+                value={externalCaseGlossary}
+                rows={6}
+                placeholder={"ark asr=ARK-ASR\npytorch=PyTorch\nopenai=OpenAI"}
+                onValueChange={onExternalCaseGlossaryChange}
+              />
+            )}
 
             <CheckboxField
               wrapperClassName="wide"
