@@ -56,6 +56,7 @@ type AsrSettingsTabProps = {
   onExternalMinimumSilenceMsChange: (value: string) => void;
   onExternalFormattingEnabledChange: (value: boolean) => void;
   onExternalCaseGlossaryChange: (value: string) => void;
+  onResetExternalCaseGlossary: () => void;
   onInstallWhisperComponent: () => void;
   onCancelWhisperComponentInstall: () => void;
   onRemoveWhisperComponent: () => void;
@@ -112,6 +113,7 @@ export default function AsrSettingsTab({
   onExternalMinimumSilenceMsChange,
   onExternalFormattingEnabledChange,
   onExternalCaseGlossaryChange,
+  onResetExternalCaseGlossary,
   onInstallWhisperComponent,
   onCancelWhisperComponentInstall,
   onRemoveWhisperComponent,
@@ -350,15 +352,22 @@ export default function AsrSettingsTab({
             />
 
             {externalFormattingEnabled && (
-              <TextareaField
-                wide
-                label={t("settings.asr.caseGlossary")}
-                helperText={t("settings.asr.caseGlossaryDescription")}
-                value={externalCaseGlossary}
-                rows={6}
-                placeholder={"ark asr=ARK-ASR\npytorch=PyTorch\nopenai=OpenAI"}
-                onValueChange={onExternalCaseGlossaryChange}
-              />
+              <>
+                <TextareaField
+                  wide
+                  label={t("settings.asr.caseGlossary")}
+                  helperText={t("settings.asr.caseGlossaryDescription")}
+                  value={externalCaseGlossary}
+                  rows={10}
+                  placeholder={"ark asr=ARK-ASR\npytorch=PyTorch\nopenai=OpenAI"}
+                  onValueChange={onExternalCaseGlossaryChange}
+                />
+                <div className="wide">
+                  <Button variant="outlined" onClick={onResetExternalCaseGlossary}>
+                    {t("settings.asr.resetCaseGlossary")}
+                  </Button>
+                </div>
+              </>
             )}
 
             <CheckboxField

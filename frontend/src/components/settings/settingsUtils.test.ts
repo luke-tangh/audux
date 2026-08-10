@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ScanTask } from "../../types";
 import {
+  DEFAULT_CASE_GLOSSARY,
   formatFileSize,
   scanProgress,
   terminalStatus,
@@ -43,6 +44,8 @@ describe("settings utilities", () => {
   });
 
   it("validates custom casing glossary limits and mappings", () => {
+    expect(validCaseGlossary(DEFAULT_CASE_GLOSSARY)).toBe(true);
+    expect(DEFAULT_CASE_GLOSSARY).toBe("I\nMr\nMrs\nDr");
     expect(validCaseGlossary("# comment\nark asr=ARK-ASR\nPyTorch")).toBe(true);
     expect(validCaseGlossary("broken=")).toBe(false);
     expect(validCaseGlossary(`${"a".repeat(101)}=A`)).toBe(false);

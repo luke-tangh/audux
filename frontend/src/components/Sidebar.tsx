@@ -58,9 +58,6 @@ export default function Sidebar(props: Props) {
   const favoriteActive =
     props.activeSavedViewId === null && props.view === "favorites";
   const settingsActive = props.view === "settings";
-  const baseViewActive = (candidate: ViewMode) =>
-    props.activeSavedViewId === null && props.view === candidate;
-
   return (
     <aside className="sidebar">
       <div className="sidebar-scroll-content">
@@ -107,45 +104,103 @@ export default function Sidebar(props: Props) {
           </span>
         </Button>
 
-        <Button preserveChildren
-          type="button"
-          className={navClass(baseViewActive("transcribed"))}
-          aria-current={baseViewActive("transcribed") ? "page" : undefined}
-          onClick={() => openView("transcribed")}
-        >
-          <span className="nav-symbol"><MaterialIcon name="article" size={22} /></span>
-          <span>
-            <strong>{t("navigation.transcribed")}</strong>
-            <em>{t("navigation.searchable")}</em>
-          </span>
-        </Button>
-
-        <Button preserveChildren
-          type="button"
-          className={navClass(baseViewActive("missing"))}
-          aria-current={baseViewActive("missing") ? "page" : undefined}
-          onClick={() => openView("missing")}
-        >
-          <span className="nav-symbol"><MaterialIcon name="report" size={22} /></span>
-          <span>
-            <strong>{t("navigation.missing")}</strong>
-            <em>{t("navigation.relocate")}</em>
-          </span>
-        </Button>
-
-        <Button preserveChildren
-          type="button"
-          className={navClass(baseViewActive("aiFailed"))}
-          aria-current={baseViewActive("aiFailed") ? "page" : undefined}
-          onClick={() => openView("aiFailed")}
-        >
-          <span className="nav-symbol"><MaterialIcon name="bolt" size={22} /></span>
-          <span>
-            <strong>{t("navigation.aiFailed")}</strong>
-            <em>{t("navigation.retryAnalysis")}</em>
-          </span>
-        </Button>
       </nav>
+
+      <div className="sidebar-section tag-section">
+        <div className="sidebar-section-heading">
+          <h3>{t("navigation.tags")}</h3>
+          <span>{props.tags.length}</span>
+        </div>
+
+        <div className="tag-cloud-nav">
+          <Button preserveChildren
+            type="button"
+            className={pillClass(allAudioActive)}
+            aria-pressed={allAudioActive}
+            onClick={() => {
+              props.onDeactivateSavedView();
+              props.setView("library");
+              props.setSelectedTag(undefined);
+              props.setSelectedPlaylistId(null);
+            }}
+          >
+            {t("navigation.allTags")}
+          </Button>
+
+          {props.tags.map((tag) => (
+            <Button preserveChildren
+              key={tag.id}
+              type="button"
+              className={pillClass(
+                props.activeSavedViewId === null && props.selectedTag === tag.name
+              )}
+              aria-pressed={
+                props.activeSavedViewId === null && props.selectedTag === tag.name
+              }
+              onClick={() => {
+                props.onDeactivateSavedView();
+                props.setView("library");
+                props.setSelectedPlaylistId(null);
+                props.setSelectedTag(tag.name);
+              }}
+              title={t("navigation.viewTag", { name: tag.name })}
+            >
+              #{tag.name}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="sidebar-section">
+        <div className="sidebar-section-heading">
+          <h3>{t("navigation.playlists")}</h3>
+          <span>{props.playlists.length}</span>
+        </div>
+
+        {props.playlists.length === 0 && (
+          <div className="sidebar-empty">
+            {t("navigation.noPlaylists")}
+            <br />
+            {t("navigation.createInSettings")}
+          </div>
+        )}
+
+        <div className="sidebar-scroll-area">
+          {props.playlists.map((playlist) => (
+            <Button preserveChildren
+              key={playlist.id}
+              type="button"
+              aria-current={
+                props.view === "playlist" && props.selectedPlaylistId === playlist.id
+                  ? "page"
+                  : undefined
+              }
+              className={`${
+                props.view === "playlist" && props.selectedPlaylistId === playlist.id
+                  ? "playlist-row active"
+                  : "playlist-row"
+              } ${playlist.kind === "smart" ? "smart-playlist-row" : "manual-playlist-row"}`}
+              title={playlist.description || playlist.name}
+              onClick={() => props.onOpenPlaylist(playlist)}
+            >
+              <MaterialIcon
+                name={playlist.kind === "smart" ? "playlist_play" : "chevron_right"}
+                size={18}
+              />
+              <span className="playlist-row-copy">
+                <strong>{playlist.name}</strong>
+                {playlist.kind === "smart" && (
+                  <em>
+                    {t("smartPlaylists.dynamicCount", {
+                      count: playlist.current_count ?? "—"
+                    })}
+                  </em>
+                )}
+              </span>
+            </Button>
+          ))}
+        </div>
+      </div>
 
       <div className="sidebar-section saved-view-section">
         <div className="sidebar-section-heading">
@@ -227,102 +282,6 @@ export default function Sidebar(props: Props) {
               </div>
             );
           })}
-        </div>
-      </div>
-
-      <div className="sidebar-section">
-        <div className="sidebar-section-heading">
-          <h3>{t("navigation.playlists")}</h3>
-          <span>{props.playlists.length}</span>
-        </div>
-
-        {props.playlists.length === 0 && (
-          <div className="sidebar-empty">
-            {t("navigation.noPlaylists")}
-            <br />
-            {t("navigation.createInSettings")}
-          </div>
-        )}
-
-        <div className="sidebar-scroll-area">
-          {props.playlists.map((playlist) => (
-            <Button preserveChildren
-              key={playlist.id}
-              type="button"
-              aria-current={
-                props.view === "playlist" && props.selectedPlaylistId === playlist.id
-                  ? "page"
-                  : undefined
-              }
-              className={`${
-                props.view === "playlist" && props.selectedPlaylistId === playlist.id
-                  ? "playlist-row active"
-                  : "playlist-row"
-              } ${playlist.kind === "smart" ? "smart-playlist-row" : "manual-playlist-row"}`}
-              title={playlist.description || playlist.name}
-              onClick={() => props.onOpenPlaylist(playlist)}
-            >
-              <MaterialIcon
-                name={playlist.kind === "smart" ? "playlist_play" : "chevron_right"}
-                size={18}
-              />
-              <span className="playlist-row-copy">
-                <strong>{playlist.name}</strong>
-                {playlist.kind === "smart" && (
-                  <em>
-                    {t("smartPlaylists.dynamicCount", {
-                      count: playlist.current_count ?? "—"
-                    })}
-                  </em>
-                )}
-              </span>
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      <div className="sidebar-section tag-section">
-        <div className="sidebar-section-heading">
-          <h3>{t("navigation.tags")}</h3>
-          <span>{props.tags.length}</span>
-        </div>
-
-        <div className="tag-cloud-nav">
-          <Button preserveChildren
-            type="button"
-            className={pillClass(allAudioActive)}
-            aria-pressed={allAudioActive}
-            onClick={() => {
-              props.onDeactivateSavedView();
-              props.setView("library");
-              props.setSelectedTag(undefined);
-              props.setSelectedPlaylistId(null);
-            }}
-          >
-            {t("navigation.allTags")}
-          </Button>
-
-          {props.tags.map((tag) => (
-            <Button preserveChildren
-              key={tag.id}
-              type="button"
-              className={pillClass(
-                props.activeSavedViewId === null && props.selectedTag === tag.name
-              )}
-              aria-pressed={
-                props.activeSavedViewId === null && props.selectedTag === tag.name
-              }
-              onClick={() => {
-                props.onDeactivateSavedView();
-                props.setView("library");
-                props.setSelectedPlaylistId(null);
-                props.setSelectedTag(tag.name);
-              }}
-              title={t("navigation.viewTag", { name: tag.name })}
-            >
-              #{tag.name}
-            </Button>
-          ))}
         </div>
       </div>
 

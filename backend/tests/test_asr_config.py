@@ -7,6 +7,7 @@ from sqlmodel import SQLModel, Session, create_engine
 from app.asr_config import (
     ASR_PROVIDER_EXTERNAL,
     ASR_PROVIDER_FASTER_WHISPER,
+    DEFAULT_CASE_GLOSSARY,
     build_asr_task_payload,
     get_external_asr_api_key,
     normalize_asr_task_config,
@@ -56,7 +57,7 @@ class TestASRConfig:
         assert config["vad_threshold"] == 0.5
         assert config["minimum_silence_ms"] == 400
         assert config["formatting_enabled"] is True
-        assert config["case_glossary"] == ""
+        assert config["case_glossary"] == DEFAULT_CASE_GLOSSARY
 
     def test_normalizes_external_chunking_config(self):
         config = normalize_asr_task_config(
@@ -108,6 +109,18 @@ class TestASRConfig:
 
         assert config["formatting_enabled"] is False
         assert config["case_glossary"] == "broken="
+
+    def test_preserves_an_explicitly_cleared_case_glossary(self):
+        config = normalize_asr_task_config(
+            {
+                "provider": "external",
+                "endpoint": "http://127.0.0.1:8000/v1",
+                "model_name": "ark-asr",
+                "case_glossary": "",
+            }
+        )
+
+        assert config["case_glossary"] == ""
 
     @pytest.mark.parametrize(
         ("field", "value", "message"),

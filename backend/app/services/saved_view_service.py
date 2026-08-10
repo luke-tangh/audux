@@ -149,7 +149,11 @@ def audio_query_kwargs(session: Session, query: SavedViewQuery) -> dict:
             if missing_filter == "available"
             else None
         ),
-        "ai_status": "failed" if query.view == "aiFailed" else None,
+        "ai_status": (
+            "failed"
+            if query.view == "aiFailed" or missing_filter == "aiFailed"
+            else None
+        ),
         "sort": query.sort,
     }
 

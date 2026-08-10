@@ -73,7 +73,7 @@ export function buildAudioListParams({
     has_transcript:
       view === "transcribed" ? true : transcriptFilterToParam(hasTranscriptFilter),
     missing: view === "missing" ? true : missingFilterToParam(missingFilter),
-    ai_status: view === "aiFailed" ? "failed" : undefined,
+    ai_status: view === "aiFailed" || missingFilter === "aiFailed" ? "failed" : undefined,
     sort: sortMode === "default" ? undefined : sortMode
   };
 }
@@ -99,6 +99,7 @@ export function buildPlaylistListParams({
     library_root_id: selectedLibraryRootId,
     has_transcript: transcriptFilterToParam(hasTranscriptFilter),
     missing: missingFilterToParam(missingFilter),
+    ai_status: missingFilter === "aiFailed" ? "failed" : undefined,
     sort: sortMode === "default" ? undefined : sortMode
   };
 }
@@ -239,14 +240,22 @@ export function describeSmartPlaylistRules(
       )
     );
   }
-  if (query.view !== "missing" && query.missing_filter !== "all") {
-    parts.push(
-      t(
-        query.missing_filter === "missing"
-          ? "smartPlaylists.missingRule"
-          : "smartPlaylists.availableRule"
-      )
-    );
+  if (
+    query.view !== "missing" &&
+    query.view !== "aiFailed" &&
+    query.missing_filter !== "all"
+  ) {
+    if (query.missing_filter === "aiFailed") {
+      parts.push(t("smartPlaylists.aiFailedRule"));
+    } else {
+      parts.push(
+        t(
+          query.missing_filter === "missing"
+            ? "smartPlaylists.missingRule"
+            : "smartPlaylists.availableRule"
+        )
+      );
+    }
   }
   if (query.sort !== "default") {
     const sortKeys: Record<Exclude<SortMode, "default">, string> = {

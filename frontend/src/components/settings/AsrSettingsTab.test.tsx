@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "../../i18n/LocaleProvider";
 import AsrSettingsTab from "./AsrSettingsTab";
+import { DEFAULT_CASE_GLOSSARY } from "./settingsUtils";
 
 function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
   const callbacks = {
@@ -26,6 +27,7 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
     onExternalMinimumSilenceMsChange: vi.fn(),
     onExternalFormattingEnabledChange: vi.fn(),
     onExternalCaseGlossaryChange: vi.fn(),
+    onResetExternalCaseGlossary: vi.fn(),
     onInstallWhisperComponent: vi.fn(),
     onCancelWhisperComponentInstall: vi.fn(),
     onRemoveWhisperComponent: vi.fn(),
@@ -54,7 +56,7 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
         externalVadThreshold="0.5"
         externalMinimumSilenceMs="400"
         externalFormattingEnabled
-        externalCaseGlossary="pytorch=PyTorch"
+        externalCaseGlossary={DEFAULT_CASE_GLOSSARY}
         externalPreprocessing={{
           available: ffmpegAvailable,
           ffmpeg_available: ffmpegAvailable,
@@ -122,10 +124,17 @@ describe("external ASR chunk settings", () => {
     const glossary = screen.getByLabelText(
       /自定义大小写词典|Custom casing glossary/
     );
-    expect(glossary).toHaveValue("pytorch=PyTorch");
+    expect(glossary).toHaveValue(DEFAULT_CASE_GLOSSARY);
+    expect((glossary as HTMLTextAreaElement).value).toContain("Mrs");
     fireEvent.change(glossary, { target: { value: "ark asr=ARK-ASR" } });
     expect(callbacks.onExternalCaseGlossaryChange).toHaveBeenCalledWith(
       "ark asr=ARK-ASR"
     );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /重置为默认词典|Reset to default glossary/
+      })
+    );
+    expect(callbacks.onResetExternalCaseGlossary).toHaveBeenCalledOnce();
   });
 });

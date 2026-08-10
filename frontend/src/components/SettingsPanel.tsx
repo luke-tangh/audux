@@ -31,7 +31,11 @@ import LogsSettingsTab from "./settings/LogsSettingsTab";
 import MaintenanceSettingsTab from "./settings/MaintenanceSettingsTab";
 import SettingsHeader from "./settings/SettingsHeader";
 import { SETTINGS_TABS, type SettingsTab, type ToastType } from "./settings/types";
-import { terminalStatus, validCaseGlossary } from "./settings/settingsUtils";
+import {
+  DEFAULT_CASE_GLOSSARY,
+  terminalStatus,
+  validCaseGlossary
+} from "./settings/settingsUtils";
 
 type Props = {
   refresh: () => void;
@@ -87,7 +91,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     useState("400");
   const [asrExternalFormattingEnabled, setAsrExternalFormattingEnabled] =
     useState(true);
-  const [asrExternalCaseGlossary, setAsrExternalCaseGlossary] = useState("");
+  const [asrExternalCaseGlossary, setAsrExternalCaseGlossary] =
+    useState(DEFAULT_CASE_GLOSSARY);
   const [externalAsrPreprocessing, setExternalAsrPreprocessing] =
     useState<ExternalAsrPreprocessingStatus | null>(null);
   const [whisperComponent, setWhisperComponent] =
@@ -318,10 +323,11 @@ export default function SettingsPanel({ refresh, notify }: Props) {
           ).toLowerCase()
         )
       );
+      const caseGlossarySetting = settings.find(
+        (setting) => setting.key === "asr.external.case_glossary"
+      );
       setAsrExternalCaseGlossary(
-        settings.find(
-          (setting) => setting.key === "asr.external.case_glossary"
-        )?.value || ""
+        caseGlossarySetting ? caseGlossarySetting.value : DEFAULT_CASE_GLOSSARY
       );
 
       setLlmEndpoint(settings.find((setting) => setting.key === "llm.endpoint")?.value || "");
@@ -1260,6 +1266,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onExternalMinimumSilenceMsChange={setAsrExternalMinimumSilenceMs}
             onExternalFormattingEnabledChange={setAsrExternalFormattingEnabled}
             onExternalCaseGlossaryChange={setAsrExternalCaseGlossary}
+            onResetExternalCaseGlossary={() =>
+              setAsrExternalCaseGlossary(DEFAULT_CASE_GLOSSARY)
+            }
             onInstallWhisperComponent={installWhisperComponent}
             onCancelWhisperComponentInstall={cancelWhisperComponentInstall}
             onRemoveWhisperComponent={removeWhisperComponent}

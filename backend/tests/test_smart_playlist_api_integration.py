@@ -163,6 +163,32 @@ class TestSmartPlaylistApi(ApiIntegrationTest):
         assert payload["items"][0]["audio"]["id"] == audio.id
         assert "playlist_item" not in payload["items"][0]
 
+    def test_ai_failed_file_filter_is_applied_to_dynamic_members(self):
+        root = self.add_library_root(self.root_path / "analysis")
+        failed = self.add_audio(
+            self.root_path / "analysis" / "failed.mp3",
+            root_id=root.id,
+            ai_status="failed",
+        )
+        self.add_audio(
+            self.root_path / "analysis" / "done.mp3",
+            root_id=root.id,
+            ai_status="done",
+        )
+        playlist = self.create_smart_playlist(
+            query_payload(missing_filter="aiFailed"),
+            "分析失败",
+        )
+
+        response = self.client.get(
+            f"/playlists/{playlist['id']}/items",
+            headers=self.auth_headers(),
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["total"] == 1
+        assert response.json()["items"][0]["id"] == failed.id
+
     def test_first_page_stays_paginated_with_5000_matching_items(self):
         root = self.add_library_root(self.root_path / "large")
         with Session(self.engine) as session:

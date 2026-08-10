@@ -4,7 +4,7 @@ import type { SortMode } from "../hooks/library/types";
 import type { LibraryRoot } from "../types";
 
 type TranscriptFilter = "all" | "yes" | "no";
-type MissingFilter = "all" | "available" | "missing";
+type MissingFilter = "all" | "available" | "missing" | "aiFailed";
 
 type Props = {
   title: string;
@@ -84,7 +84,8 @@ export default function TopBar({
   const fileFilterOptions = [
     { value: "all", label: t("topbar.fileAll") },
     { value: "available", label: t("topbar.fileAvailable") },
-    { value: "missing", label: t("topbar.fileMissing") }
+    { value: "missing", label: t("topbar.fileMissing") },
+    { value: "aiFailed", label: t("topbar.fileAiFailed") }
   ];
   const sortOptions = [
     { value: "default", label: t("topbar.sortDefault") },

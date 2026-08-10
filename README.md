@@ -211,8 +211,10 @@ asr.external.formatting_enabled = true
 asr.external.case_glossary =
 ```
 
-开启 `formatting_enabled` 后，应用会恢复句首与内置技术词（如 `ASR`、`ONNX`、
-`PyTorch`）的大小写。在长音频合并时，硬切边界或带有重叠文本的极短 VAD 静音
+开启 `formatting_enabled` 后，应用会恢复句首大写，并仅按照设置页中可见的
+`case_glossary` 规范词语大小写。首次使用会显示完整默认词典，用户可以逐项修改、
+删除、清空，或通过“重置为默认词典”恢复；应用不包含隐藏词条。在长音频合并时，
+硬切边界或带有重叠文本的极短 VAD 静音
 （小于 0.7 秒）会按连续语句处理，并移除模型在切片末尾误加的单个句号；较长静音、
 省略号和原本完整的句子仍会保留。`case_glossary` 支持每行一个 `识别文本=标准写法`
 （例如 `ark asr=ARK-ASR-3B`），也可以只写标准写法；支持 `#` 注释，最多 500 项。

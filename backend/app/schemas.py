@@ -143,7 +143,7 @@ class SavedViewQuery(BaseModel):
     tag_id: Optional[int] = Field(default=None, gt=0)
     library_root_id: Optional[int] = Field(default=None, gt=0)
     transcript_filter: Literal["all", "yes", "no"] = "all"
-    missing_filter: Literal["all", "available", "missing"] = "all"
+    missing_filter: Literal["all", "available", "missing", "aiFailed"] = "all"
     sort: AudioSortMode = "default"
     display_mode: Literal["list"] = "list"
 

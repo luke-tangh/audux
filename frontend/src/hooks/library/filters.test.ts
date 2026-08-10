@@ -37,6 +37,7 @@ describe("library filters", () => {
     expect(missingFilterToParam("missing")).toBe(true);
     expect(missingFilterToParam("available")).toBe(false);
     expect(missingFilterToParam("all")).toBeUndefined();
+    expect(missingFilterToParam("aiFailed")).toBeUndefined();
   });
 
   it("describes smart playlist rules and invalid references", () => {
@@ -108,6 +109,16 @@ describe("library filters", () => {
         sortMode: "default"
       })
     ).toMatchObject({ has_transcript: true, q: undefined });
+
+    expect(
+      buildAudioListParams({
+        view: "library",
+        debouncedQ: "",
+        hasTranscriptFilter: "all",
+        missingFilter: "aiFailed",
+        sortMode: "default"
+      })
+    ).toMatchObject({ missing: undefined, ai_status: "failed" });
   });
 
   it("builds playlist filters and classifies busy and smart states", () => {
@@ -126,12 +137,50 @@ describe("library filters", () => {
       library_root_id: 4,
       has_transcript: true,
       missing: true,
+      ai_status: undefined,
       sort: "duration_desc"
     });
+
+    expect(
+      buildPlaylistListParams({
+        debouncedQ: "",
+        hasTranscriptFilter: "all",
+        missingFilter: "aiFailed",
+        sortMode: "default"
+      })
+    ).toMatchObject({ missing: undefined, ai_status: "failed" });
     expect(["pending", "running", "cancel_requested"].every(isBusyStatus)).toBe(true);
     expect(isBusyStatus("done")).toBe(false);
     expect(isSmartView("aiFailed")).toBe(true);
     expect(isSmartView("library")).toBe(false);
+  });
+
+  it("describes the AI-failed file rule", () => {
+    const t = ((key: string) => key) as never;
+
+    expect(
+      describeSmartPlaylistRules(
+        {
+          id: 9,
+          name: "AI failures",
+          kind: "smart",
+          created_at: "2026-08-10T00:00:00Z",
+          updated_at: "2026-08-10T00:00:00Z",
+          query: {
+            schema_version: 1,
+            view: "library",
+            q: "",
+            tag_id: null,
+            library_root_id: null,
+            transcript_filter: "all",
+            missing_filter: "aiFailed",
+            sort: "default",
+            display_mode: "list"
+          }
+        },
+        t
+      )
+    ).toBe("smartPlaylists.aiFailedRule");
   });
 
   it("builds and compares versioned saved-view definitions", () => {

@@ -1,5 +1,12 @@
 import type { ScanTask } from "../../types";
 
+// Keep this public preset aligned with backend/app/asr_config.py. Saving an
+// empty string is intentional and disables every dictionary substitution.
+export const DEFAULT_CASE_GLOSSARY = `I
+Mr
+Mrs
+Dr`;
+
 export function scanProgress(task: ScanTask): number {
   if (!task.total_files) return 0;
   return Math.round((task.processed_files / task.total_files) * 100);

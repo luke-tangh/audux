@@ -1,5 +1,6 @@
 import pytest
 
+from app.asr_config import DEFAULT_CASE_GLOSSARY
 from app.services.transcript_format_service import (
     format_transcript_segments,
     format_transcript_text,
@@ -8,13 +9,26 @@ from app.services.transcript_format_service import (
 )
 
 
-def test_restores_sentence_and_built_in_technical_term_casing():
+def test_only_restores_sentence_case_without_hidden_word_substitutions():
     assert format_transcript_text(
-        "we use pytorch on cuda. 我们在 wsl 使用 ffmpeg. i agree."
-    ) == "We use PyTorch on CUDA. 我们在 WSL 使用 FFmpeg. I agree."
+        "we use pytorch and i prefer cuda. openai uses ffmpeg."
+    ) == "We use pytorch and i prefer cuda. Openai uses ffmpeg."
 
 
-def test_custom_glossary_overrides_built_ins_and_respects_word_boundaries():
+def test_visible_default_glossary_restores_current_casing_terms():
+    assert parse_case_glossary(DEFAULT_CASE_GLOSSARY) == {
+        "i": "I",
+        "mr": "Mr",
+        "mrs": "Mrs",
+        "dr": "Dr",
+    }
+    assert format_transcript_text(
+        "i spoke with mr smith. mrs jones met dr lee.",
+        custom_glossary=DEFAULT_CASE_GLOSSARY,
+    ) == "I spoke with Mr smith. Mrs jones met Dr lee."
+
+
+def test_custom_glossary_applies_visible_terms_and_respects_word_boundaries():
     assert format_transcript_text(
         "ark asr works with onnx runtime, not basra.",
         custom_glossary="ark asr=ARK-ASR-3B\nonnx runtime=ONNX Runtime Custom",
@@ -30,7 +44,12 @@ def test_segment_sentence_state_continues_across_timestamps():
         {"text": "github agrees"},
     ]
 
-    format_transcript_segments(segments)
+    format_transcript_segments(
+        segments,
+        custom_glossary=(
+            "pytorch=PyTorch\ncuda=CUDA\nopenai=OpenAI\ngithub=GitHub"
+        ),
+    )
 
     assert [segment["text"] for segment in segments] == [
         "We use PyTorch",

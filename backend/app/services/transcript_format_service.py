@@ -1,40 +1,5 @@
 import re
 
-
-BUILT_IN_CASE_GLOSSARY = {
-    "api": "API",
-    "ark-asr": "ARK-ASR",
-    "asr": "ASR",
-    "cpu": "CPU",
-    "cuda": "CUDA",
-    "fastapi": "FastAPI",
-    "ffmpeg": "FFmpeg",
-    "ffprobe": "ffprobe",
-    "flac": "FLAC",
-    "github": "GitHub",
-    "gpu": "GPU",
-    "http": "HTTP",
-    "https": "HTTPS",
-    "json": "JSON",
-    "llm": "LLM",
-    "m4a": "M4A",
-    "mp3": "MP3",
-    "onnx runtime": "ONNX Runtime",
-    "onnx": "ONNX",
-    "openai": "OpenAI",
-    "pyinstaller": "PyInstaller",
-    "pytorch": "PyTorch",
-    "qwen3-asr": "Qwen3-ASR",
-    "qwen3": "Qwen3",
-    "silero": "Silero",
-    "tauri": "Tauri",
-    "vad": "VAD",
-    "vllm": "vLLM",
-    "wav": "WAV",
-    "whisper": "Whisper",
-    "wsl": "WSL",
-}
-
 MAX_GLOSSARY_ENTRIES = 500
 MAX_GLOSSARY_TERM_CHARACTERS = 100
 MAX_GLOSSARY_SOURCE_CHARACTERS = 20_000
@@ -94,8 +59,7 @@ def _term_pattern(source: str) -> re.Pattern[str]:
 
 
 def _restore_case_glossary(value: str, custom_glossary: str) -> str:
-    glossary = dict(BUILT_IN_CASE_GLOSSARY)
-    glossary.update(parse_case_glossary(custom_glossary))
+    glossary = parse_case_glossary(custom_glossary)
 
     result = value
     for source, canonical in sorted(
@@ -126,7 +90,7 @@ def _restore_sentence_case(value: str, capitalize_start: bool) -> str:
         _uppercase_match,
         result,
     )
-    return re.sub(r"(?<![A-Za-z0-9_])i(?![A-Za-z0-9_])", "I", result)
+    return result
 
 
 def format_transcript_text(

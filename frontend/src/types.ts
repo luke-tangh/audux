@@ -32,7 +32,7 @@ export type SavedViewQuery = {
   tag_id: number | null;
   library_root_id: number | null;
   transcript_filter: "all" | "yes" | "no";
-  missing_filter: "all" | "available" | "missing";
+  missing_filter: "all" | "available" | "missing" | "aiFailed";
   sort: AudioSortMode;
   display_mode: "list";
 };

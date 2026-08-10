@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "../i18n/LocaleProvider";
@@ -31,6 +31,54 @@ const savedView: SavedView = {
 };
 
 describe("saved views in the sidebar", () => {
+  it("keeps only primary shortcuts and orders tags, playlists, then saved views", () => {
+    const { container } = render(
+      <LocaleProvider>
+        <Sidebar
+          view="library"
+          setView={vi.fn()}
+          tags={[{ id: 3, name: "工作", source: "user", created_at: "2026-08-10T00:00:00Z" }]}
+          selectedTag={undefined}
+          setSelectedTag={vi.fn()}
+          playlists={[{
+            id: 22,
+            name: "通勤",
+            created_at: "2026-08-10T00:00:00Z",
+            updated_at: "2026-08-10T00:00:00Z"
+          }]}
+          selectedPlaylistId={null}
+          setSelectedPlaylistId={vi.fn()}
+          savedViews={[savedView]}
+          activeSavedViewId={null}
+          onApplySavedView={vi.fn()}
+          onRenameSavedView={vi.fn()}
+          onCopySavedView={vi.fn()}
+          onCreateSmartPlaylist={vi.fn()}
+          onDeleteSavedView={vi.fn()}
+          onMoveSavedView={vi.fn()}
+          onDeactivateSavedView={vi.fn()}
+          onOpenPlaylist={vi.fn()}
+        />
+      </LocaleProvider>
+    );
+
+    const navigation = container.querySelector(".sidebar-nav");
+    expect(navigation).not.toBeNull();
+    expect(within(navigation as HTMLElement).queryByText(/已转写|Transcribed/)).toBeNull();
+    expect(within(navigation as HTMLElement).queryByText(/文件缺失|Missing files/)).toBeNull();
+    expect(within(navigation as HTMLElement).queryByText(/AI 失败|AI failed/)).toBeNull();
+
+    const tagsHeading = screen.getByRole("heading", { name: /标签|Tags/ });
+    const playlistsHeading = screen.getByRole("heading", { name: /播放列表|Playlists/ });
+    const savedViewsHeading = screen.getByRole("heading", { name: /保存视图|Saved views/ });
+    expect(tagsHeading.compareDocumentPosition(playlistsHeading)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(playlistsHeading.compareDocumentPosition(savedViewsHeading)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+  });
+
   it("applies and exposes explicit management actions for the active view", () => {
     const actions = {
       onApplySavedView: vi.fn(),

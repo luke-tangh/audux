@@ -118,6 +118,7 @@ def test_formatting_repairs_hard_cut_period_and_restores_casing():
         ],
         "preferred",
         formatting_enabled=True,
+        case_glossary="pytorch=PyTorch\ncuda=CUDA",
     )
 
     assert result["full_text"] == "We use PyTorch on CUDA."
@@ -160,6 +161,7 @@ def test_formatting_uses_vad_gap_duration_to_classify_a_sentence_boundary(
         ],
         "preferred",
         formatting_enabled=True,
+        case_glossary="pytorch=PyTorch\ncuda=CUDA",
     )
 
     assert result["full_text"] == expected_text

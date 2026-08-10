@@ -27,6 +27,13 @@ EXTERNAL_CHUNK_SECONDS_DEFAULT = 28.0
 EXTERNAL_CHUNK_OVERLAP_SECONDS_DEFAULT = 1.0
 EXTERNAL_VAD_THRESHOLD_DEFAULT = 0.5
 EXTERNAL_MINIMUM_SILENCE_MS_DEFAULT = 400
+# Public preset mirrored by frontend settingsUtils.ts. The formatter itself has
+# no hidden entries, so every active replacement remains visible to the user.
+DEFAULT_CASE_GLOSSARY = """I
+Mr
+Mrs
+Dr
+"""
 
 
 def _get_setting(session: Session, key: str, default: str = "") -> str:
@@ -172,7 +179,12 @@ def normalize_asr_task_config(config: dict) -> dict:
         formatting_enabled = _setting_truthy(
             config.get("formatting_enabled", True)
         )
-        case_glossary = str(config.get("case_glossary") or "")
+        raw_case_glossary = config.get("case_glossary")
+        case_glossary = (
+            DEFAULT_CASE_GLOSSARY
+            if raw_case_glossary is None
+            else str(raw_case_glossary)
+        )
         if formatting_enabled:
             parse_case_glossary(case_glossary)
 
@@ -271,6 +283,7 @@ def build_asr_task_config(session: Session) -> dict:
             "case_glossary": _get_setting(
                 session,
                 "asr.external.case_glossary",
+                DEFAULT_CASE_GLOSSARY,
             ),
         }
     else:

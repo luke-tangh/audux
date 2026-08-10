@@ -89,6 +89,19 @@ class TestSavedViewApi(ApiIntegrationTest):
         assert deleted.status_code == 200
         assert deleted.json() == {"ok": True}
 
+    def test_accepts_ai_failed_as_a_file_filter(self):
+        created = self.mutate(
+            "POST",
+            "/saved-views",
+            {
+                "name": "AI 失败",
+                "query": query_payload(q="", missing_filter="aiFailed"),
+            },
+        )
+
+        assert created.status_code == 200, created.text
+        assert created.json()["query"]["missing_filter"] == "aiFailed"
+
     def test_resolves_references_and_retains_view_after_they_are_deleted(self):
         root = self.add_library_root(self.root_path / "effects")
         with Session(self.engine) as session:

@@ -223,7 +223,9 @@ class TestTaskStateTransitions(ApiIntegrationTest):
                 "asr.provider": "external",
                 "asr.external.endpoint": "http://127.0.0.1:8025/v1",
                 "asr.external.model_name": "ark-asr",
-                "asr.external.case_glossary": "ark asr=ARK-ASR-3B",
+                "asr.external.case_glossary": (
+                    "ark asr=ARK-ASR-3B\npytorch=PyTorch"
+                ),
             }.items():
                 session.add(Setting(key=key, value=value))
             session.commit()

@@ -9,7 +9,7 @@ export type ViewMode =
   | "aiFailed";
 
 export type TranscriptFilter = "all" | "yes" | "no";
-export type MissingFilter = "all" | "available" | "missing";
+export type MissingFilter = "all" | "available" | "missing" | "aiFailed";
 export type SortMode = AudioSortMode;
 
 export type AudioListParams = Parameters<typeof import("../../api").api.listAudioItems>[0];
