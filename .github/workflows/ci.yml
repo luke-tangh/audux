@@ -43,7 +43,7 @@ jobs:
           --cov-branch
           --cov-report=term-missing:skip-covered
           --cov-report=xml
-          --cov-fail-under=64
+          --cov-fail-under=70
 
   frontend-build:
     name: Frontend typecheck and build

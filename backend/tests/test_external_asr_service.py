@@ -62,8 +62,16 @@ def test_plans_chunks_at_silence_with_hard_cut_fallback():
     ]
     assert plan_audio_chunks(70, 30, 1, []) == [
         AudioChunk(0, 30),
-        AudioChunk(29, 59),
-        AudioChunk(58, 70),
+        AudioChunk(29, 50),
+        AudioChunk(49, 70),
+    ]
+
+
+def test_planner_uses_an_earlier_silence_to_avoid_a_short_tail():
+    assert plan_audio_chunks(70, 30, 1, [(48, 50), (57, 59)]) == [
+        AudioChunk(0, 30),
+        AudioChunk(29, 49),
+        AudioChunk(48, 70),
     ]
 
 
@@ -101,6 +109,86 @@ def test_merges_text_overlap_and_offsets_segments():
             "text": "again",
         },
     ]
+
+
+def test_merge_normalizes_punctuation_case_and_cjk_overlap():
+    result = merge_chunk_results(
+        [AudioChunk(0, 30), AudioChunk(29, 50)],
+        [
+            {
+                "full_text": "Hello, WORLD! 你好，世界。",
+                "segments": [
+                    {
+                        "start_seconds": 1,
+                        "end_seconds": 29,
+                        "text": "Hello, WORLD! 你好，世界。",
+                    }
+                ],
+            },
+            {
+                "full_text": "world 你好世界！今天继续",
+                "segments": [
+                    {
+                        "start_seconds": 0.2,
+                        "end_seconds": 4.2,
+                        "text": "world 你好世界，今天继续",
+                    }
+                ],
+            },
+        ],
+        "preferred",
+    )
+
+    assert result["full_text"] == "Hello, WORLD! 你好，世界。\n今天继续"
+    assert [segment["text"] for segment in result["segments"]] == [
+        "Hello, WORLD! 你好，世界。",
+        "今天继续",
+    ]
+    assert result["segments"][1]["start_seconds"] == pytest.approx(31.969, abs=0.001)
+    assert result["segments"][1]["end_seconds"] == 33.2
+
+
+def test_merge_does_not_remove_partial_ascii_words():
+    result = merge_chunk_results(
+        [AudioChunk(0, 30), AudioChunk(29, 50)],
+        [
+            {"full_text": "an important action", "segments": []},
+            {"full_text": "tion station", "segments": []},
+        ],
+        "preferred",
+    )
+
+    assert result["full_text"] == "an important action\ntion station"
+
+
+def test_merge_removes_overlap_spanning_multiple_timeline_segments():
+    result = merge_chunk_results(
+        [AudioChunk(0, 30), AudioChunk(29, 50)],
+        [
+            {
+                "full_text": "alpha beta gamma",
+                "segments": [
+                    {"start_seconds": 1, "end_seconds": 29, "text": "alpha beta gamma"}
+                ],
+            },
+            {
+                "full_text": "beta gamma delta",
+                "segments": [
+                    {"start_seconds": 0.1, "end_seconds": 1.1, "text": "beta"},
+                    {"start_seconds": 1, "end_seconds": 2, "text": "gamma"},
+                    {"start_seconds": 2, "end_seconds": 3, "text": "delta"},
+                ],
+            },
+        ],
+        "preferred",
+    )
+
+    assert result["full_text"] == "alpha beta gamma\ndelta"
+    assert [segment["text"] for segment in result["segments"]] == [
+        "alpha beta gamma",
+        "delta",
+    ]
+    assert result["segments"][1]["start_seconds"] == 31
 
 
 @pytest.mark.anyio
@@ -160,7 +248,11 @@ async def test_long_audio_extracts_and_uploads_chunks_sequentially(
 
     result = await _transcribe(source)
 
-    assert extracted == [AudioChunk(0, 28), AudioChunk(27, 57), AudioChunk(56, 65)]
+    assert extracted == [
+        AudioChunk(0, 28),
+        AudioChunk(27, 46.5),
+        AudioChunk(45.5, 65),
+    ]
     assert len(uploads) == 3
     assert result["full_text"] == "part 1\npart 2\npart 3"
 

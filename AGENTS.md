@@ -56,6 +56,12 @@ uv sync --locked
 uv sync --locked --group test
 ```
 
+In sandboxed or managed environments, the default uv cache under `~/.cache/uv`
+may be read-only and fail with `Could not acquire lock` or `Read-only file
+system`. Set `UV_CACHE_DIR=/tmp/local-audio-library-uv-cache` for `uv sync` and
+`uv run` commands in that environment. The `/tmp` cache is disposable; this
+cache error is not a reason to skip tests.
+
 Use `uv sync --locked --extra asr` when ASR/faster-whisper behavior must be
 tested. Use `uv sync --locked --extra asr --group build` for a full release
 sidecar. These environments are substantially heavier than the base dependencies.
@@ -77,7 +83,7 @@ uv run --locked --group test python -m pytest tests
 uv run --locked --group test python -m pytest tests \
   --cov=app --cov-branch \
   --cov-report=term-missing:skip-covered --cov-report=xml \
-  --cov-fail-under=64
+  --cov-fail-under=70
 ```
 
 Frontend development and verification:
@@ -197,7 +203,7 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
   test collection. Do not bypass this isolation when creating alternate test
   entry points; API tests should also use `tests.api_test_support` for their
   temporary database, token, and dependency overrides.
-- Backend coverage uses branch coverage over `backend/app`. CI enforces a 64%
+- Backend coverage uses branch coverage over `backend/app`. CI enforces a 70%
   minimum; do not lower the threshold to accommodate untested changes.
 - Keep frontend Vitest tests colocated as `*.test.ts` or `*.test.tsx`. Prefer
   Vitest for API/auth, pure helpers, hooks, storage, and deterministic component
@@ -244,7 +250,7 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 Run the smallest relevant checks first, then broaden for cross-layer changes.
 
 - Backend-only change: relevant unit test(s), then the full backend pytest suite
-  with branch coverage. The result must satisfy the 64% CI threshold.
+  with branch coverage. The result must satisfy the 70% CI threshold.
 - Frontend logic change: relevant Vitest test(s), then `npm test`,
   `npm run typecheck`, and `npm run build`.
 - Frontend style-only change: `npm run typecheck` and `npm run build`.

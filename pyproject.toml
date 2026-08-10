@@ -35,6 +35,7 @@ branch = true
 source = ["app"]
 
 [tool.coverage.report]
+fail_under = 70
 precision = 1
 show_missing = true
 skip_covered = true
