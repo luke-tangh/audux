@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 from tests.api_test_support import ApiIntegrationTest
 from app import tasks
 from app.asr_config import build_asr_task_payload
-from app.models import AITask, AudioItem, Setting, Transcript
+from app.models import AITask, AudioItem, Setting, Transcript, TranscriptSegment
 from app.services.common import ServiceError
 
 
@@ -212,6 +212,82 @@ class TestTaskStateTransitions(ApiIntegrationTest):
             audio = session.get(AudioItem, self.audio.id)
             assert transcript.full_text == "chunked transcript"
             assert audio.transcript_status == "done"
+
+    @pytest.mark.anyio
+    async def test_retranscription_replaces_segmented_transcript_without_fk_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        with Session(self.engine) as session:
+            old_transcript = Transcript(
+                audio_id=self.audio.id,
+                full_text="old transcript",
+                model_name="old-model",
+            )
+            session.add(old_transcript)
+            session.flush()
+            session.add(
+                TranscriptSegment(
+                    transcript_id=old_transcript.id,
+                    segment_index=0,
+                    start_seconds=0,
+                    end_seconds=2,
+                    text="old transcript",
+                )
+            )
+            for key, value in {
+                "asr.provider": "external",
+                "asr.external.endpoint": "http://127.0.0.1:8025/v1",
+                "asr.external.model_name": "ark-asr",
+            }.items():
+                session.add(Setting(key=key, value=value))
+            session.commit()
+
+            task = tasks.create_task(
+                session,
+                self.audio.id,
+                "transcribe",
+                build_asr_task_payload(session),
+            )
+            task.status = "running"
+            session.add(task)
+            session.commit()
+            snapshot = tasks._snapshot_task(task)
+
+        async def fake_external_transcription(**kwargs):
+            return {
+                "full_text": "new transcript",
+                "language": "en",
+                "model_name": kwargs["model_name"],
+                "segments": [
+                    {
+                        "segment_index": 0,
+                        "start_seconds": 0,
+                        "end_seconds": 3,
+                        "text": "new transcript",
+                    }
+                ],
+            }
+
+        monkeypatch.setattr(
+            tasks,
+            "transcribe_external_audio",
+            fake_external_transcription,
+        )
+
+        await tasks.handle_transcribe_task(snapshot)
+
+        with Session(self.engine) as session:
+            transcript = session.exec(
+                select(Transcript).where(Transcript.audio_id == self.audio.id)
+            ).one()
+            segments = session.exec(
+                select(TranscriptSegment).where(
+                    TranscriptSegment.transcript_id == transcript.id
+                )
+            ).all()
+            assert transcript.full_text == "New transcript"
+            assert [segment.text for segment in segments] == ["New transcript"]
 
     @pytest.mark.anyio
     async def test_direct_external_transcription_applies_text_formatting(

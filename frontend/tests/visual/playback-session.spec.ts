@@ -234,8 +234,8 @@ test.describe("playback queue session", () => {
     ).toContainText("测试音频 2");
 
     state.unavailableIds.add(2);
-    await page.getByRole("combobox", { name: "按 transcript 状态筛选" }).click();
-    await page.getByRole("option", { name: "已有 transcript" }).click();
+    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
+    await page.getByRole("option", { name: "已有转写文本" }).click();
     await expect(page.getByText("播放队列已更新，并移除 1 个不可用项目。")).toBeVisible();
     await page.getByRole("button", { name: "打开播放队列" }).click();
     await expect(page.locator("#player-queue-popover .queue-title")).toHaveText([

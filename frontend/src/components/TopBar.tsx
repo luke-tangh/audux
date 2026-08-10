@@ -1,10 +1,10 @@
 import { Button, IconButton, SearchField, SelectField, MaterialIcon } from "./ui";
 import { useTranslation } from "react-i18next";
 import type { SortMode } from "../hooks/library/types";
-import type { LibraryRoot } from "../types";
 
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing" | "aiFailed";
+type LibraryFileFilter = MissingFilter | "transcriptYes" | "transcriptNo";
 
 type Props = {
   title: string;
@@ -28,10 +28,6 @@ type Props = {
 
   sortMode: SortMode;
   setSortMode: (value: SortMode) => void;
-
-  roots: LibraryRoot[];
-  selectedLibraryRootId?: number;
-  setSelectedLibraryRootId: (value?: number) => void;
 
   activeSavedViewName?: string;
   savedViewDirty: boolean;
@@ -62,9 +58,6 @@ export default function TopBar({
   setMissingFilter,
   sortMode,
   setSortMode,
-  roots,
-  selectedLibraryRootId,
-  setSelectedLibraryRootId,
   activeSavedViewName,
   savedViewDirty,
   canSaveView,
@@ -76,15 +69,12 @@ export default function TopBar({
 }: Props) {
   const { t } = useTranslation();
   const hasItems = totalCount > 0;
-  const transcriptFilterOptions = [
-    { value: "all", label: t("topbar.transcriptAll") },
-    { value: "yes", label: t("topbar.transcriptYes") },
-    { value: "no", label: t("topbar.transcriptNo") }
-  ];
   const fileFilterOptions = [
     { value: "all", label: t("topbar.fileAll") },
     { value: "available", label: t("topbar.fileAvailable") },
     { value: "missing", label: t("topbar.fileMissing") },
+    { value: "transcriptYes", label: t("topbar.transcriptYes") },
+    { value: "transcriptNo", label: t("topbar.transcriptNo") },
     { value: "aiFailed", label: t("topbar.fileAiFailed") }
   ];
   const sortOptions = [
@@ -98,15 +88,23 @@ export default function TopBar({
     { value: "duration_desc", label: t("topbar.sortDurationDesc") },
     { value: "play_count_desc", label: t("topbar.sortPlayCountDesc") }
   ];
-  const rootOptions = [
-    { value: "", label: t("topbar.libraryRootAll") },
-    ...roots.map((root) => ({
-      value: String(root.id),
-      label: root.is_enabled
-        ? root.path
-        : t("topbar.libraryRootDisabled", { path: root.path })
-    }))
-  ];
+  const libraryFileFilter: LibraryFileFilter =
+    hasTranscriptFilter === "yes"
+      ? "transcriptYes"
+      : hasTranscriptFilter === "no"
+        ? "transcriptNo"
+        : missingFilter;
+
+  function setLibraryFileFilter(value: LibraryFileFilter) {
+    if (value === "transcriptYes" || value === "transcriptNo") {
+      setMissingFilter("all");
+      setHasTranscriptFilter(value === "transcriptYes" ? "yes" : "no");
+      return;
+    }
+
+    setHasTranscriptFilter("all");
+    setMissingFilter(value);
+  }
 
   return (
     <header className="top-command-bar">
@@ -148,18 +146,18 @@ export default function TopBar({
           >
             <SelectField
               density="compact"
-              wrapperClassName="topbar-select-field top-root-field"
+              wrapperClassName="topbar-select-field top-file-field"
               controlSize="toolbar"
               controlWidth="100%"
               controlMinWidth={0}
-              label={t("topbar.libraryRoot")}
-              value={selectedLibraryRootId ?? ""}
-              options={rootOptions}
-              aria-label={t("topbar.libraryRootFilter")}
-              title={t("topbar.libraryRootFilter")}
+              label={t("topbar.file")}
+              value={libraryFileFilter}
+              options={fileFilterOptions}
+              aria-label={t("topbar.fileFilter")}
+              title={t("topbar.fileFilter")}
               disabled={queryLocked}
               onValueChange={(value) =>
-                setSelectedLibraryRootId(value ? Number(value) : undefined)
+                setLibraryFileFilter(value as LibraryFileFilter)
               }
             />
 
@@ -177,36 +175,6 @@ export default function TopBar({
               disabled={queryLocked}
               onValueChange={(value) => setSortMode(value as SortMode)}
             />
-
-            <SelectField
-              density="compact"
-              wrapperClassName="topbar-select-field"
-              controlSize="toolbar"
-              controlWidth="100%"
-              controlMinWidth={0}
-              label={t("topbar.transcript")}
-              value={hasTranscriptFilter}
-              options={transcriptFilterOptions}
-              aria-label={t("topbar.transcriptFilter")}
-              title={t("topbar.transcriptFilter")}
-              disabled={queryLocked}
-              onValueChange={(value) => setHasTranscriptFilter(value as TranscriptFilter)}
-            />
-
-            <SelectField
-              density="compact"
-              wrapperClassName="topbar-select-field"
-              controlSize="toolbar"
-              controlWidth="100%"
-              controlMinWidth={0}
-              label={t("topbar.file")}
-              value={missingFilter}
-              options={fileFilterOptions}
-              aria-label={t("topbar.fileFilter")}
-              title={t("topbar.fileFilter")}
-              disabled={queryLocked}
-              onValueChange={(value) => setMissingFilter(value as MissingFilter)}
-            />
           </div>
 
           <div
@@ -214,32 +182,6 @@ export default function TopBar({
             role="group"
             aria-label={t("topbar.quickActions")}
           >
-            <Button
-              variant="outlined"
-              className="top-save-view-button"
-              disabled={!canSaveView}
-              title={
-                canSaveView
-                  ? t("savedViews.saveCurrentHint")
-                  : t("savedViews.unsupportedView")
-              }
-              onClick={onSaveView}
-            >
-              {t("savedViews.saveCurrent")}
-            </Button>
-
-            {activeSavedViewName && (
-              <Button
-                variant="tonal"
-                className="top-update-view-button"
-                disabled={!savedViewDirty}
-                title={t("savedViews.updateHint", { name: activeSavedViewName })}
-                onClick={onUpdateSavedView}
-              >
-                {t("savedViews.updateCurrent")}
-              </Button>
-            )}
-
             <div
               className="top-batch-group"
               role="group"
@@ -267,6 +209,32 @@ export default function TopBar({
                 AI
               </Button>
             </div>
+
+            <Button
+              variant="outlined"
+              className="top-save-view-button"
+              disabled={!canSaveView}
+              title={
+                canSaveView
+                  ? t("savedViews.saveCurrentHint")
+                  : t("savedViews.unsupportedView")
+              }
+              onClick={onSaveView}
+            >
+              {t("savedViews.saveCurrent")}
+            </Button>
+
+            {activeSavedViewName && (
+              <Button
+                variant="tonal"
+                className="top-update-view-button"
+                disabled={!savedViewDirty}
+                title={t("savedViews.updateHint", { name: activeSavedViewName })}
+                onClick={onUpdateSavedView}
+              >
+                {t("savedViews.updateCurrent")}
+              </Button>
+            )}
 
             {hasActiveFilter && !queryLocked && (
               <Button

@@ -202,6 +202,9 @@ def save_transcript(session: Session, audio_id: int, payload) -> Transcript:
         for seg in old_segments:
             session.delete(seg)
 
+        # The models do not declare an ORM relationship, so flush child
+        # deletions before deleting the parent to satisfy SQLite FKs.
+        session.flush()
         session.delete(existing)
         session.flush()
 

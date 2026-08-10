@@ -31,8 +31,6 @@ export default function App() {
     setQ,
     selectedTag,
     setSelectedTag,
-    selectedLibraryRootId,
-    setSelectedLibraryRootId,
     selectedPlaylistId,
     setSelectedPlaylistId,
 
@@ -46,7 +44,6 @@ export default function App() {
     tags,
     playlists,
     manualPlaylists,
-    roots,
     savedViews,
     activeSavedViewId,
     savedViewDirty,
@@ -159,9 +156,6 @@ export default function App() {
                 setMissingFilter={setMissingFilter}
                 sortMode={sortMode}
                 setSortMode={setSortMode}
-                roots={roots}
-                selectedLibraryRootId={selectedLibraryRootId}
-                setSelectedLibraryRootId={setSelectedLibraryRootId}
                 activeSavedViewName={savedViews.find((row) => row.id === activeSavedViewId)?.name}
                 savedViewDirty={savedViewDirty}
                 canSaveView={canSaveView}

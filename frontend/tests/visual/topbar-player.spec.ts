@@ -68,8 +68,8 @@ test.describe("MD3 visual regression", () => {
     await expect(topbar).toHaveScreenshot("topbar-compact.png");
     await expectTopbarControlsFit(topbar, "760x800");
 
-    await page.getByRole("combobox", { name: "按 transcript 状态筛选" }).click();
-    await page.getByRole("option", { name: "已有 transcript" }).click();
+    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
+    await page.getByRole("option", { name: "已有转写文本" }).click();
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(page.getByRole("button", { name: "重置" })).toBeVisible();
     await expectTopbarControlsFit(topbar, "1280x800 with reset action");

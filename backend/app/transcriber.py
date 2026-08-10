@@ -93,13 +93,13 @@ def transcribe_audio_stub(file_path: str) -> dict:
     return {
         "language": "unknown",
         "model_name": "stub",
-        "full_text": f"这是 {p.name} 的占位 transcript。请安装 faster-whisper 后替换真实转写逻辑。",
+        "full_text": f"这是 {p.name} 的占位转写文本。请安装 faster-whisper 后替换真实转写逻辑。",
         "segments": [
             {
                 "segment_index": 0,
                 "start_seconds": 0,
                 "end_seconds": 5,
-                "text": f"这是 {p.name} 的占位 transcript。",
+                "text": f"这是 {p.name} 的占位转写文本。",
             }
         ],
     }

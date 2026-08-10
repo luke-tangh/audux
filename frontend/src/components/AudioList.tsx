@@ -141,6 +141,8 @@ function SearchHits({
 }) {
   const { t } = useTranslation();
   const hits = item.search_hits || [];
+  const hitLabel = (field: string, fallback: string) =>
+    field === "transcript" ? t("common.technical.transcript") : fallback;
 
   if (!query.trim() || hits.length === 0) return null;
 
@@ -164,7 +166,7 @@ function SearchHits({
               {formatDuration(hit.start_seconds)}
             </Button>
           ) : (
-            <strong>{hit.label}</strong>
+            <strong>{hitLabel(hit.field, hit.label)}</strong>
           )}
 
           <span className="search-hit-content">
@@ -174,7 +176,9 @@ function SearchHits({
               </span>
             )}
             <span className="search-hit-match">
-            {hit.start_seconds !== undefined && <strong>{hit.label}</strong>}
+            {hit.start_seconds !== undefined && (
+              <strong>{hitLabel(hit.field, hit.label)}</strong>
+            )}
             <HighlightText text={hit.text} query={query} />
             </span>
             {hit.context_after && (

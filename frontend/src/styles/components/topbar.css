@@ -109,7 +109,7 @@
 
 .top-filter-controls {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .top-toolbar-actions {
@@ -198,8 +198,8 @@
 .top-command-bar .top-toolbar-controls {
   width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  flex-direction: row;
+  align-items: center;
   justify-content: flex-start;
   gap: 8px;
   overflow: visible;
@@ -212,10 +212,11 @@
 
 .top-command-bar .top-filter-controls {
   order: 1;
-  width: 100%;
+  width: auto;
+  flex: 1 1 260px;
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
   gap: 8px;
   margin: 0;
@@ -230,7 +231,8 @@
 
 .top-command-bar .top-toolbar-actions {
   order: 2;
-  width: 100%;
+  width: auto;
+  flex: 0 0 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -283,6 +285,18 @@
     width: 100%;
     justify-self: stretch;
     text-align: left;
+  }
+}
+
+@container library-topbar (max-width: 520px) {
+  .top-command-bar .top-toolbar-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .top-command-bar .top-filter-controls,
+  .top-command-bar .top-toolbar-actions {
+    width: 100%;
   }
 }
 

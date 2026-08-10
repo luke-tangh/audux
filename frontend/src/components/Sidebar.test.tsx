@@ -112,7 +112,7 @@ describe("saved views in the sidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: savedView.name }));
     fireEvent.click(screen.getByRole("button", { name: /重命名视图|Rename view/ }));
     fireEvent.click(screen.getByRole("button", { name: /复制视图|Copy view/ }));
-    fireEvent.click(screen.getByRole("button", { name: /创建智能 Playlist|Create a smart playlist/ }));
+    fireEvent.click(screen.getByRole("button", { name: /创建智能播放列表|Create a smart playlist/ }));
     fireEvent.click(screen.getByRole("button", { name: /下移视图|Move view.*down/ }));
     fireEvent.click(screen.getByRole("button", { name: /删除视图|Delete view/ }));
 

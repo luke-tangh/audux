@@ -191,7 +191,7 @@ def _llm_privacy_warning(endpoint: str) -> Optional[str]:
 
     return (
         "当前 LLM endpoint 不是 localhost / 127.0.0.1。"
-        "AI 分析会把音频 metadata 和 transcript 发送到该地址。"
+        "AI 分析会把音频元数据和转写文本发送到该地址。"
         "请确认这是你信任的本地或内网模型服务。"
     )
 

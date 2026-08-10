@@ -863,13 +863,13 @@ test.describe("v0.5 management workflows", () => {
     await dialog.getByRole("textbox", { name: "视图名称" }).fill("动态通勤规则");
     await dialog.getByRole("button", { name: "保存视图" }).click();
 
-    await page.getByRole("button", { name: /从视图.*创建智能 Playlist/ }).click();
-    dialog = page.getByRole("dialog", { name: "创建智能 Playlist" });
-    await dialog.getByRole("textbox", { name: "智能 Playlist 名称" }).fill("动态通勤");
+    await page.getByRole("button", { name: /从视图.*创建智能播放列表/ }).click();
+    dialog = page.getByRole("dialog", { name: "创建智能播放列表" });
+    await dialog.getByRole("textbox", { name: "智能播放列表名称" }).fill("动态通勤");
     await dialog.getByRole("button", { name: "创建", exact: true }).click();
 
     await expect(page.getByRole("heading", { name: "动态通勤" })).toBeVisible();
-    await expect(page.getByText(/智能 Playlist.*2 项动态结果/)).toBeVisible();
+    await expect(page.getByText(/智能播放列表.*2 项动态结果/)).toBeVisible();
     await expect(page.getByRole("searchbox", { name: /搜索标题/ })).toBeDisabled();
     const smartRow = page.getByRole("button", { name: /动态通勤.*2 项动态结果/ });
     await expect(smartRow).toHaveClass(/smart-playlist-row/);
@@ -888,8 +888,8 @@ test.describe("v0.5 management workflows", () => {
     await page.goto("/");
 
     await page.getByRole("searchbox", { name: /搜索标题/ }).fill("meeting");
-    await page.getByRole("combobox", { name: "按库目录筛选" }).click();
-    await page.getByRole("option", { name: "/library/podcasts" }).click();
+    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
+    await page.getByRole("option", { name: "仅可播放" }).click();
     await page.getByRole("button", { name: "保存视图", exact: true }).click();
     let dialog = page.getByRole("dialog", { name: "保存当前视图" });
     await dialog.getByRole("textbox", { name: "视图名称" }).fill("播客会议");
@@ -906,8 +906,8 @@ test.describe("v0.5 management workflows", () => {
     await page.getByRole("button", { name: "资料库" }).first().click();
     await page.getByRole("button", { name: "播客会议", exact: true }).click();
     await expect(page.getByRole("searchbox", { name: /搜索标题/ })).toHaveValue("lecture");
-    await expect(page.getByRole("combobox", { name: "按库目录筛选" })).toContainText(
-      "/library/podcasts"
+    await expect(page.getByRole("combobox", { name: "按资料库文件筛选" })).toContainText(
+      "仅可播放"
     );
 
     const createMutation = state.mutations.find(
@@ -918,7 +918,8 @@ test.describe("v0.5 management workflows", () => {
       query: {
         schema_version: 1,
         q: "meeting",
-        library_root_id: 7,
+        library_root_id: null,
+        missing_filter: "available",
         sort: "default",
         display_mode: "list"
       }
@@ -927,7 +928,11 @@ test.describe("v0.5 management workflows", () => {
       method: "PATCH",
       path: "/saved-views/1",
       body: expect.objectContaining({
-        query: expect.objectContaining({ q: "lecture", library_root_id: 7 })
+        query: expect.objectContaining({
+          q: "lecture",
+          library_root_id: null,
+          missing_filter: "available"
+        })
       })
     });
   });
@@ -993,13 +998,13 @@ test.describe("v0.5 management workflows", () => {
     await expect(page.getByText("已选择 0 个")).toBeVisible();
 
     await firstCheckbox.check();
-    await page.getByRole("button", { name: "加入 Playlist" }).click();
-    dialog = page.getByRole("dialog", { name: "批量加入 Playlist" });
+    await page.getByRole("button", { name: "加入播放列表" }).click();
+    dialog = page.getByRole("dialog", { name: "批量加入播放列表" });
     await dialog
-      .getByRole("textbox", { name: "Playlist 名称或 #ID" })
+      .getByRole("textbox", { name: "播放列表名称或 #ID" })
       .fill("#11");
-    await dialog.getByRole("button", { name: "加入 Playlist" }).click();
-    await expect(page.getByText(/批量加入 Playlist完成/)).toBeVisible();
+    await dialog.getByRole("button", { name: "加入播放列表" }).click();
+    await expect(page.getByText(/批量加入播放列表完成/)).toBeVisible();
     await expect(page.getByText("已选择 0 个")).toBeVisible();
 
     await firstCheckbox.check();
@@ -1028,8 +1033,8 @@ test.describe("v0.5 management workflows", () => {
     await page.getByRole("checkbox", { name: "选择 测试音频 1" }).check();
     await expect(page.getByText("已选择 1 个")).toBeVisible();
 
-    await page.getByRole("combobox", { name: "按 transcript 状态筛选" }).click();
-    await page.getByRole("option", { name: "已有 transcript" }).click();
+    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
+    await page.getByRole("option", { name: "已有转写文本" }).click();
 
     await expect(page.getByRole("button", { name: "多选整理" })).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "选择 测试音频 1" })).toHaveCount(0);
@@ -1047,8 +1052,8 @@ test.describe("v0.5 management workflows", () => {
       .filter({ hasText: "晨间播放" });
     await playlistRow.getByRole("button", { name: "重命名" }).click();
 
-    const renameDialog = page.getByRole("dialog", { name: "重命名 Playlist" });
-    await renameDialog.getByRole("textbox", { name: "Playlist 名称" }).fill("通勤精选");
+    const renameDialog = page.getByRole("dialog", { name: "重命名播放列表" });
+    await renameDialog.getByRole("textbox", { name: "播放列表名称" }).fill("通勤精选");
     await renameDialog.getByRole("button", { name: "保存" }).click();
 
     const renamedRow = page
@@ -1062,9 +1067,9 @@ test.describe("v0.5 management workflows", () => {
     });
 
     await renamedRow.getByRole("button", { name: "删除" }).click();
-    const deleteDialog = page.getByRole("dialog", { name: "删除 Playlist？" });
+    const deleteDialog = page.getByRole("dialog", { name: "删除播放列表？" });
     await expect(deleteDialog).toContainText("不会删除任何音频");
-    await deleteDialog.getByRole("button", { name: "删除 Playlist" }).click();
+    await deleteDialog.getByRole("button", { name: "删除播放列表" }).click();
 
     await expect(renamedRow).toHaveCount(0);
     expect(state.mutations[1]).toEqual({
@@ -1113,7 +1118,7 @@ test.describe("v0.5 management workflows", () => {
     await page.getByRole("button", { name: "预览并关联" }).click();
 
     const dialog = page.getByRole("dialog", { name: "确认安全重新关联" });
-    await expect(dialog).toContainText("Transcript（3 段）");
+    await expect(dialog).toContainText("转写文本（3 段）");
     await expect(dialog).toContainText("2 个标签");
     await expect(dialog).toContainText("将删除 0 个文件、0 条数据库记录");
     await dialog.getByRole("button", { name: "确认重新关联" }).click();
@@ -1221,7 +1226,7 @@ test.describe("v0.5 management workflows", () => {
     await page.goto("/");
 
     await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
-    await page.getByRole("tab", { name: "Transcript" }).click();
+    await page.getByRole("tab", { name: "转写文本" }).click();
     await page.getByRole("button", { name: "编辑分段" }).click();
 
     const middleDraft = page.getByRole("textbox", { name: "第 2 段文本" });
@@ -1250,7 +1255,7 @@ test.describe("v0.5 management workflows", () => {
     await page.goto("/");
 
     await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
-    await page.getByRole("tab", { name: "Transcript" }).click();
+    await page.getByRole("tab", { name: "转写文本" }).click();
     await page.getByRole("button", { name: "编辑分段" }).click();
     await page.getByRole("textbox", { name: "第 2 段文本" }).fill("未保存草稿");
     await page.getByRole("button", { name: "取消" }).click();
@@ -1280,14 +1285,14 @@ test.describe("v0.5 management workflows", () => {
     await page.goto("/");
 
     await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
-    await page.getByRole("tab", { name: "Transcript" }).click();
+    await page.getByRole("tab", { name: "转写文本" }).click();
     await page.getByRole("button", { name: "编辑分段" }).click();
     const middleDraft = page.getByRole("textbox", { name: "第 2 段文本" });
     await middleDraft.fill("本地未保存草稿");
     await page.getByRole("button", { name: "保存分段修订" }).click();
 
     await expect(
-      page.getByText("服务器上的 Transcript 已在你编辑期间更新")
+      page.getByText("服务器上的转写文本已在你编辑期间更新")
     ).toBeVisible();
     await expect(middleDraft).toHaveValue("本地未保存草稿");
     await page
@@ -1302,7 +1307,7 @@ test.describe("v0.5 management workflows", () => {
     await page.goto("/");
 
     await page
-      .getByRole("searchbox", { name: "搜索标题、作者、标签、描述或 transcript" })
+      .getByRole("searchbox", { name: "搜索标题、作者、标签、描述或转写文本" })
       .fill("分段文字");
 
     await expect(page.getByText("开场内容")).toBeVisible();
@@ -1321,29 +1326,29 @@ test.describe("v0.5 management workflows", () => {
     await page.goto("/");
 
     await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
-    await page.getByRole("tab", { name: "Transcript" }).click();
+    await page.getByRole("tab", { name: "转写文本" }).click();
     await expect(page.getByText("原始分段文字")).toBeVisible();
 
     await page.getByRole("button", { name: "替换全文" }).click();
     await page
-      .getByRole("textbox", { name: "Transcript 全文（高级替换）" })
-      .fill("修订后的 Transcript 全文");
+      .getByRole("textbox", { name: "转写文本全文（高级替换）" })
+      .fill("修订后的转写文本全文");
     await page.getByRole("button", { name: "保存全文替换" }).click();
 
-    const dialog = page.getByRole("dialog", { name: "保存 Transcript 修订？" });
+    const dialog = page.getByRole("dialog", { name: "保存转写文本修订？" });
     await expect(dialog).toContainText("会清除这些分段");
     await dialog.getByRole("button", { name: "保存并清除分段" }).click();
 
-    await expect(page.getByText("修订后的 Transcript 全文")).toBeVisible();
+    await expect(page.getByText("修订后的转写文本全文")).toBeVisible();
     await expect(page.getByText("原始分段文字")).toHaveCount(0);
     await expect(
-      page.getByText("Transcript 已保存，并清除 3 个旧分段")
+      page.getByText("转写文本已保存，并清除 3 个旧分段")
     ).toBeVisible();
     expect(state.mutations).toContainEqual({
       method: "PATCH",
       path: "/audio-items/1/transcript",
       body: {
-        full_text: "修订后的 Transcript 全文",
+        full_text: "修订后的转写文本全文",
         expected_updated_at: NOW
       }
     });

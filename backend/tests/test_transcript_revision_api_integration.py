@@ -50,6 +50,36 @@ class TestTranscriptRevisionApi(ApiIntegrationTest):
             headers=self.auth_headers(),
         ).json()
 
+    def test_full_replacement_removes_old_segments_before_parent_transcript(self):
+        response = self.client.post(
+            f"/audio-items/{self.audio.id}/transcript",
+            headers=self.auth_headers(include_client=True),
+            json={
+                "language": "zh",
+                "full_text": "完整替换内容",
+                "model_name": "replacement-model",
+                "segments": [
+                    {
+                        "segment_index": 0,
+                        "start_seconds": 0,
+                        "end_seconds": 4,
+                        "text": "完整替换内容",
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        current = self.client.get(
+            f"/audio-items/{self.audio.id}/transcript",
+            headers=self.auth_headers(),
+        ).json()
+        assert current["transcript"]["full_text"] == "完整替换内容"
+        assert current["transcript"]["model_name"] == "replacement-model"
+        assert [segment["text"] for segment in current["segments"]] == [
+            "完整替换内容"
+        ]
+
     def test_segment_revision_preserves_timeline_and_updates_exports_and_search(self):
         middle = self.before["segments"][1]
         response = self.client.request(
