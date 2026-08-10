@@ -22,6 +22,11 @@ SUPPORTED_ASR_TIMESTAMP_POLICIES = {
     ASR_TIMESTAMP_REQUIRED,
 }
 
+EXTERNAL_CHUNK_SECONDS_DEFAULT = 28.0
+EXTERNAL_CHUNK_OVERLAP_SECONDS_DEFAULT = 1.0
+EXTERNAL_SILENCE_THRESHOLD_DB_DEFAULT = -35.0
+EXTERNAL_MINIMUM_SILENCE_MS_DEFAULT = 400
+
 
 def _get_setting(session: Session, key: str, default: str = "") -> str:
     row = session.get(Setting, key)
@@ -44,6 +49,20 @@ def _get_positive_int_setting(
         raise ValueError(f"{key} must be greater than 0")
 
     return value
+
+
+def _setting_truthy(value: object) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _finite_float(value: object, key: str) -> float:
+    try:
+        result = float(value)
+    except Exception as e:
+        raise ValueError(f"{key} must be a number") from e
+    if result != result or result in {float("inf"), float("-inf")}:
+        raise ValueError(f"{key} must be finite")
+    return result
 
 
 def _validate_external_endpoint(endpoint: str) -> str:
@@ -96,6 +115,60 @@ def normalize_asr_task_config(config: dict) -> dict:
         if timeout <= 0:
             raise ValueError("asr.external.timeout must be greater than 0")
 
+        chunking_enabled = _setting_truthy(config.get("chunking_enabled"))
+        chunk_seconds = _finite_float(
+            config.get("chunk_seconds") or EXTERNAL_CHUNK_SECONDS_DEFAULT,
+            "asr.external.chunk_seconds",
+        )
+        if chunk_seconds < 5 or chunk_seconds > 600:
+            raise ValueError("asr.external.chunk_seconds must be between 5 and 600")
+
+        raw_chunk_overlap_seconds = config.get("chunk_overlap_seconds")
+        chunk_overlap_seconds = _finite_float(
+            raw_chunk_overlap_seconds
+            if raw_chunk_overlap_seconds is not None
+            and raw_chunk_overlap_seconds != ""
+            else EXTERNAL_CHUNK_OVERLAP_SECONDS_DEFAULT,
+            "asr.external.chunk_overlap_seconds",
+        )
+        if (
+            chunk_overlap_seconds < 0
+            or chunk_overlap_seconds > 10
+            or chunk_overlap_seconds >= chunk_seconds / 2
+        ):
+            raise ValueError(
+                "asr.external.chunk_overlap_seconds must be at least 0, at most 10, "
+                "and less than half the chunk duration"
+            )
+
+        prefer_silence = _setting_truthy(config.get("prefer_silence", True))
+        raw_silence_threshold_db = config.get("silence_threshold_db")
+        silence_threshold_db = _finite_float(
+            raw_silence_threshold_db
+            if raw_silence_threshold_db is not None
+            and raw_silence_threshold_db != ""
+            else EXTERNAL_SILENCE_THRESHOLD_DB_DEFAULT,
+            "asr.external.silence_threshold_db",
+        )
+        if silence_threshold_db < -80 or silence_threshold_db > -5:
+            raise ValueError(
+                "asr.external.silence_threshold_db must be between -80 and -5"
+            )
+
+        try:
+            minimum_silence_ms = int(
+                config.get("minimum_silence_ms")
+                or EXTERNAL_MINIMUM_SILENCE_MS_DEFAULT
+            )
+        except Exception as e:
+            raise ValueError(
+                "asr.external.minimum_silence_ms must be an integer"
+            ) from e
+        if minimum_silence_ms < 100 or minimum_silence_ms > 5000:
+            raise ValueError(
+                "asr.external.minimum_silence_ms must be between 100 and 5000"
+            )
+
         return {
             "provider": ASR_PROVIDER_EXTERNAL,
             "endpoint": endpoint,
@@ -103,6 +176,12 @@ def normalize_asr_task_config(config: dict) -> dict:
             "language": language,
             "timestamp_policy": timestamp_policy,
             "timeout": timeout,
+            "chunking_enabled": chunking_enabled,
+            "chunk_seconds": chunk_seconds,
+            "chunk_overlap_seconds": chunk_overlap_seconds,
+            "prefer_silence": prefer_silence,
+            "silence_threshold_db": silence_threshold_db,
+            "minimum_silence_ms": minimum_silence_ms,
         }
 
     try:
@@ -144,6 +223,36 @@ def build_asr_task_config(session: Session) -> dict:
                 session,
                 "asr.external.timeout",
                 3600,
+            ),
+            "chunking_enabled": _get_setting(
+                session,
+                "asr.external.chunking_enabled",
+                "false",
+            ),
+            "chunk_seconds": _get_setting(
+                session,
+                "asr.external.chunk_seconds",
+                str(EXTERNAL_CHUNK_SECONDS_DEFAULT),
+            ),
+            "chunk_overlap_seconds": _get_setting(
+                session,
+                "asr.external.chunk_overlap_seconds",
+                str(EXTERNAL_CHUNK_OVERLAP_SECONDS_DEFAULT),
+            ),
+            "prefer_silence": _get_setting(
+                session,
+                "asr.external.prefer_silence",
+                "true",
+            ),
+            "silence_threshold_db": _get_setting(
+                session,
+                "asr.external.silence_threshold_db",
+                str(EXTERNAL_SILENCE_THRESHOLD_DB_DEFAULT),
+            ),
+            "minimum_silence_ms": _get_setting(
+                session,
+                "asr.external.minimum_silence_ms",
+                str(EXTERNAL_MINIMUM_SILENCE_MS_DEFAULT),
             ),
         }
     else:

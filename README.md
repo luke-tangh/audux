@@ -201,6 +201,12 @@ asr.external.language = auto
 asr.external.timestamp_policy = preferred
 asr.external.timeout = 3600
 asr.external.allow_remote_endpoint = false
+asr.external.chunking_enabled = false
+asr.external.chunk_seconds = 28
+asr.external.chunk_overlap_seconds = 1
+asr.external.prefer_silence = true
+asr.external.silence_threshold_db = -35
+asr.external.minimum_silence_ms = 400
 ```
 
 `endpoint` 是 API base URL。后端会向以下地址发送请求：
@@ -243,7 +249,24 @@ timestamp_granularities[]     时间戳策略不是 off 时发送 segment
 
 - `off`：不请求时间戳，允许 `segments` 为空。
 - `preferred`：请求 segment 时间戳，但 text-only 响应仍可落库。
-- `required`：响应没有 segments 时任务失败。
+- `required`：未启用应用切片时，响应没有 segments 会使任务失败；启用切片时可用每片
+  起止时间生成粗粒度时间轴。
+
+外部 ASR 长音频切片默认关闭。若模型服务只能处理几十秒音频，可在“设置 → ASR”
+启用它。此功能要求运行后端的系统能从 `PATH` 找到 `ffmpeg` 和 `ffprobe`；应用不会
+自行下载 FFmpeg，缺少时设置页会提示安装并阻止启用。WSL 中开发运行后端时应安装
+Linux 版 FFmpeg；Windows 桌面发布包由 Windows 后端运行，因此需要 Windows 版
+FFmpeg。两个环境的可执行文件不能互相替代。
+
+启用后，后端会先用 ffprobe 读取时长，再按以下规则顺序上传 WAV 切片：
+
+- 在每片最长时限的后半段查找合适的静音中点，优先在那里切分。
+- 没找到静音时按最长时限硬切，避免任何单片超过外部服务上限。
+- 相邻切片保留可配置重叠，并对完全重复的边界文本做保守去重。
+- 外部服务的 segment 时间会加上切片起点后合并；若只返回文本且时间戳策略不是
+  `off`，应用会使用切片起止时间生成粗粒度时间轴。
+- 切片逐个请求，显存压力可控且容易取消，但总耗时和 HTTP 请求次数会增加。静音
+  检测也会额外完整读取一次长音频。
 
 Qwen3-ASR 建议由外部服务同时加载 `Qwen3-ForcedAligner-0.6B`，在服务端完成
 长音频切片、对齐及时间偏移合并，再返回上述结构。MiMo-V2.5-ASR 当前可以返回

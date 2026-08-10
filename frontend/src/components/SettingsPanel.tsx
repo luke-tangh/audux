@@ -3,6 +3,7 @@ import { api, asrEndpointPrivacyWarning, endpointPrivacyWarning } from "../api";
 import type {
   DatabaseBackup,
   DatabaseRestoreStatus,
+  ExternalAsrPreprocessingStatus,
   LibraryDuplicateGroup,
   LibraryHealthSummary,
   LibraryHealthTask,
@@ -75,6 +76,18 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [asrExternalTimeout, setAsrExternalTimeout] = useState("3600");
   const [asrExternalAllowRemoteEndpoint, setAsrExternalAllowRemoteEndpoint] =
     useState(false);
+  const [asrExternalChunkingEnabled, setAsrExternalChunkingEnabled] =
+    useState(false);
+  const [asrExternalChunkSeconds, setAsrExternalChunkSeconds] = useState("28");
+  const [asrExternalChunkOverlapSeconds, setAsrExternalChunkOverlapSeconds] =
+    useState("1");
+  const [asrExternalPreferSilence, setAsrExternalPreferSilence] = useState(true);
+  const [asrExternalSilenceThresholdDb, setAsrExternalSilenceThresholdDb] =
+    useState("-35");
+  const [asrExternalMinimumSilenceMs, setAsrExternalMinimumSilenceMs] =
+    useState("400");
+  const [externalAsrPreprocessing, setExternalAsrPreprocessing] =
+    useState<ExternalAsrPreprocessingStatus | null>(null);
   const [whisperComponent, setWhisperComponent] =
     useState<WhisperComponentStatus | null>(null);
 
@@ -187,13 +200,22 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.health();
       setBackendStatus("ok");
 
-      const [rootRows, settings, scanRows, tagRows, playlistRows, componentStatus] = await Promise.all([
+      const [
+        rootRows,
+        settings,
+        scanRows,
+        tagRows,
+        playlistRows,
+        componentStatus,
+        preprocessingStatus
+      ] = await Promise.all([
         api.listLibraryRoots(),
         api.listSettings(),
         api.listScanTasks({ limit: 20 }),
         api.listTags().catch(() => []),
         api.listPlaylists().catch(() => []),
-        api.getWhisperComponentStatus()
+        api.getWhisperComponentStatus(),
+        api.getExternalAsrPreprocessingStatus()
       ]);
 
       setRoots(rootRows);
@@ -201,6 +223,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       setMaintenanceTags(tagRows);
       setSettingsPlaylists(playlistRows);
       setWhisperComponent(componentStatus);
+      setExternalAsrPreprocessing(preprocessingStatus);
 
       const [backups, restoreStatus] = await Promise.all([
         api.listDatabaseBackups().catch(() => []),
@@ -246,6 +269,43 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             )?.value || ""
           ).toLowerCase()
         )
+      );
+      setAsrExternalChunkingEnabled(
+        ["1", "true", "yes", "on"].includes(
+          (
+            settings.find(
+              (setting) => setting.key === "asr.external.chunking_enabled"
+            )?.value || ""
+          ).toLowerCase()
+        )
+      );
+      setAsrExternalChunkSeconds(
+        settings.find((setting) => setting.key === "asr.external.chunk_seconds")
+          ?.value || "28"
+      );
+      setAsrExternalChunkOverlapSeconds(
+        settings.find(
+          (setting) => setting.key === "asr.external.chunk_overlap_seconds"
+        )?.value || "1"
+      );
+      setAsrExternalPreferSilence(
+        !["0", "false", "no", "off"].includes(
+          (
+            settings.find(
+              (setting) => setting.key === "asr.external.prefer_silence"
+            )?.value || "true"
+          ).toLowerCase()
+        )
+      );
+      setAsrExternalSilenceThresholdDb(
+        settings.find(
+          (setting) => setting.key === "asr.external.silence_threshold_db"
+        )?.value || "-35"
+      );
+      setAsrExternalMinimumSilenceMs(
+        settings.find(
+          (setting) => setting.key === "asr.external.minimum_silence_ms"
+        )?.value || "400"
       );
 
       setLlmEndpoint(settings.find((setting) => setting.key === "llm.endpoint")?.value || "");
@@ -465,6 +525,40 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       return;
     }
 
+    const chunkSeconds = Number(asrExternalChunkSeconds);
+    const overlapSeconds = Number(asrExternalChunkOverlapSeconds);
+    const silenceThresholdDb = Number(asrExternalSilenceThresholdDb);
+    const minimumSilenceMs = Number(asrExternalMinimumSilenceMs);
+    if (
+      asrProvider === "external" &&
+      asrExternalChunkingEnabled &&
+      (!Number.isFinite(chunkSeconds) ||
+        chunkSeconds < 5 ||
+        chunkSeconds > 600 ||
+        !Number.isFinite(overlapSeconds) ||
+        overlapSeconds < 0 ||
+        overlapSeconds > 10 ||
+        overlapSeconds >= chunkSeconds / 2 ||
+        !Number.isFinite(silenceThresholdDb) ||
+        silenceThresholdDb < -80 ||
+        silenceThresholdDb > -5 ||
+        !Number.isInteger(minimumSilenceMs) ||
+        minimumSilenceMs < 100 ||
+        minimumSilenceMs > 5000)
+    ) {
+      notify?.(t("settings.asr.chunkingInvalid"), "error");
+      return;
+    }
+
+    if (
+      asrProvider === "external" &&
+      asrExternalChunkingEnabled &&
+      !externalAsrPreprocessing?.available
+    ) {
+      notify?.(t("settings.asr.ffmpegInstallRequired"), "error");
+      return;
+    }
+
     try {
       await api.setSetting("asr.provider", asrProvider);
       await api.setSetting("asr.model_name", asrModelName.trim() || "small");
@@ -492,6 +586,30 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.setSetting(
         "asr.external.allow_remote_endpoint",
         asrExternalAllowRemoteEndpoint ? "true" : "false"
+      );
+      await api.setSetting(
+        "asr.external.chunking_enabled",
+        asrExternalChunkingEnabled ? "true" : "false"
+      );
+      await api.setSetting(
+        "asr.external.chunk_seconds",
+        asrExternalChunkSeconds.trim() || "28"
+      );
+      await api.setSetting(
+        "asr.external.chunk_overlap_seconds",
+        asrExternalChunkOverlapSeconds.trim() || "1"
+      );
+      await api.setSetting(
+        "asr.external.prefer_silence",
+        asrExternalPreferSilence ? "true" : "false"
+      );
+      await api.setSetting(
+        "asr.external.silence_threshold_db",
+        asrExternalSilenceThresholdDb.trim() || "-35"
+      );
+      await api.setSetting(
+        "asr.external.minimum_silence_ms",
+        asrExternalMinimumSilenceMs.trim() || "400"
       );
 
       notify?.(t("settings.asr.saved"), "success");
@@ -1076,6 +1194,13 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             externalTimestampPolicy={asrExternalTimestampPolicy}
             externalTimeout={asrExternalTimeout}
             externalAllowRemoteEndpoint={asrExternalAllowRemoteEndpoint}
+            externalChunkingEnabled={asrExternalChunkingEnabled}
+            externalChunkSeconds={asrExternalChunkSeconds}
+            externalChunkOverlapSeconds={asrExternalChunkOverlapSeconds}
+            externalPreferSilence={asrExternalPreferSilence}
+            externalSilenceThresholdDb={asrExternalSilenceThresholdDb}
+            externalMinimumSilenceMs={asrExternalMinimumSilenceMs}
+            externalPreprocessing={externalAsrPreprocessing}
             externalWarning={asrExternalWarning}
             whisperComponent={whisperComponent}
             onAsrProviderChange={setAsrProvider}
@@ -1092,6 +1217,12 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onExternalAllowRemoteEndpointChange={
               setAsrExternalAllowRemoteEndpoint
             }
+            onExternalChunkingEnabledChange={setAsrExternalChunkingEnabled}
+            onExternalChunkSecondsChange={setAsrExternalChunkSeconds}
+            onExternalChunkOverlapSecondsChange={setAsrExternalChunkOverlapSeconds}
+            onExternalPreferSilenceChange={setAsrExternalPreferSilence}
+            onExternalSilenceThresholdDbChange={setAsrExternalSilenceThresholdDb}
+            onExternalMinimumSilenceMsChange={setAsrExternalMinimumSilenceMs}
             onInstallWhisperComponent={installWhisperComponent}
             onCancelWhisperComponentInstall={cancelWhisperComponentInstall}
             onRemoveWhisperComponent={removeWhisperComponent}

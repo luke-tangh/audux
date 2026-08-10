@@ -1,10 +1,16 @@
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from tests.api_test_support import ApiIntegrationTest
 from app import tasks
-from app.models import AITask, AudioItem, Setting
+from app.asr_config import build_asr_task_payload
+from app.models import AITask, AudioItem, Setting, Transcript
 from app.services.common import ServiceError
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
 
 
 class TestTaskStateTransitions(ApiIntegrationTest):
@@ -127,3 +133,78 @@ class TestTaskStateTransitions(ApiIntegrationTest):
             assert tasks.get_setting_int(session, "missing", 3) == 3
             assert tasks.get_setting_float(session, "valid-float", 0.5) == 1.25
             assert tasks.get_setting_float(session, "empty-float", 0.5) == 0.5
+
+    @pytest.mark.anyio
+    async def test_external_chunking_snapshot_is_dispatched_and_persisted(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        with Session(self.engine) as session:
+            for key, value in {
+                "asr.provider": "external",
+                "asr.external.endpoint": "http://127.0.0.1:8025/v1",
+                "asr.external.model_name": "ark-asr",
+                "asr.external.language": "zh",
+                "asr.external.timestamp_policy": "required",
+                "asr.external.timeout": "120",
+                "asr.external.chunking_enabled": "true",
+                "asr.external.chunk_seconds": "28",
+                "asr.external.chunk_overlap_seconds": "1.5",
+                "asr.external.prefer_silence": "true",
+                "asr.external.silence_threshold_db": "-38",
+                "asr.external.minimum_silence_ms": "450",
+            }.items():
+                session.add(Setting(key=key, value=value))
+            session.commit()
+
+            task = tasks.create_task(
+                session,
+                self.audio.id,
+                "transcribe",
+                build_asr_task_payload(session),
+            )
+            task.status = "running"
+            session.add(task)
+            session.commit()
+            snapshot = tasks._snapshot_task(task)
+
+        captured: dict = {}
+
+        async def fake_chunked_transcription(**kwargs):
+            captured.update(kwargs)
+            return {
+                "full_text": "chunked transcript",
+                "language": "zh",
+                "model_name": "ark-asr",
+                "segments": [
+                    {
+                        "segment_index": 0,
+                        "start_seconds": 0,
+                        "end_seconds": 12,
+                        "text": "chunked transcript",
+                    }
+                ],
+            }
+
+        monkeypatch.setattr(
+            tasks,
+            "transcribe_external_audio_chunked",
+            fake_chunked_transcription,
+        )
+
+        await tasks.handle_transcribe_task(snapshot)
+
+        assert captured["maximum_seconds"] == 28
+        assert captured["overlap_seconds"] == 1.5
+        assert captured["prefer_silence"] is True
+        assert captured["silence_threshold_db"] == -38
+        assert captured["minimum_silence_ms"] == 450
+        assert captured["is_canceled"]() is False
+
+        with Session(self.engine) as session:
+            transcript = session.exec(
+                select(Transcript).where(Transcript.audio_id == self.audio.id)
+            ).one()
+            audio = session.get(AudioItem, self.audio.id)
+            assert transcript.full_text == "chunked transcript"
+            assert audio.transcript_status == "done"

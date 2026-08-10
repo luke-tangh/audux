@@ -30,6 +30,10 @@ from .services.whisper_component_service import (
     WhisperCompanionCanceled,
     transcribe_with_whisper_companion,
 )
+from .services.external_asr_service import (
+    ExternalAsrCanceled,
+    transcribe_external_audio_chunked,
+)
 from .services.common import ServiceError, error_code_for_detail
 
 
@@ -558,15 +562,32 @@ async def handle_transcribe_task(task: TaskSnapshot):
         session.commit()
 
     if asr_config["provider"] == ASR_PROVIDER_EXTERNAL:
-        transcribe_awaitable = transcribe_external_audio(
-            file_path=file_path,
-            endpoint=asr_config["endpoint"],
-            model_name=asr_config["model_name"],
-            api_key=external_api_key or None,
-            language=asr_config["language"],
-            timestamp_policy=asr_config["timestamp_policy"],
-            timeout=asr_config["timeout"],
-        )
+        if asr_config["chunking_enabled"]:
+            transcribe_awaitable = transcribe_external_audio_chunked(
+                file_path=file_path,
+                endpoint=asr_config["endpoint"],
+                model_name=asr_config["model_name"],
+                api_key=external_api_key or None,
+                language=asr_config["language"],
+                timestamp_policy=asr_config["timestamp_policy"],
+                timeout=asr_config["timeout"],
+                maximum_seconds=asr_config["chunk_seconds"],
+                overlap_seconds=asr_config["chunk_overlap_seconds"],
+                prefer_silence=asr_config["prefer_silence"],
+                silence_threshold_db=asr_config["silence_threshold_db"],
+                minimum_silence_ms=asr_config["minimum_silence_ms"],
+                is_canceled=lambda: _is_task_canceled_by_id(task_id),
+            )
+        else:
+            transcribe_awaitable = transcribe_external_audio(
+                file_path=file_path,
+                endpoint=asr_config["endpoint"],
+                model_name=asr_config["model_name"],
+                api_key=external_api_key or None,
+                language=asr_config["language"],
+                timestamp_policy=asr_config["timestamp_policy"],
+                timeout=asr_config["timeout"],
+            )
     else:
         transcribe_awaitable = transcribe_with_whisper_companion(
             file_path=file_path,
@@ -579,7 +600,7 @@ async def handle_transcribe_task(task: TaskSnapshot):
 
     try:
         result = await _run_with_task_heartbeat(task_id, transcribe_awaitable)
-    except WhisperCompanionCanceled as error:
+    except (ExternalAsrCanceled, WhisperCompanionCanceled) as error:
         raise TaskCanceled() from error
 
     with Session(engine) as session:

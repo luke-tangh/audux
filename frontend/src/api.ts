@@ -10,6 +10,7 @@ import type {
   DatabaseBackup,
   DatabaseRestorePreflight,
   DatabaseRestoreStatus,
+  ExternalAsrPreprocessingStatus,
   LibraryRoot,
   LibraryHealthSummary,
   LibraryHealthTask,
@@ -823,6 +824,9 @@ export const api = {
 
   getWhisperComponentStatus: () =>
     request<WhisperComponentStatus>("/asr/whisper-component"),
+
+  getExternalAsrPreprocessingStatus: () =>
+    request<ExternalAsrPreprocessingStatus>("/asr/external-preprocessing"),
 
   installWhisperComponent: () =>
     request<WhisperComponentStatus>("/asr/whisper-component/install", {

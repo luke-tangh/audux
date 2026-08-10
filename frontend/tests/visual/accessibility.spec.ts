@@ -59,6 +59,19 @@ async function mockLibraryApi(page: import("@playwright/test").Page) {
       return;
     }
 
+    if (url.pathname === "/asr/external-preprocessing") {
+      await route.fulfill({
+        json: {
+          available: true,
+          ffmpeg_available: true,
+          ffprobe_available: true,
+          missing: []
+        },
+        headers
+      });
+      return;
+    }
+
     if (url.pathname === "/tags" || url.pathname === "/playlists") {
       await route.fulfill({ json: [], headers });
       return;

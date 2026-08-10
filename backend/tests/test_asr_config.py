@@ -49,6 +49,59 @@ class TestASRConfig:
         assert config["language"] == "auto"
         assert config["timestamp_policy"] == "required"
         assert config["timeout"] == 1200
+        assert config["chunking_enabled"] is False
+        assert config["chunk_seconds"] == 28
+        assert config["chunk_overlap_seconds"] == 1
+        assert config["prefer_silence"] is True
+        assert config["silence_threshold_db"] == -35
+        assert config["minimum_silence_ms"] == 400
+
+    def test_normalizes_external_chunking_config(self):
+        config = normalize_asr_task_config(
+            {
+                "provider": "external",
+                "endpoint": "http://127.0.0.1:8000/v1",
+                "model_name": "ark-asr",
+                "chunking_enabled": "true",
+                "chunk_seconds": "25",
+                "chunk_overlap_seconds": "1.5",
+                "prefer_silence": "false",
+                "silence_threshold_db": "-42",
+                "minimum_silence_ms": "650",
+            }
+        )
+
+        assert config["chunking_enabled"] is True
+        assert config["chunk_seconds"] == 25
+        assert config["chunk_overlap_seconds"] == 1.5
+        assert config["prefer_silence"] is False
+        assert config["silence_threshold_db"] == -42
+        assert config["minimum_silence_ms"] == 650
+
+    @pytest.mark.parametrize(
+        ("field", "value", "message"),
+        [
+            ("chunk_seconds", "4", "chunk_seconds"),
+            ("chunk_overlap_seconds", "15", "chunk_overlap_seconds"),
+            ("silence_threshold_db", "-2", "silence_threshold_db"),
+            ("minimum_silence_ms", "99", "minimum_silence_ms"),
+        ],
+    )
+    def test_rejects_invalid_external_chunking_config(
+        self,
+        field: str,
+        value: str,
+        message: str,
+    ):
+        with pytest.raises(ValueError, match=message):
+            normalize_asr_task_config(
+                {
+                    "provider": "external",
+                    "endpoint": "http://127.0.0.1:8000/v1",
+                    "model_name": "ark-asr",
+                    field: value,
+                }
+            )
 
     def test_normalizes_faster_whisper_defaults(self):
         config = normalize_asr_task_config(
@@ -121,6 +174,12 @@ class TestASRConfig:
             "asr.external.language": "zh",
             "asr.external.timestamp_policy": "required",
             "asr.external.timeout": "900",
+            "asr.external.chunking_enabled": "true",
+            "asr.external.chunk_seconds": "26",
+            "asr.external.chunk_overlap_seconds": "2",
+            "asr.external.prefer_silence": "true",
+            "asr.external.silence_threshold_db": "-40",
+            "asr.external.minimum_silence_ms": "500",
         }.items():
             settings_session.add(Setting(key=key, value=value))
         settings_session.commit()
@@ -138,3 +197,7 @@ class TestASRConfig:
         resolved = resolve_asr_task_config(settings_session, payload)
         assert resolved["endpoint"] == "http://127.0.0.1:8000/v1"
         assert resolved["model_name"] == "qwen3-asr-1.7b"
+        assert resolved["chunking_enabled"] is True
+        assert resolved["chunk_seconds"] == 26
+        assert resolved["chunk_overlap_seconds"] == 2
+        assert resolved["prefer_silence"] is True

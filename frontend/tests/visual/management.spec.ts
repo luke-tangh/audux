@@ -489,6 +489,19 @@ async function mockManagementApi(page: Page, state: MockState) {
       return;
     }
 
+    if (method === "GET" && url.pathname === "/asr/external-preprocessing") {
+      await route.fulfill({
+        json: {
+          available: true,
+          ffmpeg_available: true,
+          ffprobe_available: true,
+          missing: []
+        },
+        headers
+      });
+      return;
+    }
+
     if (method === "POST" && url.pathname === "/asr/whisper-component/install") {
       state.mutations.push({ method, path: url.pathname, body: null });
       state.whisperStatus = "downloading";

@@ -1,6 +1,9 @@
 import { Button, CheckboxField, PanelCard, SelectField, TextField } from "../ui";
 import { useTranslation } from "react-i18next";
-import type { WhisperComponentStatus } from "../../types";
+import type {
+  ExternalAsrPreprocessingStatus,
+  WhisperComponentStatus
+} from "../../types";
 
 type AsrSettingsTabProps = {
   asrProvider: string;
@@ -15,6 +18,13 @@ type AsrSettingsTabProps = {
   externalTimestampPolicy: string;
   externalTimeout: string;
   externalAllowRemoteEndpoint: boolean;
+  externalChunkingEnabled: boolean;
+  externalChunkSeconds: string;
+  externalChunkOverlapSeconds: string;
+  externalPreferSilence: boolean;
+  externalSilenceThresholdDb: string;
+  externalMinimumSilenceMs: string;
+  externalPreprocessing: ExternalAsrPreprocessingStatus | null;
   externalWarning: string | null;
   whisperComponent: WhisperComponentStatus | null;
   onAsrProviderChange: (value: string) => void;
@@ -29,6 +39,12 @@ type AsrSettingsTabProps = {
   onExternalTimestampPolicyChange: (value: string) => void;
   onExternalTimeoutChange: (value: string) => void;
   onExternalAllowRemoteEndpointChange: (value: boolean) => void;
+  onExternalChunkingEnabledChange: (value: boolean) => void;
+  onExternalChunkSecondsChange: (value: string) => void;
+  onExternalChunkOverlapSecondsChange: (value: string) => void;
+  onExternalPreferSilenceChange: (value: boolean) => void;
+  onExternalSilenceThresholdDbChange: (value: string) => void;
+  onExternalMinimumSilenceMsChange: (value: string) => void;
   onInstallWhisperComponent: () => void;
   onCancelWhisperComponentInstall: () => void;
   onRemoveWhisperComponent: () => void;
@@ -54,6 +70,13 @@ export default function AsrSettingsTab({
   externalTimestampPolicy,
   externalTimeout,
   externalAllowRemoteEndpoint,
+  externalChunkingEnabled,
+  externalChunkSeconds,
+  externalChunkOverlapSeconds,
+  externalPreferSilence,
+  externalSilenceThresholdDb,
+  externalMinimumSilenceMs,
+  externalPreprocessing,
   externalWarning,
   whisperComponent,
   onAsrProviderChange,
@@ -68,6 +91,12 @@ export default function AsrSettingsTab({
   onExternalTimestampPolicyChange,
   onExternalTimeoutChange,
   onExternalAllowRemoteEndpointChange,
+  onExternalChunkingEnabledChange,
+  onExternalChunkSecondsChange,
+  onExternalChunkOverlapSecondsChange,
+  onExternalPreferSilenceChange,
+  onExternalSilenceThresholdDbChange,
+  onExternalMinimumSilenceMsChange,
   onInstallWhisperComponent,
   onCancelWhisperComponentInstall,
   onRemoveWhisperComponent,
@@ -296,6 +325,74 @@ export default function AsrSettingsTab({
               checked={externalAllowRemoteEndpoint}
               onCheckedChange={onExternalAllowRemoteEndpointChange}
             />
+
+            <CheckboxField
+              wrapperClassName="wide"
+              label={t("settings.asr.chunkingEnabled")}
+              description={t("settings.asr.chunkingDescription")}
+              checked={externalChunkingEnabled}
+              onCheckedChange={onExternalChunkingEnabledChange}
+            />
+
+            {externalChunkingEnabled && (
+              <>
+                <div className="wide" aria-live="polite">
+                  {externalPreprocessing?.available ? (
+                    <p className="muted">{t("settings.asr.ffmpegAvailable")}</p>
+                  ) : (
+                    <p className="privacy-warning">
+                      {externalPreprocessing
+                        ? t("settings.asr.ffmpegInstallRequired")
+                        : t("settings.asr.ffmpegChecking")}
+                    </p>
+                  )}
+                </div>
+
+                <TextField
+                  label={t("settings.asr.chunkSeconds")}
+                  inputMode="decimal"
+                  value={externalChunkSeconds}
+                  placeholder="28"
+                  onValueChange={onExternalChunkSecondsChange}
+                />
+
+                <TextField
+                  label={t("settings.asr.chunkOverlapSeconds")}
+                  inputMode="decimal"
+                  value={externalChunkOverlapSeconds}
+                  placeholder="1"
+                  onValueChange={onExternalChunkOverlapSecondsChange}
+                />
+
+                <CheckboxField
+                  wrapperClassName="wide"
+                  label={t("settings.asr.preferSilence")}
+                  description={t("settings.asr.preferSilenceDescription")}
+                  checked={externalPreferSilence}
+                  onCheckedChange={onExternalPreferSilenceChange}
+                />
+
+                {externalPreferSilence && (
+                  <>
+                    <TextField
+                      label={t("settings.asr.silenceThresholdDb")}
+                      inputMode="decimal"
+                      value={externalSilenceThresholdDb}
+                      placeholder="-35"
+                      onValueChange={onExternalSilenceThresholdDbChange}
+                    />
+
+                    <TextField
+                      label={t("settings.asr.minimumSilenceMs")}
+                      inputMode="numeric"
+                      value={externalMinimumSilenceMs}
+                      placeholder="400"
+                      onValueChange={onExternalMinimumSilenceMsChange}
+                    />
+                  </>
+                )}
+              </>
+            )}
           </>
         )}
       </div>

@@ -1,0 +1,208 @@
+from pathlib import Path
+
+import pytest
+
+from app.services import external_asr_service
+from app.services.common import ServiceError
+from app.services.external_asr_service import (
+    AudioChunk,
+    ExternalAsrCanceled,
+    merge_chunk_results,
+    parse_silence_intervals,
+    plan_audio_chunks,
+    transcribe_external_audio_chunked,
+)
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+def test_ffmpeg_status_lists_missing_tools(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        external_asr_service.shutil,
+        "which",
+        lambda name: "/usr/bin/ffmpeg" if name == "ffmpeg" else None,
+    )
+
+    assert external_asr_service.get_ffmpeg_status() == {
+        "available": False,
+        "ffmpeg_available": True,
+        "ffprobe_available": False,
+        "missing": ["ffprobe"],
+    }
+    with pytest.raises(ServiceError) as caught:
+        external_asr_service._require_ffmpeg()
+    assert caught.value.code == "asr.ffmpeg_missing"
+
+
+def test_parses_silence_intervals_including_trailing_silence():
+    output = """
+    [silencedetect] silence_start: 5.25
+    [silencedetect] silence_end: 6.5 | silence_duration: 1.25
+    [silencedetect] silence_start: 19.0
+    """
+
+    assert parse_silence_intervals(output, 20) == [(5.25, 6.5), (19, 20)]
+
+
+def test_plans_chunks_at_silence_with_hard_cut_fallback():
+    chunks = plan_audio_chunks(
+        duration=70,
+        maximum_seconds=30,
+        overlap_seconds=1,
+        silence_intervals=[(25, 27), (54, 56)],
+    )
+
+    assert chunks == [
+        AudioChunk(0, 26),
+        AudioChunk(25, 55),
+        AudioChunk(54, 70),
+    ]
+    assert plan_audio_chunks(70, 30, 1, []) == [
+        AudioChunk(0, 30),
+        AudioChunk(29, 59),
+        AudioChunk(58, 70),
+    ]
+
+
+def test_merges_text_overlap_and_offsets_segments():
+    result = merge_chunk_results(
+        [AudioChunk(0, 30), AudioChunk(29, 50)],
+        [
+            {
+                "full_text": "hello world",
+                "language": "en",
+                "model_name": "ark",
+                "segments": [
+                    {"start_seconds": 1, "end_seconds": 2, "text": "hello"}
+                ],
+            },
+            {"full_text": "world again", "segments": []},
+        ],
+        "preferred",
+    )
+
+    assert result["full_text"] == "hello world\nagain"
+    assert result["language"] == "en"
+    assert result["model_name"] == "ark"
+    assert result["segments"] == [
+        {
+            "segment_index": 0,
+            "start_seconds": 1,
+            "end_seconds": 2,
+            "text": "hello",
+        },
+        {
+            "segment_index": 1,
+            "start_seconds": 30,
+            "end_seconds": 50,
+            "text": "again",
+        },
+    ]
+
+
+@pytest.mark.anyio
+async def test_short_audio_is_uploaded_directly_and_required_gets_coarse_timeline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    source = tmp_path / "source.mp3"
+    source.write_bytes(b"audio")
+    calls: list[dict] = []
+
+    monkeypatch.setattr(external_asr_service, "_require_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+    monkeypatch.setattr(external_asr_service, "_probe_duration", _async_value(12.5))
+
+    async def fail_extract(*args, **kwargs):
+        raise AssertionError("short audio must not be re-encoded")
+
+    async def fake_transcribe(**kwargs):
+        calls.append(kwargs)
+        return {"full_text": "short result", "segments": []}
+
+    monkeypatch.setattr(external_asr_service, "_extract_chunk", fail_extract)
+    monkeypatch.setattr(external_asr_service, "transcribe_external_audio", fake_transcribe)
+
+    result = await _transcribe(source, timestamp_policy="required")
+
+    assert calls[0]["file_path"] == str(source)
+    assert calls[0]["timestamp_policy"] == "preferred"
+    assert result["segments"][0]["start_seconds"] == 0
+    assert result["segments"][0]["end_seconds"] == 12.5
+
+
+@pytest.mark.anyio
+async def test_long_audio_extracts_and_uploads_chunks_sequentially(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    source = tmp_path / "source.mp3"
+    source.write_bytes(b"audio")
+    extracted: list[AudioChunk] = []
+    uploads: list[str] = []
+
+    monkeypatch.setattr(external_asr_service, "_require_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+    monkeypatch.setattr(external_asr_service, "_probe_duration", _async_value(65))
+    monkeypatch.setattr(external_asr_service, "_detect_silences", _async_value([(27, 29)]))
+
+    async def fake_extract(ffmpeg, source_path, destination_path, chunk):
+        extracted.append(chunk)
+        Path(destination_path).write_bytes(b"wav")
+
+    async def fake_transcribe(**kwargs):
+        uploads.append(kwargs["file_path"])
+        return {"full_text": f"part {len(uploads)}", "segments": []}
+
+    monkeypatch.setattr(external_asr_service, "_extract_chunk", fake_extract)
+    monkeypatch.setattr(external_asr_service, "transcribe_external_audio", fake_transcribe)
+
+    result = await _transcribe(source)
+
+    assert extracted == [AudioChunk(0, 28), AudioChunk(27, 57), AudioChunk(56, 65)]
+    assert len(uploads) == 3
+    assert result["full_text"] == "part 1\npart 2\npart 3"
+
+
+@pytest.mark.anyio
+async def test_cancellation_is_checked_before_ffprobe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    source = tmp_path / "source.mp3"
+    source.write_bytes(b"audio")
+    monkeypatch.setattr(external_asr_service, "_require_ffmpeg", lambda: ("ffmpeg", "ffprobe"))
+
+    with pytest.raises(ExternalAsrCanceled):
+        await _transcribe(source, is_canceled=lambda: True)
+
+
+def _async_value(value):
+    async def result(*args, **kwargs):
+        return value
+
+    return result
+
+
+async def _transcribe(
+    source: Path,
+    *,
+    timestamp_policy: str = "preferred",
+    is_canceled=lambda: False,
+):
+    return await transcribe_external_audio_chunked(
+        file_path=str(source),
+        endpoint="http://127.0.0.1:8025/v1",
+        model_name="ark-asr",
+        api_key=None,
+        language="zh",
+        timestamp_policy=timestamp_policy,
+        timeout=60,
+        maximum_seconds=30,
+        overlap_seconds=1,
+        prefer_silence=True,
+        silence_threshold_db=-35,
+        minimum_silence_ms=400,
+        is_canceled=is_canceled,
+    )

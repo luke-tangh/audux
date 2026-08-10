@@ -392,6 +392,13 @@ export type WhisperComponentStatus = {
   error_message: string | null;
 };
 
+export type ExternalAsrPreprocessingStatus = {
+  available: boolean;
+  ffmpeg_available: boolean;
+  ffprobe_available: boolean;
+  missing: string[];
+};
+
 export type DatabaseBackup = {
   id: string;
   name: string;

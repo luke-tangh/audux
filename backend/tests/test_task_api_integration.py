@@ -6,7 +6,7 @@ from sqlmodel import Session
 from tests.api_test_support import ApiIntegrationTest
 from app import tasks
 from app.models import AITask, AudioItem, Transcript
-from app.services import transcript_service
+from app.services import external_asr_service, transcript_service
 from app.services import whisper_component_service
 
 
@@ -203,6 +203,28 @@ class TestTaskApiLifecycle(ApiIntegrationTest):
         )
         assert started.status_code == 200
         assert started.json()["status"] == "downloading"
+
+    def test_external_preprocessing_status_is_protected(self, monkeypatch):
+        monkeypatch.setattr(
+            external_asr_service,
+            "get_ffmpeg_status",
+            lambda: {
+                "available": False,
+                "ffmpeg_available": True,
+                "ffprobe_available": False,
+                "missing": ["ffprobe"],
+            },
+        )
+
+        unauthorized = self.client.get("/asr/external-preprocessing")
+        assert unauthorized.status_code == 401
+
+        response = self.client.get(
+            "/asr/external-preprocessing",
+            headers=self.auth_headers(),
+        )
+        assert response.status_code == 200
+        assert response.json()["missing"] == ["ffprobe"]
 
 
 class TestInterruptedTaskRecovery(ApiIntegrationTest):
