@@ -8,12 +8,15 @@ import DetailPanel from "./components/DetailPanel";
 import PlayerBar from "./components/PlayerBar";
 import SettingsPanel from "./components/SettingsPanel";
 import ToastStack from "./components/ToastStack";
+import { useDialog } from "./components/dialog/UnifiedDialog";
 import { IconButton, MaterialIcon } from "./components/ui";
 import { useLibraryController } from "./hooks/useLibraryController";
 
 export default function App() {
   const { t } = useTranslation();
+  const dialog = useDialog();
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorDirty, setInspectorDirty] = useState(false);
   const [compactNavigation, setCompactNavigation] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
   );
@@ -121,8 +124,21 @@ export default function App() {
   useEffect(() => {
     if (!selected) {
       setInspectorOpen(false);
+      setInspectorDirty(false);
     }
   }, [selected]);
+
+  useEffect(() => {
+    if (!inspectorDirty) return;
+
+    function preventWindowClose(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", preventWindowClose);
+    return () => window.removeEventListener("beforeunload", preventWindowClose);
+  }, [inspectorDirty]);
 
   useEffect(() => {
     if (!inspectorOpen || !window.matchMedia("(max-width: 1040px)").matches) return;
@@ -157,16 +173,52 @@ export default function App() {
     view
   ]);
 
-  function openInspector(item: NonNullable<typeof selected>) {
+  async function confirmDiscardInspectorChanges() {
+    if (!inspectorDirty) return true;
+
+    return dialog.confirm({
+      title: t("detail.overview.discardTitle"),
+      message: t("detail.overview.discardMessage"),
+      confirmLabel: t("detail.overview.discardChanges"),
+      cancelLabel: t("detail.overview.keepEditing"),
+      tone: "warning",
+      destructive: true
+    });
+  }
+
+  async function openInspector(item: NonNullable<typeof selected>) {
+    if (selected?.id !== item.id && !(await confirmDiscardInspectorChanges())) return;
+
+    setInspectorDirty(false);
     setSelected(item);
     setInspectorOpen(true);
   }
 
-  function closeInspector() {
+  async function closeInspector() {
+    if (!(await confirmDiscardInspectorChanges())) return;
+
+    setInspectorDirty(false);
     setInspectorOpen(false);
     window.requestAnimationFrame(() => {
       document.querySelector<HTMLElement>(".audio-row.selected .audio-row-primary")?.focus();
     });
+  }
+
+  async function prepareInspectorNavigation() {
+    if (!inspectorDirty) return true;
+
+    const allowed = await confirmDiscardInspectorChanges();
+    if (!allowed) return false;
+
+    setInspectorDirty(false);
+    setInspectorOpen(false);
+    return true;
+  }
+
+  async function requestOpenSettings() {
+    if (!(await confirmDiscardInspectorChanges())) return;
+    setInspectorDirty(false);
+    openSettings();
   }
 
   function closeNavigation(restoreFocus = false) {
@@ -203,6 +255,7 @@ export default function App() {
           compactNavigation={compactNavigation}
           navigationOpen={navigationOpen}
           onCloseNavigation={() => closeNavigation(true)}
+          onBeforeNavigate={prepareInspectorNavigation}
           view={view}
           setView={setView}
           tags={tags}
@@ -271,7 +324,7 @@ export default function App() {
                 isLoading={loading}
                 isRefreshing={refreshing}
                 loadError={loadError}
-                onOpenSettings={openSettings}
+                onOpenSettings={() => void requestOpenSettings()}
                 onClearFilters={clearFilters}
                 hasActiveFilter={hasActiveFilter}
                 items={audioItems}
@@ -323,7 +376,7 @@ export default function App() {
                   type="button"
                   className="inspector-scrim"
                   aria-label={t("detail.dismiss")}
-                  onClick={closeInspector}
+                  onClick={() => void closeInspector()}
                 />
                 <DetailPanel
                   audio={selected}
@@ -334,7 +387,8 @@ export default function App() {
                   playlists={manualPlaylists}
                   selectedPlaylistId={selectedPlaylistId}
                   onDeleted={handleAudioDeleted}
-                  onClose={closeInspector}
+                  onClose={() => void closeInspector()}
+                  onDirtyChange={setInspectorDirty}
                   notify={notify}
                 />
               </>

@@ -9,7 +9,7 @@ import type {
   TranscriptSegmentEdit
 } from "../types";
 import { pickAudioFile } from "../tauri";
-import { Button, Tabs } from "./ui";
+import { Button, PanelCard, Tabs } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
 import AiTab from "./detail/AiTab";
 import DetailEmptyState from "./detail/DetailEmptyState";
@@ -37,6 +37,7 @@ type Props = {
   selectedPlaylistId?: number | null;
   onDeleted: (audioId: number) => void;
   onClose: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
   notify?: (message: string, type?: ToastType) => void;
 };
 
@@ -50,6 +51,7 @@ export default function DetailPanel({
   selectedPlaylistId,
   onDeleted,
   onClose,
+  onDirtyChange,
   notify
 }: Props) {
   const dialog = useDialog();
@@ -60,9 +62,13 @@ export default function DetailPanel({
   const [tags, setTags] = useState<Tag[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagInput, setTagInput] = useState("");
-  const [selectedExistingTag, setSelectedExistingTag] = useState<NumericSelection>("");
   const [editing, setEditing] = useState<Partial<AudioItem>>({});
   const [metadataBaseline, setMetadataBaseline] = useState<Partial<AudioItem>>({});
+  const [metadataLoaded, setMetadataLoaded] = useState(false);
+  const [metadataLoadError, setMetadataLoadError] = useState("");
+  const [detailLoadAttempt, setDetailLoadAttempt] = useState(0);
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+  const [metadataSaveError, setMetadataSaveError] = useState("");
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestions | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<NumericSelection>("");
@@ -79,6 +85,20 @@ export default function DetailPanel({
     return allTags.filter((tag) => !acceptedTagNames.has(tag.name));
   }, [allTags, acceptedTagNames]);
 
+  const metadataDirty = [
+    "title_user",
+    "author_user",
+    "album_user",
+    "description_user",
+    "language",
+    "is_favorite"
+  ].some((key) => editing[key as keyof AudioItem] !== metadataBaseline[key as keyof AudioItem]);
+
+  useEffect(() => {
+    onDirtyChange?.(metadataDirty);
+    return () => onDirtyChange?.(false);
+  }, [metadataDirty, onDirtyChange]);
+
   useEffect(() => {
     let canceled = false;
 
@@ -90,22 +110,25 @@ export default function DetailPanel({
         setTags([]);
         setAllTags([]);
         setEditing({});
+        setMetadataLoaded(false);
+        setMetadataLoadError("");
         setRelocatePath("");
-        setSelectedExistingTag("");
         setTagInput("");
         setSelectedPlaylist("");
+        setMetadataSaveError("");
         lastLoadedAudioIdRef.current = null;
         return;
       }
 
       const audioIdChanged = lastLoadedAudioIdRef.current !== audio.id;
-      lastLoadedAudioIdRef.current = audio.id;
+      setMetadataLoadError("");
 
       if (audioIdChanged) {
+        setMetadataLoaded(false);
         setRelocatePath("");
-        setSelectedExistingTag("");
         setTagInput("");
         setSelectedPlaylist("");
+        setMetadataSaveError("");
         setActiveTab("overview");
         setCoverVersion(Date.now());
       }
@@ -119,6 +142,7 @@ export default function DetailPanel({
 
       if (canceled) return;
 
+      lastLoadedAudioIdRef.current = audio.id;
       setTags(detail.tags);
       setAllTags(tagRows);
       setTranscript(transcriptValue);
@@ -135,13 +159,16 @@ export default function DetailPanel({
         };
         setEditing(metadata);
         setMetadataBaseline(metadata);
+        setMetadataLoaded(true);
       }
     }
 
     load().catch((err) => {
       if (canceled) return;
       console.error(err);
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      const message = err instanceof Error ? err.message : String(err);
+      setMetadataLoadError(message);
+      notify?.(message, "error");
     });
 
     return () => {
@@ -151,7 +178,8 @@ export default function DetailPanel({
     audio?.id,
     audio?.updated_at,
     audio?.ai_status,
-    audio?.transcript_status
+    audio?.transcript_status,
+    detailLoadAttempt
   ]);
 
   if (!audio) {
@@ -159,6 +187,7 @@ export default function DetailPanel({
   }
 
   function updateEditing(patch: EditingPatch) {
+    setMetadataSaveError("");
     setEditing((current) => ({
       ...current,
       ...patch
@@ -179,14 +208,28 @@ export default function DetailPanel({
   }
 
   async function save() {
+    if (isSavingMetadata) return;
+
+    setIsSavingMetadata(true);
+    setMetadataSaveError("");
+
     try {
       await api.updateAudio(audio!.id, editing);
-      setMetadataBaseline(editing);
+      setMetadataBaseline({ ...editing });
       notify?.(t("detail.notifications.metadataSaved"), "success");
       refresh();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      const message = err instanceof Error ? err.message : String(err);
+      setMetadataSaveError(message);
+      notify?.(message, "error");
+    } finally {
+      setIsSavingMetadata(false);
     }
+  }
+
+  function discardMetadataChanges() {
+    setEditing({ ...metadataBaseline });
+    setMetadataSaveError("");
   }
 
   async function addTags() {
@@ -203,24 +246,6 @@ export default function DetailPanel({
 
       await reloadTagsAndSuggestions();
       notify?.(t("detail.notifications.tagsAdded"), "success");
-      refresh();
-    } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
-  async function addExistingTag() {
-    if (!selectedExistingTag) return;
-
-    const tag = allTags.find((row) => row.id === Number(selectedExistingTag));
-    if (!tag) return;
-
-    try {
-      await api.addTags(audio!.id, [tag.name], "user");
-      setSelectedExistingTag("");
-
-      await reloadTagsAndSuggestions();
-      notify?.(t("detail.notifications.existingTagAdded"), "success");
       refresh();
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
@@ -526,21 +551,12 @@ export default function DetailPanel({
 
   const aiDescription = aiSuggestions?.description || audio.description_ai;
   const aiTags = aiSuggestions?.tags || [];
-  const metadataDirty = [
-    "title_user",
-    "author_user",
-    "album_user",
-    "description_user",
-    "language",
-    "is_favorite"
-  ].some((key) => editing[key as keyof AudioItem] !== metadataBaseline[key as keyof AudioItem]);
-
   return (
     <aside
       className="inspector-panel"
       aria-label={t("detail.panelLabel")}
       onKeyDown={(event) => {
-        if (event.key === "Escape") {
+        if (event.key === "Escape" && !event.defaultPrevented) {
           event.stopPropagation();
           onClose();
         }
@@ -559,7 +575,17 @@ export default function DetailPanel({
 
       <Tabs
         className="inspector-tabs"
-        items={INSPECTOR_TABS.map((id) => ({ id, label: t(`detail.tabs.${id}`) }))}
+        items={INSPECTOR_TABS.map((id) => ({
+          id,
+          label: (
+            <span className="inspector-tab-label">
+              {t(`detail.tabs.${id}`)}
+              {id === "overview" && metadataDirty ? (
+                <span className="inspector-tab-dirty" aria-hidden="true" />
+              ) : null}
+            </span>
+          )
+        }))}
         activeId={activeTab}
         onChange={setActiveTab}
         ariaLabel={t("detail.tabsLabel")}
@@ -572,7 +598,22 @@ export default function DetailPanel({
         id={`inspector-panel-${activeTab}`}
         aria-labelledby={`inspector-tab-${activeTab}`}
       >
-        {activeTab === "overview" && (
+        {activeTab === "overview" && !metadataLoaded && (
+          <PanelCard title={t("common.technical.metadata")}>
+            {metadataLoadError ? (
+              <div className="detail-load-error" role="alert">
+                <p>{metadataLoadError}</p>
+                <Button variant="outlined" onClick={() => setDetailLoadAttempt((value) => value + 1)}>
+                  {t("common.actions.retry")}
+                </Button>
+              </div>
+            ) : (
+              <p className="muted" role="status">{t("detail.overview.loading")}</p>
+            )}
+          </PanelCard>
+        )}
+
+        {activeTab === "overview" && metadataLoaded && (
           <OverviewTab
             audio={audio}
             editing={editing}
@@ -581,10 +622,7 @@ export default function DetailPanel({
             availableExistingTags={availableExistingTags}
             tagInput={tagInput}
             onTagInputChange={setTagInput}
-            selectedExistingTag={selectedExistingTag}
-            onSelectedExistingTagChange={setSelectedExistingTag}
             onAddTags={addTags}
-            onAddExistingTag={addExistingTag}
             onRemoveTag={removeTag}
             playlists={playlists}
             selectedPlaylist={selectedPlaylist}
@@ -592,6 +630,8 @@ export default function DetailPanel({
             selectedPlaylistId={selectedPlaylistId}
             onAddToPlaylist={addToPlaylist}
             onExportPlaylist={exportPlaylist}
+            transcriptLanguage={transcript?.transcript.language}
+            isSaving={isSavingMetadata}
           />
         )}
 
@@ -636,12 +676,26 @@ export default function DetailPanel({
         )}
       </div>
 
-      {activeTab === "overview" && metadataDirty && (
+      {metadataDirty && (
         <div className="detail-save-bar" role="status">
-          <span>{t("detail.overview.unsavedChanges")}</span>
-          <Button variant="filled" onClick={save}>
-            {t("detail.overview.saveMetadata")}
-          </Button>
+          <div className="detail-save-message">
+            <span>{t("detail.overview.unsavedChanges")}</span>
+            {metadataSaveError ? <span role="alert">{metadataSaveError}</span> : null}
+          </div>
+          <div className="detail-save-actions">
+            <Button
+              variant="text"
+              onClick={discardMetadataChanges}
+              disabled={isSavingMetadata}
+            >
+              {t("detail.overview.discardChanges")}
+            </Button>
+            <Button variant="filled" onClick={save} disabled={isSavingMetadata}>
+              {isSavingMetadata
+                ? t("detail.overview.saving")
+                : t("detail.overview.saveMetadata")}
+            </Button>
+          </div>
         </div>
       )}
     </aside>

@@ -986,10 +986,10 @@
 
 .inspector-panel .tag button,
 .settings-panel .tag button {
-  min-width: 24px;
-  width: 24px;
-  height: 24px;
-  min-height: 24px;
+  min-width: 32px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
   padding: 0;
   color: currentColor;
   background: var(--md-state-current-pressed);

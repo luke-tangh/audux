@@ -18,6 +18,7 @@ type Props = {
   compactNavigation?: boolean;
   navigationOpen?: boolean;
   onCloseNavigation?: () => void;
+  onBeforeNavigate?: () => Promise<boolean>;
   view: ViewMode;
   setView: (v: ViewMode) => void;
   tags: Tag[];
@@ -100,15 +101,24 @@ export default function Sidebar(props: Props) {
       [section]: !current[section]
     }));
   }
-  function openView(view: ViewMode) {
-    props.onDeactivateSavedView();
-    props.setView(view);
-    props.setSelectedPlaylistId(null);
 
-    if (view !== "library") {
-      props.setSelectedTag(undefined);
-    }
+  async function navigate(action: () => void) {
+    if (props.onBeforeNavigate && !(await props.onBeforeNavigate())) return;
+
+    action();
     if (props.compactNavigation) props.onCloseNavigation?.();
+  }
+
+  function openView(view: ViewMode) {
+    void navigate(() => {
+      props.onDeactivateSavedView();
+      props.setView(view);
+      props.setSelectedPlaylistId(null);
+
+      if (view !== "library") {
+        props.setSelectedTag(undefined);
+      }
+    });
   }
 
   function navClass(active: boolean) {
@@ -166,13 +176,14 @@ export default function Sidebar(props: Props) {
           type="button"
           className={navClass(allAudioActive)}
           aria-current={allAudioActive ? "page" : undefined}
-          onClick={() => {
-            props.onDeactivateSavedView();
-            props.setView("library");
-            props.setSelectedTag(undefined);
-            props.setSelectedPlaylistId(null);
-            if (props.compactNavigation) props.onCloseNavigation?.();
-          }}
+          onClick={() =>
+            void navigate(() => {
+              props.onDeactivateSavedView();
+              props.setView("library");
+              props.setSelectedTag(undefined);
+              props.setSelectedPlaylistId(null);
+            })
+          }
         >
           <span className="nav-symbol"><MaterialIcon name="home" size={22} /></span>
           <span>
@@ -223,13 +234,14 @@ export default function Sidebar(props: Props) {
             type="button"
             className="sidebar-pill sidebar-filter-reset"
             aria-pressed={false}
-            onClick={() => {
-              props.onDeactivateSavedView();
-              props.setView("library");
-              props.setSelectedTag(undefined);
-              props.setSelectedPlaylistId(null);
-              if (props.compactNavigation) props.onCloseNavigation?.();
-            }}
+            onClick={() =>
+              void navigate(() => {
+                props.onDeactivateSavedView();
+                props.setView("library");
+                props.setSelectedTag(undefined);
+                props.setSelectedPlaylistId(null);
+              })
+            }
           >
             {t("navigation.allTags")}
           </Button>
@@ -244,13 +256,14 @@ export default function Sidebar(props: Props) {
               aria-pressed={
                 props.activeSavedViewId === null && props.selectedTag === tag.name
               }
-              onClick={() => {
-                props.onDeactivateSavedView();
-                props.setView("library");
-                props.setSelectedPlaylistId(null);
-                props.setSelectedTag(tag.name);
-                if (props.compactNavigation) props.onCloseNavigation?.();
-              }}
+              onClick={() =>
+                void navigate(() => {
+                  props.onDeactivateSavedView();
+                  props.setView("library");
+                  props.setSelectedPlaylistId(null);
+                  props.setSelectedTag(tag.name);
+                })
+              }
               title={t("navigation.viewTag", { name: tag.name })}
             >
               #{tag.name}
@@ -357,10 +370,7 @@ export default function Sidebar(props: Props) {
                   : "playlist-row"
               } ${playlist.kind === "smart" ? "smart-playlist-row" : "manual-playlist-row"}`}
               title={playlist.description || playlist.name}
-              onClick={() => {
-                props.onOpenPlaylist(playlist);
-                if (props.compactNavigation) props.onCloseNavigation?.();
-              }}
+              onClick={() => void navigate(() => props.onOpenPlaylist(playlist))}
             >
               <MaterialIcon
                 name={playlist.kind === "smart" ? "playlist_play" : "chevron_right"}
@@ -418,10 +428,7 @@ export default function Sidebar(props: Props) {
                   className="saved-view-row"
                   aria-current={active ? "page" : undefined}
                   title={savedView.query ? savedView.name : t("savedViews.definitionInvalid")}
-                  onClick={() => {
-                    props.onApplySavedView(savedView);
-                    if (props.compactNavigation) props.onCloseNavigation?.();
-                  }}
+                  onClick={() => void navigate(() => props.onApplySavedView(savedView))}
                 >
                   <MaterialIcon name={savedView.invalid_references.length ? "warning" : "menu_book"} size={18} />
                   <strong>{savedView.name}</strong>
@@ -488,13 +495,14 @@ export default function Sidebar(props: Props) {
           type="button"
           className={settingsActive ? "settings-nav active" : "settings-nav"}
           aria-current={settingsActive ? "page" : undefined}
-          onClick={() => {
-            props.onDeactivateSavedView();
-            props.setView("settings");
-            props.setSelectedTag(undefined);
-            props.setSelectedPlaylistId(null);
-            if (props.compactNavigation) props.onCloseNavigation?.();
-          }}
+          onClick={() =>
+            void navigate(() => {
+              props.onDeactivateSavedView();
+              props.setView("settings");
+              props.setSelectedTag(undefined);
+              props.setSelectedPlaylistId(null);
+            })
+          }
         >
           <MaterialIcon name="settings" size={20} />
           <strong>{t("navigation.settings")}</strong>

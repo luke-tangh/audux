@@ -987,8 +987,21 @@ test.describe("v0.5 management workflows", () => {
     await page.goto("/");
 
     await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
+    const inspector = page.locator(".inspector-panel");
+    await expect(page.getByRole("textbox", { name: "自定义标题" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "采用转写检测值 zh" })
+    ).toBeVisible();
+    await expect(inspector).toHaveScreenshot("metadata-overview-wide.png");
+
+    await page.setViewportSize({ width: 760, height: 800 });
+    await expect(inspector).toHaveScreenshot("metadata-overview-compact.png");
+    await page.setViewportSize({ width: 1280, height: 800 });
+
     await expect(page.getByText("有未保存的修改")).toHaveCount(0);
-    await page.getByRole("textbox", { name: "用户标题" }).fill("更新后的标题");
+    await page.getByRole("textbox", { name: "自定义标题" }).fill("更新后的标题");
+    await expect(page.getByText("有未保存的修改")).toBeVisible();
+    await page.getByRole("tab", { name: "AI" }).click();
     await expect(page.getByText("有未保存的修改")).toBeVisible();
     await page.getByRole("button", { name: "保存元数据" }).click();
     await expect(page.getByText("有未保存的修改")).toHaveCount(0);
@@ -998,6 +1011,35 @@ test.describe("v0.5 management workflows", () => {
       path: "/audio-items/1",
       body: expect.objectContaining({ title_user: "更新后的标题" })
     });
+  });
+
+  test("protects unsaved metadata when switching audio or closing details", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
+    const titleField = page.getByRole("textbox", { name: "自定义标题" });
+    await titleField.fill("尚未保存的标题");
+
+    await page.getByRole("listitem", { name: "音频：测试音频 2" }).click();
+    let dialog = page.getByRole("dialog", { name: "放弃未保存的元数据修改？" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "继续编辑" }).click();
+    await expect(titleField).toHaveValue("尚未保存的标题");
+
+    await page.getByRole("button", { name: /收藏.*常听内容/ }).click();
+    dialog = page.getByRole("dialog", { name: "放弃未保存的元数据修改？" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "继续编辑" }).click();
+    await expect(titleField).toHaveValue("尚未保存的标题");
+
+    await page.getByRole("button", { name: "收起详情" }).click();
+    dialog = page.getByRole("dialog", { name: "放弃未保存的元数据修改？" });
+    await dialog.getByRole("button", { name: "放弃修改" }).click();
+    await expect(page.locator(".inspector-panel")).toHaveCount(0);
   });
 
   test("saves, applies and explicitly updates a database-backed view", async ({

@@ -410,3 +410,19 @@
     grid-row: 1;
   }
 }
+
+@media (max-width: 420px) {
+  .inspector-panel .field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail-save-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .detail-save-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
