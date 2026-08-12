@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -369,6 +370,110 @@ async def test_long_audio_extracts_and_uploads_chunks_sequentially(
 
 
 @pytest.mark.anyio
+async def test_long_audio_limits_concurrency_and_preserves_chunk_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    source = tmp_path / "source.mp3"
+    source.write_bytes(b"audio")
+    active_uploads = 0
+    maximum_active_uploads = 0
+    started_uploads = 0
+    all_uploads_started = asyncio.Event()
+    completed_events = [asyncio.Event() for _ in range(3)]
+    completed_indexes: list[int] = []
+
+    monkeypatch.setattr(
+        external_asr_service,
+        "_require_ffmpeg",
+        lambda: ("ffmpeg", "ffprobe"),
+    )
+    monkeypatch.setattr(external_asr_service, "_probe_duration", _async_value(65))
+    monkeypatch.setattr(
+        external_asr_service,
+        "detect_silence_intervals",
+        _async_value([(27, 29)]),
+    )
+
+    async def fake_extract(ffmpeg, source_path, destination_path, chunk):
+        Path(destination_path).write_bytes(b"wav")
+
+    async def fake_transcribe(**kwargs):
+        nonlocal active_uploads, maximum_active_uploads, started_uploads
+        index = int(Path(kwargs["file_path"]).stem.rsplit("-", 1)[1])
+        active_uploads += 1
+        started_uploads += 1
+        maximum_active_uploads = max(maximum_active_uploads, active_uploads)
+        if started_uploads == 3:
+            all_uploads_started.set()
+        try:
+            await all_uploads_started.wait()
+            if index < 2:
+                await completed_events[index + 1].wait()
+            completed_indexes.append(index)
+            completed_events[index].set()
+            return {"full_text": f"part {index + 1}", "segments": []}
+        finally:
+            active_uploads -= 1
+
+    monkeypatch.setattr(external_asr_service, "_extract_chunk", fake_extract)
+    monkeypatch.setattr(external_asr_service, "transcribe_external_audio", fake_transcribe)
+
+    result = await _transcribe(source, chunk_concurrency=3)
+
+    assert maximum_active_uploads == 3
+    assert completed_indexes == [2, 1, 0]
+    assert result["full_text"] == "part 1\npart 2\npart 3"
+
+
+@pytest.mark.anyio
+async def test_chunk_failure_cancels_other_in_flight_uploads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    source = tmp_path / "source.mp3"
+    source.write_bytes(b"audio")
+    sibling_started = asyncio.Event()
+    sibling_canceled = asyncio.Event()
+
+    monkeypatch.setattr(
+        external_asr_service,
+        "_require_ffmpeg",
+        lambda: ("ffmpeg", "ffprobe"),
+    )
+    monkeypatch.setattr(external_asr_service, "_probe_duration", _async_value(65))
+    monkeypatch.setattr(
+        external_asr_service,
+        "detect_silence_intervals",
+        _async_value([]),
+    )
+
+    async def fake_extract(ffmpeg, source_path, destination_path, chunk):
+        Path(destination_path).write_bytes(b"wav")
+
+    async def fake_transcribe(**kwargs):
+        index = int(Path(kwargs["file_path"]).stem.rsplit("-", 1)[1])
+        if index == 0:
+            await sibling_started.wait()
+            raise RuntimeError("provider failed")
+        if index == 1:
+            sibling_started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                sibling_canceled.set()
+        return {"full_text": "unused", "segments": []}
+
+    monkeypatch.setattr(external_asr_service, "_extract_chunk", fake_extract)
+    monkeypatch.setattr(external_asr_service, "transcribe_external_audio", fake_transcribe)
+
+    with pytest.raises(RuntimeError, match="provider failed"):
+        await _transcribe(source, chunk_concurrency=2)
+
+    assert sibling_canceled.is_set()
+
+
+@pytest.mark.anyio
 async def test_cancellation_is_checked_before_ffprobe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -392,6 +497,7 @@ async def _transcribe(
     source: Path,
     *,
     timestamp_policy: str = "preferred",
+    chunk_concurrency: int = 1,
     is_canceled=lambda: False,
 ):
     return await transcribe_external_audio_chunked(
@@ -404,6 +510,7 @@ async def _transcribe(
         timeout=60,
         maximum_seconds=30,
         overlap_seconds=1,
+        chunk_concurrency=chunk_concurrency,
         prefer_silence=True,
         vad_threshold=0.5,
         minimum_silence_ms=400,

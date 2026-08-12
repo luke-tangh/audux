@@ -25,6 +25,7 @@ SUPPORTED_ASR_TIMESTAMP_POLICIES = {
 
 EXTERNAL_CHUNK_SECONDS_DEFAULT = 28.0
 EXTERNAL_CHUNK_OVERLAP_SECONDS_DEFAULT = 1.0
+EXTERNAL_CHUNK_CONCURRENCY_DEFAULT = 1
 EXTERNAL_VAD_THRESHOLD_DEFAULT = 0.5
 EXTERNAL_MINIMUM_SILENCE_MS_DEFAULT = 400
 # Public preset mirrored by frontend settingsUtils.ts. The formatter itself has
@@ -149,6 +150,20 @@ def normalize_asr_task_config(config: dict) -> dict:
                 "and less than half the chunk duration"
             )
 
+        try:
+            chunk_concurrency = int(
+                config.get("chunk_concurrency")
+                or EXTERNAL_CHUNK_CONCURRENCY_DEFAULT
+            )
+        except Exception as e:
+            raise ValueError(
+                "asr.external.chunk_concurrency must be an integer"
+            ) from e
+        if chunk_concurrency < 1 or chunk_concurrency > 4:
+            raise ValueError(
+                "asr.external.chunk_concurrency must be between 1 and 4"
+            )
+
         prefer_silence = _setting_truthy(config.get("prefer_silence", True))
         raw_vad_threshold = config.get("vad_threshold")
         vad_threshold = _finite_float(
@@ -198,6 +213,7 @@ def normalize_asr_task_config(config: dict) -> dict:
             "chunking_enabled": chunking_enabled,
             "chunk_seconds": chunk_seconds,
             "chunk_overlap_seconds": chunk_overlap_seconds,
+            "chunk_concurrency": chunk_concurrency,
             "prefer_silence": prefer_silence,
             "vad_threshold": vad_threshold,
             "minimum_silence_ms": minimum_silence_ms,
@@ -259,6 +275,11 @@ def build_asr_task_config(session: Session) -> dict:
                 session,
                 "asr.external.chunk_overlap_seconds",
                 str(EXTERNAL_CHUNK_OVERLAP_SECONDS_DEFAULT),
+            ),
+            "chunk_concurrency": _get_setting(
+                session,
+                "asr.external.chunk_concurrency",
+                str(EXTERNAL_CHUNK_CONCURRENCY_DEFAULT),
             ),
             "prefer_silence": _get_setting(
                 session,

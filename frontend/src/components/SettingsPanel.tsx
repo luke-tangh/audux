@@ -85,6 +85,8 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [asrExternalChunkSeconds, setAsrExternalChunkSeconds] = useState("28");
   const [asrExternalChunkOverlapSeconds, setAsrExternalChunkOverlapSeconds] =
     useState("1");
+  const [asrExternalChunkConcurrency, setAsrExternalChunkConcurrency] =
+    useState("1");
   const [asrExternalPreferSilence, setAsrExternalPreferSilence] = useState(true);
   const [asrExternalVadThreshold, setAsrExternalVadThreshold] = useState("0.5");
   const [asrExternalMinimumSilenceMs, setAsrExternalMinimumSilenceMs] =
@@ -293,6 +295,11 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       setAsrExternalChunkOverlapSeconds(
         settings.find(
           (setting) => setting.key === "asr.external.chunk_overlap_seconds"
+        )?.value || "1"
+      );
+      setAsrExternalChunkConcurrency(
+        settings.find(
+          (setting) => setting.key === "asr.external.chunk_concurrency"
         )?.value || "1"
       );
       setAsrExternalPreferSilence(
@@ -549,6 +556,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
     const chunkSeconds = Number(asrExternalChunkSeconds);
     const overlapSeconds = Number(asrExternalChunkOverlapSeconds);
+    const chunkConcurrency = Number(asrExternalChunkConcurrency);
     const vadThreshold = Number(asrExternalVadThreshold);
     const minimumSilenceMs = Number(asrExternalMinimumSilenceMs);
     if (
@@ -561,6 +569,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         overlapSeconds < 0 ||
         overlapSeconds > 10 ||
         overlapSeconds >= chunkSeconds / 2 ||
+        !Number.isInteger(chunkConcurrency) ||
+        chunkConcurrency < 1 ||
+        chunkConcurrency > 4 ||
         !Number.isFinite(vadThreshold) ||
         vadThreshold < 0.1 ||
         vadThreshold > 0.9 ||
@@ -629,6 +640,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.setSetting(
         "asr.external.chunk_overlap_seconds",
         asrExternalChunkOverlapSeconds.trim() || "1"
+      );
+      await api.setSetting(
+        "asr.external.chunk_concurrency",
+        asrExternalChunkConcurrency.trim() || "1"
       );
       await api.setSetting(
         "asr.external.prefer_silence",
@@ -1236,6 +1251,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             externalChunkingEnabled={asrExternalChunkingEnabled}
             externalChunkSeconds={asrExternalChunkSeconds}
             externalChunkOverlapSeconds={asrExternalChunkOverlapSeconds}
+            externalChunkConcurrency={asrExternalChunkConcurrency}
             externalPreferSilence={asrExternalPreferSilence}
             externalVadThreshold={asrExternalVadThreshold}
             externalMinimumSilenceMs={asrExternalMinimumSilenceMs}
@@ -1261,6 +1277,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onExternalChunkingEnabledChange={setAsrExternalChunkingEnabled}
             onExternalChunkSecondsChange={setAsrExternalChunkSeconds}
             onExternalChunkOverlapSecondsChange={setAsrExternalChunkOverlapSeconds}
+            onExternalChunkConcurrencyChange={setAsrExternalChunkConcurrency}
             onExternalPreferSilenceChange={setAsrExternalPreferSilence}
             onExternalVadThresholdChange={setAsrExternalVadThreshold}
             onExternalMinimumSilenceMsChange={setAsrExternalMinimumSilenceMs}

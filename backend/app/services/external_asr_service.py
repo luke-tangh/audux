@@ -574,6 +574,7 @@ async def transcribe_external_audio_chunked(
     timeout: int,
     maximum_seconds: float,
     overlap_seconds: float,
+    chunk_concurrency: int,
     prefer_silence: bool,
     vad_threshold: float,
     minimum_silence_ms: int,
@@ -581,6 +582,9 @@ async def transcribe_external_audio_chunked(
     case_glossary: str,
     is_canceled: Callable[[], bool],
 ) -> dict:
+    if chunk_concurrency < 1 or chunk_concurrency > 4:
+        raise ValueError("chunk_concurrency must be between 1 and 4")
+
     ffmpeg, ffprobe = _require_ffmpeg()
     if is_canceled():
         raise ExternalAsrCanceled()
@@ -617,7 +621,6 @@ async def transcribe_external_audio_chunked(
         else timestamp_policy
     )
 
-    results: list[dict] = []
     if len(chunks) == 1:
         if is_canceled():
             raise ExternalAsrCanceled()
@@ -638,12 +641,11 @@ async def transcribe_external_audio_chunked(
             case_glossary=case_glossary,
         )
 
-    with tempfile.TemporaryDirectory(prefix="local-audio-asr-chunks-") as tmp_dir:
-        for index, chunk in enumerate(chunks):
-            if is_canceled():
-                raise ExternalAsrCanceled()
-            chunk_path = str(Path(tmp_dir) / f"chunk-{index:05d}.wav")
-            await _extract_chunk(ffmpeg, file_path, chunk_path, chunk)
+    results: list[dict | None] = [None] * len(chunks)
+    upload_limit = asyncio.Semaphore(chunk_concurrency)
+
+    async def transcribe_chunk(index: int, chunk_path: str) -> None:
+        async with upload_limit:
             if is_canceled():
                 raise ExternalAsrCanceled()
             result = await transcribe_external_audio(
@@ -655,11 +657,38 @@ async def transcribe_external_audio_chunked(
                 timestamp_policy=request_timestamp_policy,
                 timeout=timeout,
             )
-            results.append(result)
+            if is_canceled():
+                raise ExternalAsrCanceled()
+            results[index] = result
+
+    with tempfile.TemporaryDirectory(prefix="local-audio-asr-chunks-") as tmp_dir:
+        upload_tasks: list[asyncio.Task[None]] = []
+        try:
+            for index, chunk in enumerate(chunks):
+                if is_canceled():
+                    raise ExternalAsrCanceled()
+                chunk_path = str(Path(tmp_dir) / f"chunk-{index:05d}.wav")
+                await _extract_chunk(ffmpeg, file_path, chunk_path, chunk)
+                if is_canceled():
+                    raise ExternalAsrCanceled()
+                upload_tasks.append(
+                    asyncio.create_task(transcribe_chunk(index, chunk_path))
+                )
+
+            await asyncio.gather(*upload_tasks)
+        except BaseException:
+            for task in upload_tasks:
+                task.cancel()
+            await asyncio.gather(*upload_tasks, return_exceptions=True)
+            raise
+
+    ordered_results = [result for result in results if result is not None]
+    if len(ordered_results) != len(chunks):
+        raise RuntimeError("External ASR chunk result is missing")
 
     return merge_chunk_results(
         chunks,
-        results,
+        ordered_results,
         timestamp_policy,
         formatting_enabled=formatting_enabled,
         case_glossary=case_glossary,

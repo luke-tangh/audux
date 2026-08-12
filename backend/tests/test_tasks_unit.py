@@ -150,6 +150,7 @@ class TestTaskStateTransitions(ApiIntegrationTest):
                 "asr.external.chunking_enabled": "true",
                 "asr.external.chunk_seconds": "28",
                 "asr.external.chunk_overlap_seconds": "1.5",
+                "asr.external.chunk_concurrency": "4",
                 "asr.external.prefer_silence": "true",
                 "asr.external.vad_threshold": "0.55",
                 "asr.external.minimum_silence_ms": "450",
@@ -198,6 +199,7 @@ class TestTaskStateTransitions(ApiIntegrationTest):
 
         assert captured["maximum_seconds"] == 28
         assert captured["overlap_seconds"] == 1.5
+        assert captured["chunk_concurrency"] == 4
         assert captured["prefer_silence"] is True
         assert captured["vad_threshold"] == 0.55
         assert captured["minimum_silence_ms"] == 450

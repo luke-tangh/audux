@@ -204,6 +204,7 @@ asr.external.allow_remote_endpoint = false
 asr.external.chunking_enabled = false
 asr.external.chunk_seconds = 28
 asr.external.chunk_overlap_seconds = 1
+asr.external.chunk_concurrency = 1
 asr.external.prefer_silence = true
 asr.external.vad_threshold = 0.5
 asr.external.minimum_silence_ms = 400
@@ -272,17 +273,19 @@ Silero VAD 模型和 CPU 版 ONNX Runtime 已整合进 backend sidecar，不需�
 安装 Torch、CUDA、ONNX Runtime 或下载 VAD 模型。FFmpeg 仍是音频解码和切片的系统
 依赖。
 
-启用后，后端会先用 ffprobe 读取时长，再按以下规则顺序上传 WAV 切片：
+启用后，后端会先用 ffprobe 读取时长，再按以下规则规划并上传 WAV 切片：
 
 - FFmpeg 流式输出 16 kHz 单声道 PCM，Silero VAD 以 512 samples/frame 检测语音，
   不会把完整长音频一次性载入内存。
 - 根据 VAD 的非语音区间，在每片最长时限的后半段优先选择切分点。
 - 没找到静音时按最长时限硬切，避免任何单片超过外部服务上限。
 - 相邻切片保留可配置重叠，并对完全重复的边界文本做保守去重。
+- 切片请求并发数默认为 `1`，可设置为 `1–4`。它应不超过模型服务的
+  `MAX_NUM_SEQS`；ARK-ASR 多路模式可设为 `4`，若 CUDA OOM 则先降为 `2`。
 - 外部服务的 segment 时间会加上切片起点后合并；若只返回文本且时间戳策略不是
   `off`，应用会使用切片起止时间生成粗粒度时间轴。
-- 切片逐个请求，显存压力可控且容易取消，但总耗时和 HTTP 请求次数会增加。VAD
-  也会额外完整流式读取一次长音频。
+- 切片按照配置的并发上限请求，结果仍按原切片顺序合并。并发会提高长音频吞吐，
+  也会增加显存和服务端调度压力。VAD 会额外完整流式读取一次长音频。
 
 Qwen3-ASR 建议由外部服务同时加载 `Qwen3-ForcedAligner-0.6B`，在服务端完成
 长音频切片、对齐及时间偏移合并，再返回上述结构。MiMo-V2.5-ASR 当前可以返回

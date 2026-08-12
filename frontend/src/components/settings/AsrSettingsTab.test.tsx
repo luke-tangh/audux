@@ -22,6 +22,7 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
     onExternalChunkingEnabledChange: vi.fn(),
     onExternalChunkSecondsChange: vi.fn(),
     onExternalChunkOverlapSecondsChange: vi.fn(),
+    onExternalChunkConcurrencyChange: vi.fn(),
     onExternalPreferSilenceChange: vi.fn(),
     onExternalVadThresholdChange: vi.fn(),
     onExternalMinimumSilenceMsChange: vi.fn(),
@@ -52,6 +53,7 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
         externalChunkingEnabled={chunkingEnabled}
         externalChunkSeconds="28"
         externalChunkOverlapSeconds="1"
+        externalChunkConcurrency="4"
         externalPreferSilence
         externalVadThreshold="0.5"
         externalMinimumSilenceMs="400"
@@ -95,11 +97,17 @@ describe("external ASR chunk settings", () => {
   });
 
   it("shows parameters and installation guidance when FFmpeg is missing", () => {
-    renderTab(true);
+    const callbacks = renderTab(true);
 
     expect(
       screen.getByLabelText(/单片最长秒数|Maximum chunk length/)
     ).toHaveValue("28");
+    const concurrency = screen.getByLabelText(
+      /切片请求并发数|Concurrent chunk requests/
+    );
+    expect(concurrency).toHaveValue("4");
+    fireEvent.change(concurrency, { target: { value: "2" } });
+    expect(callbacks.onExternalChunkConcurrencyChange).toHaveBeenCalledWith("2");
     expect(
       screen.getByText(/外部 ASR 预处理不可用|External ASR preprocessing is unavailable/)
     ).toBeInTheDocument();

@@ -574,6 +574,7 @@ async def handle_transcribe_task(task: TaskSnapshot):
                 timeout=asr_config["timeout"],
                 maximum_seconds=asr_config["chunk_seconds"],
                 overlap_seconds=asr_config["chunk_overlap_seconds"],
+                chunk_concurrency=asr_config["chunk_concurrency"],
                 prefer_silence=asr_config["prefer_silence"],
                 vad_threshold=asr_config["vad_threshold"],
                 minimum_silence_ms=asr_config["minimum_silence_ms"],

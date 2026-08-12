@@ -28,6 +28,7 @@ type AsrSettingsTabProps = {
   externalChunkingEnabled: boolean;
   externalChunkSeconds: string;
   externalChunkOverlapSeconds: string;
+  externalChunkConcurrency: string;
   externalPreferSilence: boolean;
   externalVadThreshold: string;
   externalMinimumSilenceMs: string;
@@ -51,6 +52,7 @@ type AsrSettingsTabProps = {
   onExternalChunkingEnabledChange: (value: boolean) => void;
   onExternalChunkSecondsChange: (value: string) => void;
   onExternalChunkOverlapSecondsChange: (value: string) => void;
+  onExternalChunkConcurrencyChange: (value: string) => void;
   onExternalPreferSilenceChange: (value: boolean) => void;
   onExternalVadThresholdChange: (value: string) => void;
   onExternalMinimumSilenceMsChange: (value: string) => void;
@@ -85,6 +87,7 @@ export default function AsrSettingsTab({
   externalChunkingEnabled,
   externalChunkSeconds,
   externalChunkOverlapSeconds,
+  externalChunkConcurrency,
   externalPreferSilence,
   externalVadThreshold,
   externalMinimumSilenceMs,
@@ -108,6 +111,7 @@ export default function AsrSettingsTab({
   onExternalChunkingEnabledChange,
   onExternalChunkSecondsChange,
   onExternalChunkOverlapSecondsChange,
+  onExternalChunkConcurrencyChange,
   onExternalPreferSilenceChange,
   onExternalVadThresholdChange,
   onExternalMinimumSilenceMsChange,
@@ -410,6 +414,15 @@ export default function AsrSettingsTab({
                   value={externalChunkOverlapSeconds}
                   placeholder="1"
                   onValueChange={onExternalChunkOverlapSecondsChange}
+                />
+
+                <TextField
+                  label={t("settings.asr.chunkConcurrency")}
+                  helperText={t("settings.asr.chunkConcurrencyDescription")}
+                  inputMode="numeric"
+                  value={externalChunkConcurrency}
+                  placeholder="1"
+                  onValueChange={onExternalChunkConcurrencyChange}
                 />
 
                 <CheckboxField

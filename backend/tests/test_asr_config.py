@@ -53,6 +53,7 @@ class TestASRConfig:
         assert config["chunking_enabled"] is False
         assert config["chunk_seconds"] == 28
         assert config["chunk_overlap_seconds"] == 1
+        assert config["chunk_concurrency"] == 1
         assert config["prefer_silence"] is True
         assert config["vad_threshold"] == 0.5
         assert config["minimum_silence_ms"] == 400
@@ -68,6 +69,7 @@ class TestASRConfig:
                 "chunking_enabled": "true",
                 "chunk_seconds": "25",
                 "chunk_overlap_seconds": "1.5",
+                "chunk_concurrency": "4",
                 "prefer_silence": "false",
                 "vad_threshold": "0.65",
                 "minimum_silence_ms": "650",
@@ -79,6 +81,7 @@ class TestASRConfig:
         assert config["chunking_enabled"] is True
         assert config["chunk_seconds"] == 25
         assert config["chunk_overlap_seconds"] == 1.5
+        assert config["chunk_concurrency"] == 4
         assert config["prefer_silence"] is False
         assert config["vad_threshold"] == 0.65
         assert config["minimum_silence_ms"] == 650
@@ -127,6 +130,7 @@ class TestASRConfig:
         [
             ("chunk_seconds", "4", "chunk_seconds"),
             ("chunk_overlap_seconds", "15", "chunk_overlap_seconds"),
+            ("chunk_concurrency", "5", "chunk_concurrency"),
             ("vad_threshold", "0.95", "vad_threshold"),
             ("minimum_silence_ms", "99", "minimum_silence_ms"),
         ],
@@ -221,6 +225,7 @@ class TestASRConfig:
             "asr.external.chunking_enabled": "true",
             "asr.external.chunk_seconds": "26",
             "asr.external.chunk_overlap_seconds": "2",
+            "asr.external.chunk_concurrency": "4",
             "asr.external.prefer_silence": "true",
             "asr.external.vad_threshold": "0.6",
             "asr.external.minimum_silence_ms": "500",
@@ -246,6 +251,7 @@ class TestASRConfig:
         assert resolved["chunking_enabled"] is True
         assert resolved["chunk_seconds"] == 26
         assert resolved["chunk_overlap_seconds"] == 2
+        assert resolved["chunk_concurrency"] == 4
         assert resolved["prefer_silence"] is True
         assert resolved["vad_threshold"] == 0.6
         assert resolved["formatting_enabled"] is True
