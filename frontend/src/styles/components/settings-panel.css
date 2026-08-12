@@ -136,13 +136,6 @@
   line-height: 1.45;
 }
 
-.settings-panel .health-safety-note {
-  padding: 12px 14px;
-  border-radius: var(--md-sys-shape-corner-medium);
-  color: var(--md-sys-color-on-success-container);
-  background: var(--md-sys-color-success-container);
-}
-
 .settings-panel .health-hash-result {
   margin-top: 8px;
   padding: 10px 12px;

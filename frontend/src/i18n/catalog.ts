@@ -50,7 +50,6 @@ export const messages = {
   "settings.health.summary": ["资料库健康摘要", "Library health summary"],
   "settings.health.checkNow": ["立即检查", "Check now"],
   "settings.health.loading": ["正在载入健康状态…", "Loading health status…"],
-  "settings.health.nonDestructive": ["安全原则：健康检查与重新关联不会删除磁盘文件或数据库记录。", "Safety: health checks and relinking never delete files or database records."],
   "settings.health.generatedAt": ["上次完整检查：{{time}}", "Last full check: {{time}}"],
   "settings.health.metric.available": ["可用", "Available"],
   "settings.health.metric.missing": ["缺失", "Missing"],

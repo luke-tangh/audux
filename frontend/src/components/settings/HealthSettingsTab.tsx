@@ -80,7 +80,6 @@ export default function HealthSettingsTab({
             </div>
           ))}
         </div>
-        <p className="health-safety-note">{t("settings.health.nonDestructive")}</p>
         {summary?.generated_at && (
           <p className="muted">
             {t("settings.health.generatedAt", {

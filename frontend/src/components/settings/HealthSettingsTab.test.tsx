@@ -80,7 +80,7 @@ const summary: LibraryHealthSummary = {
 };
 
 describe("library health settings", () => {
-  it("shows non-destructive health data and exposes explicit repair actions", () => {
+  it("shows health data and exposes explicit repair actions", () => {
     const callbacks = {
       onRefresh: vi.fn(),
       onStartCheck: vi.fn(),
@@ -116,7 +116,7 @@ describe("library health settings", () => {
       </LocaleProvider>
     );
 
-    expect(screen.getByText(/不会删除磁盘文件|never delete files/)).toBeInTheDocument();
+    expect(screen.queryByText(/安全原则|Safety:/)).not.toBeInTheDocument();
     expect(screen.getByText("/library/old.mp3")).toBeInTheDocument();
     expect(screen.getByText("/library/new.mp3")).toBeInTheDocument();
     expect(screen.getByText(/确认 1 组|Confirmed 1 group/)).toBeInTheDocument();
