@@ -13,7 +13,6 @@ type PlaybackControlsProps = {
   onPrevious: () => void;
   onNext: () => void;
   onToggle: () => void;
-  onStop: () => void;
   onSeek: (value: number) => void;
 };
 
@@ -28,7 +27,6 @@ export default function PlaybackControls({
   onPrevious,
   onNext,
   onToggle,
-  onStop,
   onSeek
 }: PlaybackControlsProps) {
   const { t } = useTranslation();
@@ -83,17 +81,6 @@ export default function PlaybackControls({
           <MaterialIcon name="skip_next" size={24} />
         </Button>
 
-        <Button
-          preserveChildren
-          type="button"
-          className="icon-button player-stop-button"
-          onClick={onStop}
-          disabled={!hasAudio}
-          aria-label={t("player.stopLabel")}
-          title={t("player.stopTitle")}
-        >
-          <MaterialIcon name="stop" size={20} />
-        </Button>
       </div>
 
       <div className="player-progress">

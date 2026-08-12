@@ -234,8 +234,8 @@ test.describe("playback queue session", () => {
     ).toContainText("测试音频 2");
 
     state.unavailableIds.add(2);
-    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
-    await page.getByRole("option", { name: "已有转写文本" }).click();
+    await page.getByRole("combobox", { name: "按音频处理状态筛选" }).click();
+    await page.getByRole("option", { name: "转写 · 已完成" }).click();
     await expect(page.getByText("播放队列已更新，并移除 1 个不可用项目。")).toBeVisible();
     await page.getByRole("button", { name: "打开播放队列" }).click();
     await expect(page.locator("#player-queue-popover .queue-title")).toHaveText([
@@ -271,7 +271,7 @@ test.describe("playback queue session", () => {
     await expect(page.getByRole("button", { name: "加入队列", exact: true })).toBeVisible();
   });
 
-  test("stops without clearing and clears only after confirmation", async ({ page }) => {
+  test("clears the queue only after confirmation without exposing reset", async ({ page }) => {
     const state: MockPlaybackState = {
       playCountRequests: 0,
       savedPositions: [],
@@ -291,12 +291,8 @@ test.describe("playback queue session", () => {
     await page.goto("/");
 
     await expect(page.locator(".player-now-card strong")).toHaveText("测试音频 1");
-    await page.getByRole("button", { name: "停止播放并回到开头" }).click();
-
-    await expect.poll(() => state.savedPositions).toContainEqual({
-      audioId: 1,
-      position: 0
-    });
+    await expect(page.getByRole("button", { name: /停止播放并回到开头/ }))
+      .toHaveCount(0);
     await expect.poll(() => storedSession(page)).toMatchObject({
       audio_ids: [1, 2],
       current_audio_id: 1
@@ -306,7 +302,7 @@ test.describe("playback queue session", () => {
     await page.getByRole("button", { name: "打开播放队列" }).click();
     await page.getByRole("button", { name: "清空播放队列" }).click();
     const dialog = page.getByRole("dialog", { name: "清空播放队列？" });
-    await expect(dialog).toContainText("若只想停止当前音频");
+    await expect(dialog).toContainText("若只想暂时停止播放");
     await dialog.getByRole("button", { name: "清空队列" }).click();
 
     await expect(page.getByRole("button", { name: "打开播放队列" })).toHaveCount(0);

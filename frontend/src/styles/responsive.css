@@ -10,7 +10,7 @@
   }
 
   .player-dock {
-    grid-template-columns: minmax(220px, 280px) minmax(280px, 1fr) minmax(360px, 380px);
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 2fr) minmax(0, 1fr);
   }
 }
 
@@ -38,7 +38,7 @@
   }
 
   .player-dock {
-    grid-template-columns: minmax(190px, 240px) minmax(270px, 1fr) minmax(360px, 370px);
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 2fr) minmax(0, 1fr);
     gap: 10px;
   }
 
@@ -165,7 +165,7 @@
   }
 
   .player-dock {
-    grid-template-columns: minmax(180px, 220px) minmax(280px, 1fr) minmax(300px, 312px);
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 2fr) minmax(0, 1fr);
     gap: 8px;
     height: auto;
     min-height: var(--player-height);
@@ -175,30 +175,7 @@
   .player-options {
     grid-column: auto;
     flex-wrap: nowrap;
-    gap: 6px;
-  }
-
-  .player-options .ui-select-field {
-    --ui-select-width: 88px !important;
-    --ui-select-min-width: 84px !important;
-    --ui-select-max-width: 88px !important;
-  }
-
-  .player-volume-control {
-    flex-basis: 110px;
-    width: 110px;
-    min-width: 106px;
-    max-width: 110px;
-  }
-
-  .player-volume-control input[type="range"] {
-    min-width: 56px;
-  }
-
-  .player-options .queue-control {
-    flex: 0 1 86px;
-    min-width: 82px;
-    max-width: 90px;
+    gap: 4px;
   }
 
   .player-now-card {
@@ -241,60 +218,148 @@
 }
 
 @media (max-width: 860px) {
-  :root {
-    --app-sidebar-width: 204px;
-  }
-
   .main-shell,
-  .main-shell.settings-mode {
-    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
+  .main-shell.settings-mode,
+  .main-shell.inspector-closed {
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     padding: 8px;
   }
 
+  .main-shell > .sidebar {
+    position: absolute;
+    inset: 8px auto 8px 8px;
+    z-index: 45;
+    width: min(320px, calc(100% - 32px));
+    transform: translateX(calc(-100% - 20px));
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: var(--md-sys-elevation-4);
+    transition:
+      transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized),
+      opacity var(--transition);
+  }
+
+  .main-shell > .sidebar.navigation-open {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sidebar-drawer-close.ui-icon-button {
+    display: inline-grid;
+    flex: 0 0 auto;
+  }
+
+  .app-navigation-toggle.ui-icon-button {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 34;
+    display: inline-grid;
+    color: var(--md-sys-color-on-surface-variant);
+    background: var(--md-sys-color-surface-container-high);
+    box-shadow: var(--md-sys-elevation-1);
+  }
+
+  .navigation-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 44;
+    display: block;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 38%, transparent);
+  }
+
+  .navigation-scrim:hover,
+  .navigation-scrim:active {
+    transform: none;
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 38%, transparent);
+  }
+
+  .workspace,
+  .main-shell.settings-mode .workspace {
+    grid-column: 1;
+  }
+
+  .top-command-bar {
+    padding-left: 64px;
+  }
+
+  .settings-panel .settings-header {
+    padding-left: 52px;
+  }
+
+  .inspector-panel {
+    width: min(420px, calc(100% - 16px));
+  }
+
   .player-dock {
-    grid-template-columns: minmax(160px, 180px) minmax(250px, 1fr) minmax(292px, 300px);
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 2fr) minmax(0, 1fr);
     gap: 6px;
     padding-inline: 6px;
   }
 
-  .nav-card {
-    grid-template-columns: 32px minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .nav-symbol {
-    width: 32px;
-    height: 32px;
-  }
-
-  .nav-card strong {
-    font-size: 13px;
-  }
-
   .audio-row,
   .density-comfortable .audio-row {
-    grid-template-columns: 50px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .audio-row.selection-mode,
   .density-comfortable .audio-row.selection-mode {
-    grid-template-columns: 32px 50px minmax(0, 1fr);
+    grid-template-columns: 32px minmax(0, 1fr);
   }
 
   .audio-row .row-status {
-    grid-column: 2;
+    grid-column: 1;
+    grid-row: 2;
     display: flex;
     flex-wrap: wrap;
+    margin-left: 62px;
   }
 
   .audio-row .row-actions {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1 / span 2;
   }
 
+  .row-play-button.ui-button {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .row-play-button .ui-button-label {
+    display: none;
+  }
+
   .audio-row.selection-mode .row-status {
-    grid-column: 3;
+    grid-column: 2;
+    grid-row: 2;
+    margin-left: 62px;
+  }
+
+  .audio-row.selection-mode .audio-row-primary {
+    grid-column: 2;
+  }
+
+  .audio-row.selection-mode .batch-row-checkbox {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .density-comfortable .audio-row .row-status {
+    margin-left: 74px;
+  }
+
+  .density-comfortable .audio-row-search-hits {
+    margin-left: 74px;
+  }
+
+  .list-column-header {
+    display: none;
   }
 
   .description-line {
@@ -310,10 +375,6 @@
 }
 
 @media (max-width: 720px) {
-  :root {
-    --app-sidebar-width: 188px;
-  }
-
   .brand-copy p,
   .nav-card em {
     display: none;
@@ -334,7 +395,7 @@
   }
 
   .player-dock:not(.empty) {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, auto);
+    grid-template-columns: minmax(0, 1fr) minmax(184px, auto);
     grid-template-rows: auto auto;
     min-height: 148px;
   }

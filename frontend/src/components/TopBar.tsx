@@ -1,9 +1,10 @@
 import {
-  ActionMenu,
   Button,
+  MaterialIcon,
   SearchField,
   SelectField
 } from "./ui";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SortMode } from "../hooks/library/types";
 
@@ -39,9 +40,6 @@ type Props = {
   canSaveView: boolean;
   onSaveView: () => void;
   onUpdateSavedView: () => void;
-
-  onBatchTranscribe: () => void;
-  onBatchAnalyze: () => void;
 };
 
 export default function TopBar({
@@ -66,19 +64,17 @@ export default function TopBar({
   savedViewDirty,
   canSaveView,
   onSaveView,
-  onUpdateSavedView,
-  onBatchTranscribe,
-  onBatchAnalyze
+  onUpdateSavedView
 }: Props) {
   const { t } = useTranslation();
-  const hasItems = totalCount > 0;
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const fileFilterOptions = [
-    { value: "all", label: t("topbar.fileAll") },
-    { value: "available", label: t("topbar.fileAvailable") },
-    { value: "missing", label: t("topbar.fileMissing") },
-    { value: "transcriptYes", label: t("topbar.transcriptYes") },
-    { value: "transcriptNo", label: t("topbar.transcriptNo") },
-    { value: "aiFailed", label: t("topbar.fileAiFailed") }
+    { value: "all", label: t("topbar.statusAll") },
+    { value: "available", label: t("topbar.statusFileAvailable") },
+    { value: "missing", label: t("topbar.statusFileMissing") },
+    { value: "transcriptYes", label: t("topbar.statusTranscriptYes") },
+    { value: "transcriptNo", label: t("topbar.statusTranscriptNo") },
+    { value: "aiFailed", label: t("topbar.statusAiFailed") }
   ];
   const sortOptions = [
     { value: "default", label: t("topbar.sortDefault") },
@@ -97,6 +93,15 @@ export default function TopBar({
       : hasTranscriptFilter === "no"
         ? "transcriptNo"
         : missingFilter;
+  const statusLabel = fileFilterOptions.find(
+    (option) => option.value === libraryFileFilter
+  )?.label;
+  const sortLabel = sortOptions.find((option) => option.value === sortMode)?.label;
+  const visibleFilterCount = [
+    q.trim() ? "search" : "",
+    libraryFileFilter !== "all" ? "status" : "",
+    sortMode !== "default" ? "sort" : ""
+  ].filter(Boolean).length || (hasActiveFilter ? 1 : 0);
 
   function setLibraryFileFilter(value: LibraryFileFilter) {
     if (value === "transcriptYes" || value === "transcriptNo") {
@@ -143,7 +148,24 @@ export default function TopBar({
           />
         </div>
 
-        <div className="top-toolbar-controls">
+        <Button
+          variant="outlined"
+          className="top-filter-toggle"
+          aria-expanded={filtersExpanded}
+          aria-controls="library-filter-controls"
+          leadingIcon={<MaterialIcon name="filter_list" size={18} />}
+          trailingIcon={
+            <MaterialIcon name={filtersExpanded ? "expand_less" : "expand_more"} size={18} />
+          }
+          onClick={() => setFiltersExpanded((current) => !current)}
+        >
+          {t("topbar.filtersAndSort", { count: visibleFilterCount })}
+        </Button>
+
+        <div
+          id="library-filter-controls"
+          className={`top-toolbar-controls ${filtersExpanded ? "expanded" : ""}`.trim()}
+        >
           <div
             className="filter-group top-filter-controls"
             role="group"
@@ -156,11 +178,11 @@ export default function TopBar({
               controlWidth="100%"
               controlMinWidth={0}
               controlHeight={42}
-              label={t("topbar.file")}
+              label={t("topbar.status")}
               value={libraryFileFilter}
               options={fileFilterOptions}
-              aria-label={t("topbar.fileFilter")}
-              title={t("topbar.fileFilter")}
+              aria-label={t("topbar.statusFilter")}
+              title={t("topbar.statusFilter")}
               disabled={queryLocked}
               onValueChange={(value) =>
                 setLibraryFileFilter(value as LibraryFileFilter)
@@ -189,29 +211,6 @@ export default function TopBar({
             role="group"
             aria-label={t("topbar.quickActions")}
           >
-            <ActionMenu
-              className="top-batch-menu"
-              variant="tonal"
-              label={t("topbar.processResults", { count: totalCount })}
-              buttonText={t("topbar.processResultsShort", { count: totalCount })}
-              buttonIcon="auto_awesome"
-              disabled={!hasItems || queryLocked}
-              items={[
-                {
-                  id: "transcribe",
-                  label: t("topbar.transcribeResults", { count: totalCount }),
-                  icon: "subtitles",
-                  onSelect: onBatchTranscribe
-                },
-                {
-                  id: "analyze",
-                  label: t("topbar.analyzeResults", { count: totalCount }),
-                  icon: "auto_awesome",
-                  onSelect: onBatchAnalyze
-                }
-              ]}
-            />
-
             {hasActiveFilter && !activeSavedViewName && (
               <Button
                 variant="outlined"
@@ -254,6 +253,57 @@ export default function TopBar({
           </div>
         </div>
       </div>
+
+      {(q.trim() || libraryFileFilter !== "all" || sortMode !== "default" || activeSavedViewName) && (
+        <div className="active-filter-chips" aria-label={t("topbar.activeFilters")}>
+          {activeSavedViewName && (
+            <span className="active-filter-chip saved-view-chip">
+              <MaterialIcon name="menu_book" size={16} />
+              {activeSavedViewName}
+            </span>
+          )}
+          {q.trim() && (
+            <Button
+              preserveChildren
+              size="sm"
+              className="active-filter-chip"
+              aria-label={t("topbar.removeSearchFilter", { value: q.trim() })}
+              disabled={queryLocked}
+              onClick={() => setQ("")}
+            >
+              <MaterialIcon name="search" size={16} />
+              <span>{q.trim()}</span>
+              <MaterialIcon name="close" size={15} />
+            </Button>
+          )}
+          {libraryFileFilter !== "all" && (
+            <Button
+              preserveChildren
+              size="sm"
+              className="active-filter-chip"
+              aria-label={t("topbar.removeStatusFilter", { value: statusLabel })}
+              disabled={queryLocked}
+              onClick={() => setLibraryFileFilter("all")}
+            >
+              <span>{statusLabel}</span>
+              <MaterialIcon name="close" size={15} />
+            </Button>
+          )}
+          {sortMode !== "default" && (
+            <Button
+              preserveChildren
+              size="sm"
+              className="active-filter-chip"
+              aria-label={t("topbar.removeSort", { value: sortLabel })}
+              disabled={queryLocked}
+              onClick={() => setSortMode("default")}
+            >
+              <span>{sortLabel}</span>
+              <MaterialIcon name="close" size={15} />
+            </Button>
+          )}
+        </div>
+      )}
     </header>
   );
 }

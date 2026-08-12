@@ -213,16 +213,6 @@ export function usePlayerController({
     setCurrent(value);
   }
 
-  function stop() {
-    const el = audioRef.current;
-    if (!el || !audio) return;
-
-    el.pause();
-    el.currentTime = 0;
-    setCurrent(0);
-    void savePositionFor(audio.id, 0).catch(console.error);
-  }
-
   async function handleEnded() {
     if (audio) {
       endedAudioIdRef.current = audio.id;
@@ -256,7 +246,6 @@ export function usePlayerController({
     setVolume,
     setQueueOpen,
     toggle,
-    stop,
     seek,
     handleEnded,
     handleAudioPause,

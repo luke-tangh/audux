@@ -16,7 +16,6 @@ function renderControls(overrides: Partial<Parameters<typeof PlaybackControls>[0
     onPrevious: vi.fn(),
     onNext: vi.fn(),
     onToggle: vi.fn(),
-    onStop: vi.fn(),
     onSeek: vi.fn(),
     ...overrides
   };
@@ -31,8 +30,8 @@ function renderControls(overrides: Partial<Parameters<typeof PlaybackControls>[0
 }
 
 describe("PlaybackControls", () => {
-  it("groups the primary controls in a familiar order and demotes stop", () => {
-    const props = renderControls();
+  it("keeps play between the previous and next controls without a reset action", () => {
+    renderControls();
     const group = screen.getByRole("group", {
       name: /播放器控制|Player controls/
     });
@@ -41,13 +40,10 @@ describe("PlaybackControls", () => {
     expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
       expect.stringMatching(/上一条|previous/i),
       expect.stringMatching(/开始播放|start playback/i),
-      expect.stringMatching(/下一条|next/i),
-      expect.stringMatching(/停止播放|stop playback/i)
+      expect.stringMatching(/下一条|next/i)
     ]);
-    expect(buttons[3]).toHaveClass("player-stop-button");
-
-    fireEvent.click(buttons[3]);
-    expect(props.onStop).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: /停止播放|stop playback/i }))
+      .not.toBeInTheDocument();
   });
 
   it("gives the seek slider an accessible time value", () => {

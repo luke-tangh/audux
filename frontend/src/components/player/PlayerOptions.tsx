@@ -1,13 +1,14 @@
-import { useEffect, useRef } from "react";
-import type { AudioItem } from "../../types";
-import { Button, MaterialIcon, SelectField } from "../ui";
-import QueuePopover from "./QueuePopover";
+import { useEffect, useRef, useState } from "react";
+import type { FocusEvent, KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
-const PLAYBACK_RATE_OPTIONS = [0.75, 1, 1.25, 1.5, 2].map((value) => ({
-  value: String(value),
-  label: `${value}x`
-}));
+import type { AudioItem } from "../../types";
+import { Button, MaterialIcon } from "../ui";
+import QueuePopover from "./QueuePopover";
+
+const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2] as const;
+
+type OpenOption = "speed" | "volume" | null;
 
 type PlayerOptionsProps = {
   rate: number;
@@ -39,6 +40,13 @@ export default function PlayerOptions({
   onQueueClear
 }: PlayerOptionsProps) {
   const { t } = useTranslation();
+  const [openOption, setOpenOption] = useState<OpenOption>(null);
+  const speedControlRef = useRef<HTMLDivElement | null>(null);
+  const speedToggleRef = useRef<HTMLButtonElement | null>(null);
+  const speedOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const volumeControlRef = useRef<HTMLDivElement | null>(null);
+  const volumeToggleRef = useRef<HTMLButtonElement | null>(null);
+  const volumeSliderRef = useRef<HTMLInputElement | null>(null);
   const queueToggleRef = useRef<HTMLButtonElement | null>(null);
   const previousVolumeRef = useRef(volume > 0 ? volume : 1);
   const volumeIcon =
@@ -48,13 +56,86 @@ export default function PlayerOptions({
     if (volume > 0) previousVolumeRef.current = volume;
   }, [volume]);
 
+  useEffect(() => {
+    if (!openOption) return;
+
+    const focusTarget = openOption === "speed"
+      ? speedOptionRefs.current[
+          Math.max(0, PLAYBACK_RATES.findIndex((value) => value === rate))
+        ]
+      : volumeSliderRef.current;
+    window.requestAnimationFrame(() => focusTarget?.focus());
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (speedControlRef.current?.contains(target)) return;
+      if (volumeControlRef.current?.contains(target)) return;
+      setOpenOption(null);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () => document.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [openOption, rate]);
+
+  useEffect(() => {
+    if (queueOpen) setOpenOption(null);
+  }, [queueOpen]);
+
+  function closeOption(restoreFocus = false) {
+    const option = openOption;
+    setOpenOption(null);
+
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => {
+        if (option === "speed") speedToggleRef.current?.focus();
+        if (option === "volume") volumeToggleRef.current?.focus();
+      });
+    }
+  }
+
+  function toggleOption(option: Exclude<OpenOption, null>) {
+    onQueueOpenChange(false);
+    setOpenOption((current) => current === option ? null : option);
+  }
+
+  function handlePopoverKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeOption(true);
+  }
+
+  function handleOptionBlur(
+    option: Exclude<OpenOption, null>,
+    event: FocusEvent<HTMLDivElement>
+  ) {
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+    if (openOption === option) setOpenOption(null);
+  }
+
+  function handleSpeedKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    handlePopoverKeyDown(event);
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      return;
+    }
+
+    event.preventDefault();
+    const currentIndex = speedOptionRefs.current.findIndex(
+      (element) => element === document.activeElement
+    );
+    const direction = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1;
+    const nextIndex =
+      (Math.max(0, currentIndex) + direction + PLAYBACK_RATES.length) %
+      PLAYBACK_RATES.length;
+    speedOptionRefs.current[nextIndex]?.focus();
+  }
+
   function closeQueue(restoreFocus = false) {
     onQueueOpenChange(false);
 
     if (restoreFocus) {
-      window.requestAnimationFrame(() => {
-        queueToggleRef.current?.focus();
-      });
+      window.requestAnimationFrame(() => queueToggleRef.current?.focus());
     }
   }
 
@@ -64,56 +145,138 @@ export default function PlayerOptions({
   }
 
   useEffect(() => {
-    if (queueOpen && queue.length === 0) {
-      closeQueue(true);
-    }
+    if (queueOpen && queue.length === 0) closeQueue(true);
   }, [queue.length, queueOpen]);
 
   return (
     <div className="player-options">
-      <SelectField
-        density="compact"
-        controlSize="mini"
-        controlWidth={118}
-        controlMinWidth={112}
-        controlMaxWidth={132}
-        controlRadius="var(--md-sys-shape-corner-full)"
-        menuWidth="control"
-        menuMinWidth={118}
-        label={t("player.speed")}
-        value={String(rate)}
-        options={PLAYBACK_RATE_OPTIONS}
-        aria-label={t("player.playbackSpeed")}
-        title={t("player.playbackSpeed")}
-        onValueChange={(value) => onRateChange(Number(value))}
-      />
-
-      <div className="player-volume-control">
+      <div
+        ref={speedControlRef}
+        className="player-option-control"
+        onBlur={(event) => handleOptionBlur("speed", event)}
+      >
         <Button
+          ref={speedToggleRef}
           preserveChildren
           type="button"
-          className="player-volume-toggle"
-          aria-label={volume === 0 ? t("player.unmute") : t("player.mute")}
-          title={volume === 0 ? t("player.unmute") : t("player.mute")}
-          onClick={() =>
-            onVolumeChange(volume === 0 ? previousVolumeRef.current : 0)
+          className="player-option-trigger player-speed-toggle"
+          aria-label={
+            openOption === "speed"
+              ? t("player.closeSpeedControl")
+              : t("player.openSpeedControl")
           }
+          aria-haspopup="dialog"
+          aria-expanded={openOption === "speed"}
+          aria-controls={openOption === "speed" ? "player-speed-popover" : undefined}
+          title={t("player.playbackSpeed")}
+          onClick={() => toggleOption("speed")}
+        >
+          <MaterialIcon name="speed" size={18} />
+          <span>{rate}x</span>
+        </Button>
+
+        {openOption === "speed" && (
+          <div
+            id="player-speed-popover"
+            className="player-option-popover player-speed-popover"
+            role="dialog"
+            aria-label={t("player.playbackSpeed")}
+            onKeyDown={handleSpeedKeyDown}
+          >
+            <strong>{t("player.playbackSpeed")}</strong>
+            <div
+              className="player-speed-options"
+              role="radiogroup"
+              aria-label={t("player.playbackSpeed")}
+            >
+              {PLAYBACK_RATES.map((value, index) => (
+                <button
+                  key={value}
+                  ref={(element) => {
+                    speedOptionRefs.current[index] = element;
+                  }}
+                  type="button"
+                  role="radio"
+                  aria-checked={rate === value}
+                  className={rate === value ? "selected" : ""}
+                  onClick={() => {
+                    onRateChange(value);
+                    closeOption(true);
+                  }}
+                >
+                  {value}x
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div
+        ref={volumeControlRef}
+        className="player-option-control"
+        onBlur={(event) => handleOptionBlur("volume", event)}
+      >
+        <Button
+          ref={volumeToggleRef}
+          preserveChildren
+          type="button"
+          className="player-option-trigger player-volume-toggle"
+          aria-label={
+            openOption === "volume"
+              ? t("player.closeVolumeControl")
+              : t("player.openVolumeControl")
+          }
+          aria-haspopup="dialog"
+          aria-expanded={openOption === "volume"}
+          aria-controls={openOption === "volume" ? "player-volume-popover" : undefined}
+          title={t("player.volume")}
+          onClick={() => toggleOption("volume")}
         >
           <MaterialIcon name={volumeIcon} size={18} />
         </Button>
 
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={volume}
-          aria-label={t("player.volume")}
-          aria-valuetext={t("player.volumeValue", {
-            value: Math.round(volume * 100)
-          })}
-          onChange={(e) => onVolumeChange(Number(e.target.value))}
-        />
+        {openOption === "volume" && (
+          <div
+            id="player-volume-popover"
+            className="player-option-popover player-volume-popover"
+            role="dialog"
+            aria-label={t("player.volume")}
+            onKeyDown={handlePopoverKeyDown}
+          >
+            <div className="player-volume-header">
+              <strong>{t("player.volume")}</strong>
+              <span>{Math.round(volume * 100)}%</span>
+            </div>
+            <div className="player-volume-slider-row">
+              <Button
+                preserveChildren
+                type="button"
+                className="player-volume-mute"
+                aria-label={volume === 0 ? t("player.unmute") : t("player.mute")}
+                title={volume === 0 ? t("player.unmute") : t("player.mute")}
+                onClick={() =>
+                  onVolumeChange(volume === 0 ? previousVolumeRef.current : 0)
+                }
+              >
+                <MaterialIcon name={volumeIcon} size={20} />
+              </Button>
+              <input
+                ref={volumeSliderRef}
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={volume}
+                aria-label={t("player.volume")}
+                aria-valuetext={t("player.volumeValue", {
+                  value: Math.round(volume * 100)
+                })}
+                onChange={(event) => onVolumeChange(Number(event.target.value))}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="queue-control">
@@ -126,10 +289,14 @@ export default function PlayerOptions({
           aria-haspopup="dialog"
           aria-expanded={queueOpen}
           aria-controls="player-queue-popover"
-          onClick={() => onQueueOpenChange((value) => !value)}
+          onClick={() => {
+            setOpenOption(null);
+            onQueueOpenChange((value) => !value);
+          }}
           disabled={queue.length === 0}
         >
-          {t("player.queue")} {queue.length > 0 ? `${queueIndex + 1}/${queue.length}` : ""}
+          <MaterialIcon name="queue_music" size={18} />
+          <span>{queue.length > 0 ? `${queueIndex + 1}/${queue.length}` : "0"}</span>
         </Button>
 
         {queueOpen && (

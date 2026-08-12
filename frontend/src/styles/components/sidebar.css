@@ -26,6 +26,11 @@
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
+.sidebar-drawer-close {
+  display: none;
+  margin-left: auto;
+}
+
 .brand-orb {
   width: 48px;
   height: 48px;
@@ -194,6 +199,10 @@
   font-weight: 700;
   border-radius: var(--md-sys-shape-corner-full);
   background: var(--md-sys-color-secondary-container);
+}
+
+.sidebar-section-count:empty {
+  display: none;
 }
 
 .sidebar-section-toggle .material-icon {

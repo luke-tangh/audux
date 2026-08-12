@@ -6,16 +6,17 @@ import { LocaleProvider } from "../../i18n/LocaleProvider";
 import PlayerOptions from "./PlayerOptions";
 
 function StatefulOptions() {
+  const [rate, setRate] = useState(1);
   const [volume, setVolume] = useState(0.35);
 
   return (
     <PlayerOptions
-      rate={1}
+      rate={rate}
       volume={volume}
       queue={[]}
       queueIndex={-1}
       queueOpen={false}
-      onRateChange={vi.fn()}
+      onRateChange={setRate}
       onVolumeChange={setVolume}
       onQueueOpenChange={vi.fn()}
       onQueueSelect={vi.fn()}
@@ -26,12 +27,18 @@ function StatefulOptions() {
   );
 }
 
-describe("PlayerOptions volume control", () => {
-  it("mutes and restores the previous non-zero volume", () => {
+describe("PlayerOptions popovers", () => {
+  it("opens the volume control, then mutes and restores the previous volume", () => {
     render(
       <LocaleProvider>
         <StatefulOptions />
       </LocaleProvider>
+    );
+
+    expect(screen.queryByRole("slider", { name: /音量|Volume/ }))
+      .not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /打开音量控制|Open volume control/ })
     );
 
     const volume = screen.getByRole("slider", { name: /音量|Volume/ });
@@ -46,5 +53,31 @@ describe("PlayerOptions volume control", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /取消静音|Unmute/ }));
     expect(volume).toHaveValue("0.35");
+  });
+
+  it("chooses speed from a compact popup control", () => {
+    render(
+      <LocaleProvider>
+        <StatefulOptions />
+      </LocaleProvider>
+    );
+
+    const trigger = screen.getByRole("button", {
+      name: /打开播放速度控制|Open playback speed control/
+    });
+    expect(trigger).toHaveTextContent("1x");
+    expect(screen.queryByRole("dialog", { name: /播放速度|Playback speed/ }))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("radio", { name: "1.5x" }));
+
+    expect(
+      screen.getByRole("button", {
+        name: /打开播放速度控制|Open playback speed control/
+      })
+    ).toHaveTextContent("1.5x");
+    expect(screen.queryByRole("dialog", { name: /播放速度|Playback speed/ }))
+      .not.toBeInTheDocument();
   });
 });

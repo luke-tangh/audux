@@ -943,7 +943,9 @@ test.describe("v0.5 management workflows", () => {
 
     await page.getByRole("button", { name: "收起详情" }).click();
     await expect(inspector).toHaveCount(0);
-    await expect(page.getByRole("listitem", { name: "音频：测试音频 1" })).toBeFocused();
+    await expect(
+      page.getByRole("listitem", { name: "音频：测试音频 1" }).locator(".audio-row-primary")
+    ).toBeFocused();
   });
 
   test("creates and opens a rule-driven smart playlist from a saved view", async ({
@@ -953,8 +955,8 @@ test.describe("v0.5 management workflows", () => {
     await mockManagementApi(page, state);
     await page.goto("/");
 
-    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
-    await page.getByRole("option", { name: "仅可播放" }).click();
+    await page.getByRole("combobox", { name: "按音频处理状态筛选" }).click();
+    await page.getByRole("option", { name: "文件 · 可播放" }).click();
     await page.getByRole("button", { name: "保存视图", exact: true }).click();
     let dialog = page.getByRole("dialog", { name: "保存当前视图" });
     await dialog.getByRole("textbox", { name: "视图名称" }).fill("动态通勤规则");
@@ -1006,8 +1008,8 @@ test.describe("v0.5 management workflows", () => {
     await page.goto("/");
 
     await page.getByRole("searchbox", { name: /搜索标题/ }).fill("meeting");
-    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
-    await page.getByRole("option", { name: "仅可播放" }).click();
+    await page.getByRole("combobox", { name: "按音频处理状态筛选" }).click();
+    await page.getByRole("option", { name: "文件 · 可播放" }).click();
     await page.getByRole("button", { name: "保存视图", exact: true }).click();
     let dialog = page.getByRole("dialog", { name: "保存当前视图" });
     await dialog.getByRole("textbox", { name: "视图名称" }).fill("播客会议");
@@ -1024,8 +1026,8 @@ test.describe("v0.5 management workflows", () => {
     await page.getByRole("button", { name: "资料库" }).first().click();
     await page.getByRole("button", { name: "播客会议", exact: true }).click();
     await expect(page.getByRole("searchbox", { name: /搜索标题/ })).toHaveValue("lecture");
-    await expect(page.getByRole("combobox", { name: "按资料库文件筛选" })).toContainText(
-      "仅可播放"
+    await expect(page.getByRole("combobox", { name: "按音频处理状态筛选" })).toContainText(
+      "文件 · 可播放"
     );
 
     const createMutation = state.mutations.find(
@@ -1153,8 +1155,8 @@ test.describe("v0.5 management workflows", () => {
     await page.getByRole("checkbox", { name: "选择 测试音频 1" }).check();
     await expect(page.getByText("已选择 1 个")).toBeVisible();
 
-    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
-    await page.getByRole("option", { name: "已有转写文本" }).click();
+    await page.getByRole("combobox", { name: "按音频处理状态筛选" }).click();
+    await page.getByRole("option", { name: "转写 · 已完成" }).click();
 
     await expect(page.getByRole("button", { name: "多选整理" })).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "选择 测试音频 1" })).toHaveCount(0);

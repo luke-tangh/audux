@@ -7,3 +7,15 @@ export function formatDateTime(value: string | undefined, locale: string): strin
     timeStyle: "medium"
   }).format(date);
 }
+
+export function formatLanguageName(value: string | undefined, locale: string): string {
+  if (!value) return "";
+  const normalized = value.trim().replace("_", "-");
+  if (!normalized) return "";
+
+  try {
+    return new Intl.DisplayNames([locale], { type: "language" }).of(normalized) || value;
+  } catch {
+    return value;
+  }
+}

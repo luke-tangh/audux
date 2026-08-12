@@ -10,7 +10,7 @@ import {
   UI_LANGUAGE_STORAGE_KEY
 } from "./index";
 import { localizedPrivacyWarning, localizedStoredError } from "./errors";
-import { formatDateTime } from "./format";
+import { formatDateTime, formatLanguageName } from "./format";
 
 function translationMock(): { t: TFunction; call: ReturnType<typeof vi.fn> } {
   const call = vi.fn((key: string, options?: Record<string, unknown>) =>
@@ -67,5 +67,11 @@ describe("i18n helpers", () => {
     const formatted = formatDateTime("2026-08-10T00:00:00Z", "en-US");
     expect(formatted).not.toBe("2026-08-10T00:00:00Z");
     expect(formatted).toContain("2026");
+  });
+
+  it("formats language codes for the active UI locale", () => {
+    expect(formatLanguageName("zh", "zh-CN")).toMatch(/中文|汉语/);
+    expect(formatLanguageName("en", "en")).toBe("English");
+    expect(formatLanguageName(undefined, "en")).toBe("");
   });
 });

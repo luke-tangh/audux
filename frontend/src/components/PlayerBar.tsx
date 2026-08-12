@@ -79,7 +79,6 @@ export default function PlayerBar({
         onPrevious={onPrevious}
         onNext={onNext}
         onToggle={player.toggle}
-        onStop={player.stop}
         onSeek={player.seek}
       />
 

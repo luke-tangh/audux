@@ -8,11 +8,16 @@ import DetailPanel from "./components/DetailPanel";
 import PlayerBar from "./components/PlayerBar";
 import SettingsPanel from "./components/SettingsPanel";
 import ToastStack from "./components/ToastStack";
+import { IconButton, MaterialIcon } from "./components/ui";
 import { useLibraryController } from "./hooks/useLibraryController";
 
 export default function App() {
   const { t } = useTranslation();
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [compactNavigation, setCompactNavigation] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
+  );
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const {
     view,
     setView,
@@ -129,6 +134,29 @@ export default function App() {
     return () => window.cancelAnimationFrame(frame);
   }, [inspectorOpen, selected?.id]);
 
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 860px)");
+    const update = () => {
+      setCompactNavigation(query.matches);
+      if (!query.matches) setNavigationOpen(false);
+    };
+
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!compactNavigation) return;
+    setNavigationOpen(false);
+  }, [
+    activeSavedViewId,
+    compactNavigation,
+    selectedPlaylistId,
+    selectedTag,
+    view
+  ]);
+
   function openInspector(item: NonNullable<typeof selected>) {
     setSelected(item);
     setInspectorOpen(true);
@@ -137,8 +165,17 @@ export default function App() {
   function closeInspector() {
     setInspectorOpen(false);
     window.requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>(".audio-row.selected")?.focus();
+      document.querySelector<HTMLElement>(".audio-row.selected .audio-row-primary")?.focus();
     });
+  }
+
+  function closeNavigation(restoreFocus = false) {
+    setNavigationOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>(".app-navigation-toggle")?.focus();
+      });
+    }
   }
 
   return (
@@ -152,7 +189,20 @@ export default function App() {
           .filter(Boolean)
           .join(" ")}
       >
+        <IconButton
+          className="app-navigation-toggle"
+          label={t("navigation.openNavigation")}
+          aria-controls="app-navigation"
+          aria-expanded={navigationOpen}
+          onClick={() => setNavigationOpen(true)}
+        >
+          <MaterialIcon name="menu" size={22} />
+        </IconButton>
+
         <Sidebar
+          compactNavigation={compactNavigation}
+          navigationOpen={navigationOpen}
+          onCloseNavigation={() => closeNavigation(true)}
           view={view}
           setView={setView}
           tags={tags}
@@ -173,6 +223,15 @@ export default function App() {
           onOpenPlaylist={openPlaylist}
           onCreatePlaylist={createPlaylist}
         />
+
+        {compactNavigation && navigationOpen && (
+          <button
+            type="button"
+            className="navigation-scrim"
+            aria-label={t("navigation.closeNavigation")}
+            onClick={() => closeNavigation(true)}
+          />
+        )}
 
         {view === "settings" ? (
           <main className="workspace settings-workspace">
@@ -204,8 +263,6 @@ export default function App() {
                 canSaveView={canSaveView}
                 onSaveView={() => void saveCurrentView()}
                 onUpdateSavedView={() => void updateActiveSavedView()}
-                onBatchTranscribe={batchTranscribeCurrentList}
-                onBatchAnalyze={batchAnalyzeCurrentList}
               />
 
               <AudioList
@@ -255,6 +312,8 @@ export default function App() {
                 onBatchRemoveTag={() => void batchRemoveTag()}
                 onBatchAddToPlaylist={() => void batchAddToPlaylist()}
                 onBatchSetFavorite={(isFavorite) => void batchSetFavorite(isFavorite)}
+                onBatchTranscribe={batchTranscribeCurrentList}
+                onBatchAnalyze={batchAnalyzeCurrentList}
               />
             </main>
 

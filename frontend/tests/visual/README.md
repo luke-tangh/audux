@@ -5,7 +5,7 @@ MD3 layout areas:
 
 - TopBar responsive command layout
 - PlayerBar responsive media dock layout with deterministic playing, long-title,
-  queue-popover, and dark-theme states
+  speed/volume/queue popovers, and dark-theme states
 - theme bootstrap and reduced-motion behavior
 - SelectField and playback-queue keyboard focus behavior
 

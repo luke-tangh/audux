@@ -2,8 +2,9 @@ import { useState } from "react";
 import { api } from "../api";
 import type { AudioItem } from "../types";
 import { displayAuthor, displayDescription, displayTitle, formatDuration } from "../types";
-import { ActionMenu, Button, IconButton, StatusPill, MaterialIcon } from "./ui";
+import { ActionMenu, Button, StatusPill, MaterialIcon } from "./ui";
 import { useTranslation } from "react-i18next";
+import { formatLanguageName } from "../i18n/format";
 
 const MAX_BATCH_SELECTION = 500;
 
@@ -42,6 +43,8 @@ type Props = {
   onBatchRemoveTag: () => void;
   onBatchAddToPlaylist: () => void;
   onBatchSetFavorite: (isFavorite: boolean) => void;
+  onBatchTranscribe: () => void;
+  onBatchAnalyze: () => void;
 };
 
 function escapeRegExp(value: string): string {
@@ -299,14 +302,21 @@ export default function AudioList({
   onBatchAddTags,
   onBatchRemoveTag,
   onBatchAddToPlaylist,
-  onBatchSetFavorite
+  onBatchSetFavorite,
+  onBatchTranscribe,
+  onBatchAnalyze
 }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [draggedPlaylistItemId, setDraggedPlaylistItemId] = useState<number | null>(null);
   const [density, setDensity] = useState<"compact" | "comfortable">(() => {
     try {
-      return window.localStorage.getItem("local-audio-library-list-density") ===
-        "comfortable"
+      const storedDensity = window.localStorage.getItem(
+        "local-audio-library-list-density"
+      );
+      if (storedDensity === "comfortable" || storedDensity === "compact") {
+        return storedDensity;
+      }
+      return window.matchMedia("(min-width: 1180px)").matches
         ? "comfortable"
         : "compact";
     } catch {
@@ -386,10 +396,43 @@ export default function AudioList({
               <Button variant="outlined" size="sm" onClick={onEnterSelectionMode}>
                 {t("audioList.multiSelect")}
               </Button>
-              <span className="batch-toolbar-spacer" />
-              <IconButton
+              <ActionMenu
+                className="list-process-menu"
                 size="sm"
-                label={
+                variant="tonal"
+                label={t("topbar.processResults", { count: totalCount || items.length })}
+                buttonText={t("topbar.processResultsShort", { count: totalCount || items.length })}
+                buttonIcon="auto_awesome"
+                items={[
+                  {
+                    id: "transcribe",
+                    label: t("topbar.transcribeResults", { count: totalCount || items.length }),
+                    icon: "subtitles",
+                    onSelect: onBatchTranscribe
+                  },
+                  {
+                    id: "analyze",
+                    label: t("topbar.analyzeResults", { count: totalCount || items.length }),
+                    icon: "auto_awesome",
+                    onSelect: onBatchAnalyze
+                  }
+                ]}
+              />
+              <span className="batch-toolbar-spacer" />
+              <span
+                className="batch-toolbar-count"
+                title={t("audioList.loadedCount", {
+                  loaded: items.length,
+                  total: typeof totalCount === "number" ? ` / ${totalCount}` : ""
+                })}
+              >
+                {typeof totalCount === "number" ? `${items.length} / ${totalCount}` : items.length}
+              </span>
+              <Button
+                variant="text"
+                size="sm"
+                className="density-toggle"
+                aria-label={
                   density === "compact"
                     ? t("audioList.useComfortableDensity")
                     : t("audioList.useCompactDensity")
@@ -400,12 +443,19 @@ export default function AudioList({
                     : t("audioList.useCompactDensity")
                 }
                 onClick={toggleDensity}
+                leadingIcon={
+                  <MaterialIcon
+                    name={density === "compact" ? "view_list" : "view_agenda"}
+                    size={18}
+                  />
+                }
               >
-                <MaterialIcon
-                  name={density === "compact" ? "view_agenda" : "view_list"}
-                  size={18}
-                />
-              </IconButton>
+                {t(
+                  density === "compact"
+                    ? "audioList.densityCompact"
+                    : "audioList.densityComfortable"
+                )}
+              </Button>
             </>
           ) : (
             <>
@@ -470,6 +520,11 @@ export default function AudioList({
       )}
 
       <div className="audio-scroll-list" role="list" aria-label={t("audioList.listLabel", { title })}>
+        <div className="list-column-header" aria-hidden="true">
+          <span>{t("audioList.columnAudio")}</span>
+          <span>{t("audioList.columnStatus")}</span>
+          <span>{t("audioList.columnActions")}</span>
+        </div>
         {items.map((item, index) => {
           const draggable = Boolean(
             !selectionMode && canReorderPlaylist && item.playlist_item_id
@@ -479,6 +534,10 @@ export default function AudioList({
           const rowIsBatchSelected = selectedAudioIds.has(item.id);
           const rowIsTabbable =
             rowIsSelected || (selectedRowIndex < 0 && index === 0);
+          const transcriptStatus = item.transcript_status || "none";
+          const aiStatus = item.ai_status || "none";
+          const hasProcessingStatus =
+            transcriptStatus !== "none" || aiStatus !== "none";
 
           return (
             <div
@@ -494,12 +553,7 @@ export default function AudioList({
                 rowIsBatchSelected ? "batch-selected" : ""
               ].filter(Boolean).join(" ")}
               role="listitem"
-              tabIndex={rowIsTabbable ? 0 : -1}
-              aria-current={rowIsSelected ? "true" : undefined}
               aria-label={t("audioList.audioLabel", { title: displayTitle(item) })}
-              aria-keyshortcuts="Enter Space ArrowUp ArrowDown Home End"
-              data-audio-row="true"
-              data-audio-row-index={index}
               draggable={draggable}
               onDragStart={(e) => {
                 if (!draggable || !item.playlist_item_id) return;
@@ -523,63 +577,6 @@ export default function AudioList({
                 setDraggedPlaylistItemId(null);
               }}
               onDragEnd={() => setDraggedPlaylistItemId(null)}
-              onClick={() =>
-                selectionMode ? onToggleAudioSelection(item.id) : onSelect(item)
-              }
-              onDoubleClick={() => {
-                if (!selectionMode) onPlay(item);
-              }}
-              onKeyDown={(e) => {
-                if (e.target !== e.currentTarget) return;
-
-                if (selectionMode && (e.key === "Enter" || e.key === " ")) {
-                  e.preventDefault();
-                  onToggleAudioSelection(item.id);
-                  return;
-                }
-
-                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                  e.preventDefault();
-
-                  const nextIndex =
-                    e.key === "ArrowDown"
-                      ? Math.min(items.length - 1, index + 1)
-                      : Math.max(0, index - 1);
-
-                  const nextItem = items[nextIndex];
-
-                  if (nextItem && nextIndex !== index) {
-                    onSelect(nextItem);
-                    focusAudioRow(nextIndex);
-                  }
-
-                  return;
-                }
-
-                if (e.key === "Home" || e.key === "End") {
-                  e.preventDefault();
-
-                  const nextIndex = e.key === "Home" ? 0 : items.length - 1;
-                  const nextItem = items[nextIndex];
-
-                  if (nextItem && nextIndex !== index) {
-                    onSelect(nextItem);
-                    focusAudioRow(nextIndex);
-                  }
-
-                  return;
-                }
-
-                if (e.key === "Enter") {
-                  onSelect(item);
-                  return;
-                }
-
-                if (e.key === " ") {
-                  e.preventDefault();
-                  onPlay(item);
-                }
-              }}
               style={{
                 opacity:
                   draggedPlaylistItemId && draggedPlaylistItemId === item.playlist_item_id
@@ -601,12 +598,68 @@ export default function AudioList({
                 </label>
               )}
 
-              <CoverThumb item={item} />
+              <button
+                type="button"
+                className="audio-row-primary"
+                tabIndex={rowIsTabbable ? 0 : -1}
+                aria-current={rowIsSelected ? "true" : undefined}
+                aria-label={t("audioList.openDetails", { title: displayTitle(item) })}
+                aria-keyshortcuts="Enter Space ArrowUp ArrowDown Home End"
+                data-audio-row="true"
+                data-audio-row-index={index}
+                onClick={() =>
+                  selectionMode ? onToggleAudioSelection(item.id) : onSelect(item)
+                }
+                onDoubleClick={() => {
+                  if (!selectionMode) onPlay(item);
+                }}
+                onKeyDown={(e) => {
+                  if (selectionMode && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    onToggleAudioSelection(item.id);
+                    return;
+                  }
 
-              <div className="audio-info">
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const nextIndex = e.key === "ArrowDown"
+                      ? Math.min(items.length - 1, index + 1)
+                      : Math.max(0, index - 1);
+                    const nextItem = items[nextIndex];
+                    if (nextItem && nextIndex !== index) {
+                      onSelect(nextItem);
+                      focusAudioRow(nextIndex);
+                    }
+                    return;
+                  }
+
+                  if (e.key === "Home" || e.key === "End") {
+                    e.preventDefault();
+                    const nextIndex = e.key === "Home" ? 0 : items.length - 1;
+                    const nextItem = items[nextIndex];
+                    if (nextItem && nextIndex !== index) {
+                      onSelect(nextItem);
+                      focusAudioRow(nextIndex);
+                    }
+                    return;
+                  }
+
+                  if (e.key === " ") {
+                    e.preventDefault();
+                    onPlay(item);
+                  }
+                }}
+              >
+                <CoverThumb item={item} />
+
+                <div className="audio-info">
                 <div className="title-line">
+                  {item.is_favorite && (
+                    <span className="favorite-marker" title={t("audioList.favorite")}>
+                      <MaterialIcon name="star" size={15} />
+                    </span>
+                  )}
                   <div className="title">
-                    {item.is_favorite && <MaterialIcon className="favorite-icon" name="star" size={16} />}
                     <HighlightText text={displayTitle(item)} query={q} />
                   </div>
 
@@ -631,7 +684,7 @@ export default function AudioList({
                   {item.language && (
                     <>
                       <span className="meta-dot">·</span>
-                      <span>{item.language}</span>
+                      <span>{formatLanguageName(item.language, i18n.resolvedLanguage || "zh-CN")}</span>
                     </>
                   )}
                 </div>
@@ -648,19 +701,34 @@ export default function AudioList({
                   limit={density === "comfortable" ? 5 : 2}
                 />
 
-                <SearchHits item={item} query={q} onPlayAt={onPlayAt} />
-              </div>
+                </div>
+
+                <span className="row-detail-hint" aria-hidden="true">
+                  <MaterialIcon name="chevron_right" size={20} />
+                </span>
+              </button>
 
               <div className="row-status" aria-label={t("audioList.processingStatus")}>
-                <StatusPill label={t("audioList.transcript")} value={item.transcript_status} />
-                <StatusPill label={t("common.technical.ai")} value={item.ai_status} />
+                {hasProcessingStatus ? (
+                  <>
+                    {transcriptStatus !== "none" && (
+                      <StatusPill label={t("audioList.transcript")} value={transcriptStatus} />
+                    )}
+                    {aiStatus !== "none" && (
+                      <StatusPill label={t("common.technical.ai")} value={aiStatus} />
+                    )}
+                  </>
+                ) : (
+                  <span className="processing-idle">{t("audioList.notProcessed")}</span>
+                )}
               </div>
 
               <div className="row-actions">
                 <Button
                   type="button"
-                  variant="filled"
+                  variant="tonal"
                   className="row-play-button"
+                  leadingIcon={<MaterialIcon name="play_arrow" size={18} />}
                   aria-label={t("audioList.playLabel", { title: displayTitle(item) })}
                   disabled={item.is_missing}
                   onClick={(e) => {
@@ -719,33 +787,24 @@ export default function AudioList({
                   ]}
                 />
               </div>
+
+              {q.trim() && (item.search_hits?.length || 0) > 0 && (
+                <div className="audio-row-search-hits">
+                  <SearchHits item={item} query={q} onPlayAt={onPlayAt} />
+                </div>
+              )}
             </div>
           );
         })}
 
         {items.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: 12,
-              padding: "18px 8px 28px",
-              color: "var(--text-muted)",
-              fontSize: 13
-            }}
-          >
-            <span>
-              {t("audioList.loadedCount", {
-                loaded: items.length,
-                total: typeof totalCount === "number" ? ` / ${totalCount}` : ""
-              })}
-            </span>
-
-            {hasMore && (
+          <div className="audio-list-footer">
+            {hasMore ? (
               <Button variant="outlined" onClick={onLoadMore} disabled={isLoadingMore}>
                 {isLoadingMore ? t("audioList.loadingMore") : t("audioList.loadMore")}
               </Button>
+            ) : (
+              <span>{t("audioList.allResultsShown", { count: items.length })}</span>
             )}
           </div>
         )}

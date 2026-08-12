@@ -15,6 +15,9 @@ type ViewMode =
   | "aiFailed";
 
 type Props = {
+  compactNavigation?: boolean;
+  navigationOpen?: boolean;
+  onCloseNavigation?: () => void;
   view: ViewMode;
   setView: (v: ViewMode) => void;
   tags: Tag[];
@@ -39,9 +42,9 @@ type Props = {
 export default function Sidebar(props: Props) {
   const { t } = useTranslation();
   const [expandedSections, setExpandedSections] = useState({
-    tags: true,
-    playlists: true,
-    savedViews: true
+    tags: props.tags.length > 0,
+    playlists: props.playlists.length > 0,
+    savedViews: props.savedViews.length > 0
   });
   const [showAllTags, setShowAllTags] = useState(false);
   const [playlistMenuOpen, setPlaylistMenuOpen] = useState(false);
@@ -66,6 +69,14 @@ export default function Sidebar(props: Props) {
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [playlistMenuOpen]);
+
+  useEffect(() => {
+    setExpandedSections((current) => ({
+      tags: current.tags || props.tags.length > 0,
+      playlists: current.playlists || props.playlists.length > 0,
+      savedViews: current.savedViews || props.savedViews.length > 0
+    }));
+  }, [props.playlists.length, props.savedViews.length, props.tags.length]);
 
   async function submitPlaylist(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -97,6 +108,7 @@ export default function Sidebar(props: Props) {
     if (view !== "library") {
       props.setSelectedTag(undefined);
     }
+    if (props.compactNavigation) props.onCloseNavigation?.();
   }
 
   function navClass(active: boolean) {
@@ -122,7 +134,12 @@ export default function Sidebar(props: Props) {
       ? [...collapsedTags, selectedTagOutsidePreview]
       : collapsedTags;
   return (
-    <aside className="sidebar">
+    <aside
+      id="app-navigation"
+      className={`sidebar ${props.navigationOpen ? "navigation-open" : ""}`.trim()}
+      aria-hidden={props.compactNavigation && !props.navigationOpen ? true : undefined}
+      inert={props.compactNavigation && !props.navigationOpen ? true : undefined}
+    >
       <div className="sidebar-scroll-content">
       <div className="brand">
         <div className="brand-orb" aria-hidden="true">
@@ -133,6 +150,15 @@ export default function Sidebar(props: Props) {
           <h2>Local Audio</h2>
           <p>{t("navigation.brandSubtitle")}</p>
         </div>
+
+        <IconButton
+          size="sm"
+          className="sidebar-drawer-close"
+          label={t("navigation.closeNavigation")}
+          onClick={props.onCloseNavigation}
+        >
+          <MaterialIcon name="close" size={20} />
+        </IconButton>
       </div>
 
       <nav className="sidebar-nav">
@@ -145,6 +171,7 @@ export default function Sidebar(props: Props) {
             props.setView("library");
             props.setSelectedTag(undefined);
             props.setSelectedPlaylistId(null);
+            if (props.compactNavigation) props.onCloseNavigation?.();
           }}
         >
           <span className="nav-symbol"><MaterialIcon name="home" size={22} /></span>
@@ -186,7 +213,9 @@ export default function Sidebar(props: Props) {
             <h3>{t("navigation.tags")}</h3>
             <MaterialIcon name={expandedSections.tags ? "expand_less" : "expand_more"} size={18} />
           </button>
-          <span className="sidebar-section-count">{props.tags.length}</span>
+          {props.tags.length > 0 && (
+            <span className="sidebar-section-count">{props.tags.length}</span>
+          )}
         </div>
 
         {expandedSections.tags && <div className="tag-cloud-nav">
@@ -199,6 +228,7 @@ export default function Sidebar(props: Props) {
               props.setView("library");
               props.setSelectedTag(undefined);
               props.setSelectedPlaylistId(null);
+              if (props.compactNavigation) props.onCloseNavigation?.();
             }}
           >
             {t("navigation.allTags")}
@@ -219,6 +249,7 @@ export default function Sidebar(props: Props) {
                 props.setView("library");
                 props.setSelectedPlaylistId(null);
                 props.setSelectedTag(tag.name);
+                if (props.compactNavigation) props.onCloseNavigation?.();
               }}
               title={t("navigation.viewTag", { name: tag.name })}
             >
@@ -266,7 +297,9 @@ export default function Sidebar(props: Props) {
           >
             <MaterialIcon name="add" size={18} />
           </IconButton>
-          <span className="sidebar-section-count">{props.playlists.length}</span>
+          {props.playlists.length > 0 && (
+            <span className="sidebar-section-count">{props.playlists.length}</span>
+          )}
         </div>
 
         {playlistMenuOpen && (
@@ -324,7 +357,10 @@ export default function Sidebar(props: Props) {
                   : "playlist-row"
               } ${playlist.kind === "smart" ? "smart-playlist-row" : "manual-playlist-row"}`}
               title={playlist.description || playlist.name}
-              onClick={() => props.onOpenPlaylist(playlist)}
+              onClick={() => {
+                props.onOpenPlaylist(playlist);
+                if (props.compactNavigation) props.onCloseNavigation?.();
+              }}
             >
               <MaterialIcon
                 name={playlist.kind === "smart" ? "playlist_play" : "chevron_right"}
@@ -362,7 +398,9 @@ export default function Sidebar(props: Props) {
             <h3>{t("savedViews.section")}</h3>
             <MaterialIcon name={expandedSections.savedViews ? "expand_less" : "expand_more"} size={18} />
           </button>
-          <span className="sidebar-section-count">{props.savedViews.length}</span>
+          {props.savedViews.length > 0 && (
+            <span className="sidebar-section-count">{props.savedViews.length}</span>
+          )}
         </div>
 
         {expandedSections.savedViews && props.savedViews.length === 0 && (
@@ -380,7 +418,10 @@ export default function Sidebar(props: Props) {
                   className="saved-view-row"
                   aria-current={active ? "page" : undefined}
                   title={savedView.query ? savedView.name : t("savedViews.definitionInvalid")}
-                  onClick={() => props.onApplySavedView(savedView)}
+                  onClick={() => {
+                    props.onApplySavedView(savedView);
+                    if (props.compactNavigation) props.onCloseNavigation?.();
+                  }}
                 >
                   <MaterialIcon name={savedView.invalid_references.length ? "warning" : "menu_book"} size={18} />
                   <strong>{savedView.name}</strong>
@@ -452,6 +493,7 @@ export default function Sidebar(props: Props) {
             props.setView("settings");
             props.setSelectedTag(undefined);
             props.setSelectedPlaylistId(null);
+            if (props.compactNavigation) props.onCloseNavigation?.();
           }}
         >
           <MaterialIcon name="settings" size={20} />

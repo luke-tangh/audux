@@ -211,17 +211,19 @@ test.describe("MD3 accessibility behavior", () => {
     expect(motion).toBeLessThanOrEqual(0.001);
   });
 
-  test("closes an open SelectField menu when tabbing away", async ({ page }) => {
+  test("closes an open playback-speed control when tabbing away", async ({ page }) => {
     await mockLibraryApi(page);
     await page.goto("/");
     await page.getByRole("button", { name: "播放 测试音频 1" }).click();
 
-    const playbackRate = page.getByRole("combobox", { name: "播放速度" });
+    const playbackRate = page.getByRole("button", { name: "打开播放速度控制" });
     await playbackRate.click();
 
-    await expect(page.getByRole("listbox", { name: "播放速度" })).toBeVisible();
-    await playbackRate.press("Tab");
-    await expect(page.getByRole("listbox", { name: "播放速度" })).toBeHidden();
+    const speedDialog = page.getByRole("dialog", { name: "播放速度" });
+    await expect(speedDialog).toBeVisible();
+    await page.getByRole("radio", { name: "2x" }).focus();
+    await page.getByRole("radio", { name: "2x" }).press("Tab");
+    await expect(speedDialog).toBeHidden();
   });
 
   test("labels playback controls and supports reversible muting", async ({
@@ -241,6 +243,7 @@ test.describe("MD3 accessibility behavior", () => {
       /已播放 \d+:\d{2}，总时长 \d+:\d{2}/
     );
 
+    await page.getByRole("button", { name: "打开音量控制" }).click();
     const volume = page.getByRole("slider", { name: "音量" });
     await expect(volume).toHaveValue("1");
     await page.getByRole("button", { name: "静音" }).click();

@@ -29,6 +29,11 @@
   display: none;
 }
 
+.app-navigation-toggle.ui-icon-button,
+.navigation-scrim {
+  display: none;
+}
+
 .workspace {
   min-width: 0;
   min-height: 0;

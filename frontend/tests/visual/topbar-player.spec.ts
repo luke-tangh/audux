@@ -49,6 +49,32 @@ async function expectTopbarControlsFit(
   });
 }
 
+async function expectPlayerUsesCenteredSpace(
+  player: import("@playwright/test").Locator,
+  viewport: string
+) {
+  const state = await player.evaluate((element) => {
+    const playerRect = element.getBoundingClientRect();
+    const playRect = element
+      .querySelector<HTMLElement>(".play-toggle")!
+      .getBoundingClientRect();
+    const progressRect = element
+      .querySelector<HTMLElement>('.player-progress input[type="range"]')!
+      .getBoundingClientRect();
+
+    return {
+      playCenterOffset: Math.abs(
+        playRect.left + playRect.width / 2 -
+          (playerRect.left + playerRect.width / 2)
+      ),
+      progressWidthRatio: progressRect.width / playerRect.width
+    };
+  });
+
+  expect(state.playCenterOffset, `play button at ${viewport}`).toBeLessThanOrEqual(1);
+  expect(state.progressWidthRatio, `progress width at ${viewport}`).toBeGreaterThan(0.3);
+}
+
 test.describe("MD3 visual regression", () => {
   test("TopBar responsive states", async ({ page }) => {
     await page.goto("/");
@@ -69,8 +95,17 @@ test.describe("MD3 visual regression", () => {
     await expect(topbar).toHaveScreenshot("topbar-compact.png");
     await expectTopbarControlsFit(topbar, "760x800");
 
-    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
-    await page.getByRole("option", { name: "已有转写文本" }).click();
+    await page.setViewportSize({ width: 540, height: 800 });
+    const filterToggle = page.getByRole("button", { name: "筛选与排序（0）" });
+    await expect(filterToggle).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "按音频处理状态筛选" })).toBeHidden();
+    await expect(topbar).toHaveScreenshot("topbar-mobile.png");
+    await filterToggle.click();
+    await expect(page.getByRole("combobox", { name: "按音频处理状态筛选" })).toBeVisible();
+    await expectTopbarControlsFit(topbar, "540x800 expanded filters");
+
+    await page.getByRole("combobox", { name: "按音频处理状态筛选" }).click();
+    await page.getByRole("option", { name: "转写 · 已完成" }).click();
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(page.getByRole("button", { name: "重置" })).toBeVisible();
     await expectTopbarControlsFit(topbar, "1280x800 with reset action");
@@ -87,21 +122,28 @@ test.describe("MD3 visual regression", () => {
       "title",
       PLAYER_AUDIO_ITEMS[0].title_user
     );
+    await expect(page.getByRole("button", { name: "播放上一条" })).toHaveCSS(
+      "background-color",
+      "rgba(0, 0, 0, 0)"
+    );
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(player).toHaveScreenshot("player-wide.png");
+    await expectPlayerUsesCenteredSpace(player, "1280x800");
 
     await page.setViewportSize({ width: 1000, height: 800 });
     await expect(player).toHaveScreenshot("player-medium.png");
+    await expectPlayerUsesCenteredSpace(player, "1000x800");
 
     await page.setViewportSize({ width: 760, height: 800 });
     await expect(player).toHaveScreenshot("player-compact.png");
+    await expectPlayerUsesCenteredSpace(player, "760x800");
 
     const compactState = await player.evaluate((element) => ({
       fits: element.scrollWidth <= element.clientWidth + 1,
       controls: Array.from(
         element.querySelectorAll<HTMLElement>(
-          ".player-controls button, .player-volume-toggle, .queue-toggle-button"
+          ".player-controls button, .player-option-trigger, .queue-toggle-button"
         )
       ).map((control) => ({
         width: control.getBoundingClientRect().width,
@@ -130,6 +172,16 @@ test.describe("MD3 visual regression", () => {
     });
 
     await page.setViewportSize({ width: 1000, height: 800 });
+    await page.getByRole("button", { name: "打开播放速度控制" }).click();
+    await expect(page.getByRole("dialog", { name: "播放速度" })).toBeVisible();
+    await expect(page.locator("#root")).toHaveScreenshot("player-speed-medium.png");
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "打开音量控制" }).click();
+    await expect(page.getByRole("dialog", { name: "音量" })).toBeVisible();
+    await expect(page.locator("#root")).toHaveScreenshot("player-volume-medium.png");
+    await page.keyboard.press("Escape");
+
     await page.getByRole("button", { name: "打开播放队列" }).click();
     await expect(page.getByRole("dialog", { name: "播放队列" })).toBeVisible();
     await expect(page.locator("#root")).toHaveScreenshot("player-queue-medium.png");
@@ -189,6 +241,15 @@ test.describe("MD3 visual regression", () => {
     for (const viewport of zoomViewports) {
       await page.setViewportSize(viewport);
 
+      if (viewport.width <= 860) {
+        const openNavigation = page.getByRole("button", { name: "打开导航" });
+        await expect(openNavigation).toBeVisible();
+        await openNavigation.click();
+        await expect(page.locator(".sidebar-drawer-close")).toBeVisible();
+      } else {
+        await expect(page.getByRole("button", { name: "打开导航" })).toBeHidden();
+      }
+
       const state = await settingsCenter.evaluate((button) => {
         const rect = button.getBoundingClientRect();
         const sidebar = button.closest<HTMLElement>(".sidebar");
@@ -245,6 +306,11 @@ test.describe("MD3 visual regression", () => {
         rendered: true,
         fullyVisible: true
       });
+
+      if (viewport.width <= 860) {
+        await page.locator(".sidebar-drawer-close").click();
+        await expect(page.locator(".sidebar")).toHaveAttribute("aria-hidden", "true");
+      }
     }
 
     await page.setViewportSize({ width: 1280, height: 800 });
