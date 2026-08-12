@@ -30,7 +30,6 @@ describe("TopBar file filter", () => {
           onUpdateSavedView={vi.fn()}
           onBatchTranscribe={vi.fn()}
           onBatchAnalyze={vi.fn()}
-          onOpenSettings={vi.fn()}
         />
       </LocaleProvider>
     );
@@ -65,7 +64,7 @@ describe("TopBar file filter", () => {
           totalCount={2}
           q=""
           setQ={vi.fn()}
-          hasActiveFilter={false}
+          hasActiveFilter
           onClearFilters={vi.fn()}
           hasTranscriptFilter="all"
           setHasTranscriptFilter={setHasTranscriptFilter}
@@ -79,7 +78,6 @@ describe("TopBar file filter", () => {
           onUpdateSavedView={vi.fn()}
           onBatchTranscribe={vi.fn()}
           onBatchAnalyze={vi.fn()}
-          onOpenSettings={vi.fn()}
         />
       </LocaleProvider>
     );
@@ -92,21 +90,26 @@ describe("TopBar file filter", () => {
         name: /选择资料库排序方式|Choose library sort order/
       }),
       screen.getByRole("button", {
-        name: /批量转写当前筛选结果|Transcribe current filtered results/
+        name: /处理当前结果中的 2 个音频|Process all 2 current results/
       }),
-      screen.getByRole("button", {
-        name: /批量 AI 分析当前筛选结果|Run AI analysis/
-      }),
-      screen.getByRole("button", { name: /保存视图|Save view/ }),
-      screen.getByRole("button", { name: /打开设置|Open settings/ })
+      screen.getByRole("button", { name: /保存视图|Save view/ })
     ];
     for (let index = 0; index < orderedControls.length - 1; index += 1) {
       expect(
         orderedControls[index].compareDocumentPosition(orderedControls[index + 1])
       ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
-    expect(orderedControls[2]).toHaveTextContent(/批量转写|Batch transcribe/);
-    expect(orderedControls[3]).toHaveTextContent(/批量 AI|Batch AI/);
+    fireEvent.click(orderedControls[2]);
+    expect(
+      screen.getByRole("menuitem", {
+        name: /转写当前结果中的 2 项|Transcribe 2 current results/
+      })
+    ).toBeVisible();
+    expect(
+      screen.getByRole("menuitem", {
+        name: /AI 分析当前结果中的 2 项|Analyze 2 current results with AI/
+      })
+    ).toBeVisible();
 
     fireEvent.click(
       screen.getByRole("combobox", { name: /按资料库文件筛选|Filter library files/ })
@@ -115,5 +118,8 @@ describe("TopBar file filter", () => {
 
     expect(setMissingFilter).toHaveBeenCalledWith("all");
     expect(setHasTranscriptFilter).toHaveBeenCalledWith("yes");
+    expect(
+      screen.queryByRole("button", { name: /打开设置|Open settings/ })
+    ).toBeNull();
   });
 });

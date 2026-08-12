@@ -37,17 +37,6 @@
     grid-column: auto;
   }
 
-  .audio-row {
-    grid-template-columns: 58px minmax(0, 1fr);
-  }
-
-  .row-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    opacity: 1;
-    padding-left: 72px;
-  }
-
   .player-dock {
     grid-template-columns: minmax(190px, 240px) minmax(250px, 1fr) minmax(240px, 300px);
     gap: 10px;
@@ -277,8 +266,29 @@
     font-size: 13px;
   }
 
-  .row-actions {
-    padding-left: 0;
+  .audio-row,
+  .density-comfortable .audio-row {
+    grid-template-columns: 50px minmax(0, 1fr) auto;
+  }
+
+  .audio-row.selection-mode,
+  .density-comfortable .audio-row.selection-mode {
+    grid-template-columns: 32px 50px minmax(0, 1fr);
+  }
+
+  .audio-row .row-status {
+    grid-column: 2;
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .audio-row .row-actions {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  .audio-row.selection-mode .row-status {
+    grid-column: 3;
   }
 
   .description-line {
@@ -286,19 +296,6 @@
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-  }
-
-  .top-title-block {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .top-count-card {
-    width: auto;
-    text-align: right;
-  }
-
-  .top-command-bar .filter-group {
-    flex: 0 0 auto;
   }
 
   .queue-popover {
@@ -314,15 +311,6 @@
   .brand-copy p,
   .nav-card em {
     display: none;
-  }
-
-  .top-title-block {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .top-count-card {
-    width: 100%;
-    text-align: left;
   }
 
   .inspector-panel {

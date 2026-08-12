@@ -23,6 +23,33 @@
   box-shadow: var(--md-sys-elevation-3);
 }
 
+.player-dock.empty {
+  min-height: 62px;
+  grid-template-columns: minmax(0, 1fr);
+  padding-block: 6px calc(6px + env(safe-area-inset-bottom));
+  box-shadow: none;
+}
+
+.player-dock.empty .player-now-card {
+  width: min(100%, 360px);
+  grid-template-columns: 42px minmax(0, 1fr);
+  padding: 4px 8px;
+  background: transparent;
+}
+
+.player-dock.empty .player-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--md-sys-shape-corner-medium);
+}
+
+.player-dock.empty .player-now-text .eyebrow,
+.player-dock.empty .player-now-text em,
+.player-dock.empty .player-center,
+.player-dock.empty .player-options {
+  display: none;
+}
+
 .player-now-card {
   min-width: 0;
   display: grid;

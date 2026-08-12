@@ -176,6 +176,68 @@
   background: var(--md-sys-color-error-container);
 }
 
+.ui-action-menu {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.ui-action-menu-trigger {
+  gap: 5px;
+}
+
+.ui-action-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 80;
+  width: max-content;
+  min-width: 196px;
+  max-width: min(320px, calc(100vw - 24px));
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-highest);
+  box-shadow: var(--md-sys-elevation-3);
+}
+
+.ui-action-menu-popover.align-end {
+  right: 0;
+}
+
+.ui-action-menu-popover.align-start {
+  left: 0;
+}
+
+.ui-action-menu-popover > button {
+  width: 100%;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--md-sys-color-on-surface);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: transparent;
+}
+
+.ui-action-menu-popover > button:hover,
+.ui-action-menu-popover > button:focus-visible {
+  background: var(--md-state-on-surface-hover);
+}
+
+.ui-action-menu-popover > button.danger {
+  color: var(--md-sys-color-error);
+}
+
+.ui-action-menu-popover > button:disabled {
+  color: var(--text-faint);
+  background: transparent;
+}
+
 /* StatusPill primitive: start */
 .status-pill {
   display: inline-flex;
@@ -977,4 +1039,3 @@
   background: var(--md-state-error-hover);
 }
 /* Scoped shared app utilities: end */
-

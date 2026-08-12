@@ -145,9 +145,9 @@ test.describe("MD3 accessibility behavior", () => {
 
     await page.goto("/");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(page.getByRole("button", { name: "Open settings" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Open settings" }).click();
+    await page.getByRole("button", { name: "Settings" }).click();
     const language = page.getByRole("combobox", { name: "Language" });
     await language.click();
     await page.getByRole("option", { name: "简体中文" }).click();
@@ -160,7 +160,7 @@ test.describe("MD3 accessibility behavior", () => {
 
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
-    await expect(page.getByRole("button", { name: "打开设置" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "设置中心" })).toBeVisible();
   });
 
   test("applies the stored theme during bootstrap", async ({ page }) => {
@@ -176,8 +176,8 @@ test.describe("MD3 accessibility behavior", () => {
 
   test("aligns the AI output language control with LLM text fields", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "打开设置" }).click();
-    await page.getByRole("tab", { name: "LLM" }).click();
+    await page.getByRole("button", { name: "设置中心" }).click();
+    await page.getByRole("button", { name: "LLM" }).click();
 
     const endpointBox = await page
       .getByRole("textbox", { name: "Endpoint", exact: true })
@@ -196,7 +196,7 @@ test.describe("MD3 accessibility behavior", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
 
-    const motion = await page.locator(".top-settings-button").evaluate((element) => {
+    const motion = await page.locator(".settings-nav").evaluate((element) => {
       const style = window.getComputedStyle(element);
       const durationInSeconds = style.transitionDuration
         .split(",")
@@ -212,7 +212,9 @@ test.describe("MD3 accessibility behavior", () => {
   });
 
   test("closes an open SelectField menu when tabbing away", async ({ page }) => {
+    await mockLibraryApi(page);
     await page.goto("/");
+    await page.getByRole("button", { name: "播放 测试音频 1" }).click();
 
     const playbackRate = page.getByRole("combobox", { name: "播放速度" });
     await playbackRate.click();

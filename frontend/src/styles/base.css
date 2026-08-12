@@ -32,9 +32,8 @@ body {
     "Microsoft YaHei",
     sans-serif;
   background:
-    radial-gradient(circle at 16% -10%, rgba(208, 188, 255, 0.18), transparent 34rem),
-    radial-gradient(circle at 88% 4%, rgba(239, 184, 200, 0.12), transparent 30rem),
-    linear-gradient(145deg, var(--md-sys-color-background), #18151d 48%, #121016);
+    radial-gradient(circle at 16% -10%, rgba(208, 188, 255, 0.09), transparent 34rem),
+    linear-gradient(145deg, var(--md-sys-color-background), #18181b 48%, #121214);
   letter-spacing: 0.01em;
 }
 
@@ -277,13 +276,12 @@ select option:disabled {
 /* Theme backgrounds and typography utilities: start */
 :root[data-theme="light"] body {
   background:
-    radial-gradient(circle at 16% -10%, rgba(103, 80, 164, 0.12), transparent 34rem),
-    radial-gradient(circle at 88% 4%, rgba(125, 82, 96, 0.1), transparent 30rem),
-    linear-gradient(145deg, var(--md-sys-color-background), #f7f2fa 48%, #fffbfe);
+    radial-gradient(circle at 16% -10%, rgba(103, 80, 164, 0.065), transparent 34rem),
+    linear-gradient(145deg, var(--md-sys-color-background), #f4f4f7 48%, #ffffff);
 }
 
 :root[data-theme="light"] body::before {
-  opacity: 0.22;
+  opacity: 0.14;
   background:
     radial-gradient(circle at 25% 25%, var(--md-state-primary-hover), transparent 18rem),
     linear-gradient(rgba(103, 80, 164, 0.045) 1px, transparent 1px),

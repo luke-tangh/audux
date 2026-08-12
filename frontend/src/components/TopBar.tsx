@@ -1,4 +1,9 @@
-import { Button, IconButton, SearchField, SelectField, MaterialIcon } from "./ui";
+import {
+  ActionMenu,
+  Button,
+  SearchField,
+  SelectField
+} from "./ui";
 import { useTranslation } from "react-i18next";
 import type { SortMode } from "../hooks/library/types";
 
@@ -37,7 +42,6 @@ type Props = {
 
   onBatchTranscribe: () => void;
   onBatchAnalyze: () => void;
-  onOpenSettings: () => void;
 };
 
 export default function TopBar({
@@ -64,8 +68,7 @@ export default function TopBar({
   onSaveView,
   onUpdateSavedView,
   onBatchTranscribe,
-  onBatchAnalyze,
-  onOpenSettings
+  onBatchAnalyze
 }: Props) {
   const { t } = useTranslation();
   const hasItems = totalCount > 0;
@@ -110,7 +113,14 @@ export default function TopBar({
     <header className="top-command-bar">
       <div className="top-title-block">
         <div>
-          <h1>{title}</h1>
+          <div className="top-heading-line">
+            <h1>{title}</h1>
+            <span className="top-inline-count">
+              {isLoading
+                ? t("topbar.syncing")
+                : t("topbar.countInline", { count: totalCount })}
+            </span>
+          </div>
           {subtitle && <p>{subtitle}</p>}
           {searchLimited && (
             <p className="search-limit-warning">
@@ -119,10 +129,6 @@ export default function TopBar({
           )}
         </div>
 
-        <div className="top-count-card">
-          <strong>{isLoading ? t("topbar.syncing") : totalCount}</strong>
-          <span>{isLoading ? t("topbar.updating") : t("topbar.audioCount")}</span>
-        </div>
       </div>
 
       <div className="top-action-row">
@@ -183,47 +189,44 @@ export default function TopBar({
             role="group"
             aria-label={t("topbar.quickActions")}
           >
-            <div
-              className="top-batch-group"
-              role="group"
-              aria-label={t("topbar.batch")}
-            >
+            <ActionMenu
+              className="top-batch-menu"
+              variant="tonal"
+              label={t("topbar.processResults", { count: totalCount })}
+              buttonText={t("topbar.processResultsShort", { count: totalCount })}
+              buttonIcon="auto_awesome"
+              disabled={!hasItems || queryLocked}
+              items={[
+                {
+                  id: "transcribe",
+                  label: t("topbar.transcribeResults", { count: totalCount }),
+                  icon: "subtitles",
+                  onSelect: onBatchTranscribe
+                },
+                {
+                  id: "analyze",
+                  label: t("topbar.analyzeResults", { count: totalCount }),
+                  icon: "auto_awesome",
+                  onSelect: onBatchAnalyze
+                }
+              ]}
+            />
+
+            {hasActiveFilter && !activeSavedViewName && (
               <Button
                 variant="outlined"
-                className="top-quick-action top-batch-action top-batch-transcribe-action"
-                aria-label={t("topbar.batchTranscribe")}
-                title={t("topbar.batchTranscribe")}
-                onClick={onBatchTranscribe}
-                disabled={!hasItems || queryLocked}
+                className="top-save-view-button"
+                disabled={!canSaveView}
+                title={
+                  canSaveView
+                    ? t("savedViews.saveCurrentHint")
+                    : t("savedViews.unsupportedView")
+                }
+                onClick={onSaveView}
               >
-                {t("topbar.batchTranscribeShort")}
+                {t("savedViews.saveCurrent")}
               </Button>
-
-              <Button
-                variant="filled"
-                className="top-quick-action top-batch-action top-batch-ai-action"
-                aria-label={t("topbar.batchAnalyze")}
-                title={t("topbar.batchAnalyze")}
-                onClick={onBatchAnalyze}
-                disabled={!hasItems || queryLocked}
-              >
-                {t("topbar.batchAnalyzeShort")}
-              </Button>
-            </div>
-
-            <Button
-              variant="outlined"
-              className="top-save-view-button"
-              disabled={!canSaveView}
-              title={
-                canSaveView
-                  ? t("savedViews.saveCurrentHint")
-                  : t("savedViews.unsupportedView")
-              }
-              onClick={onSaveView}
-            >
-              {t("savedViews.saveCurrent")}
-            </Button>
+            )}
 
             {activeSavedViewName && (
               <Button
@@ -248,14 +251,6 @@ export default function TopBar({
               </Button>
             )}
 
-            <IconButton
-              className="top-settings-button"
-              variant="soft"
-              label={t("topbar.openSettings")}
-              onClick={onOpenSettings}
-            >
-              <MaterialIcon name="settings" size={20} />
-            </IconButton>
           </div>
         </div>
       </div>

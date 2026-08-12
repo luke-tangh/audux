@@ -560,6 +560,18 @@ export function useLibraryController() {
     setSortMode(playlist.query.sort);
   }
 
+  async function createPlaylist(name: string) {
+    try {
+      await api.createPlaylist(name);
+      await loadNavigation();
+      notify(t("settings.playlist.created"), "success");
+      return true;
+    } catch (err) {
+      notify(err instanceof Error ? err.message : String(err), "error");
+      return false;
+    }
+  }
+
   async function createSmartPlaylist(savedView: SavedView) {
     if (!savedView.query) {
       notify(t("savedViews.definitionInvalid"), "error");
@@ -814,6 +826,7 @@ export function useLibraryController() {
     deactivateSavedView,
     applySavedView,
     openPlaylist,
+    createPlaylist,
     createSmartPlaylist,
     saveCurrentView,
     updateActiveSavedView,

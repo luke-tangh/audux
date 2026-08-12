@@ -9,7 +9,6 @@ type LibrarySettingsTabProps = {
   scanTasks: ScanTask[];
   path: string;
   scanResult: string;
-  playlistName: string;
   playlists: Playlist[];
   onPathChange: (value: string) => void;
   onChooseFolder: () => void;
@@ -18,8 +17,6 @@ type LibrarySettingsTabProps = {
   onRemoveRoot: (root: LibraryRoot) => void;
   onScan: (rootId: number) => void;
   onCancelScan: (task: ScanTask) => void;
-  onPlaylistNameChange: (value: string) => void;
-  onCreatePlaylist: () => void;
   onRenamePlaylist: (playlist: Playlist) => void;
   onDeletePlaylist: (playlist: Playlist) => void;
 };
@@ -29,7 +26,6 @@ export default function LibrarySettingsTab({
   scanTasks,
   path,
   scanResult,
-  playlistName,
   playlists,
   onPathChange,
   onChooseFolder,
@@ -38,8 +34,6 @@ export default function LibrarySettingsTab({
   onRemoveRoot,
   onScan,
   onCancelScan,
-  onPlaylistNameChange,
-  onCreatePlaylist,
   onRenamePlaylist,
   onDeletePlaylist
 }: LibrarySettingsTabProps) {
@@ -135,21 +129,7 @@ export default function LibrarySettingsTab({
         ))}
       </PanelCard>
 
-      <PanelCard title={t("settings.library.createPlaylist")}>
-        <div className="inline-form">
-          <TextField
-            wrapperClassName="inline-field"
-            hideLabel
-            label={t("settings.library.playlistName")}
-            value={playlistName}
-            placeholder={t("settings.library.playlistName")}
-            onValueChange={onPlaylistNameChange}
-          />
-          <Button variant="filled" onClick={onCreatePlaylist}>
-            {t("settings.library.create")}
-          </Button>
-        </div>
-
+      <PanelCard title={t("settings.library.managePlaylists")}>
         {playlists.length === 0 && <p className="muted">{t("settings.library.noPlaylists")}</p>}
 
         <div className="playlist-maintenance-list">

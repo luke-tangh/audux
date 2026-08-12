@@ -11,7 +11,7 @@
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding: 22px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface-container-low);
 }
@@ -19,7 +19,7 @@
 .settings-panel .settings-header h2 {
   margin: 0;
   color: var(--md-sys-color-on-surface);
-  font-size: 30px;
+  font-size: 27px;
   line-height: 1.15;
   letter-spacing: -0.03em;
 }
@@ -51,8 +51,10 @@
 }
 
 .settings-panel .backend-status.ok {
-  color: var(--md-sys-color-on-success-container);
-  background: var(--md-sys-color-success-container);
+  height: 34px;
+  padding-inline: 8px;
+  color: var(--md-sys-color-success);
+  background: transparent;
 }
 
 .settings-panel .backend-status.failed {
@@ -60,25 +62,49 @@
   background: var(--md-sys-color-error-container);
 }
 
-.settings-panel .settings-tabs {
-  flex: 0 0 auto;
-  display: flex;
-  gap: 8px;
-  padding: 12px 16px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+.settings-panel .settings-body-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 188px minmax(0, 1fr);
+}
+
+.settings-panel .settings-section-nav {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface-container-low);
 }
 
-.settings-panel .settings-tabs button {
-  min-height: 40px;
-  border-radius: var(--md-sys-shape-corner-full);
-  color: var(--md-sys-color-on-surface-variant);
-  background: transparent;
-  box-shadow: none;
+.settings-panel .settings-nav-group {
+  display: grid;
+  gap: 3px;
 }
 
-.settings-panel .settings-tabs button.active {
+.settings-panel .settings-nav-group > strong {
+  padding: 4px 11px;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.settings-panel .settings-nav-group > button {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  text-align: left;
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+}
+
+.settings-panel .settings-nav-group > button.active {
   color: var(--md-sys-color-on-secondary-container);
   background: var(--md-sys-color-secondary-container);
 }
@@ -210,6 +236,34 @@
 }
 
 @media (max-width: 900px) {
+  .settings-panel .settings-body-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings-panel .settings-section-nav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  }
+
+  .settings-panel .settings-nav-group {
+    display: flex;
+  }
+
+  .settings-panel .settings-nav-group > strong {
+    display: none;
+  }
+
+  .settings-panel .settings-nav-group > button {
+    width: max-content;
+    grid-template-columns: 20px auto;
+    border-radius: var(--md-sys-shape-corner-full);
+  }
+
   .settings-panel .health-metrics {
     grid-template-columns: repeat(2, minmax(100px, 1fr));
   }

@@ -1,6 +1,8 @@
-import { Button, IconButton, MaterialIcon } from "./ui";
+import { Button, IconButton, MaterialIcon, TextField } from "./ui";
 import type { Playlist, SavedView, Tag } from "../types";
 import { useTranslation } from "react-i18next";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 
 type ViewMode =
   | "library"
@@ -31,10 +33,62 @@ type Props = {
   onMoveSavedView: (savedViewId: number, direction: -1 | 1) => void;
   onDeactivateSavedView: () => void;
   onOpenPlaylist: (playlist: Playlist) => void;
+  onCreatePlaylist: (name: string) => Promise<boolean>;
 };
 
 export default function Sidebar(props: Props) {
   const { t } = useTranslation();
+  const [expandedSections, setExpandedSections] = useState({
+    tags: true,
+    playlists: true,
+    savedViews: true
+  });
+  const [showAllTags, setShowAllTags] = useState(false);
+  const [playlistMenuOpen, setPlaylistMenuOpen] = useState(false);
+  const [playlistName, setPlaylistName] = useState("");
+  const [creatingPlaylist, setCreatingPlaylist] = useState(false);
+  const playlistSectionRef = useRef<HTMLDivElement | null>(null);
+  const playlistTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!playlistMenuOpen) return;
+
+    window.requestAnimationFrame(() => {
+      playlistSectionRef.current?.querySelector<HTMLInputElement>("input")?.focus();
+    });
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!playlistSectionRef.current?.contains(event.target as Node)) {
+        setPlaylistMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [playlistMenuOpen]);
+
+  async function submitPlaylist(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = playlistName.trim();
+    if (!name || creatingPlaylist) return;
+
+    setCreatingPlaylist(true);
+    const created = await props.onCreatePlaylist(name);
+    setCreatingPlaylist(false);
+    if (!created) return;
+
+    setPlaylistName("");
+    setPlaylistMenuOpen(false);
+    setExpandedSections((current) => ({ ...current, playlists: true }));
+    window.requestAnimationFrame(() => playlistTriggerRef.current?.focus());
+  }
+
+  function toggleSection(section: keyof typeof expandedSections) {
+    setExpandedSections((current) => ({
+      ...current,
+      [section]: !current[section]
+    }));
+  }
   function openView(view: ViewMode) {
     props.onDeactivateSavedView();
     props.setView(view);
@@ -58,6 +112,15 @@ export default function Sidebar(props: Props) {
   const favoriteActive =
     props.activeSavedViewId === null && props.view === "favorites";
   const settingsActive = props.view === "settings";
+  const collapsedTags = props.tags.slice(0, 8);
+  const selectedTagOutsidePreview = props.tags.find(
+    (tag) => tag.name === props.selectedTag && !collapsedTags.some((row) => row.id === tag.id)
+  );
+  const visibleTags = showAllTags
+    ? props.tags
+    : selectedTagOutsidePreview
+      ? [...collapsedTags, selectedTagOutsidePreview]
+      : collapsedTags;
   return (
     <aside className="sidebar">
       <div className="sidebar-scroll-content">
@@ -108,11 +171,25 @@ export default function Sidebar(props: Props) {
 
       <div className="sidebar-section tag-section">
         <div className="sidebar-section-heading">
-          <h3>{t("navigation.tags")}</h3>
-          <span>{props.tags.length}</span>
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            aria-label={t(
+              expandedSections.tags
+                ? "navigation.collapseSection"
+                : "navigation.expandSection",
+              { name: t("navigation.tags") }
+            )}
+            aria-expanded={expandedSections.tags}
+            onClick={() => toggleSection("tags")}
+          >
+            <h3>{t("navigation.tags")}</h3>
+            <MaterialIcon name={expandedSections.tags ? "expand_less" : "expand_more"} size={18} />
+          </button>
+          <span className="sidebar-section-count">{props.tags.length}</span>
         </div>
 
-        <div className="tag-cloud-nav">
+        {expandedSections.tags && <div className="tag-cloud-nav">
           <Button preserveChildren
             type="button"
             className="sidebar-pill sidebar-filter-reset"
@@ -127,7 +204,7 @@ export default function Sidebar(props: Props) {
             {t("navigation.allTags")}
           </Button>
 
-          {props.tags.map((tag) => (
+          {visibleTags.map((tag) => (
             <Button preserveChildren
               key={tag.id}
               type="button"
@@ -148,24 +225,90 @@ export default function Sidebar(props: Props) {
               #{tag.name}
             </Button>
           ))}
-        </div>
+          {props.tags.length > 8 && (
+            <Button
+              size="sm"
+              className="sidebar-show-more"
+              onClick={() => setShowAllTags((value) => !value)}
+            >
+              {showAllTags ? t("navigation.showLess") : t("navigation.showAllTags", { count: props.tags.length })}
+            </Button>
+          )}
+        </div>}
       </div>
 
-      <div className="sidebar-section">
+      <div className="sidebar-section playlist-section" ref={playlistSectionRef}>
         <div className="sidebar-section-heading">
-          <h3>{t("navigation.playlists")}</h3>
-          <span>{props.playlists.length}</span>
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            aria-label={t(
+              expandedSections.playlists
+                ? "navigation.collapseSection"
+                : "navigation.expandSection",
+              { name: t("navigation.playlists") }
+            )}
+            aria-expanded={expandedSections.playlists}
+            onClick={() => toggleSection("playlists")}
+          >
+            <h3>{t("navigation.playlists")}</h3>
+            <MaterialIcon name={expandedSections.playlists ? "expand_less" : "expand_more"} size={18} />
+          </button>
+          <IconButton
+            ref={playlistTriggerRef}
+            size="sm"
+            className="sidebar-create-playlist-trigger"
+            label={t("navigation.createPlaylist")}
+            aria-haspopup="dialog"
+            aria-expanded={playlistMenuOpen}
+            aria-controls={playlistMenuOpen ? "sidebar-create-playlist" : undefined}
+            onClick={() => setPlaylistMenuOpen((open) => !open)}
+          >
+            <MaterialIcon name="add" size={18} />
+          </IconButton>
+          <span className="sidebar-section-count">{props.playlists.length}</span>
         </div>
 
-        {props.playlists.length === 0 && (
+        {playlistMenuOpen && (
+          <form
+            id="sidebar-create-playlist"
+            className="sidebar-create-playlist-menu"
+            role="dialog"
+            aria-label={t("navigation.createPlaylist")}
+            onSubmit={(event) => void submitPlaylist(event)}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              setPlaylistMenuOpen(false);
+              window.requestAnimationFrame(() => playlistTriggerRef.current?.focus());
+            }}
+          >
+            <TextField
+              hideLabel
+              label={t("settings.library.playlistName")}
+              placeholder={t("settings.library.playlistName")}
+              value={playlistName}
+              disabled={creatingPlaylist}
+              onValueChange={setPlaylistName}
+            />
+            <Button
+              type="submit"
+              variant="filled"
+              size="sm"
+              disabled={!playlistName.trim() || creatingPlaylist}
+            >
+              {creatingPlaylist ? t("common.status.running") : t("settings.library.create")}
+            </Button>
+          </form>
+        )}
+
+        {expandedSections.playlists && props.playlists.length === 0 && (
           <div className="sidebar-empty">
             {t("navigation.noPlaylists")}
-            <br />
-            {t("navigation.createInSettings")}
           </div>
         )}
 
-        <div className="sidebar-scroll-area">
+        {expandedSections.playlists && <div className="sidebar-scroll-area">
           {props.playlists.map((playlist) => (
             <Button preserveChildren
               key={playlist.id}
@@ -199,20 +342,34 @@ export default function Sidebar(props: Props) {
               </span>
             </Button>
           ))}
-        </div>
+        </div>}
       </div>
 
       <div className="sidebar-section saved-view-section">
         <div className="sidebar-section-heading">
-          <h3>{t("savedViews.section")}</h3>
-          <span>{props.savedViews.length}</span>
+          <button
+            type="button"
+            className="sidebar-section-toggle"
+            aria-label={t(
+              expandedSections.savedViews
+                ? "navigation.collapseSection"
+                : "navigation.expandSection",
+              { name: t("savedViews.section") }
+            )}
+            aria-expanded={expandedSections.savedViews}
+            onClick={() => toggleSection("savedViews")}
+          >
+            <h3>{t("savedViews.section")}</h3>
+            <MaterialIcon name={expandedSections.savedViews ? "expand_less" : "expand_more"} size={18} />
+          </button>
+          <span className="sidebar-section-count">{props.savedViews.length}</span>
         </div>
 
-        {props.savedViews.length === 0 && (
+        {expandedSections.savedViews && props.savedViews.length === 0 && (
           <div className="sidebar-empty">{t("savedViews.empty")}</div>
         )}
 
-        <div className="sidebar-scroll-area">
+        {expandedSections.savedViews && <div className="sidebar-scroll-area">
           {props.savedViews.map((savedView, index) => {
             const active = props.activeSavedViewId === savedView.id;
             return (
@@ -282,7 +439,7 @@ export default function Sidebar(props: Props) {
               </div>
             );
           })}
-        </div>
+        </div>}
       </div>
 
       <div className="sidebar-footer">

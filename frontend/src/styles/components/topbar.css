@@ -1,360 +1,144 @@
 .top-command-bar {
+  container-name: library-topbar;
+  container-type: inline-size;
   flex: 0 0 auto;
   display: grid;
   gap: 10px;
-  padding: 14px;
+  padding: 13px 14px;
   overflow: visible;
-  background:
-    linear-gradient(180deg, rgba(208, 188, 255, 0.055), transparent),
-    var(--md-sys-color-surface-container);
+  background: var(--md-sys-color-surface-container-low);
 }
 
 .top-title-block {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
+  min-width: 0;
+}
+
+.top-heading-line {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
 .top-title-block h1 {
+  min-width: 0;
   margin: 0;
   color: var(--md-sys-color-on-surface);
-  font-size: 26px;
-  line-height: var(--md-sys-typescale-title-large-line-height, 1.12);
-  letter-spacing: var(--md-sys-typescale-title-large-letter-spacing, -0.03em);
+  font-size: 25px;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
   font-weight: 800;
+}
+
+.top-inline-count {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-primary);
+  font-size: 12px;
+  font-weight: 760;
 }
 
 .top-title-block p {
   margin: 3px 0 0;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--md-sys-typescale-body-medium-font-size, 13px);
-  line-height: var(--md-sys-typescale-body-medium-line-height, 1.5);
-}
-
-.top-count-card {
-  min-width: 78px;
-  padding: 8px 12px;
-  text-align: right;
-  border-radius: var(--md-sys-shape-corner-large);
-  color: var(--md-sys-color-on-primary-container);
-  background: var(--md-sys-color-primary-container);
-}
-
-.top-count-card strong {
-  display: block;
-  color: currentColor;
-  font-size: 20px;
-  line-height: 1.1;
-}
-
-.top-count-card span {
-  color: currentColor;
-  opacity: 0.78;
-  font-size: var(--md-sys-typescale-label-small-font-size, 12px);
-}
-
-.top-action-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.top-command-search {
-  min-width: 0;
-  flex: 1 1 auto;
-  width: 100%;
-}
-
-.top-command-search .ui-search-field-input {
-  height: 48px;
-  min-height: 48px;
-}
-
-.top-query-row {
-  display: block;
-  min-width: 0;
-}
-
-.top-save-view-button.ui-button,
-.top-update-view-button.ui-button {
-  flex: 0 0 auto;
-  height: 38px;
-  min-height: 38px;
-  white-space: nowrap;
-  border-radius: 16px;
-}
-
-.top-toolbar-controls {
-  width: 100%;
-  min-width: 0;
-  min-height: 42px;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  padding: 0;
-  overflow: visible;
-  border-radius: 0;
-  background: transparent;
-  scrollbar-width: none;
-}
-
-.top-toolbar-controls::-webkit-scrollbar {
-  display: none;
-}
-
-.top-filter-controls,
-.top-toolbar-actions {
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-}
-
-.top-filter-controls {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.top-toolbar-actions {
-  display: flex;
-}
-
-.topbar-select-field {
-  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .search-limit-warning,
 .top-title-block .search-limit-warning {
   display: inline-block;
   margin-top: 6px;
-  padding: 6px 10px;
+  padding: 5px 9px;
   color: var(--md-sys-color-on-warning-container);
-  font-size: var(--md-sys-typescale-label-small-font-size, 12px);
-  line-height: 1.5;
-  border-radius: var(--md-sys-shape-corner-medium);
+  font-size: 12px;
+  border-radius: var(--md-sys-shape-corner-small);
   background: var(--md-sys-color-warning-container);
 }
 
-.top-command-bar .top-quick-action.ui-button {
-  height: 38px;
-  min-height: 38px;
-  border-radius: 16px;
-  font-size: var(--md-sys-typescale-label-large-font-size, 13px);
-  font-weight: 820;
-  letter-spacing: 0.005em;
+.top-action-row,
+.top-query-row,
+.top-command-search {
+  min-width: 0;
 }
 
-.top-command-bar .top-batch-group {
-  min-width: max-content;
-  display: inline-flex;
+.top-action-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.45fr) minmax(460px, 2fr);
   align-items: center;
-  gap: 6px;
+  gap: 9px;
 }
 
-.top-command-bar .top-batch-action.ui-button {
-  height: 38px;
-  min-height: 38px;
-  border-radius: 16px;
-  font-size: var(--md-sys-typescale-label-large-font-size, 13px);
-  font-weight: 820;
-}
-
-.top-command-bar .top-batch-transcribe-action.ui-button {
-  min-width: 78px;
-  padding-inline: 11px;
-}
-
-.top-command-bar .top-batch-ai-action.ui-button {
-  min-width: 64px;
-  padding-inline: 11px;
-}
-
-.top-command-bar .top-clear-filter-button.ui-button {
-  height: 40px;
-  min-height: 40px;
-  min-width: 50px;
-  padding-inline: 9px;
-  border-radius: var(--md-sys-shape-corner-full);
-  font-size: var(--md-sys-typescale-label-large-font-size, 13px);
-  font-weight: 800;
-}
-
-.top-command-bar .top-settings-button {
-  flex: 0 0 auto;
-}
-
-/* TopBar integrated layout rules: start */
-/*
-  Layout refinements for TopBar live in this component stylesheet instead of a
-  separate final override file. This keeps TopBar's effective cascade local and
-  easier to maintain.
-
-  Select dimensions are controlled by SelectField props, keeping page CSS
-  focused on layout rather than per-control sizing aliases.
-*/
-
-.top-command-bar {
-  container-name: library-topbar;
-  container-type: inline-size;
-}
-
-.top-command-bar .top-toolbar-controls {
+.top-command-search {
   width: 100%;
-  display: flex;
-  flex-direction: row;
+}
+
+.top-command-search .ui-search-field-input {
+  height: 44px;
+  min-height: 44px;
+  border-radius: var(--md-sys-shape-corner-large);
+}
+
+.top-toolbar-controls {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
   align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  overflow: visible;
-  scrollbar-width: none;
+  gap: 7px;
 }
 
-.top-command-bar .top-toolbar-controls::-webkit-scrollbar {
-  display: none;
-}
-
-.top-command-bar .top-filter-controls {
-  order: 1;
-  width: auto;
-  flex: 1 1 260px;
+.top-filter-controls {
   min-width: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  overflow: visible;
-  padding-bottom: 0;
+  gap: 7px;
 }
 
-.top-command-bar .topbar-select-field {
-  width: 100%;
+.topbar-select-field {
   min-width: 0;
+  width: 100%;
 }
 
-.top-command-bar .top-toolbar-actions {
-  order: 2;
-  width: auto;
-  flex: 0 0 auto;
+.top-toolbar-actions {
   min-width: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
-  margin-left: 0;
+  gap: 5px;
 }
 
-.top-command-bar .top-settings-button {
-  flex: 0 0 auto;
-  width: 38px;
-  min-width: 38px;
+.top-batch-menu .ui-action-menu-trigger,
+.top-save-view-button.ui-button,
+.top-update-view-button.ui-button,
+.top-clear-filter-button.ui-button {
   height: 38px;
   min-height: 38px;
-  margin-left: auto;
-  align-self: center;
+  padding-inline: 11px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  font-size: 12px;
 }
 
-.top-command-bar .top-batch-group {
-  order: 0;
-  flex: 0 0 auto;
+.top-batch-menu .ui-action-menu-trigger {
+  color: var(--md-sys-color-on-secondary-container);
 }
 
-.top-command-bar .top-clear-filter-button {
-  order: 0;
-  flex: 0 0 auto;
-  margin-left: 0;
-}
-
-@container library-topbar (max-width: 440px) {
-  .top-command-bar .top-filter-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .top-command-bar .top-batch-group {
-    gap: 5px;
-  }
-
-  .top-command-bar .top-batch-action.ui-button {
-    padding-inline: 11px;
+@container library-topbar (max-width: 840px) {
+  .top-action-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @container library-topbar (max-width: 560px) {
-  .top-title-block {
+  .top-toolbar-controls {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .top-count-card {
-    width: 100%;
-    justify-self: stretch;
-    text-align: left;
-  }
-}
-
-@container library-topbar (max-width: 520px) {
-  .top-command-bar .top-toolbar-controls {
-    flex-direction: column;
-    align-items: stretch;
+  .top-toolbar-actions {
+    flex-wrap: wrap;
   }
 
-  .top-command-bar .top-filter-controls,
-  .top-command-bar .top-toolbar-actions {
-    width: 100%;
-  }
-}
-
-@container library-topbar (max-width: 520px) {
-  .top-command-bar .top-toolbar-controls {
-    gap: 7px;
-  }
-
-  .top-command-bar .top-filter-controls {
-    gap: 6px;
-  }
-
-  .top-command-bar .top-toolbar-actions {
-    gap: 5px;
-  }
-
-  .top-command-bar .top-batch-action.ui-button {
-    height: 38px;
-    min-height: 38px;
-    font-size: 12px;
-  }
-
-  .top-command-bar .top-batch-transcribe-action.ui-button {
-    min-width: 54px;
-    padding-inline: 10px;
-  }
-
-  .top-command-bar .top-batch-ai-action.ui-button {
-    min-width: 42px;
-    padding-inline: 11px;
-  }
-
-  .top-command-bar .top-clear-filter-button.ui-button {
-    min-width: 46px;
-    padding-inline: 8px;
-    font-size: 12px;
-  }
-
-  .top-command-bar .top-settings-button {
-    width: 38px;
-    min-width: 38px;
-    height: 38px;
-    min-height: 38px;
-  }
 }
 
 @container library-topbar (max-width: 360px) {
-  .top-command-bar .top-filter-controls {
+  .top-filter-controls {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  .top-command-bar .top-toolbar-actions {
-    flex-wrap: wrap;
-  }
 }
-/* TopBar integrated layout rules: end */

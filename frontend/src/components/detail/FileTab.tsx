@@ -11,6 +11,7 @@ type FileTabProps = {
   onRelocatePathChange: (value: string) => void;
   onChooseRelocateFile: () => void;
   onRelocate: () => void;
+  onUploadCover: (file?: File) => void;
   onDeleteCover: () => void;
   onDeleteFromDatabase: () => void;
 };
@@ -21,6 +22,7 @@ export default function FileTab({
   onRelocatePathChange,
   onChooseRelocateFile,
   onRelocate,
+  onUploadCover,
   onDeleteCover,
   onDeleteFromDatabase
 }: FileTabProps) {
@@ -88,19 +90,31 @@ export default function FileTab({
         </Button>
       </PanelCard>
 
-      <PanelCard title={t("detail.file.danger")} className="danger-zone">
-        <p>{t("detail.file.dangerDescription")}</p>
-
+      <PanelCard title={t("detail.file.cover") }>
+        <p className="muted">{t("detail.file.coverDescription")}</p>
         <div className="section-actions">
+          <label className="upload-button">
+            {t("detail.file.chooseCover")}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => onUploadCover(event.currentTarget.files?.[0])}
+            />
+          </label>
           <Button
-            preserveChildren
             variant="outlined"
             onClick={onDeleteCover}
             disabled={!audio.cover_path}
           >
             {t("detail.file.deleteCover")}
           </Button>
+        </div>
+      </PanelCard>
 
+      <PanelCard title={t("detail.file.danger")} className="danger-zone">
+        <p>{t("detail.file.dangerDescription")}</p>
+
+        <div className="section-actions">
           <Button variant="danger" onClick={onDeleteFromDatabase}>
             {t("detail.file.removeDatabase")}
           </Button>

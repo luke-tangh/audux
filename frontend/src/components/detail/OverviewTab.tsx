@@ -17,7 +17,6 @@ type OverviewTabProps = {
   audio: AudioItem;
   editing: Partial<AudioItem>;
   onEditingChange: (patch: EditingPatch) => void;
-  onSave: () => void;
 
   tags: Tag[];
   availableExistingTags: Tag[];
@@ -41,7 +40,6 @@ export default function OverviewTab({
   audio,
   editing,
   onEditingChange,
-  onSave,
   tags,
   availableExistingTags,
   tagInput,
@@ -61,14 +59,7 @@ export default function OverviewTab({
   const { t } = useTranslation();
   return (
     <div className="inspector-section-stack">
-      <PanelCard
-        title={t("common.technical.metadata")}
-        actions={
-          <Button variant="filled" onClick={onSave}>
-            {t("detail.overview.saveMetadata")}
-          </Button>
-        }
-      >
+      <PanelCard title={t("common.technical.metadata")}>
         <div className="field-grid">
           <TextField
             label={t("detail.overview.userTitle")}

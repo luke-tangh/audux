@@ -147,23 +147,47 @@
 }
 
 .sidebar-section-heading {
-  display: flex;
+  width: 100%;
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
-  padding-inline: 4px;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: var(--md-sys-shape-corner-small);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
-.sidebar-section-heading h3 {
+.sidebar-section-toggle {
+  min-width: 0;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  border-radius: var(--md-sys-shape-corner-small);
+}
+
+.sidebar-section-toggle:hover {
+  color: var(--md-sys-color-on-surface);
+}
+
+.sidebar-section-toggle h3 {
   margin: 0;
   color: var(--md-sys-color-on-surface-variant);
   font-size: 13px;
   font-weight: 800;
 }
 
-.sidebar-section-heading span {
+.sidebar-section-count {
+  grid-column: 3;
+  min-width: 32px;
   min-height: 24px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 2px 8px;
   color: var(--md-sys-color-on-secondary-container);
   font-size: 12px;
@@ -172,15 +196,68 @@
   background: var(--md-sys-color-secondary-container);
 }
 
+.sidebar-section-toggle .material-icon {
+  flex: 0 0 auto;
+}
+
+.sidebar-create-playlist-trigger.ui-icon-button {
+  grid-column: 2;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  color: var(--md-sys-color-primary);
+}
+
+.playlist-section {
+  position: relative;
+}
+
+.sidebar-create-playlist-menu {
+  position: absolute;
+  top: 38px;
+  right: 2px;
+  z-index: 8;
+  width: min(248px, calc(100% - 4px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--md-sys-elevation-2);
+}
+
+.sidebar-create-playlist-menu .ui-field-group {
+  min-width: 0;
+}
+
+.sidebar-create-playlist-menu .ui-text-field {
+  min-width: 0;
+  height: 36px;
+}
+
+.sidebar-create-playlist-menu .ui-button {
+  min-height: 36px;
+}
+
 .sidebar-empty {
-  padding: 14px;
+  padding: 4px 6px;
   color: var(--md-sys-color-on-surface-variant);
-  text-align: center;
+  text-align: left;
   font-size: 13px;
   line-height: 1.6;
-  border: 1px dashed var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-surface-container-low);
+  border: 0;
+  background: transparent;
+}
+
+.sidebar-show-more.ui-button {
+  width: auto;
+  min-height: 30px;
+  padding-inline: 8px;
+  font-size: 12px;
 }
 
 .sidebar-scroll-area,

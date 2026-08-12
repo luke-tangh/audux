@@ -255,8 +255,10 @@ test.describe("playback queue session", () => {
     await mockPlaybackApi(page, state);
     await page.goto("/");
 
-    await page.getByRole("button", { name: "加入播放队列 测试音频 1" }).click();
-    await page.getByRole("button", { name: "将 测试音频 2 设为下一首播放" }).click();
+    await page.getByRole("button", { name: "测试音频 1 的更多操作" }).click();
+    await page.getByRole("menuitem", { name: "加入播放队列" }).click();
+    await page.getByRole("button", { name: "测试音频 2 的更多操作" }).click();
+    await page.getByRole("menuitem", { name: "下一首播放" }).click();
     await page.getByRole("button", { name: "打开播放队列" }).click();
     await expect(page.locator("#player-queue-popover .queue-title")).toHaveText([
       "测试音频 2",
@@ -307,7 +309,7 @@ test.describe("playback queue session", () => {
     await expect(dialog).toContainText("若只想停止当前音频");
     await dialog.getByRole("button", { name: "清空队列" }).click();
 
-    await expect(page.getByRole("button", { name: "打开播放队列" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "打开播放队列" })).toHaveCount(0);
     await expect(page.locator(".player-now-card strong")).toHaveText("选择一个音频开始播放");
     await expect.poll(() => storedSession(page)).toBeNull();
   });

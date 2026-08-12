@@ -48,7 +48,9 @@ export default function PlayerBar({
     safeDuration > 0 ? Math.min(100, (player.current / safeDuration) * 100) : 0;
 
   return (
-    <footer className="player-dock">
+    <footer
+      className={`player-dock ${audio ? "has-audio" : queue.length ? "queued" : "empty"}`}
+    >
       <audio
         ref={player.audioRef}
         onPlay={player.handleAudioPlay}

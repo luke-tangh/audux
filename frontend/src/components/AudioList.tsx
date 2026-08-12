@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api } from "../api";
 import type { AudioItem } from "../types";
 import { displayAuthor, displayDescription, displayTitle, formatDuration } from "../types";
-import { Button, StatusPill, MaterialIcon } from "./ui";
+import { ActionMenu, Button, IconButton, StatusPill, MaterialIcon } from "./ui";
 import { useTranslation } from "react-i18next";
 
 const MAX_BATCH_SELECTION = 500;
@@ -108,10 +108,12 @@ function CoverThumb({ item }: { item: AudioItem }) {
 
 function RowTags({
   item,
-  query
+  query,
+  limit
 }: {
   item: AudioItem;
   query: string;
+  limit: number;
 }) {
   const tags = item.tags || [];
 
@@ -119,13 +121,15 @@ function RowTags({
 
   return (
     <div className="row-tags">
-      {tags.slice(0, 5).map((tag) => (
+      {tags.slice(0, limit).map((tag) => (
         <span className="mini-tag" key={tag.id}>
           #<HighlightText text={tag.name} query={query} />
         </span>
       ))}
 
-      {tags.length > 5 && <span className="mini-tag muted-tag">+{tags.length - 5}</span>}
+      {tags.length > limit && (
+        <span className="mini-tag muted-tag">+{tags.length - limit}</span>
+      )}
     </div>
   );
 }
@@ -299,6 +303,16 @@ export default function AudioList({
 }: Props) {
   const { t } = useTranslation();
   const [draggedPlaylistItemId, setDraggedPlaylistItemId] = useState<number | null>(null);
+  const [density, setDensity] = useState<"compact" | "comfortable">(() => {
+    try {
+      return window.localStorage.getItem("local-audio-library-list-density") ===
+        "comfortable"
+        ? "comfortable"
+        : "compact";
+    } catch {
+      return "compact";
+    }
+  });
   const canReorderPlaylist = Boolean(
     isPlaylistView && onMovePlaylistItem && onMovePlaylistItemTo
   );
@@ -323,9 +337,19 @@ export default function AudioList({
     row?.focus();
   }
 
+  function toggleDensity() {
+    const nextDensity = density === "compact" ? "comfortable" : "compact";
+    setDensity(nextDensity);
+    try {
+      window.localStorage.setItem("local-audio-library-list-density", nextDensity);
+    } catch {
+      // The visual preference remains active for this session when storage is unavailable.
+    }
+  }
+
   return (
     <section
-      className="audio-list-panel"
+      className={`audio-list-panel density-${density}`}
       aria-busy={isLoading || isRefreshing}
     >
       {loadError && (
@@ -358,9 +382,31 @@ export default function AudioList({
           aria-label={t("audioList.batchOrganize")}
         >
           {!selectionMode ? (
-            <Button variant="outlined" size="sm" onClick={onEnterSelectionMode}>
-              {t("audioList.multiSelect")}
-            </Button>
+            <>
+              <Button variant="outlined" size="sm" onClick={onEnterSelectionMode}>
+                {t("audioList.multiSelect")}
+              </Button>
+              <span className="batch-toolbar-spacer" />
+              <IconButton
+                size="sm"
+                label={
+                  density === "compact"
+                    ? t("audioList.useComfortableDensity")
+                    : t("audioList.useCompactDensity")
+                }
+                title={
+                  density === "compact"
+                    ? t("audioList.useComfortableDensity")
+                    : t("audioList.useCompactDensity")
+                }
+                onClick={toggleDensity}
+              >
+                <MaterialIcon
+                  name={density === "compact" ? "view_agenda" : "view_list"}
+                  size={18}
+                />
+              </IconButton>
+            </>
           ) : (
             <>
               <strong aria-live="polite">{t("audioList.selectedCount", { count: selectedCount })}</strong>
@@ -393,22 +439,28 @@ export default function AudioList({
               >
                 {t("audioList.addPlaylist")}
               </Button>
-              <Button
-                variant="tonal"
+              <ActionMenu
                 size="sm"
-                onClick={() => onBatchSetFavorite(true)}
-                disabled={selectedCount === 0}
-              >
-                {t("audioList.favorite")}
-              </Button>
-              <Button
                 variant="tonal"
-                size="sm"
-                onClick={() => onBatchSetFavorite(false)}
+                label={t("audioList.favoriteState")}
+                buttonText={t("audioList.favoriteState")}
+                buttonIcon="star"
                 disabled={selectedCount === 0}
-              >
-                {t("audioList.unfavorite")}
-              </Button>
+                items={[
+                  {
+                    id: "favorite",
+                    label: t("audioList.favorite"),
+                    icon: "star",
+                    onSelect: () => onBatchSetFavorite(true)
+                  },
+                  {
+                    id: "unfavorite",
+                    label: t("audioList.unfavorite"),
+                    icon: "star_outline",
+                    onSelect: () => onBatchSetFavorite(false)
+                  }
+                ]}
+              />
               <Button variant="outlined" size="sm" onClick={onExitSelectionMode}>
                 {t("audioList.done")}
               </Button>
@@ -584,53 +636,27 @@ export default function AudioList({
                   )}
                 </div>
 
-                {description && (
+                {description && (density === "comfortable" || rowIsSelected || q.trim()) && (
                   <div className="description-line">
                     <HighlightText text={description} query={q} />
                   </div>
                 )}
 
-                <RowTags item={item} query={q} />
-
-                <div className="row-status">
-                  <StatusPill label={t("audioList.transcript")} value={item.transcript_status} />
-                  <StatusPill label={t("common.technical.ai")} value={item.ai_status} />
-                </div>
+                <RowTags
+                  item={item}
+                  query={q}
+                  limit={density === "comfortable" ? 5 : 2}
+                />
 
                 <SearchHits item={item} query={q} onPlayAt={onPlayAt} />
               </div>
 
+              <div className="row-status" aria-label={t("audioList.processingStatus")}>
+                <StatusPill label={t("audioList.transcript")} value={item.transcript_status} />
+                <StatusPill label={t("common.technical.ai")} value={item.ai_status} />
+              </div>
+
               <div className="row-actions">
-                <Button
-                  preserveChildren
-                  type="button"
-                  aria-label={t("audioList.playNextLabel", { title: displayTitle(item) })}
-                  title={t("audioList.playNext")}
-                  disabled={item.is_missing}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPlayNext(item);
-                  }}
-                >
-                  <MaterialIcon name="playlist_play" size={19} />
-                  <span>{t("audioList.playNextShort")}</span>
-                </Button>
-
-                <Button
-                  preserveChildren
-                  type="button"
-                  aria-label={t("audioList.addQueueLabel", { title: displayTitle(item) })}
-                  title={t("audioList.addQueue")}
-                  disabled={item.is_missing}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAddToQueue(item);
-                  }}
-                >
-                  <MaterialIcon name="queue_music" size={19} />
-                  <span>{t("audioList.addQueueShort")}</span>
-                </Button>
-
                 <Button
                   type="button"
                   variant="filled"
@@ -645,49 +671,53 @@ export default function AudioList({
                   {t("audioList.play")}
                 </Button>
 
-                {isPlaylistView && item.playlist_item_id && (
-                  <>
-                    {canReorderPlaylist && (
-                      <>
-                        <Button preserveChildren
-                          type="button"
-                          aria-label={t("audioList.moveUpLabel", { title: displayTitle(item) })}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onMovePlaylistItem?.(item, "up");
-                          }}
-                          title={t("audioList.moveUp")}
-                        >
-                          <MaterialIcon name="keyboard_arrow_up" size={18} />
-                        </Button>
-
-                        <Button preserveChildren
-                          type="button"
-                          aria-label={t("audioList.moveDownLabel", { title: displayTitle(item) })}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onMovePlaylistItem?.(item, "down");
-                          }}
-                          title={t("audioList.moveDown")}
-                        >
-                          <MaterialIcon name="keyboard_arrow_down" size={18} />
-                        </Button>
-                      </>
-                    )}
-
-                    <Button preserveChildren
-                      type="button"
-                      aria-label={t("audioList.removePlaylistLabel", { title: displayTitle(item) })}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemoveFromPlaylist?.(item);
-                      }}
-                      title={t("audioList.removePlaylist")}
-                    >
-                      {t("common.actions.remove")}
-                    </Button>
-                  </>
-                )}
+                <ActionMenu
+                  className="row-more-menu"
+                  label={t("audioList.moreActions", { title: displayTitle(item) })}
+                  items={[
+                    {
+                      id: "next",
+                      label: t("audioList.playNext"),
+                      icon: "playlist_play",
+                      disabled: item.is_missing,
+                      onSelect: () => onPlayNext(item)
+                    },
+                    {
+                      id: "queue",
+                      label: t("audioList.addQueue"),
+                      icon: "queue_music",
+                      disabled: item.is_missing,
+                      onSelect: () => onAddToQueue(item)
+                    },
+                    ...(isPlaylistView && item.playlist_item_id && canReorderPlaylist
+                      ? [
+                          {
+                            id: "up",
+                            label: t("audioList.moveUp"),
+                            icon: "keyboard_arrow_up" as const,
+                            onSelect: () => onMovePlaylistItem?.(item, "up")
+                          },
+                          {
+                            id: "down",
+                            label: t("audioList.moveDown"),
+                            icon: "keyboard_arrow_down" as const,
+                            onSelect: () => onMovePlaylistItem?.(item, "down")
+                          }
+                        ]
+                      : []),
+                    ...(isPlaylistView && item.playlist_item_id
+                      ? [
+                          {
+                            id: "remove",
+                            label: t("audioList.removePlaylist"),
+                            icon: "remove_circle_outline" as const,
+                            danger: true,
+                            onSelect: () => onRemoveFromPlaylist?.(item)
+                          }
+                        ]
+                      : [])
+                  ]}
+                />
               </div>
             </div>
           );

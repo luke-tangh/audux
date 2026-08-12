@@ -78,23 +78,23 @@
 .inspector-hero {
   position: relative;
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 14px;
-  padding: 16px;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface-container-low);
 }
 
 .inspector-cover {
-  width: 96px;
-  height: 96px;
+  width: 72px;
+  height: 72px;
   display: grid;
   place-items: center;
   overflow: hidden;
   margin: 0;
   color: var(--md-sys-color-on-primary-container);
   font-size: 50px;
-  border-radius: var(--md-sys-shape-corner-extra-large);
+  border-radius: var(--md-sys-shape-corner-large);
   background: var(--md-sys-color-primary-container);
   box-shadow: var(--md-sys-elevation-2);
 }
@@ -109,7 +109,7 @@
   margin: 0;
   padding-right: 36px;
   color: var(--md-sys-color-on-surface);
-  font-size: 24px;
+  font-size: 21px;
   line-height: 1.2;
   letter-spacing: -0.03em;
 }
@@ -124,7 +124,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  margin-top: 12px;
+  margin-top: 9px;
 }
 
 .detail-meta-strip > span:not(.status-pill) {
@@ -144,7 +144,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 0;
+  margin-top: 2px;
+}
+
+.inspector-actions .ui-button,
+.inspector-actions .ui-action-menu-trigger {
+  min-height: 36px;
+  height: 36px;
+  padding-inline: 13px;
 }
 
 .inspector-close-button {
@@ -181,13 +188,13 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  padding: 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface-container-low);
 }
 
 .inspector-tabs button {
-  min-height: 40px;
+  min-height: 36px;
   padding: 0 10px;
   border-radius: var(--md-sys-shape-corner-full);
   color: var(--md-sys-color-on-surface-variant);
@@ -205,6 +212,25 @@
   min-height: 0;
   overflow: auto;
   padding: 12px;
+}
+
+.detail-save-bar {
+  flex: 0 0 auto;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  color: var(--md-sys-color-on-secondary-container);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-secondary-container);
+  box-shadow: 0 -3px 12px color-mix(in srgb, var(--md-sys-color-shadow) 16%, transparent);
+}
+
+.detail-save-bar span {
+  font-size: 13px;
+  font-weight: 760;
 }
 
 .inspector-section-stack {

@@ -1,7 +1,7 @@
 import { api } from "../../api";
 import type { AudioItem } from "../../types";
 import { displayAuthor, displayTitle, formatDuration } from "../../types";
-import { Button, IconButton, MaterialIcon, StatusPill } from "../ui";
+import { ActionMenu, Button, IconButton, MaterialIcon, StatusPill } from "../ui";
 import { useTranslation } from "react-i18next";
 
 type DetailHeroProps = {
@@ -12,7 +12,6 @@ type DetailHeroProps = {
   onPlayNext: (audio: AudioItem) => void;
   onTranscribe: () => void;
   onAnalyze: () => void;
-  onUploadCover: (file?: File) => void;
   onClose: () => void;
 };
 
@@ -24,7 +23,6 @@ export default function DetailHero({
   onPlayNext,
   onTranscribe,
   onAnalyze,
-  onUploadCover,
   onClose
 }: DetailHeroProps) {
   const { t } = useTranslation();
@@ -92,20 +90,24 @@ export default function DetailHero({
         >
           {t("detail.hero.addQueue")}
         </Button>
-        <Button variant="text" onClick={onTranscribe}>
-          {t("detail.hero.transcript")}
-        </Button>
-        <Button variant="text" onClick={onAnalyze}>
-          {t("detail.hero.analyze")}
-        </Button>
-        <label className="upload-button">
-          {t("detail.hero.cover")}
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => onUploadCover(e.currentTarget.files?.[0])}
-          />
-        </label>
+        <ActionMenu
+          label={t("detail.hero.moreActions")}
+          buttonText={t("common.actions.more")}
+          items={[
+            {
+              id: "transcribe",
+              label: t("detail.hero.transcript"),
+              icon: "subtitles",
+              onSelect: onTranscribe
+            },
+            {
+              id: "analyze",
+              label: t("detail.hero.analyze"),
+              icon: "auto_awesome",
+              onSelect: onAnalyze
+            }
+          ]}
+        />
       </div>
     </div>
   );

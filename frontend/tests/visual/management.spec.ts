@@ -536,6 +536,21 @@ async function mockManagementApi(page: Page, state: MockState) {
       return;
     }
 
+    if (method === "POST" && url.pathname === "/playlists") {
+      const body = parseRequestBody(request) as { name: string };
+      const playlist: Playlist = {
+        id: Math.max(0, ...state.playlists.map((row) => row.id)) + 1,
+        name: body.name,
+        kind: "manual",
+        created_at: NOW,
+        updated_at: NOW
+      };
+      state.playlists.push(playlist);
+      state.mutations.push({ method, path: url.pathname, body });
+      await route.fulfill({ json: playlist, headers });
+      return;
+    }
+
     if (method === "POST" && url.pathname === "/playlists/smart") {
       const body = parseRequestBody(request) as {
         saved_view_id: number;
@@ -651,6 +666,21 @@ async function mockManagementApi(page: Page, state: MockState) {
     }
 
     const audioDetailMatch = url.pathname.match(/^\/audio-items\/(\d+)$/);
+    if (method === "PATCH" && audioDetailMatch) {
+      const body = parseRequestBody(request) as Partial<MockState["audioItems"][number]>;
+      const index = state.audioItems.findIndex(
+        (item) => item.id === Number(audioDetailMatch[1])
+      );
+      state.audioItems[index] = {
+        ...state.audioItems[index],
+        ...body,
+        updated_at: "2026-08-08T00:10:00Z"
+      };
+      state.mutations.push({ method, path: url.pathname, body });
+      await route.fulfill({ json: state.audioItems[index], headers });
+      return;
+    }
+
     if (method === "GET" && audioDetailMatch) {
       const audio = state.audioItems.find(
         (item) => item.id === Number(audioDetailMatch[1])
@@ -844,9 +874,9 @@ async function mockManagementApi(page: Page, state: MockState) {
 async function openSettings(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "设置中心" }).click();
-  await expect(page.getByRole("tab", { name: "媒体库" })).toHaveAttribute(
-    "aria-selected",
-    "true"
+  await expect(page.getByRole("button", { name: "资料库", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
   );
 }
 
@@ -861,17 +891,14 @@ test.describe("v0.5 management workflows", () => {
     await expect(page.locator(".inspector-panel")).toHaveCount(0);
     await expect(page.getByText("未知作者").first()).toBeVisible();
     await expect(page.getByText("Unknown", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "批量转写当前筛选结果" })).toContainText(
-      "批量转写"
-    );
-    await expect(page.getByRole("button", { name: "批量 AI 分析当前筛选结果" })).toContainText(
-      "批量 AI"
-    );
+    const processResults = page.getByRole("button", { name: "处理当前结果中的 2 个音频" });
+    await expect(processResults).toContainText("处理全部 2 项");
+    await processResults.click();
+    await expect(page.getByRole("menuitem", { name: "转写当前结果中的 2 项" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "AI 分析当前结果中的 2 项" })).toBeVisible();
+    await page.keyboard.press("Escape");
     await expect(
-      page.getByRole("button", { name: "将 测试音频 1 设为下一首播放" })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "加入播放队列 测试音频 1" })
+      page.getByRole("button", { name: "测试音频 1 的更多操作" })
     ).toBeVisible();
 
     const viewports = [
@@ -926,6 +953,8 @@ test.describe("v0.5 management workflows", () => {
     await mockManagementApi(page, state);
     await page.goto("/");
 
+    await page.getByRole("combobox", { name: "按资料库文件筛选" }).click();
+    await page.getByRole("option", { name: "仅可播放" }).click();
     await page.getByRole("button", { name: "保存视图", exact: true }).click();
     let dialog = page.getByRole("dialog", { name: "保存当前视图" });
     await dialog.getByRole("textbox", { name: "视图名称" }).fill("动态通勤规则");
@@ -945,6 +974,27 @@ test.describe("v0.5 management workflows", () => {
       method: "POST",
       path: "/playlists/smart",
       body: { saved_view_id: 1, name: "动态通勤" }
+    });
+  });
+
+  test("reveals metadata save actions only after the detail form changes", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
+    await expect(page.getByText("有未保存的修改")).toHaveCount(0);
+    await page.getByRole("textbox", { name: "用户标题" }).fill("更新后的标题");
+    await expect(page.getByText("有未保存的修改")).toBeVisible();
+    await page.getByRole("button", { name: "保存元数据" }).click();
+    await expect(page.getByText("有未保存的修改")).toHaveCount(0);
+
+    expect(state.mutations).toContainEqual({
+      method: "PATCH",
+      path: "/audio-items/1",
+      body: expect.objectContaining({ title_user: "更新后的标题" })
     });
   });
 
@@ -1048,7 +1098,8 @@ test.describe("v0.5 management workflows", () => {
 
     const firstCheckbox = page.getByRole("checkbox", { name: "选择 测试音频 1" });
     await firstCheckbox.check();
-    await page.getByRole("button", { name: "收藏", exact: true }).click();
+    await page.getByRole("button", { name: "收藏状态" }).click();
+    await page.getByRole("menuitem", { name: "收藏", exact: true }).click();
     let dialog = page.getByRole("dialog", { name: "批量收藏？" });
     await dialog.getByRole("button", { name: "取消", exact: true }).click();
     await expect(page.getByText("已选择 1 个")).toBeVisible();
@@ -1077,7 +1128,8 @@ test.describe("v0.5 management workflows", () => {
 
     await firstCheckbox.check();
     state.batchErrors = [{ audio_id: 1, error: "Audio item not found" }];
-    await page.getByRole("button", { name: "收藏", exact: true }).click();
+    await page.getByRole("button", { name: "收藏状态" }).click();
+    await page.getByRole("menuitem", { name: "收藏", exact: true }).click();
     dialog = page.getByRole("dialog", { name: "批量收藏？" });
     await dialog.getByRole("button", { name: "设为收藏" }).click();
     await expect(page.getByText(/错误 1 个/)).toBeVisible();
@@ -1147,6 +1199,29 @@ test.describe("v0.5 management workflows", () => {
     });
   });
 
+  test("creates a playlist from the aligned sidebar section menu", async ({ page }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+
+    const countRightEdges = await page.locator(".sidebar-section-count").evaluateAll((counts) =>
+      counts.map((count) => count.getBoundingClientRect().right)
+    );
+    expect(Math.max(...countRightEdges) - Math.min(...countRightEdges)).toBeLessThanOrEqual(1);
+
+    await page.getByRole("button", { name: "创建播放列表" }).click();
+    const menu = page.getByRole("dialog", { name: "创建播放列表" });
+    await menu.getByRole("textbox", { name: "播放列表名称" }).fill("夜间阅读");
+    await menu.getByRole("button", { name: "创建", exact: true }).click();
+
+    await expect(page.getByRole("button", { name: "夜间阅读" })).toBeVisible();
+    expect(state.mutations.at(-1)).toEqual({
+      method: "POST",
+      path: "/playlists",
+      body: { name: "夜间阅读" }
+    });
+  });
+
   test("removes a library root without presenting it as audio deletion", async ({
     page
   }) => {
@@ -1157,7 +1232,7 @@ test.describe("v0.5 management workflows", () => {
     const rootRow = page.locator(".root-card").filter({ hasText: "/library/podcasts" });
     await rootRow.getByRole("button", { name: "移除" }).click();
 
-    const dialog = page.getByRole("dialog", { name: "移除媒体库目录？" });
+    const dialog = page.getByRole("dialog", { name: "移除资料库目录？" });
     await expect(dialog).toContainText("音频文件和数据库中的音频");
     await expect(dialog).toContainText("都会保留");
     await dialog.getByRole("button", { name: "移除目录" }).click();
@@ -1177,7 +1252,7 @@ test.describe("v0.5 management workflows", () => {
     const state = createMockState();
     await mockManagementApi(page, state);
     await openSettings(page);
-    await page.getByRole("tab", { name: "资料库健康" }).click();
+    await page.getByRole("button", { name: "资料库健康" }).click();
 
     await expect(page.getByText("资料库健康中心")).toBeVisible();
     await expect(page.getByText(/安全原则/)).toHaveCount(0);
@@ -1210,7 +1285,7 @@ test.describe("v0.5 management workflows", () => {
     const state = createMockState();
     await mockManagementApi(page, state);
     await openSettings(page);
-    await page.getByRole("tab", { name: "ASR" }).click();
+    await page.getByRole("button", { name: "ASR" }).click();
 
     await expect(page.getByText("未安装", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "下载并安装" }).click();
@@ -1230,7 +1305,7 @@ test.describe("v0.5 management workflows", () => {
     const state = createMockState();
     await mockManagementApi(page, state);
     await openSettings(page);
-    await page.getByRole("tab", { name: "维护" }).click();
+    await page.getByRole("button", { name: "维护" }).click();
 
     await page.getByRole("button", { name: "创建快照" }).click();
     const createDialog = page.getByRole("dialog", { name: "创建数据库快照" });
@@ -1267,7 +1342,7 @@ test.describe("v0.5 management workflows", () => {
     const state = createMockState();
     await mockManagementApi(page, state);
     await openSettings(page);
-    await page.getByRole("tab", { name: "维护" }).click();
+    await page.getByRole("button", { name: "维护" }).click();
 
     const sourceTag = page.locator(".tag").filter({ hasText: "#待整理" });
     await sourceTag.getByRole("button", { name: "合并" }).click();

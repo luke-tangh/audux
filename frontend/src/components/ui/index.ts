@@ -13,6 +13,8 @@ export { default as SearchField } from "./SearchField";
 export { default as SelectField } from "./SelectField";
 
 export { default as StatusPill } from "./StatusPill";
+export { default as ActionMenu } from "./ActionMenu";
+export type { ActionMenuItem } from "./ActionMenu";
 
 export { default as Tabs } from "./Tabs";
 

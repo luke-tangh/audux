@@ -213,7 +213,7 @@ test.describe("MD3 visual regression", () => {
       };
     });
     expect(linuxFontMetricsState).toEqual({
-      expandsPastDefaultHeight: true,
+      expandsPastDefaultHeight: false,
       contentContained: true,
       fullyVisible: true
     });

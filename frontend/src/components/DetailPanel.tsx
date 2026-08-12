@@ -9,7 +9,7 @@ import type {
   TranscriptSegmentEdit
 } from "../types";
 import { pickAudioFile } from "../tauri";
-import { Tabs } from "./ui";
+import { Button, Tabs } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
 import AiTab from "./detail/AiTab";
 import DetailEmptyState from "./detail/DetailEmptyState";
@@ -62,6 +62,7 @@ export default function DetailPanel({
   const [tagInput, setTagInput] = useState("");
   const [selectedExistingTag, setSelectedExistingTag] = useState<NumericSelection>("");
   const [editing, setEditing] = useState<Partial<AudioItem>>({});
+  const [metadataBaseline, setMetadataBaseline] = useState<Partial<AudioItem>>({});
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestions | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<NumericSelection>("");
@@ -124,14 +125,16 @@ export default function DetailPanel({
       setAiSuggestions(suggestionsValue);
 
       if (audioIdChanged) {
-        setEditing({
+        const metadata = {
           title_user: detail.audio.title_user || "",
           author_user: detail.audio.author_user || "",
           album_user: detail.audio.album_user || "",
           description_user: detail.audio.description_user || "",
           language: detail.audio.language || "",
           is_favorite: detail.audio.is_favorite
-        });
+        };
+        setEditing(metadata);
+        setMetadataBaseline(metadata);
       }
     }
 
@@ -178,6 +181,7 @@ export default function DetailPanel({
   async function save() {
     try {
       await api.updateAudio(audio!.id, editing);
+      setMetadataBaseline(editing);
       notify?.(t("detail.notifications.metadataSaved"), "success");
       refresh();
     } catch (err) {
@@ -522,6 +526,14 @@ export default function DetailPanel({
 
   const aiDescription = aiSuggestions?.description || audio.description_ai;
   const aiTags = aiSuggestions?.tags || [];
+  const metadataDirty = [
+    "title_user",
+    "author_user",
+    "album_user",
+    "description_user",
+    "language",
+    "is_favorite"
+  ].some((key) => editing[key as keyof AudioItem] !== metadataBaseline[key as keyof AudioItem]);
 
   return (
     <aside
@@ -542,7 +554,6 @@ export default function DetailPanel({
         onPlayNext={onPlayNext}
         onTranscribe={transcribe}
         onAnalyze={analyze}
-        onUploadCover={uploadCover}
         onClose={onClose}
       />
 
@@ -566,7 +577,6 @@ export default function DetailPanel({
             audio={audio}
             editing={editing}
             onEditingChange={updateEditing}
-            onSave={save}
             tags={tags}
             availableExistingTags={availableExistingTags}
             tagInput={tagInput}
@@ -619,11 +629,21 @@ export default function DetailPanel({
             onRelocatePathChange={setRelocatePath}
             onChooseRelocateFile={chooseRelocateFile}
             onRelocate={relocate}
+            onUploadCover={uploadCover}
             onDeleteCover={deleteCover}
             onDeleteFromDatabase={deleteFromDatabase}
           />
         )}
       </div>
+
+      {activeTab === "overview" && metadataDirty && (
+        <div className="detail-save-bar" role="status">
+          <span>{t("detail.overview.unsavedChanges")}</span>
+          <Button variant="filled" onClick={save}>
+            {t("detail.overview.saveMetadata")}
+          </Button>
+        </div>
+      )}
     </aside>
   );
 }

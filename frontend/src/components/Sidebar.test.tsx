@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "../i18n/LocaleProvider";
@@ -58,6 +58,7 @@ describe("saved views in the sidebar", () => {
           onMoveSavedView={vi.fn()}
           onDeactivateSavedView={vi.fn()}
           onOpenPlaylist={vi.fn()}
+          onCreatePlaylist={vi.fn().mockResolvedValue(true)}
         />
       </LocaleProvider>
     );
@@ -112,6 +113,7 @@ describe("saved views in the sidebar", () => {
           savedViews={[savedView, { ...savedView, id: 11, name: "第二个" }]}
           activeSavedViewId={savedView.id}
           {...actions}
+          onCreatePlaylist={vi.fn().mockResolvedValue(true)}
         />
       </LocaleProvider>
     );
@@ -163,6 +165,7 @@ describe("saved views in the sidebar", () => {
           onMoveSavedView={vi.fn()}
           onDeactivateSavedView={vi.fn()}
           onOpenPlaylist={onOpenPlaylist}
+          onCreatePlaylist={vi.fn().mockResolvedValue(true)}
         />
       </LocaleProvider>
     );
@@ -171,5 +174,47 @@ describe("saved views in the sidebar", () => {
     expect(row.className).toContain("smart-playlist-row");
     fireEvent.click(row);
     expect(onOpenPlaylist).toHaveBeenCalledWith(smartPlaylist);
+  });
+
+  it("creates a playlist from the playlist-section popover", async () => {
+    const onCreatePlaylist = vi.fn().mockResolvedValue(true);
+
+    render(
+      <LocaleProvider>
+        <Sidebar
+          view="library"
+          setView={vi.fn()}
+          tags={[]}
+          selectedTag={undefined}
+          setSelectedTag={vi.fn()}
+          playlists={[]}
+          selectedPlaylistId={null}
+          setSelectedPlaylistId={vi.fn()}
+          savedViews={[]}
+          activeSavedViewId={null}
+          onApplySavedView={vi.fn()}
+          onRenameSavedView={vi.fn()}
+          onCopySavedView={vi.fn()}
+          onCreateSmartPlaylist={vi.fn()}
+          onDeleteSavedView={vi.fn()}
+          onMoveSavedView={vi.fn()}
+          onDeactivateSavedView={vi.fn()}
+          onOpenPlaylist={vi.fn()}
+          onCreatePlaylist={onCreatePlaylist}
+        />
+      </LocaleProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /创建播放列表|Create playlist/ }));
+    const popover = screen.getByRole("dialog", { name: /创建播放列表|Create playlist/ });
+    fireEvent.change(within(popover).getByRole("textbox"), {
+      target: { value: "通勤精选" }
+    });
+    fireEvent.click(within(popover).getByRole("button", { name: /创建|Create/ }));
+
+    await waitFor(() => expect(onCreatePlaylist).toHaveBeenCalledWith("通勤精选"));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /创建播放列表|Create playlist/ })).toBeNull();
+    });
   });
 });

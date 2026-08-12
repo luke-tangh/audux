@@ -17,7 +17,7 @@ import type {
 } from "../types";
 import { pickAudioFolder, restartApplication } from "../tauri";
 import TaskPanel from "./TaskPanel";
-import { PanelCard, Tabs } from "./ui";
+import { PanelCard, MaterialIcon } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
 import { useTheme } from "../theme";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -30,7 +30,8 @@ import LlmSettingsTab from "./settings/LlmSettingsTab";
 import LogsSettingsTab from "./settings/LogsSettingsTab";
 import MaintenanceSettingsTab from "./settings/MaintenanceSettingsTab";
 import SettingsHeader from "./settings/SettingsHeader";
-import { SETTINGS_TABS, type SettingsTab, type ToastType } from "./settings/types";
+import { type SettingsTab, type ToastType } from "./settings/types";
+import type { MaterialIconName } from "./ui/MaterialIcon";
 import {
   DEFAULT_CASE_GLOSSARY,
   terminalStatus,
@@ -54,7 +55,6 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [scanTasks, setScanTasks] = useState<ScanTask[]>([]);
   const [path, setPath] = useState("");
   const [scanResult, setScanResult] = useState("");
-  const [playlistName, setPlaylistName] = useState("");
   const [settingsPlaylists, setSettingsPlaylists] = useState<Playlist[]>([]);
   const [maintenanceTags, setMaintenanceTags] = useState<Tag[]>([]);
   const [databaseBackups, setDatabaseBackups] = useState<DatabaseBackup[]>([]);
@@ -466,22 +466,6 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       await api.cancelScanTask(task.id);
       notify?.(t("settings.scan.cancelRequested", { id: task.id }), "info");
       await loadScanTasks();
-    } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
-  async function createPlaylist() {
-    if (!playlistName.trim()) return;
-
-    try {
-      await api.createPlaylist(playlistName.trim());
-      setPlaylistName("");
-
-      refresh();
-      await load();
-
-      notify?.(t("settings.playlist.created"), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -1169,6 +1153,37 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   const llmWarning = endpointPrivacyWarning(llmEndpoint);
   const asrExternalWarning = asrEndpointPrivacyWarning(asrExternalEndpoint);
+  const settingsGroups: Array<{
+    id: string;
+    label: string;
+    items: Array<{ id: SettingsTab; icon: MaterialIconName }>;
+  }> = [
+    {
+      id: "library",
+      label: t("settings.groups.library"),
+      items: [
+        { id: "library", icon: "library_music" },
+        { id: "health", icon: "health_and_safety" },
+        { id: "tasks", icon: "task_alt" }
+      ]
+    },
+    {
+      id: "intelligence",
+      label: t("settings.groups.intelligence"),
+      items: [
+        { id: "asr", icon: "subtitles" },
+        { id: "llm", icon: "auto_awesome" }
+      ]
+    },
+    {
+      id: "system",
+      label: t("settings.groups.system"),
+      items: [
+        { id: "maintenance", icon: "build" },
+        { id: "logs", icon: "description" }
+      ]
+    }
+  ];
 
   return (
     <section className="settings-panel">
@@ -1181,28 +1196,38 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         onLanguagePreferenceChange={setLanguagePreference}
       />
 
-      <Tabs
-        className="settings-tabs"
-        items={SETTINGS_TABS.map((id) => ({ id, label: t(`settings.tabs.${id}`) }))}
-        activeId={activeTab}
-        onChange={setActiveTab}
-        ariaLabel={t("settings.header.title")}
-        idPrefix="settings"
-      />
+      <div className="settings-body-layout">
+        <nav className="settings-section-nav" aria-label={t("settings.navigation")}>
+          {settingsGroups.map((group) => (
+            <div className="settings-nav-group" key={group.id}>
+              <strong>{group.label}</strong>
+              {group.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={activeTab === item.id ? "active" : ""}
+                  aria-current={activeTab === item.id ? "page" : undefined}
+                  onClick={() => setActiveTab(item.id)}
+                >
+                  <MaterialIcon name={item.icon} size={18} />
+                  <span>{t(`settings.tabs.${item.id}`)}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
-      <div
-        className="settings-content"
-        role="tabpanel"
-        id={`settings-panel-${activeTab}`}
-        aria-labelledby={`settings-tab-${activeTab}`}
-      >
+        <div
+          className="settings-content"
+          role="region"
+          aria-label={t(`settings.tabs.${activeTab}`)}
+        >
         {activeTab === "library" && (
           <LibrarySettingsTab
             roots={roots}
             scanTasks={scanTasks}
             path={path}
             scanResult={scanResult}
-            playlistName={playlistName}
             playlists={settingsPlaylists}
             onPathChange={setPath}
             onChooseFolder={chooseFolder}
@@ -1211,8 +1236,6 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onRemoveRoot={removeRoot}
             onScan={scan}
             onCancelScan={cancelScan}
-            onPlaylistNameChange={setPlaylistName}
-            onCreatePlaylist={createPlaylist}
             onRenamePlaylist={renamePlaylist}
             onDeletePlaylist={deletePlaylist}
           />
@@ -1352,6 +1375,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onReloadBackend={load}
           />
         )}
+        </div>
       </div>
     </section>
   );

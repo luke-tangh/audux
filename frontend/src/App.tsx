@@ -74,6 +74,7 @@ export default function App() {
     deactivateSavedView,
     applySavedView,
     openPlaylist,
+    createPlaylist,
     createSmartPlaylist,
     saveCurrentView,
     updateActiveSavedView,
@@ -170,6 +171,7 @@ export default function App() {
           onMoveSavedView={(savedViewId, direction) => void moveSavedView(savedViewId, direction)}
           onDeactivateSavedView={deactivateSavedView}
           onOpenPlaylist={openPlaylist}
+          onCreatePlaylist={createPlaylist}
         />
 
         {view === "settings" ? (
@@ -204,7 +206,6 @@ export default function App() {
                 onUpdateSavedView={() => void updateActiveSavedView()}
                 onBatchTranscribe={batchTranscribeCurrentList}
                 onBatchAnalyze={batchAnalyzeCurrentList}
-                onOpenSettings={openSettings}
               />
 
               <AudioList
