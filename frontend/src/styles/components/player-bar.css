@@ -13,7 +13,7 @@
   height: auto;
   min-height: var(--player-height);
   display: grid;
-  grid-template-columns: minmax(250px, 330px) minmax(320px, 1fr) minmax(280px, 360px);
+  grid-template-columns: minmax(250px, 330px) minmax(320px, 1fr) minmax(300px, 390px);
   gap: 14px;
   align-items: center;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
@@ -161,6 +161,21 @@
   line-height: 0;
 }
 
+.player-stop-button {
+  margin-left: 4px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.player-stop-button::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 9px;
+  bottom: 9px;
+  width: 1px;
+  background: var(--md-sys-color-outline-variant);
+}
+
 .player-progress {
   min-width: 0;
   display: grid;
@@ -175,9 +190,23 @@
   font-variant-numeric: tabular-nums;
 }
 
+.player-progress span:last-child {
+  text-align: right;
+}
+
 .player-progress input[type="range"] {
+  height: 24px;
+  min-height: 24px;
   min-width: 0;
-  background: var(--md-sys-color-surface-container-highest);
+  background-color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 6px;
+}
+
+.player-progress input[type="range"]:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .player-options {
@@ -195,32 +224,38 @@
 }
 
 .player-volume-control {
-  flex: 0 0 92px;
-  width: 92px;
-  min-width: 82px;
-  max-width: 96px;
+  flex: 0 0 112px;
+  width: 112px;
+  min-width: 104px;
+  max-width: 116px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 4px;
   overflow: hidden;
   white-space: nowrap;
 }
 
-.player-volume-icon {
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  display: inline-grid;
+.player-volume-toggle {
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  display: grid;
   place-items: center;
+  padding: 0;
   color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--md-sys-shape-corner-full);
   line-height: 0;
 }
 
 .player-volume-control input[type="range"] {
-  flex: 1 1 58px;
-  width: 58px;
-  min-width: 44px;
-  max-width: 64px;
+  flex: 1 1 64px;
+  width: 64px;
+  min-width: 56px;
+  max-width: 68px;
+  height: 24px;
+  min-height: 24px;
 }
 
 .queue-control {
@@ -381,17 +416,17 @@
   }
 
   .player-volume-control {
-    flex-basis: 86px;
-    width: 86px;
-    min-width: 76px;
-    max-width: 88px;
+    flex-basis: 104px;
+    width: 104px;
+    min-width: 100px;
+    max-width: 108px;
   }
 
   .player-volume-control input[type="range"] {
-    flex-basis: 52px;
-    width: 52px;
-    min-width: 40px;
-    max-width: 56px;
+    flex-basis: 58px;
+    width: 58px;
+    min-width: 52px;
+    max-width: 60px;
   }
 
   .queue-control {
@@ -405,24 +440,18 @@
   }
 
   .player-volume-control {
-    flex-basis: 78px;
-    width: 78px;
-    min-width: 72px;
-    max-width: 78px;
-    gap: 5px;
-  }
-
-  .player-volume-icon {
-    flex-basis: 16px;
-    width: 16px;
-    height: 16px;
+    flex-basis: 100px;
+    width: 100px;
+    min-width: 96px;
+    max-width: 100px;
+    gap: 2px;
   }
 
   .player-volume-control input[type="range"] {
-    flex-basis: 46px;
-    width: 46px;
-    min-width: 38px;
-    max-width: 48px;
+    flex-basis: 56px;
+    width: 56px;
+    min-width: 52px;
+    max-width: 58px;
   }
 
   .queue-control {

@@ -36,7 +36,11 @@ export default function PlaybackControls({
 
   return (
     <div className="player-center">
-      <div className="player-controls" aria-label={t("player.controls")}>
+      <div
+        className="player-controls"
+        role="group"
+        aria-label={t("player.controls")}
+      >
         <Button
           preserveChildren
           type="button"
@@ -71,24 +75,24 @@ export default function PlaybackControls({
           preserveChildren
           type="button"
           className="icon-button"
-          onClick={onStop}
-          disabled={!hasAudio}
-          aria-label={t("player.stopLabel")}
-          title={t("player.stopTitle")}
-        >
-          <MaterialIcon name="stop" size={22} />
-        </Button>
-
-        <Button
-          preserveChildren
-          type="button"
-          className="icon-button"
           onClick={onNext}
           disabled={!hasAudio || !canNext}
           aria-label={t("player.next")}
           title={t("player.next")}
         >
           <MaterialIcon name="skip_next" size={24} />
+        </Button>
+
+        <Button
+          preserveChildren
+          type="button"
+          className="icon-button player-stop-button"
+          onClick={onStop}
+          disabled={!hasAudio}
+          aria-label={t("player.stopLabel")}
+          title={t("player.stopTitle")}
+        >
+          <MaterialIcon name="stop" size={20} />
         </Button>
       </div>
 
@@ -100,9 +104,15 @@ export default function PlaybackControls({
           min={0}
           max={safeDuration || 0}
           value={Math.min(current, safeDuration || current || 0)}
+          disabled={!hasAudio || safeDuration <= 0}
+          aria-label={t("player.seek")}
+          aria-valuetext={t("player.seekValue", {
+            current: formatDuration(current),
+            duration: formatDuration(safeDuration)
+          })}
           onChange={(e) => onSeek(Number(e.target.value))}
           style={{
-            background: `linear-gradient(90deg, var(--md-sys-color-primary) 0%, var(--md-sys-color-tertiary) ${progress}%, var(--md-sys-color-surface-container-highest) ${progress}%, var(--md-sys-color-surface-container-highest) 100%)`
+            backgroundImage: `linear-gradient(90deg, var(--md-sys-color-primary) 0%, var(--md-sys-color-tertiary) ${progress}%, var(--md-sys-color-surface-container-highest) ${progress}%, var(--md-sys-color-surface-container-highest) 100%)`
           }}
         />
 

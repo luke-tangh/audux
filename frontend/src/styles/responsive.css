@@ -10,7 +10,7 @@
   }
 
   .player-dock {
-    grid-template-columns: minmax(220px, 280px) minmax(280px, 1fr) minmax(260px, 330px);
+    grid-template-columns: minmax(220px, 280px) minmax(280px, 1fr) minmax(360px, 380px);
   }
 }
 
@@ -38,7 +38,7 @@
   }
 
   .player-dock {
-    grid-template-columns: minmax(190px, 240px) minmax(250px, 1fr) minmax(240px, 300px);
+    grid-template-columns: minmax(190px, 240px) minmax(270px, 1fr) minmax(360px, 370px);
     gap: 10px;
   }
 
@@ -165,7 +165,7 @@
   }
 
   .player-dock {
-    grid-template-columns: minmax(180px, 220px) minmax(250px, 1fr) minmax(260px, 290px);
+    grid-template-columns: minmax(180px, 220px) minmax(280px, 1fr) minmax(300px, 312px);
     gap: 8px;
     height: auto;
     min-height: var(--player-height);
@@ -185,14 +185,14 @@
   }
 
   .player-volume-control {
-    flex-basis: 68px;
-    width: 68px;
-    min-width: 68px;
-    max-width: 68px;
+    flex-basis: 110px;
+    width: 110px;
+    min-width: 106px;
+    max-width: 110px;
   }
 
   .player-volume-control input[type="range"] {
-    min-width: 34px;
+    min-width: 56px;
   }
 
   .player-options .queue-control {
@@ -221,21 +221,21 @@
   }
 
   .player-controls .icon-button {
-    width: 34px;
-    min-width: 34px;
-    height: 34px;
-    min-height: 34px;
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
   }
 
   .player-controls .play-toggle {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    min-height: 44px;
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    min-height: 48px;
   }
 
   .player-progress {
-    grid-template-columns: 34px minmax(0, 1fr) 34px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
     gap: 6px;
   }
 }
@@ -250,6 +250,12 @@
     grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
     gap: 8px;
     padding: 8px;
+  }
+
+  .player-dock {
+    grid-template-columns: minmax(160px, 180px) minmax(250px, 1fr) minmax(292px, 300px);
+    gap: 6px;
+    padding-inline: 6px;
   }
 
   .nav-card {
@@ -325,5 +331,21 @@
   .inspector-panel .inline-form,
   .settings-panel .inline-form {
     flex-direction: column;
+  }
+
+  .player-dock:not(.empty) {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, auto);
+    grid-template-rows: auto auto;
+    min-height: 148px;
+  }
+
+  .player-dock:not(.empty) .player-center {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .player-dock:not(.empty) .player-options {
+    grid-column: 2;
+    grid-row: 1;
   }
 }

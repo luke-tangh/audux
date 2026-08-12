@@ -4,7 +4,8 @@ This folder contains Playwright screenshot tests for the most regression-prone
 MD3 layout areas:
 
 - TopBar responsive command layout
-- PlayerBar responsive media dock layout
+- PlayerBar responsive media dock layout with deterministic playing, long-title,
+  queue-popover, and dark-theme states
 - theme bootstrap and reduced-motion behavior
 - SelectField and playback-queue keyboard focus behavior
 
@@ -37,5 +38,11 @@ sudo apt-get install -y fonts-noto-cjk
 fc-cache -f
 ```
 
-The app may render with an empty library if the backend is unavailable. These
-tests target layout stability, not backend data.
+PlayerBar screenshots use mocked local API data so they cover the populated
+media dock without reading a developer's local library. Other screenshots may
+render with an empty library when the backend is unavailable; these tests target
+layout stability, not backend data.
+
+Regenerate platform-specific snapshots on their native OS. The older Windows
+PlayerBar empty-state baselines were removed when the deterministic populated
+fixture was introduced.

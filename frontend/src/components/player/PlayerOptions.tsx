@@ -40,6 +40,13 @@ export default function PlayerOptions({
 }: PlayerOptionsProps) {
   const { t } = useTranslation();
   const queueToggleRef = useRef<HTMLButtonElement | null>(null);
+  const previousVolumeRef = useRef(volume > 0 ? volume : 1);
+  const volumeIcon =
+    volume === 0 ? "volume_off" : volume < 0.5 ? "volume_down" : "volume_up";
+
+  useEffect(() => {
+    if (volume > 0) previousVolumeRef.current = volume;
+  }, [volume]);
 
   function closeQueue(restoreFocus = false) {
     onQueueOpenChange(false);
@@ -81,21 +88,33 @@ export default function PlayerOptions({
         onValueChange={(value) => onRateChange(Number(value))}
       />
 
-      <label className="player-volume-control">
-        <span className="player-volume-icon" aria-hidden="true">
-          <MaterialIcon name="volume_up" size={18} />
-        </span>
+      <div className="player-volume-control">
+        <Button
+          preserveChildren
+          type="button"
+          className="player-volume-toggle"
+          aria-label={volume === 0 ? t("player.unmute") : t("player.mute")}
+          title={volume === 0 ? t("player.unmute") : t("player.mute")}
+          onClick={() =>
+            onVolumeChange(volume === 0 ? previousVolumeRef.current : 0)
+          }
+        >
+          <MaterialIcon name={volumeIcon} size={18} />
+        </Button>
 
-        <span className="sr-only">{t("player.volume")}</span>
         <input
           type="range"
           min={0}
           max={1}
           step={0.01}
           value={volume}
+          aria-label={t("player.volume")}
+          aria-valuetext={t("player.volumeValue", {
+            value: Math.round(volume * 100)
+          })}
           onChange={(e) => onVolumeChange(Number(e.target.value))}
         />
-      </label>
+      </div>
 
       <div className="queue-control">
         <Button

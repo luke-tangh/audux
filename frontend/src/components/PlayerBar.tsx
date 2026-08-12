@@ -43,7 +43,13 @@ export default function PlayerBar({
     onPositionSaved
   });
 
-  const safeDuration = Number.isFinite(player.duration) ? player.duration : 0;
+  const metadataDuration = Number.isFinite(player.duration)
+    ? player.duration
+    : 0;
+  const catalogDuration = Number.isFinite(audio?.duration_seconds)
+    ? Math.max(0, audio?.duration_seconds || 0)
+    : 0;
+  const safeDuration = metadataDuration > 0 ? metadataDuration : catalogDuration;
   const progress =
     safeDuration > 0 ? Math.min(100, (player.current / safeDuration) * 100) : 0;
 

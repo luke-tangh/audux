@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mockPlayerBar, PLAYER_AUDIO_ITEMS } from "./player-fixture";
 
 async function stabilize(page: import("@playwright/test").Page) {
   await page.addStyleTag({
@@ -76,11 +77,16 @@ test.describe("MD3 visual regression", () => {
   });
 
   test("PlayerBar responsive states", async ({ page }) => {
+    await mockPlayerBar(page);
     await page.goto("/");
     await stabilize(page);
 
     const player = page.locator(".player-dock");
-    await expect(player).toBeVisible();
+    await expect(player).toHaveClass(/has-audio/);
+    await expect(player.locator(".player-now-text strong")).toHaveAttribute(
+      "title",
+      PLAYER_AUDIO_ITEMS[0].title_user
+    );
 
     await page.setViewportSize({ width: 1280, height: 800 });
     await expect(player).toHaveScreenshot("player-wide.png");
@@ -90,6 +96,52 @@ test.describe("MD3 visual regression", () => {
 
     await page.setViewportSize({ width: 760, height: 800 });
     await expect(player).toHaveScreenshot("player-compact.png");
+
+    const compactState = await player.evaluate((element) => ({
+      fits: element.scrollWidth <= element.clientWidth + 1,
+      controls: Array.from(
+        element.querySelectorAll<HTMLElement>(
+          ".player-controls button, .player-volume-toggle, .queue-toggle-button"
+        )
+      ).map((control) => ({
+        width: control.getBoundingClientRect().width,
+        height: control.getBoundingClientRect().height
+      }))
+    }));
+    expect(compactState.fits).toBe(true);
+    expect(compactState.controls.every(({ width, height }) => width >= 40 && height >= 40))
+      .toBe(true);
+
+    await page.setViewportSize({ width: 680, height: 800 });
+    const stackedState = await player.evaluate((element) => {
+      const nowCard = element.querySelector<HTMLElement>(".player-now-card")!;
+      const center = element.querySelector<HTMLElement>(".player-center")!;
+      const nowRect = nowCard.getBoundingClientRect();
+      const centerRect = center.getBoundingClientRect();
+
+      return {
+        fits: element.scrollWidth <= element.clientWidth + 1,
+        controlsMoveBelowMetadata: centerRect.top >= nowRect.bottom
+      };
+    });
+    expect(stackedState).toEqual({
+      fits: true,
+      controlsMoveBelowMetadata: true
+    });
+
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await page.getByRole("button", { name: "打开播放队列" }).click();
+    await expect(page.getByRole("dialog", { name: "播放队列" })).toBeVisible();
+    await expect(page.locator("#root")).toHaveScreenshot("player-queue-medium.png");
+
+    await page.keyboard.press("Escape");
+    await page.evaluate(() => {
+      window.localStorage.setItem("local-audio-library-theme", "dark");
+    });
+    await page.reload();
+    await stabilize(page);
+    await expect(player).toHaveClass(/has-audio/);
+    await expect(player).toHaveScreenshot("player-dark.png");
   });
 
   test("sidebar and player remain usable at common zoom levels", async ({

@@ -224,6 +224,31 @@ test.describe("MD3 accessibility behavior", () => {
     await expect(page.getByRole("listbox", { name: "播放速度" })).toBeHidden();
   });
 
+  test("labels playback controls and supports reversible muting", async ({
+    page
+  }) => {
+    await mockLibraryApi(page);
+    await page.goto("/");
+    await page.getByRole("button", { name: "播放 测试音频 1" }).click();
+
+    await expect(
+      page.getByRole("group", { name: "播放器控制" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("slider", { name: "播放进度" })
+    ).toHaveAttribute(
+      "aria-valuetext",
+      /已播放 \d+:\d{2}，总时长 \d+:\d{2}/
+    );
+
+    const volume = page.getByRole("slider", { name: "音量" });
+    await expect(volume).toHaveValue("1");
+    await page.getByRole("button", { name: "静音" }).click();
+    await expect(volume).toHaveValue("0");
+    await page.getByRole("button", { name: "取消静音" }).click();
+    await expect(volume).toHaveValue("1");
+  });
+
   test("manages focus while opening and closing the playback queue", async ({
     page
   }) => {

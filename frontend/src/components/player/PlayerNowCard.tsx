@@ -10,6 +10,11 @@ type PlayerNowCardProps = {
 
 export default function PlayerNowCard({ audio }: PlayerNowCardProps) {
   const { t } = useTranslation();
+  const title = audio ? displayTitle(audio) : t("player.selectAudio");
+  const author = audio
+    ? displayAuthor(audio) || t("common.empty.unknownAuthor")
+    : t("player.emptyQueue");
+
   return (
     <div className="player-now-card">
       <div className="player-cover">
@@ -32,12 +37,8 @@ export default function PlayerNowCard({ audio }: PlayerNowCardProps) {
 
       <div className="player-now-text">
         <span className="eyebrow">{t("player.nowPlaying")}</span>
-        <strong>{audio ? displayTitle(audio) : t("player.selectAudio")}</strong>
-        <em>
-          {audio
-            ? displayAuthor(audio) || t("common.empty.unknownAuthor")
-            : t("player.emptyQueue")}
-        </em>
+        <strong title={title}>{title}</strong>
+        <em title={author}>{author}</em>
       </div>
     </div>
   );
