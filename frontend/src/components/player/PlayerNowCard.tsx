@@ -33,7 +33,11 @@ export default function PlayerNowCard({ audio }: PlayerNowCardProps) {
       <div className="player-now-text">
         <span className="eyebrow">{t("player.nowPlaying")}</span>
         <strong>{audio ? displayTitle(audio) : t("player.selectAudio")}</strong>
-        <em>{audio ? displayAuthor(audio) || "Unknown" : t("player.emptyQueue")}</em>
+        <em>
+          {audio
+            ? displayAuthor(audio) || t("common.empty.unknownAuthor")
+            : t("player.emptyQueue")}
+        </em>
       </div>
     </div>
   );

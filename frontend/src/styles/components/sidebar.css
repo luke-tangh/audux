@@ -236,6 +236,12 @@
   justify-content: center;
 }
 
+.tag-section .sidebar-filter-reset {
+  color: var(--md-sys-color-primary);
+  background: transparent;
+  border-style: dashed;
+}
+
 .playlist-row {
   width: 100%;
   min-width: 0;

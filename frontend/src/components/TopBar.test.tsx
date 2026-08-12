@@ -105,6 +105,8 @@ describe("TopBar file filter", () => {
         orderedControls[index].compareDocumentPosition(orderedControls[index + 1])
       ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
+    expect(orderedControls[2]).toHaveTextContent(/批量转写|Batch transcribe/);
+    expect(orderedControls[3]).toHaveTextContent(/批量 AI|Batch AI/);
 
     fireEvent.click(
       screen.getByRole("combobox", { name: /按资料库文件筛选|Filter library files/ })

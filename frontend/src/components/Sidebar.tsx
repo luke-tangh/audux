@@ -115,8 +115,8 @@ export default function Sidebar(props: Props) {
         <div className="tag-cloud-nav">
           <Button preserveChildren
             type="button"
-            className={pillClass(allAudioActive)}
-            aria-pressed={allAudioActive}
+            className="sidebar-pill sidebar-filter-reset"
+            aria-pressed={false}
             onClick={() => {
               props.onDeactivateSavedView();
               props.setView("library");

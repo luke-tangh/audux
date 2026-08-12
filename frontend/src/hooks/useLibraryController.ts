@@ -230,7 +230,7 @@ export function useLibraryController() {
           if (found) return found;
         }
 
-        return items[0];
+        return null;
       });
     } catch (err) {
       if (loadSeq !== loadSeqRef.current) return;

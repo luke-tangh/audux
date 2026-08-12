@@ -36,6 +36,7 @@ type Props = {
   playlists: Playlist[];
   selectedPlaylistId?: number | null;
   onDeleted: (audioId: number) => void;
+  onClose: () => void;
   notify?: (message: string, type?: ToastType) => void;
 };
 
@@ -48,6 +49,7 @@ export default function DetailPanel({
   playlists,
   selectedPlaylistId,
   onDeleted,
+  onClose,
   notify
 }: Props) {
   const dialog = useDialog();
@@ -522,7 +524,16 @@ export default function DetailPanel({
   const aiTags = aiSuggestions?.tags || [];
 
   return (
-    <aside className="inspector-panel">
+    <aside
+      className="inspector-panel"
+      aria-label={t("detail.panelLabel")}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       <DetailHero
         audio={audio}
         coverVersion={coverVersion}
@@ -532,6 +543,7 @@ export default function DetailPanel({
         onTranscribe={transcribe}
         onAnalyze={analyze}
         onUploadCover={uploadCover}
+        onClose={onClose}
       />
 
       <Tabs

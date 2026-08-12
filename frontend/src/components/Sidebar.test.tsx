@@ -77,6 +77,13 @@ describe("saved views in the sidebar", () => {
     expect(playlistsHeading.compareDocumentPosition(savedViewsHeading)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
+
+    expect(
+      screen.getByRole("button", { name: /资料库.*全部音频|Library.*All audio/ })
+    ).toHaveAttribute("aria-current", "page");
+    const allTags = screen.getByRole("button", { name: /全部标签|All tags/ });
+    expect(allTags).toHaveAttribute("aria-pressed", "false");
+    expect(allTags).not.toHaveClass("active");
   });
 
   it("applies and exposes explicit management actions for the active view", () => {

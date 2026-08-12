@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import AudioList from "./components/AudioList";
@@ -8,6 +11,8 @@ import ToastStack from "./components/ToastStack";
 import { useLibraryController } from "./hooks/useLibraryController";
 
 export default function App() {
+  const { t } = useTranslation();
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const {
     view,
     setView,
@@ -107,9 +112,45 @@ export default function App() {
     handleAudioDeleted
   } = useLibraryController();
 
+  useEffect(() => {
+    if (!selected) {
+      setInspectorOpen(false);
+    }
+  }, [selected]);
+
+  useEffect(() => {
+    if (!inspectorOpen || !window.matchMedia("(max-width: 1040px)").matches) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(".inspector-close-button")?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [inspectorOpen, selected?.id]);
+
+  function openInspector(item: NonNullable<typeof selected>) {
+    setSelected(item);
+    setInspectorOpen(true);
+  }
+
+  function closeInspector() {
+    setInspectorOpen(false);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(".audio-row.selected")?.focus();
+    });
+  }
+
   return (
     <div className="app-shell">
-      <div className={`main-shell ${view === "settings" ? "settings-mode" : ""}`}>
+      <div
+        className={[
+          "main-shell",
+          view === "settings" ? "settings-mode" : "",
+          view !== "settings" && !inspectorOpen ? "inspector-closed" : ""
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <Sidebar
           view={view}
           setView={setView}
@@ -183,7 +224,7 @@ export default function App() {
                 selectedId={selected?.id}
                 selectionMode={selectionMode}
                 selectedAudioIds={selectedAudioIds}
-                onSelect={setSelected}
+                onSelect={openInspector}
                 onPlay={(item) => playAudio(item, audioItems)}
                 onPlayAt={(item, seconds) => playAudioAt(item, seconds, audioItems)}
                 onAddToQueue={addToQueue}
@@ -216,17 +257,28 @@ export default function App() {
               />
             </main>
 
-            <DetailPanel
-              audio={selected}
-              refresh={refresh}
-              onPlay={(item) => playAudio(item, audioItems)}
-              onAddToQueue={addToQueue}
-              onPlayNext={playNextAudio}
-              playlists={manualPlaylists}
-              selectedPlaylistId={selectedPlaylistId}
-              onDeleted={handleAudioDeleted}
-              notify={notify}
-            />
+            {inspectorOpen && selected && (
+              <>
+                <button
+                  type="button"
+                  className="inspector-scrim"
+                  aria-label={t("detail.dismiss")}
+                  onClick={closeInspector}
+                />
+                <DetailPanel
+                  audio={selected}
+                  refresh={refresh}
+                  onPlay={(item) => playAudio(item, audioItems)}
+                  onAddToQueue={addToQueue}
+                  onPlayNext={playNextAudio}
+                  playlists={manualPlaylists}
+                  selectedPlaylistId={selectedPlaylistId}
+                  onDeleted={handleAudioDeleted}
+                  onClose={closeInspector}
+                  notify={notify}
+                />
+              </>
+            )}
           </>
         )}
       </div>

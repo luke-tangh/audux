@@ -10,6 +10,7 @@
 .main-shell {
   min-width: 0;
   min-height: 0;
+  position: relative;
   display: grid;
   grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr) minmax(360px, var(--app-inspector-width));
   gap: 12px;
@@ -18,6 +19,14 @@
 
 .main-shell.settings-mode {
   grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
+}
+
+.main-shell.inspector-closed {
+  grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
+}
+
+.inspector-scrim {
+  display: none;
 }
 
 .workspace {
@@ -50,4 +59,10 @@
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--md-sys-shape-corner-extra-large);
   box-shadow: var(--md-sys-elevation-1);
+}
+
+.top-command-bar,
+.audio-list-panel {
+  border-radius: 20px;
+  box-shadow: none;
 }

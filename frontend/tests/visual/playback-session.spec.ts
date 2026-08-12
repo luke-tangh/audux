@@ -264,6 +264,7 @@ test.describe("playback queue session", () => {
     ]);
 
     await page.getByRole("button", { name: "关闭播放队列" }).click();
+    await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
     await expect(page.getByRole("button", { name: "下一首播放", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "加入队列", exact: true })).toBeVisible();
   });

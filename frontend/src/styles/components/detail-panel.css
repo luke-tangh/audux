@@ -76,18 +76,22 @@
 }
 
 .inspector-hero {
-  padding: 18px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface-container-low);
 }
 
 .inspector-cover {
-  width: 128px;
-  height: 128px;
+  width: 96px;
+  height: 96px;
   display: grid;
   place-items: center;
   overflow: hidden;
-  margin-bottom: 16px;
+  margin: 0;
   color: var(--md-sys-color-on-primary-container);
   font-size: 50px;
   border-radius: var(--md-sys-shape-corner-extra-large);
@@ -103,6 +107,7 @@
 
 .inspector-title h2 {
   margin: 0;
+  padding-right: 36px;
   color: var(--md-sys-color-on-surface);
   font-size: 24px;
   line-height: 1.2;
@@ -135,10 +140,18 @@
 }
 
 .inspector-actions {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: 0;
+}
+
+.inspector-close-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
 }
 
 .upload-button {

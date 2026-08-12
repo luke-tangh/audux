@@ -110,7 +110,6 @@ export default function TopBar({
     <header className="top-command-bar">
       <div className="top-title-block">
         <div>
-          <span className="eyebrow">Local Audio Studio</span>
           <h1>{title}</h1>
           {subtitle && <p>{subtitle}</p>}
           {searchLimited && (
@@ -150,6 +149,7 @@ export default function TopBar({
               controlSize="toolbar"
               controlWidth="100%"
               controlMinWidth={0}
+              controlHeight={42}
               label={t("topbar.file")}
               value={libraryFileFilter}
               options={fileFilterOptions}
@@ -167,6 +167,7 @@ export default function TopBar({
               controlSize="toolbar"
               controlWidth="100%"
               controlMinWidth={0}
+              controlHeight={42}
               label={t("topbar.sort")}
               value={sortMode}
               options={sortOptions}
@@ -195,7 +196,7 @@ export default function TopBar({
                 onClick={onBatchTranscribe}
                 disabled={!hasItems || queryLocked}
               >
-                {t("topbar.transcript")}
+                {t("topbar.batchTranscribeShort")}
               </Button>
 
               <Button
@@ -206,7 +207,7 @@ export default function TopBar({
                 onClick={onBatchAnalyze}
                 disabled={!hasItems || queryLocked}
               >
-                AI
+                {t("topbar.batchAnalyzeShort")}
               </Button>
             </div>
 

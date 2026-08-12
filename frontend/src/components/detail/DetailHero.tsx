@@ -1,7 +1,7 @@
 import { api } from "../../api";
 import type { AudioItem } from "../../types";
 import { displayAuthor, displayTitle, formatDuration } from "../../types";
-import { Button, MaterialIcon, StatusPill } from "../ui";
+import { Button, IconButton, MaterialIcon, StatusPill } from "../ui";
 import { useTranslation } from "react-i18next";
 
 type DetailHeroProps = {
@@ -13,6 +13,7 @@ type DetailHeroProps = {
   onTranscribe: () => void;
   onAnalyze: () => void;
   onUploadCover: (file?: File) => void;
+  onClose: () => void;
 };
 
 export default function DetailHero({
@@ -23,11 +24,21 @@ export default function DetailHero({
   onPlayNext,
   onTranscribe,
   onAnalyze,
-  onUploadCover
+  onUploadCover,
+  onClose
 }: DetailHeroProps) {
   const { t } = useTranslation();
   return (
     <div className="inspector-hero">
+      <IconButton
+        className="inspector-close-button"
+        variant="soft"
+        label={t("detail.close")}
+        onClick={onClose}
+      >
+        <MaterialIcon name="close" size={20} />
+      </IconButton>
+
       <div className="inspector-cover">
         {audio.cover_path ? (
           <img
@@ -49,12 +60,15 @@ export default function DetailHero({
       <div className="inspector-title">
         <h2>{displayTitle(audio)}</h2>
         <p>
-          {displayAuthor(audio) || "Unknown"} · {formatDuration(audio.duration_seconds)}
+          {displayAuthor(audio) || t("common.empty.unknownAuthor")} ·{" "}
+          {formatDuration(audio.duration_seconds)}
         </p>
 
         <div className="detail-meta-strip">
-          <span>{audio.file_ext || "audio"}</span>
-          <span>{audio.is_missing ? t("detail.hero.missing") : t("detail.hero.available")}</span>
+          <span>{audio.file_ext || t("common.media.audio")}</span>
+          <span>
+            {audio.is_missing ? t("detail.hero.missing") : t("detail.hero.available")}
+          </span>
           <StatusPill label={t("detail.hero.transcript")} value={audio.transcript_status} />
           <StatusPill label={t("common.technical.ai")} value={audio.ai_status} />
         </div>

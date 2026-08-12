@@ -569,7 +569,10 @@ export default function AudioList({
 
                 <div className="meta-line">
                   <span>
-                    <HighlightText text={displayAuthor(item) || "Unknown"} query={q} />
+                    <HighlightText
+                      text={displayAuthor(item) || t("common.empty.unknownAuthor")}
+                      query={q}
+                    />
                   </span>
                   <span className="meta-dot">·</span>
                   <span>{formatDuration(item.duration_seconds)}</span>
@@ -610,6 +613,7 @@ export default function AudioList({
                   }}
                 >
                   <MaterialIcon name="playlist_play" size={19} />
+                  <span>{t("audioList.playNextShort")}</span>
                 </Button>
 
                 <Button
@@ -624,6 +628,7 @@ export default function AudioList({
                   }}
                 >
                   <MaterialIcon name="queue_music" size={19} />
+                  <span>{t("audioList.addQueueShort")}</span>
                 </Button>
 
                 <Button

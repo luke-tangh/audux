@@ -851,6 +851,74 @@ async function openSettings(page: Page) {
 }
 
 test.describe("v0.5 management workflows", () => {
+  test("keeps the library workspace usable across compact desktop sizes", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await page.goto("/");
+    await expect(page.locator(".audio-row").first()).toBeVisible();
+    await expect(page.locator(".inspector-panel")).toHaveCount(0);
+    await expect(page.getByText("未知作者").first()).toBeVisible();
+    await expect(page.getByText("Unknown", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "批量转写当前筛选结果" })).toContainText(
+      "批量转写"
+    );
+    await expect(page.getByRole("button", { name: "批量 AI 分析当前筛选结果" })).toContainText(
+      "批量 AI"
+    );
+    await expect(
+      page.getByRole("button", { name: "将 测试音频 1 设为下一首播放" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "加入播放队列 测试音频 1" })
+    ).toBeVisible();
+
+    const viewports = [
+      { width: 1280, height: 800 },
+      { width: 1024, height: 640 },
+      { width: 760, height: 800 }
+    ];
+
+    for (const viewport of viewports) {
+      await page.setViewportSize(viewport);
+      await expect(page.locator(".audio-list-panel")).toBeVisible();
+
+      const geometry = await page.locator(".app-shell").evaluate((shell) => {
+        const topbar = shell.querySelector<HTMLElement>(".top-command-bar")!;
+        const list = shell.querySelector<HTMLElement>(".audio-list-panel")!;
+        const player = shell.querySelector<HTMLElement>(".player-dock")!;
+        const topbarRect = topbar.getBoundingClientRect();
+        const listRect = list.getBoundingClientRect();
+        const playerRect = player.getBoundingClientRect();
+
+        return {
+          topbarBeforeList: topbarRect.bottom <= listRect.top + 1,
+          listBeforePlayer: listRect.bottom <= playerRect.top + 1,
+          listHeight: listRect.height,
+          fitsViewport: shell.scrollWidth <= window.innerWidth + 1
+        };
+      });
+
+      expect(geometry.topbarBeforeList).toBe(true);
+      expect(geometry.listBeforePlayer).toBe(true);
+      expect(geometry.listHeight).toBeGreaterThan(180);
+      expect(geometry.fitsViewport).toBe(true);
+    }
+
+    const listBoundsBefore = await page.locator(".audio-list-panel").boundingBox();
+    await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
+    const inspector = page.locator(".inspector-panel");
+    await expect(inspector).toBeVisible();
+    await expect(page.getByRole("button", { name: "收起详情" })).toBeVisible();
+    const listBoundsWithDrawer = await page.locator(".audio-list-panel").boundingBox();
+    expect(listBoundsWithDrawer).toEqual(listBoundsBefore);
+
+    await page.getByRole("button", { name: "收起详情" }).click();
+    await expect(inspector).toHaveCount(0);
+    await expect(page.getByRole("listitem", { name: "音频：测试音频 1" })).toBeFocused();
+  });
+
   test("creates and opens a rule-driven smart playlist from a saved view", async ({
     page
   }) => {
@@ -1112,7 +1180,7 @@ test.describe("v0.5 management workflows", () => {
     await page.getByRole("tab", { name: "资料库健康" }).click();
 
     await expect(page.getByText("资料库健康中心")).toBeVisible();
-    await expect(page.getByText(/不会删除磁盘文件或数据库记录/)).toBeVisible();
+    await expect(page.getByText(/安全原则/)).toHaveCount(0);
     await page.getByRole("button", { name: "查找候选" }).click();
     await expect(page.getByText("/library/podcasts/moved/two.mp3")).toBeVisible();
     await page.getByRole("button", { name: "预览并关联" }).click();
