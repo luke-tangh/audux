@@ -16,7 +16,7 @@
 
 @media (max-width: 1080px) {
   :root {
-    --player-height: 102px;
+    --app-player-height: 102px;
     --app-sidebar-width: 224px;
   }
 
@@ -50,7 +50,7 @@
 
 @media (max-height: 760px) {
   :root {
-    --player-height: 88px;
+    --app-player-height: 88px;
   }
 
   .sidebar {
