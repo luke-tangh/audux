@@ -2,14 +2,15 @@ import logging
 import sqlite3
 from contextlib import closing
 from pathlib import Path
+
+from sqlalchemy import event, text
 from sqlmodel import SQLModel, Session, create_engine
-from sqlalchemy import text, event
 
 from .time_utils import utc_now_iso
 
 
 logger = logging.getLogger(__name__)
-CURRENT_SCHEMA_VERSION = 10
+CURRENT_SCHEMA_VERSION = 1
 
 APP_DATA_DIR = Path.home() / ".local_audio_library"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -60,19 +61,23 @@ def get_session():
 
 
 def create_db_and_tables():
-    backup_path = prepare_database_for_migrations()
+    schema_version = _database_schema_version(DB_PATH)
+    if schema_version is not None and schema_version != CURRENT_SCHEMA_VERSION:
+        raise RuntimeError(
+            "Database schema version "
+            f"{schema_version} does not match this pre-release build "
+            f"({CURRENT_SCHEMA_VERSION})."
+        )
+
     SQLModel.metadata.create_all(engine)
-    create_fts_tables()
-    run_migrations()
-
-    if backup_path is not None:
-        logger.info("Database migration backup created: %s", backup_path)
+    _write_current_schema_marker()
+    create_current_schema_objects()
 
 
-def _database_schema_state(path: Path) -> tuple[int | None, set[int]]:
-    """Return the highest and complete set of applied migration versions."""
+def _database_schema_version(path: Path) -> int | None:
+    """Return the schema version for a current-format database."""
     if not path.exists() or path.stat().st_size == 0:
-        return None, set()
+        return None
 
     uri = f"file:{path.resolve().as_posix()}?mode=ro"
 
@@ -87,22 +92,25 @@ def _database_schema_state(path: Path) -> tuple[int | None, set[int]]:
         ).fetchone()
 
         if user_table is None:
-            return None, set()
+            return None
 
-        migrations_table = conn.execute(
+        schema_table = conn.execute(
             """
             SELECT 1
             FROM sqlite_master
-            WHERE type = 'table' AND name = 'schema_migrations'
+            WHERE type = 'table' AND name = 'app_schema'
             """
         ).fetchone()
 
-        if migrations_table is None:
-            return 0, set()
+        if schema_table is None:
+            raise RuntimeError(
+                "Database does not use the schema required by this pre-release build."
+            )
 
-        rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
-        applied_versions = {int(row[0]) for row in rows}
-        return max(applied_versions, default=0), applied_versions
+        rows = conn.execute("SELECT version FROM app_schema WHERE id = 1").fetchall()
+        if len(rows) != 1:
+            raise RuntimeError("Database schema marker is invalid.")
+        return int(rows[0][0])
 
 
 def _verified_sqlite_backup(source_path: Path, destination_path: Path):
@@ -142,31 +150,6 @@ def _verified_sqlite_backup(source_path: Path, destination_path: Path):
         raise
 
 
-def prepare_database_for_migrations() -> Path | None:
-    """Create a verified backup before changing an existing database schema."""
-    schema_version, applied_versions = _database_schema_state(DB_PATH)
-    expected_versions = set(range(1, CURRENT_SCHEMA_VERSION + 1))
-
-    if schema_version is None or applied_versions == expected_versions:
-        return None
-
-    if schema_version > CURRENT_SCHEMA_VERSION:
-        raise RuntimeError(
-            "Database schema version "
-            f"{schema_version} is newer than this application supports "
-            f"({CURRENT_SCHEMA_VERSION}). Refusing to modify it."
-        )
-
-    BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = utc_now_iso().replace("-", "").replace(":", "").replace(".", "")
-    backup_path = BACKUPS_DIR / (
-        f"database.pre-migration-v{schema_version}-to-v{CURRENT_SCHEMA_VERSION}-"
-        f"{timestamp}Z.sqlite"
-    )
-    _verified_sqlite_backup(DB_PATH, backup_path)
-    return backup_path
-
-
 def create_fts_tables():
     with engine.begin() as conn:
         conn.execute(
@@ -185,400 +168,105 @@ def create_fts_tables():
         )
 
 
-def _migration_applied(conn, version: int) -> bool:
-    row = conn.execute(
-        text("SELECT version FROM schema_migrations WHERE version = :version"),
-        {"version": version},
-    ).fetchone()
-    return row is not None
-
-
-def _mark_migration_applied(conn, version: int, name: str):
-    conn.execute(
-        text(
-            """
-            INSERT INTO schema_migrations(version, name, applied_at)
-            VALUES (:version, :name, :applied_at)
-            """
-        ),
-        {
-            "version": version,
-            "name": name,
-            "applied_at": utc_now_iso(),
-        },
-    )
-
-
-def _table_columns(conn, table_name: str) -> set[str]:
-    rows = conn.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
-    return {row[1] for row in rows}
-
-
-def _add_column_if_missing(conn, table_name: str, column_name: str, ddl: str):
-    columns = _table_columns(conn, table_name)
-    if column_name not in columns:
-        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {ddl}"))
-
-
-def _table_exists(conn, table_name: str) -> bool:
-    row = conn.execute(
-        text(
-            """
-            SELECT name FROM sqlite_master
-            WHERE type='table' AND name = :table_name
-            """
-        ),
-        {"table_name": table_name},
-    ).fetchone()
-    return row is not None
-
-
-def _dedupe_active_ai_tasks(conn):
-    """
-    创建 active task 唯一索引前，处理旧库里可能已经存在的重复 active task。
-
-    保留每个 audio_id + task_type 下 id 最小的一条 active task，
-    其余 active task 标记为 canceled，避免 CREATE UNIQUE INDEX 失败。
-    """
-    now = utc_now_iso()
-
-    conn.execute(
-        text(
-            """
-            UPDATE ai_tasks
-            SET status = 'canceled',
-                error_message = COALESCE(error_message, :message),
-                finished_at = COALESCE(finished_at, :now),
-                updated_at = :now
-            WHERE status IN ('pending', 'running', 'cancel_requested')
-              AND id NOT IN (
-                  SELECT MIN(id)
-                  FROM ai_tasks
-                  WHERE status IN ('pending', 'running', 'cancel_requested')
-                  GROUP BY audio_id, task_type
-              )
-            """
-        ),
-        {
-            "now": now,
-            "message": "Duplicate active task canceled during schema migration",
-        },
-    )
-
-
-def _dedupe_active_scan_tasks(conn):
-    """
-    创建 active scan task 唯一索引前，处理旧库里可能已经存在的同 root 重复扫描任务。
-    """
-    now = utc_now_iso()
-
-    conn.execute(
-        text(
-            """
-            UPDATE scan_tasks
-            SET status = 'canceled',
-                error_message = COALESCE(error_message, :message),
-                finished_at = COALESCE(finished_at, :now),
-                updated_at = :now
-            WHERE status IN ('pending', 'running', 'cancel_requested')
-              AND id NOT IN (
-                  SELECT MIN(id)
-                  FROM scan_tasks
-                  WHERE status IN ('pending', 'running', 'cancel_requested')
-                  GROUP BY root_id
-              )
-            """
-        ),
-        {
-            "now": now,
-            "message": "Duplicate active scan task canceled during schema migration",
-        },
-    )
-
-
-def run_migrations():
-    """
-    轻量迁移机制。
-
-    SQLModel.create_all 只会创建不存在的表，不会修改已有表。
-    这里用于补充后续版本新增字段 / 维护表。
-    """
+def _write_current_schema_marker():
     with engine.begin() as conn:
         conn.execute(
             text(
                 """
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    version INTEGER PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    applied_at TEXT NOT NULL
+                CREATE TABLE IF NOT EXISTS app_schema (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    version INTEGER NOT NULL,
+                    created_at TEXT NOT NULL
                 );
                 """
             )
         )
+        conn.execute(
+            text(
+                """
+                INSERT INTO app_schema(id, version, created_at)
+                VALUES (1, :version, :created_at)
+                ON CONFLICT(id) DO NOTHING;
+                """
+            ),
+            {
+                "version": CURRENT_SCHEMA_VERSION,
+                "created_at": utc_now_iso(),
+            },
+        )
 
-        if not _migration_applied(conn, 1):
-            # baseline：当前 MVP 初始结构。
-            _mark_migration_applied(conn, 1, "baseline")
 
-        if not _migration_applied(conn, 2):
-            # 保证旧库也拥有 P0/P1/P2 字段。
-            # 大多数新库会由 SQLModel 自动创建，这里只处理旧库升级。
-            audio_columns = _table_columns(conn, "audio_items") if conn.execute(
-                text(
-                    """
-                    SELECT name FROM sqlite_master
-                    WHERE type='table' AND name='audio_items'
-                    """
-                )
-            ).fetchone() else set()
+def create_current_schema_objects():
+    """Create objects that SQLModel cannot express for a fresh current schema."""
+    create_fts_tables()
 
-            if audio_columns:
-                if "cover_path" not in audio_columns:
-                    _add_column_if_missing(conn, "audio_items", "cover_path", "cover_path TEXT")
-                if "cover_source" not in audio_columns:
-                    _add_column_if_missing(conn, "audio_items", "cover_source", "cover_source TEXT")
-                if "file_hash" not in audio_columns:
-                    _add_column_if_missing(conn, "audio_items", "file_hash", "file_hash TEXT")
+    statements = [
+        """
+        CREATE INDEX IF NOT EXISTS ix_audio_items_file_hash
+        ON audio_items(file_hash)
+        WHERE file_hash IS NOT NULL;
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_ai_tasks_active
+        ON ai_tasks(audio_id, task_type)
+        WHERE status IN ('pending', 'running', 'cancel_requested');
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_scan_tasks_active_root
+        ON scan_tasks(root_id)
+        WHERE status IN ('pending', 'running', 'cancel_requested');
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_audio_items_updated_at
+        ON audio_items(updated_at);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_audio_items_transcript_status
+        ON audio_items(transcript_status);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_audio_items_ai_status
+        ON audio_items(ai_status);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_audio_items_is_missing
+        ON audio_items(is_missing);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_audio_items_is_favorite
+        ON audio_items(is_favorite);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_audio_items_library_root_id
+        ON audio_items(library_root_id);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_audio_items_library_root_updated_at
+        ON audio_items(library_root_id, updated_at);
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_saved_views_name_nocase
+        ON saved_views(name COLLATE NOCASE);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_saved_views_sort_order
+        ON saved_views(sort_order, id);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_library_health_tasks_status
+        ON library_health_tasks(status, created_at);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_library_health_tasks_type
+        ON library_health_tasks(task_type, created_at);
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_library_health_tasks_active_type
+        ON library_health_tasks(task_type)
+        WHERE status IN ('pending', 'running', 'cancel_requested');
+        """,
+    ]
 
-            _mark_migration_applied(conn, 2, "ensure_audio_item_columns")
-
-        if not _migration_applied(conn, 3):
-            create_fts_tables()
-            _mark_migration_applied(conn, 3, "ensure_fts5_search_index")
-
-        if not _migration_applied(conn, 4):
-            # 用于扫描时通过 hash 识别文件移动。
-            # 旧库中 file_hash 可能为空，扫描会逐步回填。
-            conn.execute(
-                text(
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_audio_items_file_hash
-                    ON audio_items(file_hash)
-                    WHERE file_hash IS NOT NULL;
-                    """
-                )
-            )
-
-            _mark_migration_applied(conn, 4, "index_audio_items_file_hash")
-
-        if not _migration_applied(conn, 5):
-            # 防止同一个音频同一类型任务在 pending/running/cancel_requested
-            # 状态下重复存在。这里提供数据库级并发保护。
-            if _table_exists(conn, "ai_tasks"):
-                _dedupe_active_ai_tasks(conn)
-
-                conn.execute(
-                    text(
-                        """
-                        CREATE UNIQUE INDEX IF NOT EXISTS ux_ai_tasks_active
-                        ON ai_tasks(audio_id, task_type)
-                        WHERE status IN ('pending', 'running', 'cancel_requested');
-                        """
-                    )
-                )
-
-            # 防止同一个 library root 同时存在多个 pending/running/cancel_requested 扫描任务。
-            if _table_exists(conn, "scan_tasks"):
-                _dedupe_active_scan_tasks(conn)
-
-                conn.execute(
-                    text(
-                        """
-                        CREATE UNIQUE INDEX IF NOT EXISTS ux_scan_tasks_active_root
-                        ON scan_tasks(root_id)
-                        WHERE status IN ('pending', 'running', 'cancel_requested');
-                        """
-                    )
-                )
-
-            _mark_migration_applied(
-                conn, 5, "unique_active_ai_and_scan_tasks"
-            )
-
-        if not _migration_applied(conn, 6):
-            # v6:
-            # - scan task cancel_requested 也应视为 active，避免取消中的扫描与新扫描并发。
-            # - 为常用 AudioItem 查询字段补充索引，改善分页、筛选和排序性能。
-            if _table_exists(conn, "scan_tasks"):
-                _dedupe_active_scan_tasks(conn)
-
-                conn.execute(text("DROP INDEX IF EXISTS ux_scan_tasks_active_root"))
-
-                conn.execute(
-                    text(
-                        """
-                        CREATE UNIQUE INDEX IF NOT EXISTS ux_scan_tasks_active_root
-                        ON scan_tasks(root_id)
-                        WHERE status IN ('pending', 'running', 'cancel_requested');
-                        """
-                    )
-                )
-
-            if _table_exists(conn, "audio_items"):
-                audio_item_indexes = [
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_audio_items_updated_at
-                    ON audio_items(updated_at);
-                    """,
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_audio_items_transcript_status
-                    ON audio_items(transcript_status);
-                    """,
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_audio_items_ai_status
-                    ON audio_items(ai_status);
-                    """,
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_audio_items_is_missing
-                    ON audio_items(is_missing);
-                    """,
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_audio_items_is_favorite
-                    ON audio_items(is_favorite);
-                    """,
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_audio_items_library_root_id
-                    ON audio_items(library_root_id);
-                    """,
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_audio_items_library_root_updated_at
-                    ON audio_items(library_root_id, updated_at);
-                    """,
-                ]
-
-                for ddl in audio_item_indexes:
-                    conn.execute(text(ddl))
-
-            _mark_migration_applied(
-                conn, 6, "scan_cancel_requested_and_audio_query_indexes"
-            )
-
-        if not _migration_applied(conn, 7):
-            if _table_exists(conn, "ai_tasks"):
-                _add_column_if_missing(conn, "ai_tasks", "error_code", "error_code TEXT")
-                _add_column_if_missing(conn, "ai_tasks", "error_params", "error_params TEXT")
-
-            if _table_exists(conn, "scan_tasks"):
-                _add_column_if_missing(conn, "scan_tasks", "error_code", "error_code TEXT")
-                _add_column_if_missing(conn, "scan_tasks", "error_params", "error_params TEXT")
-
-            _mark_migration_applied(conn, 7, "structured_task_errors")
-
-        if not _migration_applied(conn, 8):
-            conn.execute(
-                text(
-                    """
-                    CREATE TABLE IF NOT EXISTS saved_views (
-                        id INTEGER PRIMARY KEY,
-                        name TEXT NOT NULL,
-                        query_json TEXT NOT NULL,
-                        schema_version INTEGER NOT NULL DEFAULT 1,
-                        sort_order INTEGER NOT NULL DEFAULT 0,
-                        created_at TEXT NOT NULL,
-                        updated_at TEXT NOT NULL
-                    );
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    """
-                    CREATE UNIQUE INDEX IF NOT EXISTS ux_saved_views_name_nocase
-                    ON saved_views(name COLLATE NOCASE);
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_saved_views_sort_order
-                    ON saved_views(sort_order, id);
-                    """
-                )
-            )
-            _mark_migration_applied(conn, 8, "saved_views")
-
-        if not _migration_applied(conn, 9):
-            if _table_exists(conn, "playlists"):
-                _add_column_if_missing(
-                    conn,
-                    "playlists",
-                    "kind",
-                    "kind TEXT NOT NULL DEFAULT 'manual'",
-                )
-                _add_column_if_missing(
-                    conn,
-                    "playlists",
-                    "query_json",
-                    "query_json TEXT",
-                )
-                _add_column_if_missing(
-                    conn,
-                    "playlists",
-                    "query_schema_version",
-                    "query_schema_version INTEGER",
-                )
-                _add_column_if_missing(
-                    conn,
-                    "playlists",
-                    "last_refreshed_at",
-                    "last_refreshed_at TEXT",
-                )
-                conn.execute(
-                    text(
-                        """
-                        CREATE INDEX IF NOT EXISTS ix_playlists_kind
-                        ON playlists(kind);
-                        """
-                    )
-                )
-            _mark_migration_applied(conn, 9, "smart_playlists")
-
-        if not _migration_applied(conn, 10):
-            conn.execute(
-                text(
-                    """
-                    CREATE TABLE IF NOT EXISTS library_health_tasks (
-                        id INTEGER PRIMARY KEY,
-                        task_type TEXT NOT NULL DEFAULT 'health_check',
-                        status TEXT NOT NULL DEFAULT 'pending',
-                        input_json TEXT,
-                        result_json TEXT,
-                        total_items INTEGER NOT NULL DEFAULT 0,
-                        processed_items INTEGER NOT NULL DEFAULT 0,
-                        error_message TEXT,
-                        error_code TEXT,
-                        created_at TEXT NOT NULL,
-                        started_at TEXT,
-                        finished_at TEXT,
-                        updated_at TEXT NOT NULL
-                    );
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_library_health_tasks_status
-                    ON library_health_tasks(status, created_at);
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    """
-                    CREATE INDEX IF NOT EXISTS ix_library_health_tasks_type
-                    ON library_health_tasks(task_type, created_at);
-                    """
-                )
-            )
-            conn.execute(
-                text(
-                    """
-                    CREATE UNIQUE INDEX IF NOT EXISTS ux_library_health_tasks_active_type
-                    ON library_health_tasks(task_type)
-                    WHERE status IN ('pending', 'running', 'cancel_requested');
-                    """
-                )
-            )
-            _mark_migration_applied(conn, 10, "library_health_tasks")
+    with engine.begin() as conn:
+        for statement in statements:
+            conn.execute(text(statement))

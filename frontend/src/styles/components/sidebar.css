@@ -118,7 +118,7 @@
 .nav-card em {
   display: block;
   margin-top: 2px;
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
   font-size: 12px;
   font-style: normal;
 }

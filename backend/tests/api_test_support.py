@@ -5,8 +5,8 @@ from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import event, text
-from sqlmodel import SQLModel, Session, create_engine
+from sqlalchemy import event
+from sqlmodel import Session, create_engine
 
 
 # Importing app.main initializes the normal data directories and logger. Resolve
@@ -16,7 +16,7 @@ TEST_RUNTIME_DIR = tempfile.TemporaryDirectory(prefix="local-audio-library-tests
 
 with pytest.MonkeyPatch.context() as monkeypatch:
     monkeypatch.setattr(Path, "home", lambda: Path(TEST_RUNTIME_DIR.name))
-    from app import local_security, tasks
+    from app import db, local_security, tasks
     from app.db import get_session
     from app.main import app
     from app.models import AudioItem, LibraryRoot, Setting
@@ -77,41 +77,9 @@ class ApiIntegrationTest:
             cursor.close()
 
         try:
-            SQLModel.metadata.create_all(self.engine)
-
-            with self.engine.begin() as connection:
-                connection.execute(
-                    text(
-                        """
-                        CREATE VIRTUAL TABLE search_index USING fts5(
-                            audio_id UNINDEXED,
-                            title,
-                            author,
-                            description,
-                            tags,
-                            transcript
-                        )
-                        """
-                    )
-                )
-                connection.execute(
-                    text(
-                        """
-                        CREATE UNIQUE INDEX ux_ai_tasks_active
-                        ON ai_tasks(audio_id, task_type)
-                        WHERE status IN ('pending', 'running', 'cancel_requested')
-                        """
-                    )
-                )
-                connection.execute(
-                    text(
-                        """
-                        CREATE UNIQUE INDEX ux_scan_tasks_active_root
-                        ON scan_tasks(root_id)
-                        WHERE status IN ('pending', 'running', 'cancel_requested')
-                        """
-                    )
-                )
+            monkeypatch.setattr(db, "DB_PATH", self.db_path)
+            monkeypatch.setattr(db, "engine", self.engine)
+            db.create_db_and_tables()
 
             async def get_test_session():
                 with Session(self.engine) as session:

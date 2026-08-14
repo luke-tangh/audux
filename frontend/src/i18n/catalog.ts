@@ -641,7 +641,6 @@ export const messages = {
   "settings.backup.integrity.invalid": ["校验失败", "Invalid"],
   "settings.backup.integrity.unchecked": ["未校验", "Unchecked"],
   "settings.backup.kind.manual": ["手动快照", "Manual snapshot"],
-  "settings.backup.kind.pre_migration": ["迁移前快照", "Pre-migration snapshot"],
   "settings.backup.kind.pre_restore": ["恢复前安全快照", "Pre-restore safety snapshot"],
   "settings.backup.result.succeeded": ["最近一次数据库恢复已于 {{time}} 成功完成。", "The latest database restore completed successfully at {{time}}."],
   "settings.backup.result.failed": ["最近一次数据库恢复未执行，当前数据库保持不变（{{time}}）：{{error}}", "The latest database restore was not applied and the current database is unchanged ({{time}}): {{error}}"],

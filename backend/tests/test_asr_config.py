@@ -245,7 +245,7 @@ class TestASRConfig:
         settings_session.add(endpoint)
         settings_session.commit()
 
-        resolved = resolve_asr_task_config(settings_session, payload)
+        resolved = resolve_asr_task_config(payload)
         assert resolved["endpoint"] == "http://127.0.0.1:8000/v1"
         assert resolved["model_name"] == "qwen3-asr-1.7b"
         assert resolved["chunking_enabled"] is True
@@ -256,3 +256,7 @@ class TestASRConfig:
         assert resolved["vad_threshold"] == 0.6
         assert resolved["formatting_enabled"] is True
         assert resolved["case_glossary"] == "ark asr=ARK-ASR"
+
+    def test_task_without_asr_snapshot_is_rejected(self):
+        with pytest.raises(ValueError, match="does not contain an ASR configuration"):
+            resolve_asr_task_config({})

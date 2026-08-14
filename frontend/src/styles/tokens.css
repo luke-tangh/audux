@@ -120,49 +120,9 @@
   --app-sidebar-width: 264px;
   --app-inspector-width: 420px;
   --app-player-height: 96px;
-
-  /*
-    Backward-compatible aliases used by existing TSX / CSS class names.
-  */
-  --bg: var(--md-sys-color-background);
-  --bg-2: var(--md-sys-color-surface-container-lowest);
-
-  --surface: var(--md-sys-color-surface-container);
-  --surface-2: var(--md-sys-color-surface-container-high);
-  --surface-3: var(--md-sys-color-surface-container-highest);
-  --surface-soft: var(--md-sys-color-surface-container-low);
-
-  --border: var(--md-sys-color-outline-variant);
-  --border-strong: var(--md-sys-color-outline);
-
-  --text: var(--md-sys-color-on-surface);
-  --text-strong: var(--md-sys-color-on-surface);
-  --text-soft: var(--md-sys-color-on-surface-variant);
-  --text-muted: #a8a2ad;
-  --text-faint: #96909b;
-
-  --primary: var(--md-sys-color-primary);
-  --primary-strong: #b69df8;
-  --accent: var(--md-sys-color-tertiary);
-
-  --success: var(--md-sys-color-success);
-  --warning: #ffb95c;
-  --danger: var(--md-sys-color-error);
-
-  --success-soft: var(--md-sys-color-success-container);
-  --warning-soft: var(--md-sys-color-warning-container);
-  --danger-soft: var(--md-sys-color-error-container);
-  --primary-soft: var(--md-sys-color-primary-container);
-  --accent-soft: var(--md-sys-color-tertiary-container);
-
-  --radius-xs: var(--md-sys-shape-corner-extra-small);
-  --radius-sm: var(--md-sys-shape-corner-small);
-  --radius-md: var(--md-sys-shape-corner-medium);
-  --radius-lg: var(--md-sys-shape-corner-large);
-  --radius-xl: var(--md-sys-shape-corner-extra-large);
-
-  --player-height: var(--app-player-height);
-  --transition: var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
+  --app-color-text-muted: #a8a2ad;
+  --app-color-text-faint: #96909b;
+  --app-motion-transition: var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
 }
 
 /* Typography tokens and theme modes: start */

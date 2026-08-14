@@ -35,8 +35,8 @@ class MockAsrHandler(BaseHTTPRequestHandler):
                         "text": "第一段",
                     },
                     {
-                        "start_seconds": 1.25,
-                        "end_seconds": 2.5,
+                        "start": 1.25,
+                        "end": 2.5,
                         "text": "第二段",
                     },
                 ],

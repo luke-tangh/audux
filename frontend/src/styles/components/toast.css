@@ -1,7 +1,7 @@
 .toast-stack {
   position: fixed;
   right: 18px;
-  bottom: calc(var(--player-height) + 18px);
+  bottom: calc(var(--app-player-height) + 18px);
   z-index: 9999;
   display: grid;
   gap: 10px;

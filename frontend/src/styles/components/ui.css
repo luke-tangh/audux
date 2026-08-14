@@ -234,7 +234,7 @@
 }
 
 .ui-action-menu-popover > button:disabled {
-  color: var(--text-faint);
+  color: var(--app-color-text-faint);
   background: transparent;
 }
 
@@ -439,10 +439,10 @@
   background: var(--md-sys-color-surface-container-high);
   box-shadow: none;
   transition:
-    background var(--transition),
-    border-color var(--transition),
-    box-shadow var(--transition),
-    opacity var(--transition);
+    background var(--app-motion-transition),
+    border-color var(--app-motion-transition),
+    box-shadow var(--app-motion-transition),
+    opacity var(--app-motion-transition);
 }
 
 .ui-select-field-control-compact {
@@ -537,8 +537,8 @@
   pointer-events: none;
   transform: translateY(-65%) rotate(45deg);
   transition:
-    border-color var(--transition),
-    transform var(--transition);
+    border-color var(--app-motion-transition),
+    transform var(--app-motion-transition);
 }
 
 .ui-select-field-open::after {
@@ -561,7 +561,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   pointer-events: none;
-  transition: color var(--transition);
+  transition: color var(--app-motion-transition);
 }
 
 .ui-select-field:focus-within .ui-select-field-label,
@@ -685,9 +685,9 @@
   cursor: pointer;
   user-select: none;
   transition:
-    color var(--transition),
-    background var(--transition),
-    opacity var(--transition);
+    color var(--app-motion-transition),
+    background var(--app-motion-transition),
+    opacity var(--app-motion-transition);
 }
 
 .ui-select-field-menu-compact .ui-select-field-option {
@@ -817,7 +817,7 @@
 }
 
 .ui-field-helper {
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
 }
 
 .ui-field-error {
@@ -867,7 +867,7 @@
 }
 
 .ui-checkbox-field-description {
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
   font-size: var(--md-sys-typescale-label-small-font-size, 12px);
   line-height: 1.5;
 }

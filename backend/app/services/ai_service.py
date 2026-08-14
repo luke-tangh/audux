@@ -178,7 +178,7 @@ def retry_ai_task(session: Session, task_id: int) -> AITask:
     if task.task_type == "transcribe":
         try:
             current_payload = parse_task_input_payload(task.input_payload)
-            asr_config = resolve_asr_task_config(session, current_payload)
+            asr_config = resolve_asr_task_config(current_payload)
         except ValueError as e:
             raise ServiceError(400, str(e)) from e
 
@@ -198,8 +198,6 @@ def retry_ai_task(session: Session, task_id: int) -> AITask:
                 "Whisper component is not installed. Install it from Settings > ASR.",
             )
 
-        # Normalize old empty task payloads while preserving the original
-        # provider/model snapshot for tasks created by this version.
         task.input_payload = json.dumps({"asr": asr_config}, ensure_ascii=False)
 
     task.status = "pending"

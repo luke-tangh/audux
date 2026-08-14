@@ -77,7 +77,7 @@ def calculate_sampled_file_hash(path: Path, file_size: Optional[int] = None) -> 
     读取文件头 / 中 / 尾若干块，并把 file_size、offset 纳入 hash。
     目标是在保留移动检测可用性的同时，避免对大文件全量读取。
 
-    返回值带 prefix，便于和历史 full SHA-256 区分。
+    返回值带 prefix，便于和 full SHA-256 策略区分。
     """
     if file_size is None:
         file_size = path.stat().st_size
@@ -107,14 +107,6 @@ def calculate_sampled_file_hash(path: Path, file_size: Optional[int] = None) -> 
     return SAMPLED_HASH_PREFIX + digest.hexdigest()
 
 
-def _is_sampled_hash(value: Optional[str]) -> bool:
-    return bool(value and value.startswith(SAMPLED_HASH_PREFIX))
-
-
-def _setting_truthy(value: Optional[str]) -> bool:
-    return (value or "").strip().lower() in {"1", "true", "yes", "on"}
-
-
 def _get_scan_hash_strategy(session: Session) -> str:
     row = session.get(Setting, "scanner.hash_strategy")
     value = (row.value if row else "sampled").strip().lower()
@@ -123,18 +115,6 @@ def _get_scan_hash_strategy(session: Session) -> str:
         return "sampled"
 
     return value
-
-
-def _get_scan_backfill_missing_hash(session: Session) -> bool:
-    """
-    是否在扫描 unchanged existing audio 时补 file_hash。
-
-    默认 false，避免旧库第一次升级后扫描时对全库批量读文件。
-    如需逐步补齐历史记录 hash，可设置 scanner.backfill_missing_hash = true。
-    """
-    row = session.get(Setting, "scanner.backfill_missing_hash")
-    return _setting_truthy(row.value if row else None)
-
 
 def calculate_file_fingerprint(
     path: Path,
@@ -468,15 +448,6 @@ def _iter_audio_candidates(root_path: Path):
         logger.warning("Failed to enumerate library root %s: %s", root_path, e)
 
 
-def _collect_audio_candidates(root_path: Path) -> list[Path]:
-    """
-    Compatibility helper for callers/tests that need a list.
-
-    scan_library_root uses _iter_audio_candidates directly.
-    """
-    return list(_iter_audio_candidates(root_path))
-
-
 def _find_moved_audio_by_hash(
     session: Session,
     file_hash: Optional[str],
@@ -531,90 +502,6 @@ def _find_moved_audio_by_hash(
     )
 
     return candidates[0]
-
-
-def _move_candidate_hash_strategies(
-    session: Session,
-    resolved_path: str,
-    file_size: int,
-) -> set[str]:
-    """
-    查询同 size 且旧路径不可用的候选记录，判断需要尝试哪些 hash 策略。
-
-    兼容：
-    - 旧库 full SHA-256
-    - PR3 后 sampled fingerprint
-    """
-    rows = session.exec(
-        select(AudioItem.file_path, AudioItem.file_hash)
-        .where(AudioItem.file_size == file_size)
-        .where(AudioItem.file_hash != None)
-    ).all()
-
-    strategies: set[str] = set()
-
-    for path_value, hash_value in rows:
-        if not hash_value:
-            continue
-
-        if _same_audio_path(path_value, resolved_path):
-            continue
-
-        if _path_points_to_available_file(path_value):
-            continue
-
-        strategies.add("sampled" if _is_sampled_hash(hash_value) else "full")
-
-    return strategies
-
-
-def _find_moved_audio_with_alternate_hash_strategy(
-    session: Session,
-    file_path: Path,
-    resolved_path: str,
-    root_id: int,
-    file_size: int,
-    current_strategy: str,
-    current_hash: Optional[str],
-) -> tuple[Optional[AudioItem], Optional[str]]:
-    """
-    默认 sampled 扫描时，旧库可能保存的是 full SHA-256；
-    如果存在同 size 且旧路径不可用的 full-hash 候选，则额外补算 full hash。
-    """
-    candidate_strategies = _move_candidate_hash_strategies(
-        session=session,
-        resolved_path=resolved_path,
-        file_size=file_size,
-    )
-
-    for strategy in ["sampled", "full"]:
-        if strategy == current_strategy:
-            continue
-
-        if strategy not in candidate_strategies:
-            continue
-
-        file_hash = _safe_calculate_file_hash(
-            file_path,
-            strategy=strategy,
-            file_size=file_size,
-        )
-
-        if not file_hash or file_hash == current_hash:
-            continue
-
-        moved_item = _find_moved_audio_by_hash(
-            session=session,
-            file_hash=file_hash,
-            resolved_path=resolved_path,
-            root_id=root_id,
-            file_size=file_size,
-        )
-
-        if moved_item:
-            return moved_item, file_hash
-
-    return None, None
 
 
 def _relocate_audio_item_by_hash(
@@ -698,7 +585,6 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
         }
 
     hash_strategy = _get_scan_hash_strategy(session)
-    backfill_missing_hash = _get_scan_backfill_missing_hash(session)
 
     imported = 0
     updated = 0
@@ -724,10 +610,9 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
     )
 
     logger.info(
-        "Scanning root %s, hash_strategy=%s backfill_missing_hash=%s",
+        "Scanning root %s, hash_strategy=%s",
         root.path,
         hash_strategy,
-        backfill_missing_hash,
     )
 
     def update_progress(force: bool = False):
@@ -773,7 +658,7 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
         if existing:
             file_changed = _audio_file_changed(existing, stat, mtime)
 
-            if file_changed or (not existing.file_hash and backfill_missing_hash):
+            if file_changed or not existing.file_hash:
                 file_hash = _safe_calculate_file_hash(
                     file_path,
                     strategy=hash_strategy,
@@ -837,21 +722,6 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
                     root_id=root.id,
                     file_size=stat.st_size,
                 )
-
-            if not moved_item:
-                alternate_item, alternate_hash = _find_moved_audio_with_alternate_hash_strategy(
-                    session=session,
-                    file_path=file_path,
-                    resolved_path=resolved,
-                    root_id=root.id,
-                    file_size=stat.st_size,
-                    current_strategy=hash_strategy,
-                    current_hash=file_hash,
-                )
-
-                if alternate_item and alternate_hash:
-                    moved_item = alternate_item
-                    file_hash = alternate_hash
 
             if moved_item and file_hash:
                 _relocate_audio_item_by_hash(

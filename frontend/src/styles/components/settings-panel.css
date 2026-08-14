@@ -87,7 +87,7 @@
 
 .settings-panel .settings-nav-group > strong {
   padding: 4px 11px;
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
   font-size: 11px;
   letter-spacing: 0.08em;
 }

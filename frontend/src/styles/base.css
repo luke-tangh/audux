@@ -71,12 +71,12 @@ button {
   font-weight: 700;
   letter-spacing: 0.01em;
   transition:
-    background var(--transition),
-    color var(--transition),
-    border-color var(--transition),
-    box-shadow var(--transition),
-    transform var(--transition),
-    opacity var(--transition);
+    background var(--app-motion-transition),
+    color var(--app-motion-transition),
+    border-color var(--app-motion-transition),
+    box-shadow var(--app-motion-transition),
+    transform var(--app-motion-transition),
+    opacity var(--app-motion-transition);
   position: relative;
 }
 
@@ -117,14 +117,14 @@ select {
   border-radius: var(--md-sys-shape-corner-small);
   padding: 12px 14px;
   transition:
-    border-color var(--transition),
-    background var(--transition),
-    box-shadow var(--transition);
+    border-color var(--app-motion-transition),
+    background var(--app-motion-transition),
+    box-shadow var(--app-motion-transition);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--text-faint);
+  color: var(--app-color-text-faint);
 }
 
 input:hover,
@@ -222,7 +222,7 @@ summary {
 }
 
 .muted {
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
   font-size: 13px;
   line-height: 1.6;
 }

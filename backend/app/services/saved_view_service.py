@@ -81,10 +81,7 @@ def decode_saved_view_query(
         raw_query = json.loads(query_json or "")
         if not isinstance(raw_query, dict):
             raise ValueError("definition must be an object")
-        if (
-            raw_query.get("schema_version", schema_version) != 1
-            or schema_version != 1
-        ):
+        if raw_query.get("schema_version") != 1 or schema_version != 1:
             raise ValueError("unsupported schema version")
         query = SavedViewQuery.model_validate(raw_query)
     except (json.JSONDecodeError, ValidationError, ValueError, TypeError) as error:

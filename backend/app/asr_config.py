@@ -335,14 +335,11 @@ def parse_task_input_payload(value: str | None) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
-def resolve_asr_task_config(session: Session, input_payload: dict) -> dict:
+def resolve_asr_task_config(input_payload: dict) -> dict:
     config = input_payload.get("asr")
-    if isinstance(config, dict):
-        return normalize_asr_task_config(config)
-
-    # Tasks created by older versions have an empty payload. Preserve retry and
-    # interrupted-task compatibility by resolving those against current settings.
-    return build_asr_task_config(session)
+    if not isinstance(config, dict):
+        raise ValueError("Transcription task does not contain an ASR configuration")
+    return normalize_asr_task_config(config)
 
 
 def get_external_asr_api_key(session: Session) -> str:

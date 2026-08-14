@@ -408,7 +408,7 @@ export type ExternalAsrPreprocessingStatus = {
 export type DatabaseBackup = {
   id: string;
   name: string;
-  kind: "manual" | "pre_migration" | "pre_restore" | string;
+  kind: "manual" | "pre_restore" | string;
   created_at: string;
   app_version: string | null;
   schema_version: number | null;
@@ -492,12 +492,7 @@ export type BatchTaskResult = {
     audio_id: number;
     error: string;
   }[];
-  task_ids?: number[];
-  /**
-   * Kept optional for compatibility with older backend responses.
-   * New batch endpoints return task_ids only to avoid huge responses.
-   */
-  tasks?: AITask[];
+  task_ids: number[];
 };
 
 export type BatchOrganizationAction =

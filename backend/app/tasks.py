@@ -542,7 +542,7 @@ async def handle_transcribe_task(task: TaskSnapshot):
 
         file_path = audio.file_path
 
-        asr_config = resolve_asr_task_config(session, task.input_payload)
+        asr_config = resolve_asr_task_config(task.input_payload)
         external_api_key = ""
 
         if asr_config["provider"] == ASR_PROVIDER_EXTERNAL:

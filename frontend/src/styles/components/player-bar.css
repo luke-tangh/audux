@@ -11,7 +11,7 @@
   z-index: 50;
   flex: 0 0 auto;
   height: auto;
-  min-height: var(--player-height);
+  min-height: var(--app-player-height);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 2fr) minmax(0, 1fr);
   gap: 14px;

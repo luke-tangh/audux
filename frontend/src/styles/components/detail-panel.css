@@ -173,7 +173,7 @@
   padding: 0 16px;
   font-size: 14px;
   font-weight: 700;
-  transition: background var(--transition);
+  transition: background var(--app-motion-transition);
 }
 
 .upload-button:hover {
@@ -591,7 +591,7 @@
 }
 
 .inspector-panel .file-info-card dt {
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
   font-size: 12px;
 }
 

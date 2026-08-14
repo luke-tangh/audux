@@ -29,8 +29,6 @@ def normalize_external_asr_response(
         raise ValueError("External ASR response must be a JSON object")
 
     full_text = response.get("text")
-    if full_text is None:
-        full_text = response.get("full_text")
     if not isinstance(full_text, str):
         raise ValueError("External ASR response must contain string field 'text'")
 
@@ -43,8 +41,8 @@ def normalize_external_asr_response(
         if not isinstance(item, dict):
             raise ValueError("External ASR segments must be JSON objects")
 
-        start_value = item.get("start", item.get("start_seconds"))
-        end_value = item.get("end", item.get("end_seconds"))
+        start_value = item.get("start")
+        end_value = item.get("end")
         text = item.get("text")
 
         if start_value is None or end_value is None or not isinstance(text, str):

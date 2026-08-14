@@ -55,10 +55,10 @@ class TestExternalASRClient:
             },
         ]
 
-    def test_accepts_internal_field_names_and_text_only_response(self):
+    def test_accepts_text_only_response(self):
         result = normalize_external_asr_response(
             {
-                "full_text": "text only",
+                "text": "text only",
                 "segments": [],
             },
             configured_model_name="mimo-v2.5-asr",
@@ -68,6 +68,23 @@ class TestExternalASRClient:
         assert result["model_name"] == "mimo-v2.5-asr"
         assert result["full_text"] == "text only"
         assert result["segments"] == []
+
+    def test_rejects_internal_field_names(self):
+        with pytest.raises(ValueError, match="string field 'text'"):
+            normalize_external_asr_response(
+                {
+                    "full_text": "old response",
+                    "segments": [
+                        {
+                            "start_seconds": 0,
+                            "end_seconds": 1,
+                            "text": "old response",
+                        }
+                    ],
+                },
+                configured_model_name="model",
+                timestamp_policy="preferred",
+            )
 
     def test_required_timestamps_reject_text_only_response(self):
         with pytest.raises(ValueError, match="timestamps are required"):

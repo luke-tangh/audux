@@ -43,24 +43,23 @@ class TestDatabaseBackupService:
             connection.execute(
                 text(
                     """
-                    CREATE TABLE schema_migrations (
-                        version INTEGER PRIMARY KEY,
-                        name TEXT NOT NULL,
-                        applied_at TEXT NOT NULL
+                    CREATE TABLE app_schema (
+                        id INTEGER PRIMARY KEY,
+                        version INTEGER NOT NULL,
+                        created_at TEXT NOT NULL
                     )
                     """
                 )
             )
-            for version in range(1, db.CURRENT_SCHEMA_VERSION + 1):
-                connection.execute(
-                    text(
-                        """
-                        INSERT INTO schema_migrations(version, name, applied_at)
-                        VALUES (:version, :name, '2026-08-10T00:00:00')
-                        """
-                    ),
-                    {"version": version, "name": f"migration-{version}"},
-                )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO app_schema(id, version, created_at)
+                    VALUES (1, :version, '2026-08-10T00:00:00')
+                    """
+                ),
+                {"version": db.CURRENT_SCHEMA_VERSION},
+            )
 
         monkeypatch.setattr(db, "DB_PATH", self.db_path)
         monkeypatch.setattr(db, "BACKUPS_DIR", self.backups_dir)
@@ -156,7 +155,7 @@ class TestDatabaseBackupService:
         }
         assert backup_service.list_database_backups() == []
 
-    def test_corrupt_and_newer_schema_snapshots_are_not_restorable(self):
+    def test_corrupt_and_different_schema_snapshots_are_not_restorable(self):
         corrupted = self.create_backup()
         (self.backups_dir / corrupted["id"]).write_bytes(b"not a sqlite database")
         checked = backup_service.validate_database_backup(corrupted["id"])
@@ -167,12 +166,12 @@ class TestDatabaseBackupService:
         with Session(create_engine(f"sqlite:///{future_path}")) as session:
             session.exec(
                 text(
-                    "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT, applied_at TEXT)"
+                    "CREATE TABLE app_schema (id INTEGER PRIMARY KEY, version INTEGER, created_at TEXT)"
                 )
             )
             session.exec(
                 text(
-                    "INSERT INTO schema_migrations VALUES (99, 'future', '2026-08-10')"
+                    "INSERT INTO app_schema VALUES (1, 2, '2026-08-10')"
                 )
             )
             session.commit()
@@ -180,7 +179,7 @@ class TestDatabaseBackupService:
         future = backup_service.validate_database_backup(future_path.name)
         assert future["integrity_status"] == "valid"
         assert future["restore_compatible"] is False
-        assert "newer" in str(future["compatibility_error"])
+        assert "does not match" in str(future["compatibility_error"])
 
     def test_preflight_blocks_active_tasks_and_pending_snapshots_are_protected(self):
         backup = self.create_backup()

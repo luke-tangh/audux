@@ -395,8 +395,7 @@ def _has_active_local_transcription(session: Session) -> bool:
     for task in tasks:
         try:
             config = resolve_asr_task_config(
-                session,
-                parse_task_input_payload(task.input_payload),
+                parse_task_input_payload(task.input_payload)
             )
         except ValueError:
             continue

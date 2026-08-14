@@ -11,7 +11,7 @@ const backup: DatabaseBackup = {
   kind: "manual",
   created_at: "2026-08-10T00:00:00",
   app_version: "0.5.0-beta.1",
-  schema_version: 7,
+  schema_version: 1,
   size_bytes: 1024,
   integrity_status: "valid",
   integrity_error: null,

@@ -137,7 +137,7 @@ class TestSavedViewApi(ApiIntegrationTest):
         assert listed[0]["query"] is not None
         assert listed[0]["invalid_references"] == ["tag", "library_root"]
 
-    def test_rejects_future_schema_and_reports_corrupt_stored_definition(self):
+    def test_rejects_noncurrent_and_corrupt_stored_definitions(self):
         future = self.mutate(
             "POST",
             "/saved-views",
@@ -152,11 +152,11 @@ class TestSavedViewApi(ApiIntegrationTest):
             session.add_all(
                 [
                     SavedView(
-                        name="旧版兼容视图",
+                        name="缺少版本视图",
                         query_json=json.dumps(
                             {
                                 "view": "library",
-                                "q": "legacy",
+                                "q": "missing-version",
                                 "future_optional_field": "ignored",
                             }
                         ),
@@ -175,8 +175,8 @@ class TestSavedViewApi(ApiIntegrationTest):
 
         listed = self.client.get("/saved-views", headers=self.auth_headers()).json()
         by_name = {row["name"]: row for row in listed}
-        assert by_name["旧版兼容视图"]["query"]["schema_version"] == 1
-        assert by_name["旧版兼容视图"]["query"]["q"] == "legacy"
+        assert by_name["缺少版本视图"]["query"] is None
+        assert by_name["缺少版本视图"]["definition_error"]
         assert by_name["损坏视图"]["query"] is None
         assert by_name["损坏视图"]["definition_error"]
 

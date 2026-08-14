@@ -29,7 +29,7 @@ update the API schema/types, implementation, and verification together.
 - `backend/app/routes/`: HTTP request/response layer.
 - `backend/app/services/`: feature/business logic.
 - `backend/app/models.py` and `schemas.py`: persistence and API models.
-- `backend/app/db.py`: SQLite setup, FTS, and migrations.
+- `backend/app/db.py`: SQLite setup, current schema initialization, and FTS.
 - `backend/app/tasks.py`: background task lifecycle.
 - `backend/tests/`: pytest unit and API integration tests.
 - `backend/build_backend.py`: PyInstaller sidecar builder.
@@ -136,6 +136,11 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 
 ## Architecture and behavior constraints
 
+### Pre-v1.0 compatibility
+
+- The product has not been released. Do not add backward-compatibility code
+  before v1.0. Remove this subsection after v1.0 is released.
+
 ### Local API and security
 
 - Keep the backend bound to `127.0.0.1`.
@@ -164,10 +169,10 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 
 - Runtime data lives under `~/.local_audio_library/`.
 - Treat the database, covers, logs, exports, and API token as user data. Do not
-  delete or reset them during tests or migrations.
-- Make schema changes through a new, idempotent migration in `backend/app/db.py`.
-  Do not rewrite already-released migration behavior unless repairing it is the
-  explicit task.
+  delete or reset them during tests or schema changes.
+- Before v1.0, update the current schema directly and increment its schema marker.
+  Do not add migrations or automatically transform databases from earlier builds;
+  reject schema mismatches without modifying the database.
 - Preserve SQLite foreign keys, WAL mode, busy timeout, and FTS index behavior.
 
 ### Frontend
@@ -275,7 +280,7 @@ build passed when only the frontend or `cargo check` was run.
 - Inspect `git status` before editing and preserve unrelated user changes.
 - Do not edit generated artifacts or dependency lockfiles unless the task
   requires a dependency change.
-- Keep patches focused; avoid opportunistic refactors in security, migrations,
+- Keep patches focused; avoid opportunistic refactors in security, schema handling,
   task recovery, or packaging code.
 - Update README/CI/build scripts when a workflow or platform prerequisite
   changes.

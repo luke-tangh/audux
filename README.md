@@ -86,13 +86,11 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 
 `local_api_token` 是后端自动生成的本地随机 API token，用于防止外部网页直接访问敏感接口。
 
-应用检测到数据库需要升级时，会先通过 SQLite backup API 创建经过
-`PRAGMA quick_check` 验证的完整备份。备份位于 `backups/`，文件名会注明升级前后
-schema 版本。备份失败时应用会停止升级，不会继续修改原数据库。较新版本数据库也
-不会被旧版本应用降级修改。
+v1.0 发布前，应用只接受当前预发布版本的数据库 schema。检测到其他 schema 时会拒绝
+启动且不会修改数据库；预发布构建之间不执行自动升级。
 
 “设置 → 维护 → 数据库备份与恢复”支持创建、命名、校验和删除受管数据库快照。恢复前
-会检查完整性、schema、磁盘空间和活动任务，并自动创建当前数据库的安全快照。Tauri
+会检查完整性、当前 schema、磁盘空间和活动任务，并自动创建当前数据库的安全快照。Tauri
 提交后会重启执行切换；browser-lite 需要按提示手动重启。目标数据库初始化失败时会
 自动换回安全快照。数据库快照不包含原始音频、模型缓存或导出文件。
 
@@ -255,8 +253,7 @@ timestamp_granularities[]     时间戳策略不是 off 时发送 segment
 }
 ```
 
-其中 `language`、`model` 和 `segments` 可省略。也兼容
-`full_text`、`start_seconds`、`end_seconds` 字段名。时间戳策略：
+其中 `language`、`model` 和 `segments` 可省略。时间戳策略：
 
 - `off`：不请求时间戳，允许 `segments` 为空。
 - `preferred`：请求 segment 时间戳，但 text-only 响应仍可落库。

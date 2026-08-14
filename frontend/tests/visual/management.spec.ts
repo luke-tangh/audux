@@ -413,7 +413,7 @@ async function mockManagementApi(page: Page, state: MockState) {
         kind: "manual",
         created_at: NOW,
         app_version: "0.5.0-beta.1",
-        schema_version: 7,
+        schema_version: 1,
         size_bytes: 1048576,
         integrity_status: "valid",
         integrity_error: null,

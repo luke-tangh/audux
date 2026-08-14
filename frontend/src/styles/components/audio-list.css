@@ -73,11 +73,11 @@
   border: 1px solid transparent;
   border-radius: var(--md-sys-shape-corner-large);
   transition:
-    background var(--transition),
-    border-color var(--transition),
-    box-shadow var(--transition),
-    transform var(--transition),
-    opacity var(--transition);
+    background var(--app-motion-transition),
+    border-color var(--app-motion-transition),
+    box-shadow var(--app-motion-transition),
+    transform var(--app-motion-transition),
+    opacity var(--app-motion-transition);
 }
 
 .audio-row + .audio-row {
@@ -305,7 +305,7 @@
 
 .processing-idle {
   padding-inline: 4px;
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
   font-size: 11px;
 }
 
@@ -350,7 +350,7 @@
 }
 
 .muted-tag {
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
 }
 
 .row-actions {
@@ -365,12 +365,12 @@
 .row-detail-hint {
   display: grid;
   place-items: center;
-  color: var(--text-faint);
+  color: var(--app-color-text-faint);
   opacity: 0.58;
   transition:
-    color var(--transition),
-    opacity var(--transition),
-    transform var(--transition);
+    color var(--app-motion-transition),
+    opacity var(--app-motion-transition),
+    transform var(--app-motion-transition);
 }
 
 .audio-row:hover .row-detail-hint,
@@ -449,7 +449,7 @@
   align-items: center;
   min-height: 30px;
   padding: 0 10px 4px;
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
   font-size: 11px;
   font-weight: 760;
   letter-spacing: 0.04em;
@@ -469,7 +469,7 @@
   align-items: center;
   gap: 12px;
   padding: 18px 8px 28px;
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
   font-size: 13px;
 }
 
@@ -655,7 +655,7 @@
 .empty-support {
   margin-top: 8px;
   max-width: 460px;
-  color: var(--text-muted);
+  color: var(--app-color-text-muted);
   font-size: 12px;
   line-height: 1.6;
 }

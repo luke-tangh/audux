@@ -60,16 +60,14 @@ browser-lite 每个平台至少验证：
 - `Ctrl+C` 或关闭终端后 backend 退出且端口释放。
 - 未安装/已安装 Whisper companion 两种状态与 Tauri 版本保持一致。
 
-## 4. Upgrade and backup smoke test
+## 4. Backup and restore smoke test
 
-复制一份旧版本测试数据目录，在副本上执行升级：
+使用当前预发布 schema 的临时测试数据：
 
-- 启动后 `backups/` 中新增 `database.pre-migration-*.sqlite`。
-- 备份执行 `PRAGMA quick_check` 返回 `ok`。
+- 手动备份执行 `PRAGMA quick_check` 返回 `ok`。
 - 音频、标签、playlist、transcript、任务历史和设置仍可读取。
 - 搜索可用；必要时在设置中重建 FTS 索引。
-- 第二次启动不会为同一 schema 重复创建升级备份。
-- 用旧版本打开较新 schema 时应拒绝修改数据库。
+- 不同 schema 的数据库和快照应被拒绝，且原数据库不被修改。
 - 在设置中创建并校验一个手动数据库快照，修改临时标签、Playlist 和 Transcript 后
   执行恢复，确认重启后数据回到快照状态。
 - 恢复前自动生成 `database.pre-restore-*.sqlite`；损坏快照、较新 schema、活动任务和
@@ -97,5 +95,5 @@ browser-lite 每个平台至少验证：
 v0.x 阶段只允许手动运行 workflow 并下载内部 artifacts，不推送会触发公开 Release 的
 版本标签。workflow 只接受 `v1.0.*` 标签进入首次公开发布任务。
 
-只有 v1.0 的兼容、迁移、隐私和三平台门槛全部通过后，才创建首次公开版本标签并发布；
+只有 v1.0 的 schema 策略、隐私和三平台门槛全部通过后，才创建首次公开版本标签并发布；
 发布后仍需下载 GitHub Release 文件做安装包哈希和启动抽查。

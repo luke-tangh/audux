@@ -130,8 +130,6 @@ def _normalize_name(name: str | None, fallback: str) -> str:
 
 
 def _snapshot_kind(snapshot_id: str) -> str:
-    if ".pre-migration-" in snapshot_id:
-        return "pre_migration"
     if ".pre-restore-" in snapshot_id:
         return "pre_restore"
     return "manual"
@@ -172,41 +170,35 @@ def _write_manifest(snapshot_path: Path, payload: dict[str, Any]) -> None:
     _atomic_write_json(_manifest_path(snapshot_path), payload)
 
 
-def _schema_state(path: Path) -> tuple[int | None, set[int], str | None]:
+def _schema_state(path: Path) -> tuple[int | None, str | None]:
     try:
-        version, applied = db._database_schema_state(path)
-        return version, applied, None
-    except (OSError, sqlite3.Error, ValueError) as error:
-        return None, set(), str(error)
+        return db._database_schema_version(path), None
+    except (OSError, RuntimeError, sqlite3.Error, ValueError) as error:
+        return None, str(error)
 
 
 def _compatibility_error(
     schema_version: int | None,
-    applied_versions: set[int],
     schema_error: str | None,
 ) -> str | None:
     if schema_error:
         return schema_error
     if schema_version is None:
         return "Backup does not contain an application database"
-    if schema_version > db.CURRENT_SCHEMA_VERSION:
+    if schema_version != db.CURRENT_SCHEMA_VERSION:
         return (
-            f"Backup schema v{schema_version} is newer than supported "
+            f"Backup schema v{schema_version} does not match required "
             f"v{db.CURRENT_SCHEMA_VERSION}"
         )
-    expected = set(range(1, schema_version + 1))
-    if applied_versions != expected:
-        return "Backup has an incomplete migration history"
     return None
 
 
 def _snapshot_record(snapshot_path: Path) -> dict[str, Any]:
     manifest = _read_manifest(snapshot_path)
     stat = snapshot_path.stat()
-    schema_version, applied_versions, schema_error = _schema_state(snapshot_path)
+    schema_version, schema_error = _schema_state(snapshot_path)
     compatibility_error = _compatibility_error(
         schema_version,
-        applied_versions,
         schema_error,
     )
     integrity_status = str(manifest.get("integrity_status") or "unchecked")
@@ -272,7 +264,10 @@ def _create_snapshot_from_path(
     snapshot_id = f"database.{kind.replace('_', '-')}-{timestamp}Z-{uuid.uuid4().hex[:8]}.sqlite"
     snapshot_path = _snapshot_path(snapshot_id, require_exists=False)
     db._verified_sqlite_backup(source_path, snapshot_path)
-    schema_version, _, _ = _schema_state(snapshot_path)
+    schema_version, schema_error = _schema_state(snapshot_path)
+    if schema_error:
+        snapshot_path.unlink(missing_ok=True)
+        raise RuntimeError(schema_error)
     stat = snapshot_path.stat()
     manifest = {
         "name": name,
@@ -569,8 +564,8 @@ def initialize_database_with_pending_restore() -> None:
             raise RuntimeError(f"Restore backup validation failed: {integrity_error}")
         if _sha256(snapshot_path) != request.get("snapshot_sha256"):
             raise RuntimeError("Restore backup changed after preflight")
-        version, applied, schema_error = _schema_state(snapshot_path)
-        compatibility_error = _compatibility_error(version, applied, schema_error)
+        version, schema_error = _schema_state(snapshot_path)
+        compatibility_error = _compatibility_error(version, schema_error)
         if compatibility_error:
             raise RuntimeError(compatibility_error)
 

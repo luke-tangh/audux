@@ -168,7 +168,7 @@
     grid-template-columns: minmax(0, 1fr) minmax(360px, 2fr) minmax(0, 1fr);
     gap: 8px;
     height: auto;
-    min-height: var(--player-height);
+    min-height: var(--app-player-height);
     padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
   }
 
@@ -237,7 +237,7 @@
     box-shadow: var(--md-sys-elevation-4);
     transition:
       transform var(--md-sys-motion-duration-medium) var(--md-sys-motion-easing-emphasized),
-      opacity var(--transition);
+      opacity var(--app-motion-transition);
   }
 
   .main-shell > .sidebar.navigation-open {
