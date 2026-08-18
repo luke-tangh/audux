@@ -21,6 +21,7 @@
 @import "./components/audio-list.css";
 @import "./components/detail-panel.css";
 @import "./components/settings-panel.css";
+@import "./components/statistics-page.css";
 @import "./components/task-panel.css";
 @import "./components/player-bar.css";
 @import "./components/toast.css";

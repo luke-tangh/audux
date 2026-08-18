@@ -171,8 +171,9 @@ class TestDatabaseBackupService:
             )
             session.exec(
                 text(
-                    "INSERT INTO app_schema VALUES (1, 2, '2026-08-10')"
+                    "INSERT INTO app_schema VALUES (1, :version, '2026-08-10')"
                 )
+                .bindparams(version=db.CURRENT_SCHEMA_VERSION + 1)
             )
             session.commit()
 

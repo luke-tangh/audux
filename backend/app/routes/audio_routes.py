@@ -9,6 +9,8 @@ from ..schemas import (
     AudioSortMode,
     BatchAudioRequest,
     BatchOrganizationRequest,
+    PlaybackEventCreate,
+    PlaybackEventUpdate,
     PlaybackPositionUpdate,
     PlaybackQueueResolveRequest,
     RelocateAudioRequest,
@@ -150,6 +152,34 @@ def update_playback_position(
 @router.post("/audio-items/{audio_id}/play-count")
 def increment_play_count(audio_id: int, session: Session = Depends(get_session)):
     return service_call(audio_service.increment_play_count, session, audio_id)
+
+
+@router.post("/audio-items/{audio_id}/playback-events")
+def start_playback_event(
+    audio_id: int,
+    payload: PlaybackEventCreate,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        audio_service.start_playback_event,
+        session,
+        audio_id,
+        payload.start_position_seconds,
+    )
+
+
+@router.patch("/playback-events/{event_id}")
+def update_playback_event(
+    event_id: int,
+    payload: PlaybackEventUpdate,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        audio_service.update_playback_event,
+        session,
+        event_id,
+        **payload.model_dump(),
+    )
 
 
 @router.get("/audio-items/{audio_id}/file")

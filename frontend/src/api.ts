@@ -18,6 +18,7 @@ import type {
   LLMTestResult,
   PaginatedAudioItems,
   PlaybackQueueResolution,
+  PlaybackEvent,
   Playlist,
   PlaylistDetail,
   ScanTask,
@@ -27,6 +28,7 @@ import type {
   SavedViewQuery,
   Tag,
   TagMergeResult,
+  StatisticsOverview,
   Transcript,
   TranscriptSegmentEdit,
   WhisperComponentStatus
@@ -547,6 +549,30 @@ export const api = {
     request<{ ok: boolean }>(`/audio-items/${id}/play-count`, {
       method: "POST"
     }),
+
+  startPlaybackEvent: (id: number, startPositionSeconds: number) =>
+    request<PlaybackEvent>(`/audio-items/${id}/playback-events`, {
+      method: "POST",
+      body: JSON.stringify({ start_position_seconds: startPositionSeconds })
+    }),
+
+  updatePlaybackEvent: (
+    eventId: number,
+    payload: {
+      listened_seconds: number;
+      end_position_seconds: number;
+      completed?: boolean;
+      finish?: boolean;
+      end_reason?: "paused" | "ended" | "track_change" | "closed";
+    }
+  ) =>
+    request<PlaybackEvent>(`/playback-events/${eventId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }),
+
+  getStatisticsOverview: (days = 30) =>
+    request<StatisticsOverview>(`/statistics/overview?days=${days}`),
 
   listTags: () => request<Tag[]>("/tags"),
 

@@ -68,6 +68,20 @@ class AudioItem(SQLModel, table=True):
     updated_at: str = Field(default_factory=now_iso)
 
 
+class PlaybackEvent(SQLModel, table=True):
+    __tablename__ = "playback_events"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    audio_id: int = Field(foreign_key="audio_items.id", index=True)
+    started_at: str = Field(default_factory=now_iso, index=True)
+    ended_at: Optional[str] = None
+    start_position_seconds: float = 0
+    end_position_seconds: float = 0
+    listened_seconds: float = 0
+    completed: bool = False
+    end_reason: Optional[str] = None
+
+
 class Tag(SQLModel, table=True):
     __tablename__ = "tags"
 

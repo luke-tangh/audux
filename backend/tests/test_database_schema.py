@@ -64,6 +64,7 @@ class TestDatabaseSchema:
                 "saved_views",
                 "playlists",
                 "library_health_tasks",
+                "playback_events",
                 "search_index",
             }.issubset(tables)
 
@@ -84,6 +85,7 @@ class TestDatabaseSchema:
                 "ux_scan_tasks_active_root",
                 "ux_saved_views_name_nocase",
                 "ux_library_health_tasks_active_type",
+                "ix_playback_events_audio_started",
             }.issubset(indexes)
 
     def test_unmarked_database_is_rejected_without_changes(self):
@@ -114,7 +116,10 @@ class TestDatabaseSchema:
                 )
                 """
             )
-            connection.execute("INSERT INTO app_schema VALUES (1, 2, '2026-01-01')")
+            connection.execute(
+                "INSERT INTO app_schema VALUES (1, ?, '2026-01-01')",
+                (db.CURRENT_SCHEMA_VERSION + 1,),
+            )
             connection.execute("INSERT INTO sentinel VALUES ('untouched')")
 
         with pytest.raises(RuntimeError, match="does not match this pre-release build"):

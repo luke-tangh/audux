@@ -2,6 +2,7 @@ export type ViewMode =
   | "library"
   | "favorites"
   | "playlist"
+  | "statistics"
   | "settings"
   | "missingDescription"
   | "transcribed"

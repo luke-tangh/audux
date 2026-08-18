@@ -21,6 +21,7 @@ from ..models import (
     AudioItem,
     AudioTag,
     LibraryRoot,
+    PlaybackEvent,
     PlaylistItem,
     Setting,
     Transcript,
@@ -436,6 +437,11 @@ def delete_audio_item(
     for task in session.exec(select(AITask).where(AITask.audio_id == audio_id)).all():
         session.delete(task)
 
+    for event in session.exec(
+        select(PlaybackEvent).where(PlaybackEvent.audio_id == audio_id)
+    ).all():
+        session.delete(event)
+
     transcript = session.exec(
         select(Transcript).where(Transcript.audio_id == audio_id)
     ).first()
@@ -569,6 +575,63 @@ def increment_play_count(session: Session, audio_id: int) -> dict:
     session.add(item)
     session.commit()
     return {"ok": True}
+
+
+def start_playback_event(
+    session: Session,
+    audio_id: int,
+    start_position_seconds: float,
+) -> PlaybackEvent:
+    item = session.get(AudioItem, audio_id)
+    if not item:
+        raise ServiceError(404, "Audio item not found")
+
+    timestamp = now_iso()
+    event = PlaybackEvent(
+        audio_id=audio_id,
+        started_at=timestamp,
+        start_position_seconds=start_position_seconds,
+        end_position_seconds=start_position_seconds,
+    )
+    item.play_count += 1
+    item.last_played_at = timestamp
+    item.updated_at = timestamp
+    session.add(item)
+    session.add(event)
+    session.commit()
+    session.refresh(event)
+    return event
+
+
+def update_playback_event(
+    session: Session,
+    event_id: int,
+    *,
+    listened_seconds: float,
+    end_position_seconds: float,
+    completed: bool,
+    finish: bool,
+    end_reason: Optional[str],
+) -> PlaybackEvent:
+    event = session.get(PlaybackEvent, event_id)
+    if not event:
+        raise ServiceError(404, "Playback event not found")
+
+    if event.ended_at is not None:
+        return event
+
+    if listened_seconds >= event.listened_seconds:
+        event.listened_seconds = listened_seconds
+        event.end_position_seconds = end_position_seconds
+    event.completed = event.completed or completed
+    if finish and event.ended_at is None:
+        event.ended_at = now_iso()
+        event.end_reason = end_reason or ("ended" if completed else "closed")
+
+    session.add(event)
+    session.commit()
+    session.refresh(event)
+    return event
 
 
 def get_audio_file_response(session: Session, audio_id: int) -> FileResponse:

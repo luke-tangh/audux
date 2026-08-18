@@ -155,6 +155,90 @@ export type PlaybackQueueResolution = {
   }>;
 };
 
+export type PlaybackEvent = {
+  id: number;
+  audio_id: number;
+  started_at: string;
+  ended_at?: string;
+  start_position_seconds: number;
+  end_position_seconds: number;
+  listened_seconds: number;
+  completed: boolean;
+  end_reason?: string;
+};
+
+export type StatisticsOverview = {
+  generated_at: string;
+  period_days: number;
+  period_started_at: string;
+  library: {
+    total_items: number;
+    playable_items: number;
+    missing_items: number;
+    disabled_items: number;
+    detached_items: number;
+    favorite_items: number;
+    ai_failed_items: number;
+    total_duration_seconds: number;
+    total_size_bytes: number;
+    total_play_count: number;
+  };
+  coverage: Record<
+    "transcript" | "description" | "tags" | "cover" | "metadata",
+    { count: number; total: number }
+  >;
+  formats: Array<{
+    format: string;
+    count: number;
+    duration_seconds: number;
+    size_bytes: number;
+  }>;
+  duration_buckets: Array<{
+    key: "under_5m" | "5_to_20m" | "20_to_60m" | "over_60m" | "unknown";
+    count: number;
+  }>;
+  roots: Array<{
+    id: number;
+    path: string;
+    is_enabled: boolean;
+    item_count: number;
+    missing_count: number;
+    duration_seconds: number;
+    size_bytes: number;
+  }>;
+  top_tags: Array<{ id: number; name: string; item_count: number }>;
+  ingest_timeline: Array<{ period: string; count: number }>;
+  listening: {
+    event_count: number;
+    listened_seconds: number;
+    completed_count: number;
+    unique_audio_count: number;
+    active_days: number;
+    top_audio: Array<{
+      audio_id: number;
+      title: string;
+      author: string;
+      event_count: number;
+      listened_seconds: number;
+    }>;
+    recent_events: Array<{
+      event_id: number;
+      audio_id: number;
+      title: string;
+      author: string;
+      started_at: string;
+      listened_seconds: number;
+      completed: boolean;
+    }>;
+    daily: Array<{
+      date: string;
+      event_count: number;
+      listened_seconds: number;
+      completed_count: number;
+    }>;
+  };
+};
+
 export type Playlist = {
   id: number;
   name: string;

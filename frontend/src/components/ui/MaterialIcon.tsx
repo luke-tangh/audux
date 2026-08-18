@@ -4,6 +4,10 @@ import type { HTMLAttributes } from "react";
 const ICON_PATHS = {
   add:
     "M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z",
+  arrow_forward:
+    "m12 4-1.4 1.4 5.6 5.6H4v2h12.2l-5.6 5.6L12 20l8-8-8-8Z",
+  bar_chart:
+    "M5 9h3v10H5V9Zm5-4h3v14h-3V5Zm5 7h3v7h-3v-7Z",
   arrow_drop_down:
     "M7 10l5 5 5-5H7Z",
   auto_awesome:
@@ -38,6 +42,8 @@ const ICON_PATHS = {
     "M4 20v-9l8-6 8 6v9h-6v-6h-4v6H4Zm2-2h2v-6h8v6h2v-6l-6-4.5L6 12v6Z",
   health_and_safety:
     "M12 2 4 5v6c0 5.1 3.4 9.8 8 11 4.6-1.2 8-5.9 8-11V5l-8-3Zm1 14h-2v-3H8v-2h3V8h2v3h3v2h-3v3Z",
+  hard_drive:
+    "M4 4h16l2 5v11H2V9l2-5Zm1.4 2-1.2 3h15.6l-1.2-3H5.4ZM4 11v7h16v-7H4Zm12 2h2v2h-2v-2Z",
   keyboard_arrow_down:
     "M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6 1.4-1.4Z",
   keyboard_arrow_up:
@@ -58,18 +64,24 @@ const ICON_PATHS = {
     "M6 19h4V5H6v14Zm8-14v14h4V5h-4Z",
   play_arrow:
     "M8 5v14l11-7L8 5Z",
+  play_circle:
+    "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-2 14.5v-9l7 4.5-7 4.5Z",
   playlist_play:
     "M4 6h10v2H4V6Zm0 4h10v2H4v-2Zm0 4h7v2H4v-2Zm11-3 6 4-6 4v-8Z",
   privacy_tip:
     "M12 2 4 5v6c0 5.1 3.4 9.8 8 11 4.6-1.2 8-5.9 8-11V5l-8-3Zm1 15h-2v-2h2v2Zm0-4h-2V7h2v6Z",
   queue_music:
     "M15 6H3V4h12v2Zm0 4H3V8h12v2ZM3 14h8v-2H3v2Zm14-2v6.5a2.5 2.5 0 1 1-1.5-2.3V10h5V8h-3.5Z",
+  refresh:
+    "M17.7 6.3A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.8-4.3L13 11h8V3l-3.3 3.3Z",
   remove_circle_outline:
     "M7 11v2h10v-2H7Zm5-9a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z",
   report:
     "M12 2 2 12l10 10 10-10L12 2Zm1 15h-2v-2h2v2Zm0-4h-2V7h2v6Z",
   search:
     "M9.5 4a5.5 5.5 0 0 0 0 11 5.5 5.5 0 0 0 4.2-9.1A5.5 5.5 0 0 0 9.5 4Zm0 2a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Zm5.8 8.4 4.3 4.3-1.4 1.4-4.3-4.3 1.4-1.4Z",
+  schedule:
+    "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm1-13h-2v6l5 3 1-1.7-4-2.3V7Z",
   settings:
     "M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-2.6-1.5L14 2h-4l-.4 2.9A7.5 7.5 0 0 0 7 6.4l-2.5-1-2 3.5 2.1 1.6c-.1.5-.1 1-.1 1.5s0 1 .1 1.5l-2.1 1.6 2 3.5 2.5-1c.8.6 1.6 1.1 2.6 1.5L10 22h4l.4-2.9c1-.3 1.8-.8 2.6-1.5l2.5 1 2-3.5-2.1-1.6ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z",
   skip_next:

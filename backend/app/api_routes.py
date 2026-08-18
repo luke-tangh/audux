@@ -10,6 +10,7 @@ from .routes.library_routes import router as library_router
 from .routes.playlist_routes import router as playlist_router
 from .routes.saved_view_routes import router as saved_view_router
 from .routes.settings_routes import router as settings_router
+from .routes.statistics_routes import router as statistics_router
 from .routes.tag_routes import router as tag_router
 from .routes.transcript_routes import router as transcript_router
 
@@ -26,5 +27,6 @@ router.include_router(transcript_router)
 router.include_router(ai_router)
 router.include_router(asr_router)
 router.include_router(settings_router)
+router.include_router(statistics_router)
 router.include_router(export_router)
 router.include_router(backup_router)

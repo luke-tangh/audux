@@ -41,7 +41,7 @@ describe("local API client", () => {
   });
 
   it("shares one token request across concurrent protected calls", async () => {
-    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
+    const fetchMock = vi.fn((input: string | URL | Request) => {
       const url = String(input);
       return Promise.resolve(
         url.endsWith("/auth/token")
@@ -83,7 +83,7 @@ describe("local API client", () => {
   it("shares one refresh when concurrent requests reject the same token", async () => {
     let tokenRequests = 0;
     let protectedRequests = 0;
-    const fetchMock = vi.fn((input: string | URL | Request) => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/auth/token")) {
         tokenRequests += 1;
@@ -282,6 +282,46 @@ describe("local API client", () => {
       ["http://127.0.0.1:8765/saved-views/reorder", "PATCH"],
       ["http://127.0.0.1:8765/saved-views/1", "DELETE"]
     ]);
+  });
+
+  it("uses playback history and statistics contracts", async () => {
+    const fetchMock = vi.fn((input: string | URL | Request, _init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/auth/token")) {
+        return Promise.resolve(jsonResponse({ token: "history-token" }));
+      }
+      if (url.includes("/statistics/overview")) {
+        return Promise.resolve(jsonResponse({ period_days: 90 }));
+      }
+      return Promise.resolve(jsonResponse({ id: 44 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api, LOCAL_AUDIO_CLIENT_HEADER } = await import("./api");
+    await api.startPlaybackEvent(7, 12.5);
+    await api.updatePlaybackEvent(44, {
+      listened_seconds: 30,
+      end_position_seconds: 42.5,
+      completed: false,
+      finish: true,
+      end_reason: "track_change"
+    });
+    await api.getStatisticsOverview(90);
+
+    expect(fetchMock.mock.calls.slice(1).map((call) => [call[0], call[1]?.method])).toEqual([
+      ["http://127.0.0.1:8765/audio-items/7/playback-events", "POST"],
+      ["http://127.0.0.1:8765/playback-events/44", "PATCH"],
+      ["http://127.0.0.1:8765/statistics/overview?days=90", undefined]
+    ]);
+    expect(requestHeaders(fetchMock, 1)[LOCAL_AUDIO_CLIENT_HEADER]).toBe(
+      "local-audio-library"
+    );
+    expect(requestHeaders(fetchMock, 2)[LOCAL_AUDIO_CLIENT_HEADER]).toBe(
+      "local-audio-library"
+    );
+    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body))).toEqual({
+      start_position_seconds: 12.5
+    });
   });
 
   it("handles empty success responses and plain-text backend errors", async () => {

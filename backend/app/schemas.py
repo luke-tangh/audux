@@ -36,6 +36,18 @@ class PlaybackPositionUpdate(BaseModel):
     last_position_seconds: float
 
 
+class PlaybackEventCreate(BaseModel):
+    start_position_seconds: float = Field(default=0, ge=0)
+
+
+class PlaybackEventUpdate(BaseModel):
+    listened_seconds: float = Field(ge=0)
+    end_position_seconds: float = Field(ge=0)
+    completed: bool = False
+    finish: bool = False
+    end_reason: Optional[Literal["paused", "ended", "track_change", "closed"]] = None
+
+
 class PlaybackQueueResolveRequest(BaseModel):
     audio_ids: List[int] = Field(min_length=1, max_length=500)
 

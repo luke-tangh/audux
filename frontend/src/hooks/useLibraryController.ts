@@ -37,7 +37,7 @@ const AUDIO_PAGE_LIMIT = 120;
 const MAX_BATCH_SELECTION = 500;
 
 function isSavableView(view: ViewMode): view is SavedViewQuery["view"] {
-  return view !== "playlist" && view !== "settings";
+  return view !== "playlist" && view !== "settings" && view !== "statistics";
 }
 
 export function useLibraryController() {
@@ -115,7 +115,7 @@ export function useLibraryController() {
 
   async function load() {
     const loadSeq = ++loadSeqRef.current;
-    const isListView = view !== "settings";
+    const isListView = view !== "settings" && view !== "statistics";
 
     if (isListView) {
       if (hasLoadedListRef.current) {
@@ -137,7 +137,7 @@ export function useLibraryController() {
       if (loadSeq !== loadSeqRef.current) return;
       setPlaybackQueueValidationToken((value) => value + 1);
 
-      if (view === "settings") {
+      if (view === "settings" || view === "statistics") {
         hasLoadedListRef.current = false;
         setAudioItems([]);
         setPlaylistItemsRaw([]);
@@ -247,7 +247,7 @@ export function useLibraryController() {
   }
 
   async function loadMoreAudioItems() {
-    if (view === "settings" || loadingMore || !audioHasMore) {
+    if (view === "settings" || view === "statistics" || loadingMore || !audioHasMore) {
       return;
     }
 

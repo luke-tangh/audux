@@ -10,7 +10,7 @@ from .time_utils import utc_now_iso
 
 
 logger = logging.getLogger(__name__)
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 APP_DATA_DIR = Path.home() / ".local_audio_library"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -243,6 +243,14 @@ def create_current_schema_objects():
         """
         CREATE INDEX IF NOT EXISTS ix_audio_items_library_root_updated_at
         ON audio_items(library_root_id, updated_at);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_playback_events_audio_started
+        ON playback_events(audio_id, started_at DESC);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_playback_events_started_completed
+        ON playback_events(started_at DESC, completed);
         """,
         """
         CREATE UNIQUE INDEX IF NOT EXISTS ux_saved_views_name_nocase

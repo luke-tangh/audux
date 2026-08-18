@@ -8,6 +8,7 @@ type ViewMode =
   | "library"
   | "favorites"
   | "playlist"
+  | "statistics"
   | "settings"
   | "missingDescription"
   | "transcribed"
@@ -134,6 +135,7 @@ export default function Sidebar(props: Props) {
   const favoriteActive =
     props.activeSavedViewId === null && props.view === "favorites";
   const settingsActive = props.view === "settings";
+  const statisticsActive = props.view === "statistics";
   const collapsedTags = props.tags.slice(0, 8);
   const selectedTagOutsidePreview = props.tags.find(
     (tag) => tag.name === props.selectedTag && !collapsedTags.some((row) => row.id === tag.id)
@@ -202,6 +204,19 @@ export default function Sidebar(props: Props) {
           <span>
             <strong>{t("navigation.favorites")}</strong>
             <em>{t("navigation.frequent")}</em>
+          </span>
+        </Button>
+
+        <Button preserveChildren
+          type="button"
+          className={navClass(statisticsActive)}
+          aria-current={statisticsActive ? "page" : undefined}
+          onClick={() => openView("statistics")}
+        >
+          <span className="nav-symbol"><MaterialIcon name="bar_chart" size={22} /></span>
+          <span>
+            <strong>{t("navigation.statistics")}</strong>
+            <em>{t("navigation.statisticsSubtitle")}</em>
           </span>
         </Button>
 

@@ -192,7 +192,7 @@ export function usePlaybackQueue({
     setPlaying((prev) => (prev ? patch(prev) : prev));
   }
 
-  async function playQueueIndex(index: number, queue: AudioItem[] = playbackQueue) {
+  function playQueueIndex(index: number, queue: AudioItem[] = playbackQueue) {
     const item = queue[index];
     if (!item) return;
 
@@ -202,7 +202,6 @@ export function usePlaybackQueue({
     setSelected(item);
     setPlayRequestId((value) => value + 1);
 
-    await api.incrementPlayCount(item.id).catch(console.error);
   }
 
   async function playAudio(item: AudioItem, queue: AudioItem[] = audioItems) {
@@ -212,7 +211,7 @@ export function usePlaybackQueue({
       nextQueue.findIndex((row) => row.id === item.id)
     );
 
-    await playQueueIndex(index, nextQueue);
+    playQueueIndex(index, nextQueue);
   }
 
   async function playAudioAt(

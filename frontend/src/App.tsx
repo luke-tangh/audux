@@ -7,6 +7,7 @@ import AudioList from "./components/AudioList";
 import DetailPanel from "./components/DetailPanel";
 import PlayerBar from "./components/PlayerBar";
 import SettingsPanel from "./components/SettingsPanel";
+import StatisticsPage from "./components/StatisticsPage";
 import ToastStack from "./components/ToastStack";
 import { useDialog } from "./components/dialog/UnifiedDialog";
 import { IconButton, MaterialIcon } from "./components/ui";
@@ -235,7 +236,7 @@ export default function App() {
       <div
         className={[
           "main-shell",
-          view === "settings" ? "settings-mode" : "",
+          view === "settings" || view === "statistics" ? "settings-mode" : "",
           view !== "settings" && !inspectorOpen ? "inspector-closed" : ""
         ]
           .filter(Boolean)
@@ -289,6 +290,29 @@ export default function App() {
         {view === "settings" ? (
           <main className="workspace settings-workspace">
             <SettingsPanel refresh={refresh} notify={notify} />
+          </main>
+        ) : view === "statistics" ? (
+          <main className="workspace statistics-workspace">
+            <StatisticsPage
+              onOpenMissing={() => {
+                clearFilters();
+                setView("missing");
+              }}
+              onOpenUntranscribed={() => {
+                clearFilters();
+                setHasTranscriptFilter("no");
+                setView("library");
+              }}
+              onOpenMissingDescription={() => {
+                clearFilters();
+                setView("missingDescription");
+              }}
+              onOpenAiFailed={() => {
+                clearFilters();
+                setView("aiFailed");
+              }}
+              onOpenSettings={() => void requestOpenSettings()}
+            />
           </main>
         ) : (
           <>
