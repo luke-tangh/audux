@@ -19,6 +19,7 @@ describe("ActionMenu", () => {
 
     const trigger = screen.getByRole("button", { name: "处理项目" });
     fireEvent.click(trigger);
+    expect(screen.getByRole("menu").parentElement).toBe(document.body);
     const first = screen.getByRole("menuitem", { name: "第一个动作" });
     const second = screen.getByRole("menuitem", { name: "第二个动作" });
     await waitFor(() => expect(first).toHaveFocus());

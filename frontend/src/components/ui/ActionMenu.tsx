@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from "react";
-import type { KeyboardEvent, ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 
 import Button, { type ButtonSize, type ButtonVariant } from "./Button";
 import MaterialIcon from "./MaterialIcon";
@@ -38,8 +39,10 @@ export default function ActionMenu({
   disabled = false
 }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties>({ left: 0, top: 0 });
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuId = `action-menu-${useId().replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
@@ -58,6 +61,41 @@ export default function ActionMenu({
     window.requestAnimationFrame(() => itemRefs.current[index]?.focus());
   }
 
+  function updateMenuPosition() {
+    const trigger = triggerRef.current;
+    const menu = menuRef.current;
+
+    if (!trigger || !menu || typeof window === "undefined") return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const viewportMargin = 8;
+    const menuGap = 6;
+    const spaceBelow = window.innerHeight - triggerRect.bottom - viewportMargin;
+    const spaceAbove = triggerRect.top - viewportMargin;
+    const openAbove = spaceBelow < menuRect.height + menuGap && spaceAbove > spaceBelow;
+
+    let left = align === "end" ? triggerRect.right - menuRect.width : triggerRect.left;
+    left = Math.max(
+      viewportMargin,
+      Math.min(left, window.innerWidth - viewportMargin - menuRect.width)
+    );
+
+    let top = openAbove
+      ? triggerRect.top - menuRect.height - menuGap
+      : triggerRect.bottom + menuGap;
+    top = Math.max(
+      viewportMargin,
+      Math.min(top, window.innerHeight - viewportMargin - menuRect.height)
+    );
+
+    setMenuStyle({ left, top });
+  }
+
+  useLayoutEffect(() => {
+    if (open) updateMenuPosition();
+  }, [align, items.length, open]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -65,11 +103,21 @@ export default function ActionMenu({
     if (firstIndex !== undefined) focusItem(firstIndex);
 
     function handlePointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) close();
+      const target = event.target as Node;
+
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      close();
     }
 
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
   }, [open]);
 
   function handleMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -107,60 +155,69 @@ export default function ActionMenu({
     if (nextIndex !== undefined) focusItem(nextIndex);
   }
 
-  return (
-    <div className={`ui-action-menu ${className}`.trim()} ref={rootRef}>
-      <Button
-        ref={triggerRef}
-        preserveChildren
-        type="button"
-        variant={variant}
-        size={size}
-        className="ui-action-menu-trigger"
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        disabled={disabled}
-        onClick={(event) => {
-          event.stopPropagation();
-          setOpen((value) => !value);
-        }}
-      >
-        {buttonIcon && <MaterialIcon name={buttonIcon} size={18} />}
-        {buttonText && <span>{buttonText}</span>}
-        {buttonText && <MaterialIcon name="arrow_drop_down" size={18} />}
-      </Button>
+  const menu =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={menuRef}
+            id={menuId}
+            className="ui-action-menu-popover"
+            style={menuStyle}
+            role="menu"
+            aria-label={label}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={handleMenuKeyDown}
+          >
+            {items.map((item, index) => (
+              <button
+                key={item.id}
+                ref={(element) => {
+                  itemRefs.current[index] = element;
+                }}
+                type="button"
+                role="menuitem"
+                className={item.danger ? "danger" : ""}
+                disabled={item.disabled}
+                onClick={() => {
+                  close(true);
+                  item.onSelect();
+                }}
+              >
+                {item.icon && <MaterialIcon name={item.icon} size={18} />}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>,
+          document.body
+        )
+      : null;
 
-      {open && (
-        <div
-          id={menuId}
-          className={`ui-action-menu-popover align-${align}`}
-          role="menu"
+  return (
+    <>
+      <div className={`ui-action-menu ${className}`.trim()} ref={rootRef}>
+        <Button
+          ref={triggerRef}
+          preserveChildren
+          type="button"
+          variant={variant}
+          size={size}
+          className="ui-action-menu-trigger"
           aria-label={label}
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={handleMenuKeyDown}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={open ? menuId : undefined}
+          disabled={disabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((value) => !value);
+          }}
         >
-          {items.map((item, index) => (
-            <button
-              key={item.id}
-              ref={(element) => {
-                itemRefs.current[index] = element;
-              }}
-              type="button"
-              role="menuitem"
-              className={item.danger ? "danger" : ""}
-              disabled={item.disabled}
-              onClick={() => {
-                close(true);
-                item.onSelect();
-              }}
-            >
-              {item.icon && <MaterialIcon name={item.icon} size={18} />}
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+          {buttonIcon && <MaterialIcon name={buttonIcon} size={18} />}
+          {buttonText && <span>{buttonText}</span>}
+          {buttonText && <MaterialIcon name="arrow_drop_down" size={18} />}
+        </Button>
+      </div>
+      {menu}
+    </>
   );
 }

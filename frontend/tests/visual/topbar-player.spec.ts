@@ -30,11 +30,18 @@ async function expectTopbarControlsFit(
     const toolbar = element.querySelector<HTMLElement>(".top-toolbar-controls")!;
     const filters = element.querySelector<HTMLElement>(".top-filter-controls")!;
     const actions = element.querySelector<HTMLElement>(".top-toolbar-actions")!;
+    const status = element.querySelector<HTMLElement>(".top-file-field")!;
+    const sort = element.querySelector<HTMLElement>(".top-sort-field")!;
     const searchRect = search.getBoundingClientRect();
     const queryRect = queryRow.getBoundingClientRect();
+    const statusRect = status.getBoundingClientRect();
+    const sortRect = sort.getBoundingClientRect();
 
     return {
       searchUsesFullRow: Math.abs(searchRect.width - queryRect.width) <= 1,
+      searchIsLongest:
+        searchRect.width > statusRect.width && searchRect.width > sortRect.width,
+      filtersRemainUsable: statusRect.width >= 150 && sortRect.width >= 170,
       toolbarFits: toolbar.scrollWidth <= toolbar.clientWidth + 1,
       filtersFit: filters.scrollWidth <= filters.clientWidth + 1,
       actionsFit: actions.scrollWidth <= actions.clientWidth + 1
@@ -43,6 +50,8 @@ async function expectTopbarControlsFit(
 
   expect(state, `topbar controls at viewport ${viewport}`).toEqual({
     searchUsesFullRow: true,
+    searchIsLongest: true,
+    filtersRemainUsable: true,
     toolbarFits: true,
     filtersFit: true,
     actionsFit: true

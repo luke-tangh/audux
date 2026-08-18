@@ -894,8 +894,13 @@ test.describe("v0.5 management workflows", () => {
     const processResults = page.getByRole("button", { name: "处理当前结果中的 2 个音频" });
     await expect(processResults).toContainText("处理全部 2 项");
     await processResults.click();
+    const processMenu = page.getByRole("menu", { name: "处理当前结果中的 2 个音频" });
     await expect(page.getByRole("menuitem", { name: "转写当前结果中的 2 项" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "AI 分析当前结果中的 2 项" })).toBeVisible();
+    await expect(processMenu).toBeVisible();
+    expect(
+      await processMenu.evaluate((menu) => menu.parentElement === document.body)
+    ).toBe(true);
     await page.keyboard.press("Escape");
     await expect(
       page.getByRole("button", { name: "测试音频 1 的更多操作" })
