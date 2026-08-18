@@ -1,5 +1,6 @@
 import { Button, CheckboxField, PanelCard, SelectField, TextField } from "../ui";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 
 type LlmSettingsTabProps = {
   llmEndpoint: string;
@@ -47,7 +48,39 @@ export default function LlmSettingsTab({
   onTestLlm
 }: LlmSettingsTabProps) {
   const { t } = useTranslation();
+  const [advanced, setAdvanced] = useState(false);
+
+  function applyPreset(preset: "ollama" | "lmstudio" | "custom") {
+    if (preset === "ollama") {
+      onLlmEndpointChange("http://127.0.0.1:11434/v1");
+      if (!llmModel.trim()) onLlmModelChange("qwen2.5:7b");
+    } else if (preset === "lmstudio") {
+      onLlmEndpointChange("http://127.0.0.1:1234/v1");
+      if (!llmModel.trim()) onLlmModelChange("local-model");
+    } else {
+      setAdvanced(true);
+    }
+  }
   return (
+    <div className={advanced ? "settings-mode-advanced" : "settings-mode-basic"}>
+    <div className="settings-mode-switcher">
+      <div><strong>{t("settings.simple.title")}</strong><span>{t("settings.simple.description")}</span></div>
+      <Button variant="outlined" size="sm" onClick={() => setAdvanced((value) => !value)}>
+        {advanced ? t("settings.simple.useBasic") : t("settings.simple.showAdvanced")}
+      </Button>
+    </div>
+    {!advanced && (
+      <PanelCard title={t("settings.llm.presetsTitle")} className="max-form-card">
+        <div className="settings-preset-grid">
+          {(["ollama", "lmstudio", "custom"] as const).map((preset) => (
+            <Button preserveChildren className="settings-preset" variant="outlined" key={preset} onClick={() => applyPreset(preset)}>
+              <strong>{t(`settings.llm.presets.${preset}.title`)}</strong>
+              <span>{t(`settings.llm.presets.${preset}.description`)}</span>
+            </Button>
+          ))}
+        </div>
+      </PanelCard>
+    )}
     <PanelCard title={t("settings.llm.title")} className="max-form-card">
       <div className="settings-form-grid">
         <TextField
@@ -94,6 +127,7 @@ export default function LlmSettingsTab({
         />
 
         <TextField
+          wrapperClassName="advanced-setting"
           label={t("settings.common.timeout")}
           value={llmTimeout}
           placeholder="60"
@@ -101,6 +135,7 @@ export default function LlmSettingsTab({
         />
 
         <TextField
+          wrapperClassName="advanced-setting"
           label={t("settings.llm.maxTokens")}
           value={llmMaxTokens}
           placeholder="800"
@@ -108,6 +143,7 @@ export default function LlmSettingsTab({
         />
 
         <TextField
+          wrapperClassName="advanced-setting"
           label={t("settings.llm.temperature")}
           value={llmTemperature}
           placeholder="0.2"
@@ -136,5 +172,6 @@ export default function LlmSettingsTab({
 
       {llmTestResult && <p className="test-result">{llmTestResult}</p>}
     </PanelCard>
+    </div>
   );
 }

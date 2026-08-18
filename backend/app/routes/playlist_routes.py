@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
@@ -87,6 +87,9 @@ def list_playlist_audio_items(
     playlist_id: int,
     q: Optional[str] = None,
     tag: Optional[str] = None,
+    tag_ids: Optional[list[int]] = Query(default=None),
+    excluded_tag_ids: Optional[list[int]] = Query(default=None),
+    tag_mode: Literal["and", "or"] = "and",
     library_root_id: Optional[int] = None,
     has_transcript: Optional[bool] = None,
     transcript_status: Optional[str] = None,
@@ -106,6 +109,9 @@ def list_playlist_audio_items(
         playlist_id=playlist_id,
         q=q,
         tag=tag,
+        tag_ids=tag_ids,
+        excluded_tag_ids=excluded_tag_ids,
+        tag_mode=tag_mode,
         library_root_id=library_root_id,
         has_transcript=has_transcript,
         transcript_status=transcript_status,

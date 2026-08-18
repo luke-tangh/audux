@@ -7,6 +7,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SortMode } from "../hooks/library/types";
+import type { LibraryRoot, Tag } from "../types";
 
 type TranscriptFilter = "all" | "yes" | "no";
 type MissingFilter = "all" | "available" | "missing" | "aiFailed";
@@ -31,6 +32,20 @@ type Props = {
 
   missingFilter: MissingFilter;
   setMissingFilter: (value: MissingFilter) => void;
+
+  roots?: LibraryRoot[];
+  tags?: Tag[];
+  facets?: {
+    tags: Array<{ id: number; name: string; count: number }>;
+    roots: Array<{ id: number; path: string; count: number }>;
+  };
+  selectedLibraryRootId?: number;
+  setSelectedLibraryRootId?: (value?: number) => void;
+  includedTagIds?: number[];
+  excludedTagIds?: number[];
+  tagMode?: "and" | "or";
+  setTagMode?: (value: "and" | "or") => void;
+  setTagFilterState?: (tagId: number, state: "neutral" | "include" | "exclude") => void;
 
   sortMode: SortMode;
   setSortMode: (value: SortMode) => void;
@@ -58,6 +73,16 @@ export default function TopBar({
   setHasTranscriptFilter,
   missingFilter,
   setMissingFilter,
+  roots = [],
+  tags = [],
+  facets,
+  selectedLibraryRootId,
+  setSelectedLibraryRootId,
+  includedTagIds = [],
+  excludedTagIds = [],
+  tagMode = "and",
+  setTagMode = () => undefined,
+  setTagFilterState = () => undefined,
   sortMode,
   setSortMode,
   activeSavedViewName,
@@ -87,6 +112,19 @@ export default function TopBar({
     { value: "duration_desc", label: t("topbar.sortDurationDesc") },
     { value: "play_count_desc", label: t("topbar.sortPlayCountDesc") }
   ];
+  const rootOptions = [
+    { value: "", label: t("topbar.libraryRootAll") },
+    ...roots.map((root) => {
+      const count = facets?.roots.find((item) => item.id === root.id)?.count;
+      const label = root.is_enabled
+        ? root.path
+        : t("topbar.libraryRootDisabled", { path: root.path });
+      return {
+        value: String(root.id),
+        label: count === undefined ? label : `${label} (${count})`
+      };
+    })
+  ];
   const libraryFileFilter: LibraryFileFilter =
     hasTranscriptFilter === "yes"
       ? "transcriptYes"
@@ -100,7 +138,9 @@ export default function TopBar({
   const visibleFilterCount = [
     q.trim() ? "search" : "",
     libraryFileFilter !== "all" ? "status" : "",
-    sortMode !== "default" ? "sort" : ""
+    sortMode !== "default" ? "sort" : "",
+    selectedLibraryRootId ? "root" : "",
+    includedTagIds.length || excludedTagIds.length ? "tags" : ""
   ].filter(Boolean).length || (hasActiveFilter ? 1 : 0);
 
   function setLibraryFileFilter(value: LibraryFileFilter) {
@@ -191,6 +231,23 @@ export default function TopBar({
 
             <SelectField
               density="compact"
+              wrapperClassName="topbar-select-field top-root-field"
+              controlSize="toolbar"
+              controlWidth="100%"
+              controlMinWidth={0}
+              controlHeight={42}
+              label={t("topbar.libraryRoot")}
+              value={selectedLibraryRootId ? String(selectedLibraryRootId) : ""}
+              options={rootOptions}
+              aria-label={t("topbar.libraryRootFilter")}
+              disabled={queryLocked}
+              onValueChange={(value) =>
+                setSelectedLibraryRootId?.(value ? Number(value) : undefined)
+              }
+            />
+
+            <SelectField
+              density="compact"
               wrapperClassName="topbar-select-field top-sort-field"
               controlSize="toolbar"
               controlWidth="100%"
@@ -204,6 +261,55 @@ export default function TopBar({
               disabled={queryLocked}
               onValueChange={(value) => setSortMode(value as SortMode)}
             />
+
+            <details className="top-tag-filter">
+              <summary>
+                <MaterialIcon name="filter_list" size={17} />
+                {t("topbar.tags", { count: includedTagIds.length + excludedTagIds.length })}
+              </summary>
+              <div className="top-tag-filter-popover">
+                {includedTagIds.length > 1 && (
+                  <SelectField
+                    density="compact"
+                    label={t("topbar.tagMode")}
+                    value={tagMode}
+                    options={[
+                      { value: "and", label: t("topbar.tagModeAnd") },
+                      { value: "or", label: t("topbar.tagModeOr") }
+                    ]}
+                    disabled={queryLocked}
+                    onValueChange={(value) => setTagMode(value as "and" | "or")}
+                  />
+                )}
+                <div className="top-tag-filter-list">
+                  {tags.map((tag) => {
+                    const state = includedTagIds.includes(tag.id)
+                      ? "include"
+                      : excludedTagIds.includes(tag.id)
+                        ? "exclude"
+                        : "neutral";
+                    const count = facets?.tags.find((item) => item.id === tag.id)?.count;
+                    const nextState = state === "neutral" ? "include" : state === "include" ? "exclude" : "neutral";
+                    return (
+                      <Button
+                        preserveChildren
+                        size="sm"
+                        className={`top-tag-option ${state}`}
+                        key={tag.id}
+                        disabled={queryLocked}
+                        aria-pressed={state !== "neutral"}
+                        onClick={() => setTagFilterState(tag.id, nextState)}
+                      >
+                        <span>{state === "include" ? "+" : state === "exclude" ? "−" : ""} #{tag.name}</span>
+                        {count !== undefined && <em>{count}</em>}
+                      </Button>
+                    );
+                  })}
+                  {tags.length === 0 && <span className="muted">{t("topbar.noTags")}</span>}
+                </div>
+                <p className="muted">{t("topbar.tagCycleHint")}</p>
+              </div>
+            </details>
           </div>
 
           <div
@@ -254,7 +360,13 @@ export default function TopBar({
         </div>
       </div>
 
-      {(q.trim() || libraryFileFilter !== "all" || sortMode !== "default" || activeSavedViewName) && (
+      {(q.trim() ||
+        libraryFileFilter !== "all" ||
+        sortMode !== "default" ||
+        activeSavedViewName ||
+        selectedLibraryRootId ||
+        includedTagIds.length > 0 ||
+        excludedTagIds.length > 0) && (
         <div className="active-filter-chips" aria-label={t("topbar.activeFilters")}>
           {activeSavedViewName && (
             <span className="active-filter-chip saved-view-chip">
@@ -289,6 +401,37 @@ export default function TopBar({
               <MaterialIcon name="close" size={15} />
             </Button>
           )}
+          {selectedLibraryRootId && (
+            <Button
+              preserveChildren
+              size="sm"
+              className="active-filter-chip"
+              disabled={queryLocked}
+              onClick={() => setSelectedLibraryRootId?.(undefined)}
+            >
+              <MaterialIcon name="hard_drive" size={16} />
+              <span>{roots.find((root) => root.id === selectedLibraryRootId)?.path}</span>
+              <MaterialIcon name="close" size={15} />
+            </Button>
+          )}
+          {[...includedTagIds, ...excludedTagIds].map((tagId) => {
+            const excluded = excludedTagIds.includes(tagId);
+            const tag = tags.find((item) => item.id === tagId);
+            if (!tag) return null;
+            return (
+              <Button
+                preserveChildren
+                size="sm"
+                className={`active-filter-chip ${excluded ? "excluded" : ""}`}
+                key={`${excluded ? "exclude" : "include"}-${tagId}`}
+                disabled={queryLocked}
+                onClick={() => setTagFilterState(tagId, "neutral")}
+              >
+                <span>{excluded ? "−" : "+"} #{tag.name}</span>
+                <MaterialIcon name="close" size={15} />
+              </Button>
+            );
+          })}
           {sortMode !== "default" && (
             <Button
               preserveChildren

@@ -72,8 +72,30 @@ async function mockLibraryApi(page: import("@playwright/test").Page) {
       return;
     }
 
-    if (url.pathname === "/tags" || url.pathname === "/playlists") {
+    if (["/tags", "/playlists", "/saved-views"].includes(url.pathname)) {
       await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (url.pathname === "/library-roots") {
+      await route.fulfill({
+        json: [{
+          id: 1,
+          path: "/library",
+          is_enabled: true,
+          created_at: "2026-07-30T00:00:00Z",
+          updated_at: "2026-07-30T00:00:00Z"
+        }],
+        headers
+      });
+      return;
+    }
+
+    if (url.pathname === "/activities") {
+      await route.fulfill({
+        json: { items: [], active_count: 0, failed_count: 0 },
+        headers
+      });
       return;
     }
 
@@ -137,6 +159,7 @@ async function mockLibraryApi(page: import("@playwright/test").Page) {
 
 test.describe("MD3 accessibility behavior", () => {
   test("bootstraps and persists the selected UI language", async ({ page }) => {
+    await mockLibraryApi(page);
     await page.addInitScript(() => {
       if (!window.localStorage.getItem("local-audio-library-language")) {
         window.localStorage.setItem("local-audio-library-language", "en");
@@ -175,6 +198,7 @@ test.describe("MD3 accessibility behavior", () => {
   });
 
   test("aligns the AI output language control with LLM text fields", async ({ page }) => {
+    await mockLibraryApi(page);
     await page.goto("/");
     await page.getByRole("button", { name: "设置中心" }).click();
     await page.getByRole("button", { name: "LLM" }).click();
@@ -193,6 +217,7 @@ test.describe("MD3 accessibility behavior", () => {
   });
 
   test("reduces motion when requested", async ({ page }) => {
+    await mockLibraryApi(page);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
 

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from .routes.activity_routes import router as activity_router
 from .routes.ai_routes import router as ai_router
 from .routes.asr_routes import router as asr_router
 from .routes.audio_routes import router as audio_router
@@ -17,6 +18,7 @@ from .routes.transcript_routes import router as transcript_router
 
 router = APIRouter()
 
+router.include_router(activity_router)
 router.include_router(library_router)
 router.include_router(health_router)
 router.include_router(audio_router)

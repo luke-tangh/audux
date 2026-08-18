@@ -51,6 +51,9 @@ export function buildAudioListParams({
   view,
   debouncedQ,
   selectedTag,
+  includedTagIds,
+  excludedTagIds,
+  tagMode,
   selectedLibraryRootId,
   hasTranscriptFilter,
   missingFilter,
@@ -59,6 +62,9 @@ export function buildAudioListParams({
   view: ViewMode;
   debouncedQ: string;
   selectedTag?: string;
+  includedTagIds?: number[];
+  excludedTagIds?: number[];
+  tagMode?: "and" | "or";
   selectedLibraryRootId?: number;
   hasTranscriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
@@ -67,6 +73,9 @@ export function buildAudioListParams({
   return {
     q: debouncedQ || undefined,
     tag: selectedTag,
+    ...(includedTagIds?.length ? { tag_ids: includedTagIds } : {}),
+    ...(excludedTagIds?.length ? { excluded_tag_ids: excludedTagIds } : {}),
+    ...(includedTagIds?.length || excludedTagIds?.length ? { tag_mode: tagMode || "and" } : {}),
     library_root_id: selectedLibraryRootId,
     favorite: view === "favorites" ? true : undefined,
     missing_description: view === "missingDescription" ? true : undefined,
@@ -81,6 +90,9 @@ export function buildAudioListParams({
 export function buildPlaylistListParams({
   debouncedQ,
   selectedTag,
+  includedTagIds,
+  excludedTagIds,
+  tagMode,
   selectedLibraryRootId,
   hasTranscriptFilter,
   missingFilter,
@@ -88,6 +100,9 @@ export function buildPlaylistListParams({
 }: {
   debouncedQ: string;
   selectedTag?: string;
+  includedTagIds?: number[];
+  excludedTagIds?: number[];
+  tagMode?: "and" | "or";
   selectedLibraryRootId?: number;
   hasTranscriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
@@ -96,6 +111,9 @@ export function buildPlaylistListParams({
   return {
     q: debouncedQ || undefined,
     tag: selectedTag,
+    ...(includedTagIds?.length ? { tag_ids: includedTagIds } : {}),
+    ...(excludedTagIds?.length ? { excluded_tag_ids: excludedTagIds } : {}),
+    ...(includedTagIds?.length || excludedTagIds?.length ? { tag_mode: tagMode || "and" } : {}),
     library_root_id: selectedLibraryRootId,
     has_transcript: transcriptFilterToParam(hasTranscriptFilter),
     missing: missingFilterToParam(missingFilter),
@@ -108,6 +126,9 @@ export function buildSavedViewQuery({
   view,
   q,
   tagId,
+  tagIds,
+  excludedTagIds,
+  tagMode,
   libraryRootId,
   transcriptFilter,
   missingFilter,
@@ -116,6 +137,9 @@ export function buildSavedViewQuery({
   view: SavedViewQuery["view"];
   q: string;
   tagId?: number;
+  tagIds?: number[];
+  excludedTagIds?: number[];
+  tagMode?: "and" | "or";
   libraryRootId?: number;
   transcriptFilter: TranscriptFilter;
   missingFilter: MissingFilter;
@@ -126,6 +150,9 @@ export function buildSavedViewQuery({
     view,
     q: q.trim(),
     tag_id: tagId ?? null,
+    tag_ids: tagIds || [],
+    excluded_tag_ids: excludedTagIds || [],
+    tag_mode: tagMode || "and",
     library_root_id: libraryRootId ?? null,
     transcript_filter: transcriptFilter,
     missing_filter: missingFilter,
@@ -143,6 +170,9 @@ export function savedViewQueriesEqual(
     left.view === right.view &&
     left.q === right.q &&
     left.tag_id === right.tag_id &&
+    JSON.stringify(left.tag_ids || []) === JSON.stringify(right.tag_ids || []) &&
+    JSON.stringify(left.excluded_tag_ids || []) === JSON.stringify(right.excluded_tag_ids || []) &&
+    (left.tag_mode || "and") === (right.tag_mode || "and") &&
     left.library_root_id === right.library_root_id &&
     left.transcript_filter === right.transcript_filter &&
     left.missing_filter === right.missing_filter &&
@@ -225,8 +255,25 @@ export function describeSmartPlaylistRules(
   const viewRule = viewRules[query.view];
   if (viewRule) parts.push(viewRule);
   if (query.q) parts.push(t("smartPlaylists.searchRule", { query: query.q }));
-  if (playlist.tag_name) {
-    parts.push(t("smartPlaylists.tagRule", { name: playlist.tag_name }));
+  const includedTagNames = playlist.tag_names?.length
+    ? playlist.tag_names
+    : playlist.tag_name
+      ? [playlist.tag_name]
+      : [];
+  if (includedTagNames.length === 1) {
+    parts.push(t("smartPlaylists.tagRule", { name: includedTagNames[0] }));
+  } else if (includedTagNames.length > 1) {
+    parts.push(t(
+      query.tag_mode === "or"
+        ? "smartPlaylists.tagOrRule"
+        : "smartPlaylists.tagAndRule",
+      { names: includedTagNames.map((name) => `#${name}`).join("、") }
+    ));
+  }
+  if (playlist.excluded_tag_names?.length) {
+    parts.push(t("smartPlaylists.tagExcludeRule", {
+      names: playlist.excluded_tag_names.map((name) => `#${name}`).join("、")
+    }));
   }
   if (playlist.library_root_path) {
     parts.push(t("smartPlaylists.rootRule", { path: playlist.library_root_path }));

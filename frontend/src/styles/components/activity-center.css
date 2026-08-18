@@ -1,0 +1,136 @@
+.activity-center {
+  position: fixed;
+  z-index: 90;
+  right: 18px;
+  bottom: calc(var(--app-player-height) + 16px);
+}
+
+.activity-center-trigger {
+  position: relative;
+  box-shadow: var(--md-sys-elevation-2);
+}
+
+.activity-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  color: var(--md-sys-color-on-primary);
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-primary);
+}
+
+.activity-badge.failed {
+  color: var(--md-sys-color-on-error);
+  background: var(--md-sys-color-error);
+}
+
+.activity-center-panel {
+  position: absolute;
+  right: 0;
+  bottom: 52px;
+  width: min(410px, calc(100vw - 28px));
+  max-height: min(620px, calc(100vh - var(--app-player-height) - 90px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--md-sys-elevation-4);
+}
+
+.activity-center-panel > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.activity-center-panel h2,
+.activity-center-panel p {
+  margin: 0;
+}
+
+.activity-center-panel header p {
+  margin-top: 3px;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
+}
+
+.activity-center-list {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 12px;
+  overflow: auto;
+}
+
+.activity-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container);
+}
+
+.activity-item-heading {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.activity-item-heading > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.activity-item-heading span {
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  font-size: 11px;
+}
+
+.activity-progress-row progress {
+  width: 100%;
+}
+
+.activity-error {
+  color: var(--md-sys-color-error);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.activity-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+@media (max-width: 640px) {
+  .activity-center {
+    right: 10px;
+    bottom: calc(var(--app-player-height) + 10px);
+  }
+}

@@ -30,6 +30,9 @@ export type SavedViewQuery = {
   view: SavedViewMode;
   q: string;
   tag_id: number | null;
+  tag_ids?: number[];
+  excluded_tag_ids?: number[];
+  tag_mode?: "and" | "or";
   library_root_id: number | null;
   transcript_filter: "all" | "yes" | "no";
   missing_filter: "all" | "available" | "missing" | "aiFailed";
@@ -46,6 +49,8 @@ export type SavedView = {
   updated_at: string;
   query: SavedViewQuery | null;
   tag_name: string | null;
+  tag_names?: string[];
+  excluded_tag_names?: string[];
   library_root_path: string | null;
   invalid_references: Array<"tag" | "library_root" | string>;
   definition_error: string | null;
@@ -140,6 +145,42 @@ export type PaginatedAudioItems = {
   search_limit?: number | null;
   playlist_kind?: "manual" | "smart";
   refreshed_at?: string | null;
+  facets?: {
+    tags: Array<{ id: number; name: string; count: number }>;
+    roots: Array<{ id: number; path: string; count: number }>;
+  };
+};
+
+export type LibraryImportResult = {
+  root: LibraryRoot;
+  scan_task: ScanTask;
+};
+
+export type ActivityItem = {
+  id: string;
+  source: "ai" | "scan" | "health" | "component";
+  source_id: number | null;
+  target_id?: number;
+  kind: string;
+  status: string;
+  title: string;
+  detail?: Record<string, unknown> | null;
+  current?: number | null;
+  total?: number | null;
+  progress?: number | null;
+  error_message?: string | null;
+  error_code?: string | null;
+  error_params?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  can_cancel: boolean;
+  can_retry: boolean;
+};
+
+export type ActivityFeed = {
+  items: ActivityItem[];
+  active_count: number;
+  failed_count: number;
 };
 
 export type AudioDetail = {
@@ -248,6 +289,8 @@ export type Playlist = {
   last_refreshed_at?: string | null;
   query?: SavedViewQuery | null;
   tag_name?: string | null;
+  tag_names?: string[];
+  excluded_tag_names?: string[];
   library_root_path?: string | null;
   invalid_references?: Array<"tag" | "library_root">;
   definition_error?: string | null;
@@ -565,6 +608,8 @@ export type LLMTestResult = {
   is_local_endpoint?: boolean;
   privacy_warning?: string;
   privacy_warning_code?: string;
+  latency_ms?: number;
+  model_name?: string;
 };
 
 export type BatchTaskResult = {

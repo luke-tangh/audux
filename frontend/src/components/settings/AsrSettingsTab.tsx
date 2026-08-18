@@ -1,12 +1,14 @@
 import {
   Button,
   CheckboxField,
+  MaterialIcon,
   PanelCard,
   SelectField,
   TextareaField,
   TextField
 } from "../ui";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import type {
   ExternalAsrPreprocessingStatus,
   WhisperComponentStatus
@@ -124,6 +126,7 @@ export default function AsrSettingsTab({
   onSaveAsr
 }: AsrSettingsTabProps) {
   const { t } = useTranslation();
+  const [advanced, setAdvanced] = useState(false);
   const installing =
     whisperComponent?.status === "downloading" ||
     whisperComponent?.status === "installing";
@@ -131,9 +134,53 @@ export default function AsrSettingsTab({
     whisperComponent?.total_bytes && whisperComponent.total_bytes > 0
       ? Math.min(100, (whisperComponent.downloaded_bytes / whisperComponent.total_bytes) * 100)
       : 0;
+  const modelDownloadEstimate = {
+    tiny: "≈ 75 MB",
+    base: "≈ 150 MB",
+    small: "≈ 500 MB",
+    medium: "≈ 1.5 GB",
+    "large-v3": "≈ 3 GB"
+  }[asrModelName.trim()];
+
+  function applyPreset(preset: "fast" | "balanced" | "accurate" | "external") {
+    if (preset === "external") {
+      onAsrProviderChange("external");
+      return;
+    }
+    onAsrProviderChange("faster_whisper");
+    onAsrModelNameChange(preset === "fast" ? "tiny" : preset === "accurate" ? "medium" : "small");
+    onAsrDeviceChange("cpu");
+    onAsrComputeTypeChange("int8");
+    onAsrBeamSizeChange(preset === "fast" ? "1" : "5");
+  }
 
   return (
-    <div className="asr-settings-stack">
+    <div className={`asr-settings-stack ${advanced ? "settings-mode-advanced" : "settings-mode-basic"}`}>
+      <div className="settings-mode-switcher">
+        <div><strong>{t("settings.simple.title")}</strong><span>{t("settings.simple.description")}</span></div>
+        <Button variant="outlined" size="sm" onClick={() => setAdvanced((value) => !value)}>
+          {advanced ? t("settings.simple.useBasic") : t("settings.simple.showAdvanced")}
+        </Button>
+      </div>
+
+      {!advanced && (
+        <PanelCard title={t("settings.asr.presetsTitle")} className="max-form-card">
+          <div className="settings-preset-grid">
+            {(["fast", "balanced", "accurate", "external"] as const).map((preset) => (
+              <Button
+                preserveChildren
+                className="settings-preset"
+                key={preset}
+                variant={(preset === "external" ? asrProvider === "external" : asrProvider === "faster_whisper" && asrModelName === (preset === "fast" ? "tiny" : preset === "accurate" ? "medium" : "small")) ? "tonal" : "outlined"}
+                onClick={() => applyPreset(preset)}
+              >
+                <strong>{t(`settings.asr.presets.${preset}.title`)}</strong>
+                <span>{t(`settings.asr.presets.${preset}.description`)}</span>
+              </Button>
+            ))}
+          </div>
+        </PanelCard>
+      )}
       <PanelCard
         title={t("settings.asr.whisperTitle")}
         className="max-form-card"
@@ -238,7 +285,15 @@ export default function AsrSettingsTab({
               onValueChange={onAsrModelNameChange}
             />
 
-            <div className="asr-device-field">
+            <div className="model-download-note">
+              <MaterialIcon name="hard_drive" size={18} />
+              <span>{t("settings.asr.modelDownloadNote", {
+                size: modelDownloadEstimate || t("settings.asr.modelDownloadUnknown")
+              })}</span>
+              <code>~/.local_audio_library/models/faster-whisper/</code>
+            </div>
+
+            <div className="asr-device-field advanced-setting">
               <span className="ui-field-label" aria-hidden="true">
                 Device
               </span>
@@ -261,6 +316,7 @@ export default function AsrSettingsTab({
             </div>
 
             <TextField
+              wrapperClassName="advanced-setting"
               label={t("settings.asr.computeType")}
               value={asrComputeType}
               placeholder="int8 / float16 / float32"
@@ -268,6 +324,7 @@ export default function AsrSettingsTab({
             />
 
             <TextField
+              wrapperClassName="advanced-setting"
               label={t("settings.asr.beamSize")}
               value={asrBeamSize}
               placeholder="5"
@@ -308,7 +365,7 @@ export default function AsrSettingsTab({
               onValueChange={onExternalLanguageChange}
             />
 
-            <div className="asr-device-field">
+            <div className="asr-device-field advanced-setting">
               <span className="ui-field-label" aria-hidden="true">
                 {t("settings.asr.timestampPolicy")}
               </span>
@@ -332,6 +389,7 @@ export default function AsrSettingsTab({
             </div>
 
             <TextField
+              wrapperClassName="advanced-setting"
               label={t("settings.common.timeout")}
               inputMode="numeric"
               value={externalTimeout}
@@ -348,16 +406,17 @@ export default function AsrSettingsTab({
             />
 
             <CheckboxField
-              wrapperClassName="wide"
+              wrapperClassName="wide advanced-setting"
               label={t("settings.asr.formattingEnabled")}
               description={t("settings.asr.formattingDescription")}
               checked={externalFormattingEnabled}
               onCheckedChange={onExternalFormattingEnabledChange}
             />
 
-            {externalFormattingEnabled && (
+            {advanced && externalFormattingEnabled && (
               <>
                 <TextareaField
+                  wrapperClassName="advanced-setting"
                   wide
                   label={t("settings.asr.caseGlossary")}
                   helperText={t("settings.asr.caseGlossaryDescription")}
@@ -366,7 +425,7 @@ export default function AsrSettingsTab({
                   placeholder={"ark asr=ARK-ASR\npytorch=PyTorch\nopenai=OpenAI"}
                   onValueChange={onExternalCaseGlossaryChange}
                 />
-                <div className="wide">
+                <div className="wide advanced-setting">
                   <Button variant="outlined" onClick={onResetExternalCaseGlossary}>
                     {t("settings.asr.resetCaseGlossary")}
                   </Button>
@@ -375,14 +434,14 @@ export default function AsrSettingsTab({
             )}
 
             <CheckboxField
-              wrapperClassName="wide"
+              wrapperClassName="wide advanced-setting"
               label={t("settings.asr.chunkingEnabled")}
               description={t("settings.asr.chunkingDescription")}
               checked={externalChunkingEnabled}
               onCheckedChange={onExternalChunkingEnabledChange}
             />
 
-            {externalChunkingEnabled && (
+            {advanced && externalChunkingEnabled && (
               <>
                 <div className="wide" aria-live="polite">
                   {externalPreprocessing?.available ? (

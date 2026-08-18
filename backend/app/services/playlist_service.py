@@ -2,7 +2,7 @@ import json
 from typing import Optional
 
 from fastapi.responses import PlainTextResponse, Response
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlmodel import Session, select
 
 from ..models import AudioItem, AudioTag, Playlist, PlaylistItem, SavedView, Tag, now_iso
@@ -267,6 +267,9 @@ def list_playlist_audio_items(
     playlist_id: int,
     q: Optional[str] = None,
     tag: Optional[str] = None,
+    tag_ids: Optional[list[int]] = None,
+    excluded_tag_ids: Optional[list[int]] = None,
+    tag_mode: str = "and",
     library_root_id: Optional[int] = None,
     has_transcript: Optional[bool] = None,
     transcript_status: Optional[str] = None,
@@ -359,6 +362,9 @@ def list_playlist_audio_items(
                 )
             )
 
+    resolved_tag_ids = list(dict.fromkeys(tag_ids or []))
+    excluded_ids = list(dict.fromkeys(excluded_tag_ids or []))
+
     if tag:
         tag_row = session.exec(select(Tag).where(Tag.name == tag)).first()
         if not tag_row:
@@ -372,31 +378,43 @@ def list_playlist_audio_items(
                 "search_limit": search_result.limit if search_result else None,
             }
 
-        audio_ids = session.exec(
-            select(AudioTag.audio_id).where(AudioTag.tag_id == tag_row.id)
-        ).all()
+        if tag_row.id is not None and tag_row.id not in resolved_tag_ids:
+            resolved_tag_ids.append(tag_row.id)
 
-        if not audio_ids:
-            return {
-                "items": [],
-                "total": 0,
-                "limit": limit,
-                "offset": offset,
-                "has_more": False,
-                "search_limited": bool(search_result.limited) if search_result else False,
-                "search_limit": search_result.limit if search_result else None,
-            }
+    if resolved_tag_ids:
+        if tag_mode == "or":
+            stmt = stmt.where(
+                AudioItem.id.in_(
+                    select(AudioTag.audio_id).where(AudioTag.tag_id.in_(resolved_tag_ids))
+                )
+            )
+        else:
+            for tag_id in resolved_tag_ids:
+                stmt = stmt.where(
+                    AudioItem.id.in_(
+                        select(AudioTag.audio_id).where(AudioTag.tag_id == tag_id)
+                    )
+                )
 
-        stmt = stmt.where(AudioItem.id.in_(audio_ids))
+    if excluded_ids:
+        stmt = stmt.where(
+            ~AudioItem.id.in_(
+                select(AudioTag.audio_id).where(AudioTag.tag_id.in_(excluded_ids))
+            )
+        )
 
     total = session.execute(
         select(func.count()).select_from(stmt.subquery())
     ).scalar_one()
 
-    sort_clauses = _audio_sort_clauses(sort) or (
-        PlaylistItem.order_index.asc(),
-        PlaylistItem.id.asc(),
-    )
+    if q and search_result and sort == "default":
+        rank_by_id = {audio_id: index for index, audio_id in enumerate(search_result.ids)}
+        sort_clauses = (case(rank_by_id, value=AudioItem.id), PlaylistItem.id.asc())
+    else:
+        sort_clauses = _audio_sort_clauses(sort) or (
+            PlaylistItem.order_index.asc(),
+            PlaylistItem.id.asc(),
+        )
     rows = session.exec(stmt.order_by(*sort_clauses).offset(offset).limit(limit)).all()
 
     audio_rows = [audio for _, audio in rows]

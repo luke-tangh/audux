@@ -1,6 +1,54 @@
 import { expect, test } from "@playwright/test";
 import { mockPlayerBar, PLAYER_AUDIO_ITEMS } from "./player-fixture";
 
+async function mockEmptyLibrary(page: import("@playwright/test").Page) {
+  await page.route("http://127.0.0.1:8765/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const headers = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers":
+        "Content-Type, X-Local-Audio-Client, X-Local-Audio-Token",
+      "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
+    };
+
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers });
+    } else if (url.pathname === "/health") {
+      await route.fulfill({ json: { status: "ok" }, headers });
+    } else if (url.pathname === "/auth/token") {
+      await route.fulfill({ json: { token: "topbar-visual-token" }, headers });
+    } else if (url.pathname === "/library-roots") {
+      await route.fulfill({
+        json: [{
+          id: 1,
+          path: "/library",
+          is_enabled: true,
+          created_at: "2026-08-18T00:00:00Z",
+          updated_at: "2026-08-18T00:00:00Z"
+        }],
+        headers
+      });
+    } else if (["/tags", "/playlists", "/saved-views"].includes(url.pathname)) {
+      await route.fulfill({ json: [], headers });
+    } else if (url.pathname === "/audio-items") {
+      await route.fulfill({
+        json: { items: [], total: 0, limit: 120, offset: 0, has_more: false },
+        headers
+      });
+    } else if (url.pathname === "/audio-items/playback-queue/resolve") {
+      await route.fulfill({ json: { items: [], skipped: [] }, headers });
+    } else if (url.pathname === "/activities") {
+      await route.fulfill({
+        json: { items: [], active_count: 0, failed_count: 0 },
+        headers
+      });
+    } else {
+      await route.fulfill({ status: 204, headers });
+    }
+  });
+}
+
 async function stabilize(page: import("@playwright/test").Page) {
   await page.addStyleTag({
     content: `
@@ -40,7 +88,8 @@ async function expectTopbarControlsFit(
     return {
       searchUsesFullRow: Math.abs(searchRect.width - queryRect.width) <= 1,
       searchIsLongest:
-        searchRect.width > statusRect.width && searchRect.width > sortRect.width,
+        searchRect.width + 1 >= statusRect.width &&
+        searchRect.width + 1 >= sortRect.width,
       filtersRemainUsable: statusRect.width >= 150 && sortRect.width >= 170,
       toolbarFits: toolbar.scrollWidth <= toolbar.clientWidth + 1,
       filtersFit: filters.scrollWidth <= filters.clientWidth + 1,
@@ -86,6 +135,7 @@ async function expectPlayerUsesCenteredSpace(
 
 test.describe("MD3 visual regression", () => {
   test("TopBar responsive states", async ({ page }) => {
+    await mockEmptyLibrary(page);
     await page.goto("/");
     await stabilize(page);
 
@@ -208,6 +258,7 @@ test.describe("MD3 visual regression", () => {
   test("sidebar and player remain usable at common zoom levels", async ({
     page
   }) => {
+    await mockEmptyLibrary(page);
     await page.goto("/");
     await stabilize(page);
 

@@ -48,6 +48,9 @@ export function useLibraryController() {
   const [audioHasMore, setAudioHasMore] = useState(false);
   const [searchLimited, setSearchLimited] = useState(false);
   const [searchLimit, setSearchLimit] = useState<number | null>(null);
+  const [facets, setFacets] = useState<NonNullable<
+    import("../types").PaginatedAudioItems["facets"]
+  >>({ tags: [], roots: [] });
   const [selected, setSelected] = useState<AudioItem | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedAudioIds, setSelectedAudioIds] = useState<Set<number>>(
@@ -56,7 +59,10 @@ export function useLibraryController() {
 
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q, 240);
-  const [selectedTag, setSelectedTag] = useState<string | undefined>();
+  const [selectedTag, setSelectedTagState] = useState<string | undefined>();
+  const [includedTagIds, setIncludedTagIds] = useState<number[]>([]);
+  const [excludedTagIds, setExcludedTagIds] = useState<number[]>([]);
+  const [tagMode, setTagMode] = useState<"and" | "or">("and");
   const [selectedLibraryRootId, setSelectedLibraryRootId] = useState<number | undefined>();
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
   const [activeSavedViewId, setActiveSavedViewId] = useState<number | null>(null);
@@ -74,17 +80,45 @@ export function useLibraryController() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [initialized, setInitialized] = useState(false);
+  const [startupState, setStartupState] = useState<"starting" | "ready" | "error">("starting");
+  const [startupError, setStartupError] = useState("");
 
   const loadSeqRef = useRef(0);
   const hasLoadedListRef = useRef(false);
+  const startupReadyRef = useRef(false);
 
-  const { ensureBackendReady } = useBackendReady();
+  const { ensureBackendReady, resetBackendReady } = useBackendReady();
   const dialog = useDialog();
   const { toasts, notify, closeToast } = useToast();
   const { tags, playlists, roots, savedViews, loadNavigation } = useNavigationData();
   const activePlaylist = playlists.find((playlist) => playlist.id === selectedPlaylistId);
   const isSmartPlaylist = activePlaylist?.kind === "smart";
   const manualPlaylists = playlists.filter((playlist) => playlist.kind !== "smart");
+
+  function setSelectedTag(tag?: string) {
+    setSelectedTagState(tag);
+    setIncludedTagIds([]);
+    setExcludedTagIds([]);
+    setTagMode("and");
+  }
+
+  function setTagFilterState(
+    tagId: number,
+    state: "neutral" | "include" | "exclude"
+  ) {
+    setSelectedTagState(undefined);
+    setIncludedTagIds((current) =>
+      state === "include"
+        ? Array.from(new Set([...current, tagId]))
+        : current.filter((id) => id !== tagId)
+    );
+    setExcludedTagIds((current) =>
+      state === "exclude"
+        ? Array.from(new Set([...current, tagId]))
+        : current.filter((id) => id !== tagId)
+    );
+  }
 
   function refresh() {
     setRefreshToken((value) => value + 1);
@@ -95,6 +129,9 @@ export function useLibraryController() {
       view,
       debouncedQ,
       selectedTag,
+      includedTagIds,
+      excludedTagIds,
+      tagMode,
       selectedLibraryRootId,
       hasTranscriptFilter,
       missingFilter,
@@ -106,6 +143,9 @@ export function useLibraryController() {
     return buildPlaylistListParamsForState({
       debouncedQ,
       selectedTag,
+      includedTagIds,
+      excludedTagIds,
+      tagMode,
       selectedLibraryRootId,
       hasTranscriptFilter,
       missingFilter,
@@ -132,6 +172,9 @@ export function useLibraryController() {
 
     try {
       await ensureBackendReady();
+      startupReadyRef.current = true;
+      setStartupState("ready");
+      setStartupError("");
       const navigation = await loadNavigation();
 
       if (loadSeq !== loadSeqRef.current) return;
@@ -145,6 +188,7 @@ export function useLibraryController() {
         setAudioHasMore(false);
         setSearchLimited(false);
         setSearchLimit(null);
+        setFacets({ tags: [], roots: [] });
         return;
       }
 
@@ -153,6 +197,7 @@ export function useLibraryController() {
       let hasMore = false;
       let nextSearchLimited = false;
       let nextSearchLimit: number | null = null;
+      let nextFacets = { tags: [], roots: [] } as typeof facets;
 
       if (view === "playlist") {
         if (!selectedPlaylistId) {
@@ -162,6 +207,7 @@ export function useLibraryController() {
           setAudioHasMore(false);
           setSearchLimited(false);
           setSearchLimit(null);
+          setFacets({ tags: [], roots: [] });
           setSelected(null);
           return;
         }
@@ -196,6 +242,7 @@ export function useLibraryController() {
         hasMore = page.has_more;
         nextSearchLimited = Boolean(page.search_limited);
         nextSearchLimit = page.search_limit ?? null;
+        nextFacets = page.facets || nextFacets;
       } else {
         setPlaylistItemsRaw([]);
         setSmartPlaylistRefreshedAt(null);
@@ -211,6 +258,7 @@ export function useLibraryController() {
         hasMore = page.has_more;
         nextSearchLimited = Boolean(page.search_limited);
         nextSearchLimit = page.search_limit ?? null;
+        nextFacets = page.facets || nextFacets;
       }
 
       if (loadSeq !== loadSeqRef.current) return;
@@ -220,6 +268,7 @@ export function useLibraryController() {
       setAudioHasMore(hasMore);
       setSearchLimited(nextSearchLimited);
       setSearchLimit(nextSearchLimit);
+      setFacets(nextFacets);
       hasLoadedListRef.current = true;
 
       setSelected((prev) => {
@@ -237,11 +286,16 @@ export function useLibraryController() {
 
       const message = err instanceof Error ? err.message : String(err);
       setLoadError(message);
+      if (!startupReadyRef.current) {
+        setStartupState("error");
+        setStartupError(message);
+      }
       throw err;
     } finally {
       if (loadSeq === loadSeqRef.current) {
         setLoading(false);
         setRefreshing(false);
+        setInitialized(true);
       }
     }
   }
@@ -272,6 +326,7 @@ export function useLibraryController() {
         setAudioHasMore(page.has_more);
         setSearchLimited(Boolean(page.search_limited));
         setSearchLimit(page.search_limit ?? null);
+        if (page.facets) setFacets(page.facets);
         if (page.playlist_kind === "smart") {
           setSmartPlaylistRefreshedAt(page.refreshed_at ?? null);
         }
@@ -287,6 +342,7 @@ export function useLibraryController() {
         setAudioHasMore(page.has_more);
         setSearchLimited(Boolean(page.search_limited));
         setSearchLimit(page.search_limit ?? null);
+        if (page.facets) setFacets(page.facets);
       }
     } catch (err) {
       notify(err instanceof Error ? err.message : String(err), "error");
@@ -304,6 +360,9 @@ export function useLibraryController() {
     view,
     debouncedQ,
     selectedTag,
+    includedTagIds,
+    excludedTagIds,
+    tagMode,
     selectedLibraryRootId,
     selectedPlaylistId,
     hasTranscriptFilter,
@@ -319,6 +378,9 @@ export function useLibraryController() {
     view,
     debouncedQ,
     selectedTag,
+    includedTagIds,
+    excludedTagIds,
+    tagMode,
     selectedLibraryRootId,
     selectedPlaylistId,
     hasTranscriptFilter,
@@ -371,6 +433,15 @@ export function useLibraryController() {
     setSelectedLibraryRootId(undefined);
     setSelectedPlaylistId(null);
     setActiveSavedViewId(null);
+  }
+
+  function retryStartup() {
+    resetBackendReady();
+    startupReadyRef.current = false;
+    setStartupState("starting");
+    setStartupError("");
+    setInitialized(false);
+    refresh();
   }
 
   const playback = usePlaybackQueue({
@@ -503,6 +574,9 @@ export function useLibraryController() {
       view,
       q,
       tagId,
+      tagIds: includedTagIds,
+      excludedTagIds,
+      tagMode,
       libraryRootId: selectedLibraryRootId,
       transcriptFilter: hasTranscriptFilter,
       missingFilter,
@@ -550,6 +624,13 @@ export function useLibraryController() {
     setSelectedTag(
       invalidReferences.includes("tag") ? undefined : playlist.tag_name || undefined
     );
+    setIncludedTagIds(
+      invalidReferences.includes("tag") ? [] : playlist.query.tag_ids || []
+    );
+    setExcludedTagIds(
+      invalidReferences.includes("tag") ? [] : playlist.query.excluded_tag_ids || []
+    );
+    setTagMode(playlist.query.tag_mode || "and");
     setSelectedLibraryRootId(
       invalidReferences.includes("library_root")
         ? undefined
@@ -610,6 +691,9 @@ export function useLibraryController() {
     setView(savedView.query.view);
     setQ(savedView.query.q);
     setSelectedTag(invalidTag ? undefined : savedView.tag_name || undefined);
+    setIncludedTagIds(invalidTag ? [] : savedView.query.tag_ids || []);
+    setExcludedTagIds(invalidTag ? [] : savedView.query.excluded_tag_ids || []);
+    setTagMode(savedView.query.tag_mode || "and");
     setSelectedLibraryRootId(
       invalidRoot ? undefined : savedView.query.library_root_id ?? undefined
     );
@@ -757,6 +841,8 @@ export function useLibraryController() {
   const hasActiveFilter =
     Boolean(q.trim()) ||
     Boolean(selectedTag) ||
+    includedTagIds.length > 0 ||
+    excludedTagIds.length > 0 ||
     Boolean(selectedLibraryRootId) ||
     hasTranscriptFilter !== "all" ||
     missingFilter !== "all" ||
@@ -771,6 +857,7 @@ export function useLibraryController() {
     audioHasMore,
     searchLimited,
     searchLimit,
+    facets,
     selected,
     setSelected,
     selectionMode,
@@ -785,6 +872,11 @@ export function useLibraryController() {
     setQ,
     selectedTag,
     setSelectedTag,
+    includedTagIds,
+    excludedTagIds,
+    tagMode,
+    setTagMode,
+    setTagFilterState,
     selectedLibraryRootId,
     setSelectedLibraryRootId,
     selectedPlaylistId,
@@ -811,6 +903,9 @@ export function useLibraryController() {
     refreshing,
     loadingMore,
     loadError,
+    initialized,
+    startupState,
+    startupError,
 
     listTitle,
     listSubtitle,
@@ -821,6 +916,7 @@ export function useLibraryController() {
     closeToast,
 
     refresh,
+    retryStartup,
     clearFilters,
     openSettings,
     deactivateSavedView,

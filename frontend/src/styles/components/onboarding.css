@@ -1,0 +1,212 @@
+.onboarding-overlay {
+  position: fixed;
+  z-index: 150;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--md-sys-color-scrim) 66%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.onboarding-card {
+  width: min(680px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: clamp(24px, 5vw, 42px);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 30px;
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--md-sys-elevation-4);
+}
+
+.onboarding-mark {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  color: var(--md-sys-color-on-primary-container);
+  border-radius: 22px;
+  background: var(--md-sys-color-primary-container);
+}
+
+.onboarding-copy h1,
+.onboarding-copy p,
+.onboarding-scan-status p {
+  margin: 0;
+}
+
+.onboarding-copy h1 {
+  margin-top: 4px;
+  font-size: 30px;
+}
+
+.onboarding-copy p {
+  margin-top: 8px;
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.6;
+}
+
+.onboarding-promises {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.onboarding-promises span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px;
+  color: var(--md-sys-color-on-secondary-container);
+  font-size: 12px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-secondary-container);
+}
+
+.onboarding-folder-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.onboarding-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.onboarding-error {
+  margin: 0;
+  color: var(--md-sys-color-error);
+}
+
+.onboarding-scan-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container);
+}
+
+.onboarding-scan-status > div {
+  min-width: 0;
+  display: grid;
+}
+
+.onboarding-scan-status strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-scan-status progress,
+.onboarding-scan-status p {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.startup-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 25%, color-mix(in srgb, var(--md-sys-color-primary) 15%, transparent), transparent 38%),
+    var(--md-sys-color-background);
+}
+
+.startup-card {
+  width: min(620px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 42px;
+  text-align: center;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 30px;
+  background: var(--md-sys-color-surface-container-low);
+  box-shadow: var(--md-sys-elevation-3);
+}
+
+.startup-card h1,
+.startup-card p {
+  margin: 0;
+}
+
+.startup-card p {
+  max-width: 500px;
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.6;
+}
+
+.startup-icon {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  color: var(--md-sys-color-on-primary-container);
+  border-radius: 24px;
+  background: var(--md-sys-color-primary-container);
+}
+
+.startup-icon.failed {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.startup-loader {
+  width: min(360px, 80vw);
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.startup-loader span {
+  width: 38%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: var(--md-sys-color-primary);
+  animation: startup-slide 1.35s ease-in-out infinite alternate;
+}
+
+.startup-error-details {
+  width: 100%;
+  text-align: left;
+}
+
+.startup-error-details pre {
+  max-height: 180px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.startup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+@keyframes startup-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(165%); }
+}
+
+@media (max-width: 600px) {
+  .onboarding-promises,
+  .onboarding-folder-row {
+    grid-template-columns: 1fr;
+  }
+  .onboarding-card,
+  .startup-card {
+    padding: 24px;
+  }
+}

@@ -92,13 +92,26 @@ def decode_saved_view_query(
 def resolve_saved_view_query(session: Session, query: SavedViewQuery) -> dict:
 
     tag_name: str | None = None
+    tag_names: list[str] = []
+    excluded_tag_names: list[str] = []
     library_root_path: str | None = None
     invalid_references: list[str] = []
-    if query.tag_id is not None:
-        tag = session.get(Tag, query.tag_id)
+    included_ids = list(dict.fromkeys([
+        *query.tag_ids,
+        *([query.tag_id] if query.tag_id is not None else []),
+    ]))
+    for tag_id in included_ids:
+        tag = session.get(Tag, tag_id)
         if tag:
-            tag_name = tag.name
-        else:
+            tag_names.append(tag.name)
+        elif "tag" not in invalid_references:
+            invalid_references.append("tag")
+    tag_name = tag_names[0] if len(tag_names) == 1 else None
+    for tag_id in dict.fromkeys(query.excluded_tag_ids):
+        tag = session.get(Tag, tag_id)
+        if tag:
+            excluded_tag_names.append(tag.name)
+        elif "tag" not in invalid_references:
             invalid_references.append("tag")
     if query.library_root_id is not None:
         root = session.get(LibraryRoot, query.library_root_id)
@@ -109,6 +122,8 @@ def resolve_saved_view_query(session: Session, query: SavedViewQuery) -> dict:
 
     return {
         "tag_name": tag_name,
+        "tag_names": tag_names,
+        "excluded_tag_names": excluded_tag_names,
         "library_root_path": library_root_path,
         "invalid_references": invalid_references,
     }
@@ -120,7 +135,21 @@ def audio_query_kwargs(session: Session, query: SavedViewQuery) -> dict:
     missing_filter = query.missing_filter
     return {
         "q": query.q or None,
-        "tag": references["tag_name"],
+        "tag": None,
+        "tag_ids": [
+            tag_id
+            for tag_id in dict.fromkeys([
+                *query.tag_ids,
+                *([query.tag_id] if query.tag_id is not None else []),
+            ])
+            if session.get(Tag, tag_id) is not None
+        ],
+        "excluded_tag_ids": [
+            tag_id
+            for tag_id in dict.fromkeys(query.excluded_tag_ids)
+            if session.get(Tag, tag_id) is not None
+        ],
+        "tag_mode": query.tag_mode,
         "library_root_id": (
             query.library_root_id
             if "library_root" not in references["invalid_references"]
@@ -166,6 +195,8 @@ def serialize_saved_view_definition(
         if query
         else {
             "tag_name": None,
+            "tag_names": [],
+            "excluded_tag_names": [],
             "library_root_path": None,
             "invalid_references": [],
         }

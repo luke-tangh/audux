@@ -109,8 +109,24 @@ async function mockStatisticsApi(page: Page) {
         json: { ...STATISTICS, period_days: Number(url.searchParams.get("days") || 30) },
         headers
       });
-    } else if (["/tags", "/playlists", "/library-roots", "/saved-views"].includes(url.pathname)) {
+    } else if (["/tags", "/playlists", "/saved-views"].includes(url.pathname)) {
       await route.fulfill({ json: [], headers });
+    } else if (url.pathname === "/library-roots") {
+      await route.fulfill({
+        json: [{
+          id: 1,
+          path: "/Users/example/Audio Knowledge Base",
+          is_enabled: true,
+          created_at: NOW,
+          updated_at: NOW
+        }],
+        headers
+      });
+    } else if (url.pathname === "/activities") {
+      await route.fulfill({
+        json: { items: [], active_count: 0, failed_count: 0 },
+        headers
+      });
     } else if (url.pathname === "/audio-items") {
       await route.fulfill({
         json: { items: [], total: 0, limit: 120, offset: 0, has_more: false },

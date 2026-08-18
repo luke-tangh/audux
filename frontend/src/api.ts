@@ -1,4 +1,5 @@
 import type {
+  ActivityFeed,
   AISuggestions,
   AITask,
   AudioDetail,
@@ -12,6 +13,7 @@ import type {
   DatabaseRestoreStatus,
   ExternalAsrPreprocessingStatus,
   LibraryRoot,
+  LibraryImportResult,
   LibraryHealthSummary,
   LibraryHealthTask,
   LLMConfigPayload,
@@ -372,6 +374,15 @@ export const api = {
       body: JSON.stringify({ path })
     }),
 
+  importLibraryRoot: (path: string) =>
+    request<LibraryImportResult>("/library-roots/import", {
+      method: "POST",
+      body: JSON.stringify({ path })
+    }),
+
+  listActivities: (limit = 40) =>
+    request<ActivityFeed>(`/activities?limit=${limit}`),
+
   updateLibraryRoot: (id: number, payload: { is_enabled?: boolean }) =>
     request<LibraryRoot>(`/library-roots/${id}`, {
       method: "PATCH",
@@ -447,6 +458,9 @@ export const api = {
   listAudioItems: (params?: {
     q?: string;
     tag?: string;
+    tag_ids?: number[];
+    excluded_tag_ids?: number[];
+    tag_mode?: "and" | "or";
     library_root_id?: number;
     favorite?: boolean;
     missing?: boolean;
@@ -463,6 +477,11 @@ export const api = {
 
     if (params?.q) sp.set("q", params.q);
     if (params?.tag) sp.set("tag", params.tag);
+    for (const tagId of params?.tag_ids || []) sp.append("tag_ids", String(tagId));
+    for (const tagId of params?.excluded_tag_ids || []) {
+      sp.append("excluded_tag_ids", String(tagId));
+    }
+    if (params?.tag_mode) sp.set("tag_mode", params.tag_mode);
     if (params?.library_root_id !== undefined) {
       sp.set("library_root_id", String(params.library_root_id));
     }
@@ -659,6 +678,9 @@ export const api = {
     params?: {
       q?: string;
       tag?: string;
+      tag_ids?: number[];
+      excluded_tag_ids?: number[];
+      tag_mode?: "and" | "or";
       library_root_id?: number;
       favorite?: boolean;
       missing?: boolean;
@@ -675,6 +697,11 @@ export const api = {
 
     if (params?.q) sp.set("q", params.q);
     if (params?.tag) sp.set("tag", params.tag);
+    for (const tagId of params?.tag_ids || []) sp.append("tag_ids", String(tagId));
+    for (const tagId of params?.excluded_tag_ids || []) {
+      sp.append("excluded_tag_ids", String(tagId));
+    }
+    if (params?.tag_mode) sp.set("tag_mode", params.tag_mode);
     if (params?.library_root_id !== undefined) {
       sp.set("library_root_id", String(params.library_root_id));
     }

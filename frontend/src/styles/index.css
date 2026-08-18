@@ -25,6 +25,8 @@
 @import "./components/task-panel.css";
 @import "./components/player-bar.css";
 @import "./components/toast.css";
+@import "./components/activity-center.css";
+@import "./components/onboarding.css";
 @import "./components/dialog.css";
 
 @import "./responsive.css";

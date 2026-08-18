@@ -21,6 +21,18 @@ def create_library_root(
     return service_call(library_service.create_library_root, session, payload.path)
 
 
+@router.post("/library-roots/import")
+def import_library_root(
+    payload: LibraryRootCreate,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    root = service_call(library_service.create_library_root, session, payload.path)
+    task = service_call(library_service.create_scan_task, session, root.id)
+    background_tasks.add_task(scan_library_root_task, root.id, task.id)
+    return {"root": root, "scan_task": task}
+
+
 @router.get("/library-roots")
 def list_library_roots(session: Session = Depends(get_session)):
     return library_service.list_library_roots(session)

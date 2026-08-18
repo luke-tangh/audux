@@ -1,4 +1,6 @@
 use std::net::TcpListener;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Mutex;
 
 #[cfg(debug_assertions)]
@@ -117,6 +119,42 @@ async fn backend_base_url(app: tauri::AppHandle) -> Result<String, String> {
 fn restart_application(app: tauri::AppHandle) {
     stop_backend_sidecar(&app);
     app.restart();
+}
+
+fn local_audio_data_dir() -> Result<PathBuf, String> {
+    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
+        .map(PathBuf::from)
+        .ok_or_else(|| "Could not resolve the user home directory".to_string())?;
+    Ok(home.join(".local_audio_library"))
+}
+
+fn open_directory(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("Directory does not exist: {}", path.display()));
+    }
+
+    #[cfg(target_os = "windows")]
+    let mut command = Command::new("explorer");
+    #[cfg(target_os = "macos")]
+    let mut command = Command::new("open");
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = Command::new("xdg-open");
+
+    command
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Failed to open {}: {error}", path.display()))
+}
+
+#[tauri::command]
+fn open_app_data_directory() -> Result<(), String> {
+    open_directory(&local_audio_data_dir()?)
+}
+
+#[tauri::command]
+fn open_logs_directory() -> Result<(), String> {
+    open_directory(&local_audio_data_dir()?.join("logs"))
 }
 
 fn start_backend_sidecar(app: &tauri::AppHandle) {
@@ -352,7 +390,9 @@ pub fn run() {
             pick_audio_file,
             backend_health,
             backend_base_url,
-            restart_application
+            restart_application,
+            open_app_data_directory,
+            open_logs_directory
         ])
         .setup(|app| {
             let handle = app.handle().clone();

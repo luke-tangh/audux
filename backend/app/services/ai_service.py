@@ -1,4 +1,5 @@
 import json
+import time
 from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
@@ -90,6 +91,7 @@ async def test_llm_config(payload) -> dict:
     warning = _llm_privacy_warning(payload.endpoint)
 
     try:
+        started_at = time.perf_counter()
         response = await call_openai_compatible_chat(
             endpoint=payload.endpoint,
             model_name=payload.model_name,
@@ -110,10 +112,13 @@ async def test_llm_config(payload) -> dict:
         )
 
         content = get_ai_message_content(response)
+        latency_ms = round((time.perf_counter() - started_at) * 1000)
 
         return {
             "ok": True,
             "content": content,
+            "latency_ms": latency_ms,
+            "model_name": payload.model_name,
             "is_local_endpoint": warning is None,
             "privacy_warning": warning,
             "privacy_warning_code": "llm.remote" if warning else None,

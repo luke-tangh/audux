@@ -776,6 +776,9 @@ def _build_audio_items_stmt(
     q: Optional[str] = None,
     search_ids: Optional[list[int]] = None,
     tag: Optional[str] = None,
+    tag_ids: Optional[list[int]] = None,
+    excluded_tag_ids: Optional[list[int]] = None,
+    tag_mode: str = "and",
     library_root_id: Optional[int] = None,
     has_transcript: Optional[bool] = None,
     transcript_status: Optional[str] = None,
@@ -838,19 +841,37 @@ def _build_audio_items_stmt(
                 )
             )
 
+    resolved_tag_ids = list(dict.fromkeys(tag_ids or []))
+    excluded_ids = list(dict.fromkeys(excluded_tag_ids or []))
+
     if tag:
         tag_row = session.exec(select(Tag).where(Tag.name == tag)).first()
         if not tag_row:
             return None
+        if tag_row.id is not None and tag_row.id not in resolved_tag_ids:
+            resolved_tag_ids.append(tag_row.id)
 
-        audio_ids = session.exec(
-            select(AudioTag.audio_id).where(AudioTag.tag_id == tag_row.id)
-        ).all()
+    if resolved_tag_ids:
+        if tag_mode == "or":
+            stmt = stmt.where(
+                AudioItem.id.in_(
+                    select(AudioTag.audio_id).where(AudioTag.tag_id.in_(resolved_tag_ids))
+                )
+            )
+        else:
+            for tag_id in resolved_tag_ids:
+                stmt = stmt.where(
+                    AudioItem.id.in_(
+                        select(AudioTag.audio_id).where(AudioTag.tag_id == tag_id)
+                    )
+                )
 
-        if not audio_ids:
-            return None
-
-        stmt = stmt.where(AudioItem.id.in_(audio_ids))
+    if excluded_ids:
+        stmt = stmt.where(
+            ~AudioItem.id.in_(
+                select(AudioTag.audio_id).where(AudioTag.tag_id.in_(excluded_ids))
+            )
+        )
 
     return stmt
 

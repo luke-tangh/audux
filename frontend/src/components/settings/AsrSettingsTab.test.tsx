@@ -78,6 +78,12 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
     </LocaleProvider>
   );
 
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: /显示高级设置|Show advanced settings/
+    })
+  );
+
   return callbacks;
 }
 

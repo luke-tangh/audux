@@ -388,12 +388,12 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     if (!path.trim()) return;
 
     try {
-      await api.createLibraryRoot(path.trim());
+      const imported = await api.importLibraryRoot(path.trim());
       setPath("");
 
       await load();
       refresh();
-      notify?.(t("settings.notifications.rootAdded"), "success");
+      notify?.(t("settings.notifications.rootAddedAndScanning", { id: imported.scan_task.id }), "success");
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
     }
@@ -756,7 +756,12 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         );
       }
 
-      setLlmTestResult(t("settings.llm.testSuccessResult", { content: result.content }));
+      setLlmTestResult(t("settings.llm.testDiagnostic", {
+        endpoint: result.is_local_endpoint ? t("settings.llm.endpointLocal") : t("settings.llm.endpointRemote"),
+        model: result.model_name || llmModel,
+        latency: result.latency_ms ?? "—",
+        content: result.content
+      }));
       notify?.(t("settings.llm.testSuccess"), "success");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
-from sqlalchemy import func
+from sqlalchemy import case, func
 
 from ..asr_config import (
     ASR_PROVIDER_EXTERNAL,
@@ -24,6 +24,7 @@ from ..models import (
     PlaybackEvent,
     PlaylistItem,
     Setting,
+    Tag,
     Transcript,
     TranscriptSegment,
     now_iso,
@@ -90,6 +91,9 @@ def list_audio_items(
     session: Session,
     q: Optional[str] = None,
     tag: Optional[str] = None,
+    tag_ids: Optional[list[int]] = None,
+    excluded_tag_ids: Optional[list[int]] = None,
+    tag_mode: str = "and",
     library_root_id: Optional[int] = None,
     has_transcript: Optional[bool] = None,
     transcript_status: Optional[str] = None,
@@ -109,6 +113,9 @@ def list_audio_items(
         q=q,
         search_ids=search_result.ids if search_result else None,
         tag=tag,
+        tag_ids=tag_ids,
+        excluded_tag_ids=excluded_tag_ids,
+        tag_mode=tag_mode,
         library_root_id=library_root_id,
         has_transcript=has_transcript,
         transcript_status=transcript_status,
@@ -128,18 +135,39 @@ def list_audio_items(
             "has_more": False,
             "search_limited": bool(search_result.limited) if search_result else False,
             "search_limit": search_result.limit if search_result else None,
+            "facets": {"tags": [], "roots": []},
         }
 
     total = session.execute(
         select(func.count()).select_from(base_stmt.subquery())
     ).scalar_one()
 
-    sort_clauses = _audio_sort_clauses(sort) or (
-        AudioItem.updated_at.desc(),
-        AudioItem.id.asc(),
-    )
+    if q and search_result and sort == "default":
+        rank_by_id = {audio_id: index for index, audio_id in enumerate(search_result.ids)}
+        sort_clauses = (case(rank_by_id, value=AudioItem.id), AudioItem.id.asc())
+    else:
+        sort_clauses = _audio_sort_clauses(sort) or (
+            AudioItem.updated_at.desc(),
+            AudioItem.id.asc(),
+        )
     stmt = base_stmt.order_by(*sort_clauses).offset(offset).limit(limit)
     rows = session.exec(stmt).all()
+
+    filtered = base_stmt.subquery()
+    tag_facets = session.execute(
+        select(Tag.id, Tag.name, func.count(AudioTag.audio_id))
+        .join(AudioTag, AudioTag.tag_id == Tag.id)
+        .where(AudioTag.audio_id.in_(select(filtered.c.id)))
+        .group_by(Tag.id, Tag.name)
+        .order_by(func.count(AudioTag.audio_id).desc(), Tag.name.asc())
+    ).all()
+    root_facets = session.execute(
+        select(LibraryRoot.id, LibraryRoot.path, func.count(AudioItem.id))
+        .join(AudioItem, AudioItem.library_root_id == LibraryRoot.id)
+        .where(AudioItem.id.in_(select(filtered.c.id)))
+        .group_by(LibraryRoot.id, LibraryRoot.path)
+        .order_by(LibraryRoot.path.asc())
+    ).all()
 
     return {
         "items": _audio_rows_with_tags_dicts(session, rows, search_query=q),
@@ -149,6 +177,16 @@ def list_audio_items(
         "has_more": offset + len(rows) < int(total or 0),
         "search_limited": bool(search_result.limited) if search_result else False,
         "search_limit": search_result.limit if search_result else None,
+        "facets": {
+            "tags": [
+                {"id": int(tag_id), "name": name, "count": int(count)}
+                for tag_id, name, count in tag_facets
+            ],
+            "roots": [
+                {"id": int(root_id), "path": path, "count": int(count)}
+                for root_id, path, count in root_facets
+            ],
+        },
     }
 
 

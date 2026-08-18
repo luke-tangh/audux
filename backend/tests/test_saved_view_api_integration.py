@@ -102,6 +102,40 @@ class TestSavedViewApi(ApiIntegrationTest):
         assert created.status_code == 200, created.text
         assert created.json()["query"]["missing_filter"] == "aiFailed"
 
+    def test_persists_and_resolves_multi_tag_rules(self):
+        with Session(self.engine) as session:
+            work = Tag(name="工作")
+            review = Tag(name="复习")
+            archive = Tag(name="归档")
+            session.add_all([work, review, archive])
+            session.commit()
+            session.refresh(work)
+            session.refresh(review)
+            session.refresh(archive)
+            work_id, review_id, archive_id = work.id, review.id, archive.id
+
+        created = self.mutate(
+            "POST",
+            "/saved-views",
+            {
+                "name": "组合标签",
+                "query": query_payload(
+                    q="",
+                    tag_ids=[work_id, review_id],
+                    excluded_tag_ids=[archive_id],
+                    tag_mode="or",
+                ),
+            },
+        )
+
+        assert created.status_code == 200, created.text
+        payload = created.json()
+        assert payload["query"]["tag_ids"] == [work_id, review_id]
+        assert payload["query"]["excluded_tag_ids"] == [archive_id]
+        assert payload["query"]["tag_mode"] == "or"
+        assert payload["tag_names"] == ["工作", "复习"]
+        assert payload["excluded_tag_names"] == ["归档"]
+
     def test_resolves_references_and_retains_view_after_they_are_deleted(self):
         root = self.add_library_root(self.root_path / "effects")
         with Session(self.engine) as session:

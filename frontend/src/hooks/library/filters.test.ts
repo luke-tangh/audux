@@ -183,6 +183,40 @@ describe("library filters", () => {
     ).toBe("smartPlaylists.aiFailedRule");
   });
 
+  it("describes included and excluded multi-tag rules", () => {
+    const t = ((key: string, params?: Record<string, unknown>) =>
+      `${key}:${params?.names || ""}`) as never;
+
+    expect(
+      describeSmartPlaylistRules(
+        {
+          id: 10,
+          name: "Multi tag",
+          kind: "smart",
+          created_at: "2026-08-10T00:00:00Z",
+          updated_at: "2026-08-10T00:00:00Z",
+          query: {
+            schema_version: 1,
+            view: "library",
+            q: "",
+            tag_id: null,
+            tag_ids: [1, 2],
+            excluded_tag_ids: [3],
+            tag_mode: "or",
+            library_root_id: null,
+            transcript_filter: "all",
+            missing_filter: "all",
+            sort: "default",
+            display_mode: "list"
+          },
+          tag_names: ["work", "review"],
+          excluded_tag_names: ["archive"]
+        },
+        t
+      )
+    ).toContain("smartPlaylists.tagOrRule:#work、#review");
+  });
+
   it("builds and compares versioned saved-view definitions", () => {
     const query = buildSavedViewQuery({
       view: "favorites",
@@ -199,6 +233,9 @@ describe("library filters", () => {
       view: "favorites",
       q: "meeting",
       tag_id: 3,
+      tag_ids: [],
+      excluded_tag_ids: [],
+      tag_mode: "and",
       library_root_id: 7,
       transcript_filter: "yes",
       missing_filter: "available",

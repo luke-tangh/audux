@@ -78,8 +78,30 @@ export async function mockPlayerBar(page: Page) {
       return;
     }
 
-    if (url.pathname === "/tags" || url.pathname === "/playlists") {
+    if (["/tags", "/playlists", "/saved-views"].includes(url.pathname)) {
       await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (url.pathname === "/library-roots") {
+      await route.fulfill({
+        json: [{
+          id: 1,
+          path: "/library",
+          is_enabled: true,
+          created_at: NOW,
+          updated_at: NOW
+        }],
+        headers
+      });
+      return;
+    }
+
+    if (url.pathname === "/activities") {
+      await route.fulfill({
+        json: { items: [], active_count: 0, failed_count: 0 },
+        headers
+      });
       return;
     }
 

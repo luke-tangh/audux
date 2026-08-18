@@ -9,6 +9,9 @@ import PlayerBar from "./components/PlayerBar";
 import SettingsPanel from "./components/SettingsPanel";
 import StatisticsPage from "./components/StatisticsPage";
 import ToastStack from "./components/ToastStack";
+import ActivityCenter from "./components/ActivityCenter";
+import OnboardingWizard from "./components/OnboardingWizard";
+import StartupScreen from "./components/StartupScreen";
 import { useDialog } from "./components/dialog/UnifiedDialog";
 import { IconButton, MaterialIcon } from "./components/ui";
 import { useLibraryController } from "./hooks/useLibraryController";
@@ -22,6 +25,7 @@ export default function App() {
     typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
   );
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const {
     view,
     setView,
@@ -31,6 +35,7 @@ export default function App() {
     audioHasMore,
     searchLimited,
     searchLimit,
+    facets,
     selected,
     setSelected,
     selectionMode,
@@ -45,6 +50,13 @@ export default function App() {
     setQ,
     selectedTag,
     setSelectedTag,
+    includedTagIds,
+    excludedTagIds,
+    tagMode,
+    setTagMode,
+    setTagFilterState,
+    selectedLibraryRootId,
+    setSelectedLibraryRootId,
     selectedPlaylistId,
     setSelectedPlaylistId,
 
@@ -56,6 +68,7 @@ export default function App() {
     setSortMode,
 
     tags,
+    roots,
     playlists,
     manualPlaylists,
     savedViews,
@@ -68,6 +81,9 @@ export default function App() {
     refreshing,
     loadingMore,
     loadError,
+    initialized,
+    startupState,
+    startupError,
 
     listTitle,
     listSubtitle,
@@ -78,6 +94,7 @@ export default function App() {
     closeToast,
 
     refresh,
+    retryStartup,
     clearFilters,
     openSettings,
     deactivateSavedView,
@@ -174,6 +191,10 @@ export default function App() {
     view
   ]);
 
+  useEffect(() => {
+    if (initialized && roots.length === 0) setOnboardingOpen(true);
+  }, [initialized, roots.length]);
+
   async function confirmDiscardInspectorChanges() {
     if (!inspectorDirty) return true;
 
@@ -229,6 +250,16 @@ export default function App() {
         document.querySelector<HTMLElement>(".app-navigation-toggle")?.focus();
       });
     }
+  }
+
+  if (startupState !== "ready") {
+    return (
+      <StartupScreen
+        state={startupState}
+        error={startupError}
+        onRetry={retryStartup}
+      />
+    );
   }
 
   return (
@@ -333,6 +364,16 @@ export default function App() {
                 setHasTranscriptFilter={setHasTranscriptFilter}
                 missingFilter={missingFilter}
                 setMissingFilter={setMissingFilter}
+                roots={roots}
+                tags={tags}
+                facets={facets}
+                selectedLibraryRootId={selectedLibraryRootId}
+                setSelectedLibraryRootId={setSelectedLibraryRootId}
+                includedTagIds={includedTagIds}
+                excludedTagIds={excludedTagIds}
+                tagMode={tagMode}
+                setTagMode={setTagMode}
+                setTagFilterState={setTagFilterState}
                 sortMode={sortMode}
                 setSortMode={setSortMode}
                 activeSavedViewName={savedViews.find((row) => row.id === activeSavedViewId)?.name}
@@ -348,7 +389,10 @@ export default function App() {
                 isLoading={loading}
                 isRefreshing={refreshing}
                 loadError={loadError}
-                onOpenSettings={() => void requestOpenSettings()}
+                onOpenSettings={() => {
+                  if (roots.length === 0) setOnboardingOpen(true);
+                  else void requestOpenSettings();
+                }}
                 onClearFilters={clearFilters}
                 hasActiveFilter={hasActiveFilter}
                 items={audioItems}
@@ -435,6 +479,14 @@ export default function App() {
         onQueueMove={moveQueueItem}
         onQueueClear={clearQueue}
         onPositionSaved={handlePlaybackPositionSaved}
+      />
+
+      <ActivityCenter onActivityChanged={refresh} notify={notify} />
+
+      <OnboardingWizard
+        open={onboardingOpen}
+        onClose={() => setOnboardingOpen(false)}
+        onImported={refresh}
       />
 
       <ToastStack toasts={toasts} onClose={closeToast} />

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlmodel import Session
@@ -27,6 +27,9 @@ router = APIRouter()
 def list_audio_items(
     q: Optional[str] = None,
     tag: Optional[str] = None,
+    tag_ids: Optional[list[int]] = Query(default=None),
+    excluded_tag_ids: Optional[list[int]] = Query(default=None),
+    tag_mode: Literal["and", "or"] = "and",
     library_root_id: Optional[int] = None,
     has_transcript: Optional[bool] = None,
     transcript_status: Optional[str] = None,
@@ -44,6 +47,9 @@ def list_audio_items(
         session=session,
         q=q,
         tag=tag,
+        tag_ids=tag_ids,
+        excluded_tag_ids=excluded_tag_ids,
+        tag_mode=tag_mode,
         library_root_id=library_root_id,
         has_transcript=has_transcript,
         transcript_status=transcript_status,

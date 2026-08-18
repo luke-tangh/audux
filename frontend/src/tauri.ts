@@ -34,3 +34,22 @@ export async function restartApplication(): Promise<boolean> {
     return false;
   }
 }
+
+async function invokeDirectoryCommand(command: string): Promise<boolean> {
+  if (!(await isTauriRuntime())) return false;
+  try {
+    await invoke(command);
+    return true;
+  } catch (err) {
+    console.error(`${command} failed`, err);
+    return false;
+  }
+}
+
+export function openAppDataDirectory(): Promise<boolean> {
+  return invokeDirectoryCommand("open_app_data_directory");
+}
+
+export function openLogsDirectory(): Promise<boolean> {
+  return invokeDirectoryCommand("open_logs_directory");
+}

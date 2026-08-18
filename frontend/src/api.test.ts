@@ -40,6 +40,40 @@ describe("local API client", () => {
     );
   });
 
+  it("uses the import-and-scan and global activity contracts", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: "activity-token" }))
+      .mockResolvedValueOnce(jsonResponse({
+        root: { id: 4, path: "/audio", is_enabled: true },
+        scan_task: { id: 12, root_id: 4, status: "pending" }
+      }))
+      .mockResolvedValueOnce(jsonResponse({
+        items: [],
+        active_count: 1,
+        failed_count: 0
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api, LOCAL_AUDIO_CLIENT_HEADER } = await import("./api");
+    await api.importLibraryRoot("/audio");
+    await api.listActivities(25);
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "http://127.0.0.1:8765/library-roots/import"
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ path: "/audio" })
+    });
+    expect(requestHeaders(fetchMock, 1)[LOCAL_AUDIO_CLIENT_HEADER]).toBe(
+      "local-audio-library"
+    );
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      "http://127.0.0.1:8765/activities?limit=25"
+    );
+  });
+
   it("shares one token request across concurrent protected calls", async () => {
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const url = String(input);
@@ -217,6 +251,9 @@ describe("local API client", () => {
     await api.listAudioItems({
       q: "meeting notes",
       tag: "待办",
+      tag_ids: [3, 5],
+      excluded_tag_ids: [8],
+      tag_mode: "or",
       library_root_id: 12,
       favorite: false,
       missing: true,
@@ -230,9 +267,14 @@ describe("local API client", () => {
     });
 
     const requestUrl = new URL(String(fetchMock.mock.calls[1]?.[0]));
+    expect(requestUrl.searchParams.getAll("tag_ids")).toEqual(["3", "5"]);
+    expect(requestUrl.searchParams.getAll("excluded_tag_ids")).toEqual(["8"]);
     expect(Object.fromEntries(requestUrl.searchParams)).toEqual({
       q: "meeting notes",
       tag: "待办",
+      tag_ids: "5",
+      excluded_tag_ids: "8",
+      tag_mode: "or",
       library_root_id: "12",
       favorite: "false",
       missing: "true",

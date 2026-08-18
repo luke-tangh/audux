@@ -153,6 +153,9 @@ class SavedViewQuery(BaseModel):
     view: SavedViewBaseMode = "library"
     q: str = Field(default="", max_length=500)
     tag_id: Optional[int] = Field(default=None, gt=0)
+    tag_ids: List[int] = Field(default_factory=list, max_length=50)
+    excluded_tag_ids: List[int] = Field(default_factory=list, max_length=50)
+    tag_mode: Literal["and", "or"] = "and"
     library_root_id: Optional[int] = Field(default=None, gt=0)
     transcript_filter: Literal["all", "yes", "no"] = "all"
     missing_filter: Literal["all", "available", "missing", "aiFailed"] = "all"

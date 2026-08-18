@@ -8,6 +8,7 @@ describe("TopBar file filter", () => {
   it("offers AI failures in the library-file dropdown", () => {
     const setMissingFilter = vi.fn();
     const setHasTranscriptFilter = vi.fn();
+    const setSelectedLibraryRootId = vi.fn();
 
     render(
       <LocaleProvider>
@@ -22,6 +23,15 @@ describe("TopBar file filter", () => {
           setHasTranscriptFilter={setHasTranscriptFilter}
           missingFilter="all"
           setMissingFilter={setMissingFilter}
+          roots={[{
+            id: 4,
+            path: "/audio/interviews",
+            is_enabled: true,
+            created_at: "2026-08-18T00:00:00Z",
+            updated_at: "2026-08-18T00:00:00Z"
+          }]}
+          selectedLibraryRootId={undefined}
+          setSelectedLibraryRootId={setSelectedLibraryRootId}
           sortMode="default"
           setSortMode={vi.fn()}
           savedViewDirty={false}
@@ -39,11 +49,13 @@ describe("TopBar file filter", () => {
 
     expect(setMissingFilter).toHaveBeenCalledWith("aiFailed");
     expect(setHasTranscriptFilter).toHaveBeenCalledWith("all");
-    expect(
-      screen.queryByRole("combobox", {
+    fireEvent.click(
+      screen.getByRole("combobox", {
         name: /按库目录筛选|Filter by library folder/
       })
-    ).toBeNull();
+    );
+    fireEvent.click(screen.getByRole("option", { name: "/audio/interviews" }));
+    expect(setSelectedLibraryRootId).toHaveBeenCalledWith(4);
     expect(
       screen.queryByRole("combobox", {
         name: /按转写状态筛选|Filter by transcript status/

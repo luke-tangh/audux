@@ -6,14 +6,11 @@ from sqlalchemy import text
 from .models import AudioItem, Tag, AudioTag, Transcript
 
 
-SEARCH_RESULT_LIMIT = 200
-
-
 @dataclass(frozen=True)
 class SearchResult:
     ids: list[int]
     limited: bool
-    limit: int
+    limit: int | None
 
 
 def get_display_title(audio: AudioItem) -> str:
@@ -115,32 +112,26 @@ def _escape_like_query(value: str) -> str:
 def _fts_search_audio_ids(
     session: Session,
     fts_query: str,
-    limit: int,
-) -> tuple[list[int], bool]:
+) -> list[int]:
     rows = session.execute(
         text(
             """
             SELECT audio_id
             FROM search_index
             WHERE search_index MATCH :q
-            LIMIT :limit
+            ORDER BY bm25(search_index, 0.0, 8.0, 5.0, 3.0, 4.0, 1.0)
             """
         ),
-        {
-            "q": fts_query,
-            "limit": limit + 1,
-        },
+        {"q": fts_query},
     ).fetchall()
 
-    limited = len(rows) > limit
-    return [int(row[0]) for row in rows[:limit]], limited
+    return [int(row[0]) for row in rows]
 
 
 def _like_search_audio_ids(
     session: Session,
     q: str,
-    limit: int,
-) -> tuple[list[int], bool]:
+) -> list[int]:
     pattern = f"%{_escape_like_query(q)}%"
 
     rows = session.execute(
@@ -153,43 +144,33 @@ def _like_search_audio_ids(
                OR description LIKE :pattern ESCAPE '\\'
                OR tags LIKE :pattern ESCAPE '\\'
                OR transcript LIKE :pattern ESCAPE '\\'
-            LIMIT :limit
             """
         ),
-        {
-            "pattern": pattern,
-            "limit": limit + 1,
-        },
+        {"pattern": pattern},
     ).fetchall()
 
-    limited = len(rows) > limit
-    return [int(row[0]) for row in rows[:limit]], limited
+    return [int(row[0]) for row in rows]
 
 
 def search_audio_ids_with_meta(
     session: Session,
     q: str,
-    limit: int = SEARCH_RESULT_LIMIT,
+    limit: int | None = None,
 ) -> SearchResult:
     q = q.strip()
     if not q:
-        return SearchResult(ids=[], limited=False, limit=limit)
+        return SearchResult(ids=[], limited=False, limit=None)
 
-    limit = max(1, min(limit, 1000))
+    normalized_limit = max(1, limit) if limit is not None else None
 
     result: list[int] = []
     seen: set[int] = set()
-    limited = False
-
     def add_ids(ids: list[int]):
-        nonlocal limited
-
         for audio_id in ids:
             if audio_id in seen:
                 continue
 
-            if len(result) >= limit:
-                limited = True
+            if normalized_limit is not None and len(result) >= normalized_limit:
                 return
 
             seen.add(audio_id)
@@ -199,9 +180,7 @@ def search_audio_ids_with_meta(
 
     if fts_query:
         try:
-            fts_ids, fts_limited = _fts_search_audio_ids(session, fts_query, limit)
-            limited = limited or fts_limited
-            add_ids(fts_ids)
+            add_ids(_fts_search_audio_ids(session, fts_query))
         except Exception:
             # FTS5 可能因为 tokenizer / 特殊输入出现异常。
             # 下面仍会使用 LIKE 作为兜底。
@@ -210,18 +189,16 @@ def search_audio_ids_with_meta(
     # LIKE fallback is useful for substring/CJK cases, but scanning the
     # transcript column with %query% can be expensive on large libraries.
     # Only run it when FTS did not already fill the requested result window.
-    if len(result) < limit:
+    if normalized_limit is None or len(result) < normalized_limit:
         try:
-            like_ids, like_limited = _like_search_audio_ids(session, q, limit)
-            limited = limited or like_limited
-            add_ids(like_ids)
+            add_ids(_like_search_audio_ids(session, q))
         except Exception:
             pass
 
     return SearchResult(
-        ids=result[:limit],
-        limited=limited,
-        limit=limit,
+        ids=result,
+        limited=False,
+        limit=None,
     )
 
 
