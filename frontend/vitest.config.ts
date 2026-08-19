@@ -12,10 +12,10 @@ export default defineConfig({
       reporter: ["text", "html", "lcov"],
       reportsDirectory: "coverage",
       thresholds: {
-        statements: 10,
-        branches: 8,
-        functions: 10,
-        lines: 10
+        statements: 40,
+        branches: 41,
+        functions: 39,
+        lines: 41
       },
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
