@@ -7,10 +7,16 @@ from ..db import get_session
 from ..schemas import LLMConfig, LLMModelDiscoveryConfig
 from ..services import ai_service
 from ..services.common import ServiceError
+from ..tool_registry import DEFAULT_TOOL_REGISTRY
 from .utils import raise_http, service_call
 
 
 router = APIRouter()
+
+
+@router.get("/ai/tools")
+def list_agent_tools():
+    return {"tools": DEFAULT_TOOL_REGISTRY.schemas(maximum_permission="read")}
 
 
 @router.post("/audio-items/{audio_id}/analyze")

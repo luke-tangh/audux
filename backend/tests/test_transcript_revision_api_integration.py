@@ -142,6 +142,8 @@ class TestTranscriptRevisionApi(ApiIntegrationTest):
         )
         assert transcript_hit['start_seconds'] == 2
         assert transcript_hit['segment_index'] == 1
+        assert transcript_hit['transcript_revision_id'] == body['transcript']['id']
+        assert transcript_hit['segment_id'] == body['segments'][1]['id']
         assert transcript_hit['context_before'] == '开场内容'
         assert transcript_hit['context_after'] == '收尾内容'
 

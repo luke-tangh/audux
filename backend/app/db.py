@@ -10,7 +10,7 @@ from .time_utils import utc_now_iso
 
 
 logger = logging.getLogger(__name__)
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 APP_DATA_DIR = Path.home() / ".audux"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -272,6 +272,27 @@ def create_current_schema_objects():
         CREATE UNIQUE INDEX IF NOT EXISTS ux_library_health_tasks_active_type
         ON library_health_tasks(task_type)
         WHERE status IN ('pending', 'running', 'cancel_requested');
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_transcripts_current_audio
+        ON transcripts(audio_id)
+        WHERE is_current = 1;
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_transcripts_audio_revision
+        ON transcripts(audio_id, revision_number);
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_transcript_segments_revision_index
+        ON transcript_segments(transcript_id, segment_index);
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_transcript_chapters_revision_index
+        ON transcript_chapters(transcript_id, chapter_index);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_transcript_issues_revision_status
+        ON transcript_issues(transcript_id, status);
         """,
     ]
 

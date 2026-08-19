@@ -24,12 +24,14 @@ Audux 是一个本地优先的私人音频知识库应用，支持扫描本地�
   预览 Transcript、标签、Playlist、封面与播放记录后安全重新关联，不删除文件或记录
 - Transcript：
   - 可选 Whisper companion 本地转写或外部 ASR 服务
-  - transcript 时间轴
-  - 逐段修订并保留时间轴，自动同步全文和搜索索引
-  - 以版本冲突保护的全文替换高级操作
+  - 不可变 revision、来源/模型/脱敏配置追踪和绑定 revision 的 Segment 证据锚点
+  - 逐段修订并保留时间轴，自动同步全文和搜索索引；旧 revision 保留历史可读性
+  - 以版本冲突保护的全文替换高级操作，以及手工章节创建、边界调整、合并和删除
+  - 越界、倒序、重叠、空段、全文不一致、语言异常和人工复核等结构化质量 issue
   - TXT / JSON / SRT 导出
 - AI 整理：
   - OpenAI-compatible 本地或内网 LLM endpoint
+  - 连接测试探测结构化输出与 tool calling；不支持时只启用普通生成
   - 生成描述、标签和语言建议
   - 支持批量 AI 分析
 - 搜索：
@@ -521,14 +523,13 @@ Release 构建前请确认：
 ## 开发路线与 Release dry-run
 
 显式多选与批量整理、Transcript 保真修订与搜索上下文、播放队列与会话连续性、
-手动数据库备份与安全恢复、保存视图、智能 Playlist 以及资料库健康中心与安全重新关联
-已经完成。后续以领域受限 Agent 为主线，当前先建设 Transcript revision、证据锚点、
-质量 issue 和 Provider / Tool Registry 边界，再推进分段有据检索，以及“转写—验证—
-Tag / 描述建议—人工勘误—索引回写”闭环。v0.5 已冻结功能范围并进入 Beta 发布验证，
-不再追加 F5。
+手动数据库备份与安全恢复、保存视图、智能 Playlist 以及资料库健康中心与安全重新关联，
+以及 v0.6 的不可变 Transcript revision、Segment 证据锚点、章节、确定性质量 issue、
+Provider 能力契约、受控 Tool Registry 和匿名评测基线已经完成。后续推进分段有据检索，
+以及“转写—验证—Tag / 描述建议—人工勘误—索引回写”闭环。
 详细范围见 [`docs/roadmap.md`](docs/roadmap.md)。仓库中的 `0.5.0-beta.1` 仍是内部候选
-标识，不代表已经发布；v1.0 前所有版本均保留为内部 Beta，首次公开 Release 统一为
-v1.0。
+历史标识；当前 `0.6.0-beta.1` 同样不代表已经发布。v1.0 前所有版本均保留为内部
+Beta，首次公开 Release 统一为 v1.0。
 
 GitHub Actions 的 `Internal Builds and v1 Release` workflow 支持手动触发。手动运行会
 在 Linux、Windows 和 macOS 同时构建 Tauri 安装包、browser-lite 单文件包与对应
@@ -541,7 +542,7 @@ Whisper companion，
 证据。
 
 Beta 发布说明草案见
-[`docs/releases/v0.5.0-beta.1.md`](docs/releases/v0.5.0-beta.1.md)。
+[`docs/releases/v0.6.0-beta.1.md`](docs/releases/v0.6.0-beta.1.md)。
 
 如果只想单独生成当前 Linux 平台的 sidecar，可以运行：
 

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import type {
   Transcript,
+  TranscriptRevisionSummary,
   TranscriptSegment,
   TranscriptSegmentEdit
 } from "../../types";
+import { api } from "../../api";
 import { formatDuration } from "../../types";
 import { useDialog } from "../dialog/UnifiedDialog";
 import { Button, PanelCard, TextareaField } from "../ui";
@@ -13,7 +15,9 @@ type SaveOutcome = "saved" | "conflict" | "error";
 type EditMode = "segments" | "full" | null;
 
 type TranscriptTabProps = {
+  audioId: number;
   transcript: Transcript | null;
+  onTranscriptChanged: (transcript: Transcript) => void;
   onTranscribe: () => void;
   onExportTranscript: (format: "txt" | "json" | "srt") => void;
   onJumpToSegment: (startSeconds: number) => void;
@@ -35,7 +39,9 @@ function segmentTextMap(transcript: Transcript | null): Record<number, string> {
 }
 
 export default function TranscriptTab({
+  audioId,
   transcript,
+  onTranscriptChanged,
   onTranscribe,
   onExportTranscript,
   onJumpToSegment,
@@ -55,6 +61,17 @@ export default function TranscriptTab({
   const [baseUpdatedAt, setBaseUpdatedAt] = useState("");
   const [saving, setSaving] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
+  const [revisions, setRevisions] = useState<TranscriptRevisionSummary[]>([]);
+  const [selectedChapterIds, setSelectedChapterIds] = useState<number[]>([]);
+  const [managing, setManaging] = useState(false);
+
+  useEffect(() => {
+    if (!transcript) {
+      setRevisions([]);
+      return;
+    }
+    void api.listTranscriptRevisions(audioId).then(setRevisions).catch(() => setRevisions([]));
+  }, [audioId, transcript?.transcript.id]);
 
   const segmentEdits: TranscriptSegmentEdit[] = Object.entries(segmentDrafts)
     .filter(([id, text]) => text.trim() !== (baseSegmentTexts[Number(id)] || ""))
@@ -180,6 +197,95 @@ export default function TranscriptTab({
     : isDirty
       ? t("detail.transcript.dirtyStatus")
       : t("detail.transcript.cleanStatus");
+
+  async function reloadAfterManagement() {
+    const latest = await api.getTranscript(audioId);
+    onTranscriptChanged(latest);
+  }
+
+  async function runManagement(action: () => Promise<unknown>) {
+    setManaging(true);
+    try {
+      await action();
+      await reloadAfterManagement();
+    } catch (error) {
+      await dialog.alert({
+        title: t("detail.transcript.managementFailed"),
+        message: error instanceof Error ? error.message : String(error),
+        tone: "warning"
+      });
+    } finally {
+      setManaging(false);
+    }
+  }
+
+  async function addChapter() {
+    if (!transcript || transcript.segments.length === 0) return;
+    const title = await dialog.prompt({
+      title: t("detail.transcript.addChapter"),
+      inputLabel: t("detail.transcript.chapterTitle"),
+      required: true
+    });
+    if (!title?.trim()) return;
+    const first = transcript.segments[0];
+    const last = transcript.segments[transcript.segments.length - 1];
+    await runManagement(() =>
+      api.createTranscriptChapter(audioId, {
+        expected_revision_id: transcript.transcript.id,
+        title: title.trim(),
+        start_seconds: first.start_seconds,
+        end_seconds: last.end_seconds
+      })
+    );
+  }
+
+  async function editChapter(chapterId: number) {
+    const chapter = transcript?.chapters?.find((row) => row.id === chapterId);
+    if (!chapter) return;
+    const value = await dialog.prompt({
+      title: t("detail.transcript.editChapter"),
+      message: t("detail.transcript.chapterEditHint"),
+      defaultValue: `${chapter.title} | ${chapter.start_seconds} | ${chapter.end_seconds}`,
+      required: true,
+      validate: (input) => {
+        const parts = input.split("|").map((part) => part.trim());
+        const start = Number(parts[1]);
+        const end = Number(parts[2]);
+        return parts.length === 3 && parts[0] && Number.isFinite(start) && end > start
+          ? null
+          : t("detail.transcript.chapterEditInvalid");
+      }
+    });
+    if (!value) return;
+    const [title, start, end] = value.split("|").map((part) => part.trim());
+    await runManagement(() =>
+      api.updateTranscriptChapter(audioId, chapterId, {
+        title,
+        start_seconds: Number(start),
+        end_seconds: Number(end)
+      })
+    );
+  }
+
+  async function removeChapter(chapterId: number) {
+    const confirmed = await dialog.confirm({
+      title: t("detail.transcript.deleteChapter"),
+      message: t("detail.transcript.deleteChapterMessage"),
+      confirmLabel: t("common.actions.delete"),
+      tone: "danger",
+      destructive: true
+    });
+    if (!confirmed) return;
+    await runManagement(() => api.deleteTranscriptChapter(audioId, chapterId));
+  }
+
+  async function mergeSelectedChapters() {
+    if (selectedChapterIds.length < 2) return;
+    await runManagement(() =>
+      api.mergeTranscriptChapters(audioId, selectedChapterIds)
+    );
+    setSelectedChapterIds([]);
+  }
 
   return (
     <div className="inspector-section-stack">
@@ -356,6 +462,139 @@ export default function TranscriptTab({
           </div>
         )}
       </PanelCard>
+
+      {transcript && (
+        <PanelCard
+          title={t("detail.transcript.revisionTitle")}
+          actions={
+            <Button
+              variant="outlined"
+              size="sm"
+              disabled={managing}
+              onClick={() => void runManagement(() => api.validateTranscript(audioId))}
+            >
+              {t("detail.transcript.validate")}
+            </Button>
+          }
+        >
+          <dl className="transcript-revision-metadata">
+            <div>
+              <dt>{t("detail.transcript.revisionNumber")}</dt>
+              <dd>#{transcript.transcript.revision_number}</dd>
+            </div>
+            <div>
+              <dt>{t("detail.transcript.source")}</dt>
+              <dd>{transcript.transcript.source_type}</dd>
+            </div>
+            <div>
+              <dt>{t("detail.transcript.provider")}</dt>
+              <dd>{transcript.transcript.provider_name || transcript.transcript.model_name || "—"}</dd>
+            </div>
+          </dl>
+          {revisions.length > 1 && (
+            <details className="transcript-revision-history">
+              <summary>{t("detail.transcript.history", { count: revisions.length })}</summary>
+              <ol>
+                {revisions.map((revision) => (
+                  <li key={revision.id}>
+                    #{revision.revision_number} · {revision.source_type} · {revision.generated_at}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+          {(transcript.issues || []).length === 0 ? (
+            <p>{t("detail.transcript.noIssues")}</p>
+          ) : (
+            <ul className="transcript-issue-list">
+              {(transcript.issues || []).map((issue) => (
+                <li key={issue.id}>
+                  <span>{issue.severity} · {issue.code} · {issue.status}</span>
+                  {issue.status === "open" && (
+                    <div className="compact-actions">
+                      <Button
+                        variant="text"
+                        size="sm"
+                        disabled={managing}
+                        onClick={() => void runManagement(() =>
+                          api.updateTranscriptIssue(audioId, issue.id, "resolved", "user_confirmed")
+                        )}
+                      >
+                        {t("detail.transcript.resolveIssue")}
+                      </Button>
+                      <Button
+                        variant="text"
+                        size="sm"
+                        disabled={managing}
+                        onClick={() => void runManagement(() =>
+                          api.updateTranscriptIssue(audioId, issue.id, "dismissed", "user_dismissed")
+                        )}
+                      >
+                        {t("detail.transcript.dismissIssue")}
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </PanelCard>
+      )}
+
+      {transcript && transcript.segments.length > 0 && (
+        <PanelCard
+          title={t("detail.transcript.chapters")}
+          actions={
+            <div className="compact-actions">
+              <Button variant="outlined" size="sm" disabled={managing} onClick={() => void addChapter()}>
+                {t("detail.transcript.addChapter")}
+              </Button>
+              <Button
+                variant="text"
+                size="sm"
+                disabled={managing || selectedChapterIds.length < 2}
+                onClick={() => void mergeSelectedChapters()}
+              >
+                {t("detail.transcript.mergeChapters")}
+              </Button>
+            </div>
+          }
+        >
+          {(transcript.chapters || []).length === 0 ? (
+            <p>{t("detail.transcript.noChapters")}</p>
+          ) : (
+            <ul className="transcript-chapter-list">
+              {(transcript.chapters || []).map((chapter) => (
+                <li key={chapter.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={selectedChapterIds.includes(chapter.id)}
+                      onChange={(event) => setSelectedChapterIds((current) =>
+                        event.target.checked
+                          ? [...current, chapter.id]
+                          : current.filter((id) => id !== chapter.id)
+                      )}
+                    />
+                    <button type="button" onClick={() => onJumpToSegment(chapter.start_seconds)}>
+                      {formatDuration(chapter.start_seconds)}–{formatDuration(chapter.end_seconds)}
+                    </button>
+                    <span>{chapter.title}</span>
+                  </label>
+                  <div className="compact-actions">
+                    <Button variant="text" size="sm" onClick={() => void editChapter(chapter.id)}>
+                      {t("common.actions.edit")}
+                    </Button>
+                    <Button variant="text" size="sm" onClick={() => void removeChapter(chapter.id)}>
+                      {t("common.actions.delete")}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </PanelCard>
+      )}
     </div>
   );
 }

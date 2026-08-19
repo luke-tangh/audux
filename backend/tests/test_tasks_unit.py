@@ -209,7 +209,9 @@ class TestTaskStateTransitions(ApiIntegrationTest):
 
         with Session(self.engine) as session:
             transcript = session.exec(
-                select(Transcript).where(Transcript.audio_id == self.audio.id)
+                select(Transcript)
+                .where(Transcript.audio_id == self.audio.id)
+                .where(Transcript.is_current.is_(True))
             ).one()
             audio = session.get(AudioItem, self.audio.id)
             assert transcript.full_text == "chunked transcript"
@@ -281,7 +283,9 @@ class TestTaskStateTransitions(ApiIntegrationTest):
 
         with Session(self.engine) as session:
             transcript = session.exec(
-                select(Transcript).where(Transcript.audio_id == self.audio.id)
+                select(Transcript)
+                .where(Transcript.audio_id == self.audio.id)
+                .where(Transcript.is_current.is_(True))
             ).one()
             segments = session.exec(
                 select(TranscriptSegment).where(
@@ -290,6 +294,11 @@ class TestTaskStateTransitions(ApiIntegrationTest):
             ).all()
             assert transcript.full_text == "New transcript"
             assert [segment.text for segment in segments] == ["New transcript"]
+            assert len(
+                session.exec(
+                    select(Transcript).where(Transcript.audio_id == self.audio.id)
+                ).all()
+            ) == 2
 
     @pytest.mark.anyio
     async def test_direct_external_transcription_applies_text_formatting(
@@ -344,6 +353,8 @@ class TestTaskStateTransitions(ApiIntegrationTest):
 
         with Session(self.engine) as session:
             transcript = session.exec(
-                select(Transcript).where(Transcript.audio_id == self.audio.id)
+                select(Transcript)
+                .where(Transcript.audio_id == self.audio.id)
+                .where(Transcript.is_current.is_(True))
             ).one()
             assert transcript.full_text == "ARK-ASR-3B uses PyTorch."

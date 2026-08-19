@@ -15,6 +15,7 @@ from ..ai_client import (
     call_openai_compatible_chat,
     get_ai_message_content,
     list_openai_compatible_models,
+    probe_openai_compatible_capabilities,
 )
 from ..local_security import (
     _llm_privacy_warning,
@@ -146,6 +147,12 @@ async def test_llm_config(payload) -> dict:
         )
 
         content = get_ai_message_content(response)
+        capabilities = await probe_openai_compatible_capabilities(
+            endpoint=payload.endpoint,
+            model_name=payload.model_name,
+            api_key=payload.api_key or None,
+            timeout=payload.timeout,
+        )
         latency_ms = round((time.perf_counter() - started_at) * 1000)
 
         return {
@@ -156,6 +163,12 @@ async def test_llm_config(payload) -> dict:
             "is_local_endpoint": warning is None,
             "privacy_warning": warning,
             "privacy_warning_code": "llm.remote" if warning else None,
+            "capabilities": {
+                "structured_output": capabilities.structured_output,
+                "tool_calling": capabilities.tool_calling,
+                "streaming_tool_calling": capabilities.streaming_tool_calling,
+                "agent_execution": capabilities.agent_execution,
+            },
         }
 
     except Exception as e:

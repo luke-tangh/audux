@@ -436,6 +436,8 @@ def _add_search_hit(
     start_seconds: Optional[float] = None,
     end_seconds: Optional[float] = None,
     segment_index: Optional[int] = None,
+    transcript_revision_id: Optional[int] = None,
+    segment_id: Optional[int] = None,
     context_before: Optional[str] = None,
     context_after: Optional[str] = None,
     limit: int = 6,
@@ -463,6 +465,12 @@ def _add_search_hit(
 
     if segment_index is not None:
         hit["segment_index"] = segment_index
+
+    if transcript_revision_id is not None:
+        hit["transcript_revision_id"] = transcript_revision_id
+
+    if segment_id is not None:
+        hit["segment_id"] = segment_id
 
     if context_before:
         hit["context_before"] = context_before
@@ -563,7 +571,9 @@ def _transcripts_and_segments_by_audio_ids(
         return {}, {}
 
     transcripts = session.exec(
-        select(Transcript).where(Transcript.audio_id.in_(audio_ids))
+        select(Transcript)
+        .where(Transcript.audio_id.in_(audio_ids))
+        .where(Transcript.is_current.is_(True))
     ).all()
 
     transcript_by_audio_id = {int(t.audio_id): t for t in transcripts}
@@ -639,7 +649,9 @@ def _search_hits_for_audio(
 
     if not transcript_prefetched:
         transcript = session.exec(
-            select(Transcript).where(Transcript.audio_id == audio.id)
+            select(Transcript)
+            .where(Transcript.audio_id == audio.id)
+            .where(Transcript.is_current.is_(True))
         ).first()
 
     if not transcript:
@@ -672,6 +684,8 @@ def _search_hits_for_audio(
             start_seconds=seg.start_seconds,
             end_seconds=seg.end_seconds,
             segment_index=seg.segment_index,
+            transcript_revision_id=int(transcript.id),
+            segment_id=int(seg.id),
             context_before=(
                 segment_by_index[seg.segment_index - 1].text
                 if seg.segment_index - 1 in segment_by_index
@@ -694,6 +708,7 @@ def _search_hits_for_audio(
             "Transcript",
             transcript.full_text,
             tokens,
+            transcript_revision_id=int(transcript.id),
         )
 
     return hits[:6]

@@ -802,7 +802,10 @@ export default function SettingsPanel({
         endpoint: result.is_local_endpoint ? t("settings.llm.endpointLocal") : t("settings.llm.endpointRemote"),
         model: result.model_name || llmModel,
         latency: result.latency_ms ?? "—",
-        content: result.content
+        content: result.content,
+        capabilities: result.capabilities?.agent_execution
+          ? t("settings.llm.agentToolsAvailable")
+          : t("settings.llm.agentToolsUnavailable")
       }));
       notify?.(t("settings.llm.testSuccess"), "success");
     } catch (err) {

@@ -111,6 +111,11 @@ class TranscriptCreate(BaseModel):
     language: Optional[str] = None
     full_text: str
     model_name: Optional[str] = None
+    provider_name: Optional[str] = None
+    source_type: Literal["asr", "manual", "agent"] = "asr"
+    task_config_summary: Optional[dict] = None
+    glossary_version: Optional[str] = None
+    quality_metrics: Optional[dict] = None
     segments: List[TranscriptSegmentCreate] = Field(default_factory=list)
 
 
@@ -127,6 +132,29 @@ class TranscriptSegmentUpdate(BaseModel):
 class TranscriptSegmentsUpdate(BaseModel):
     expected_updated_at: str = Field(min_length=1)
     segments: List[TranscriptSegmentUpdate] = Field(min_length=1, max_length=1000)
+
+
+class TranscriptChapterCreate(BaseModel):
+    expected_revision_id: int = Field(gt=0)
+    title: str = Field(min_length=1, max_length=200)
+    start_seconds: float = Field(ge=0)
+    end_seconds: float = Field(gt=0)
+
+
+class TranscriptChapterUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    start_seconds: Optional[float] = Field(default=None, ge=0)
+    end_seconds: Optional[float] = Field(default=None, gt=0)
+
+
+class TranscriptChapterMerge(BaseModel):
+    chapter_ids: List[int] = Field(min_length=2, max_length=100)
+    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+
+
+class TranscriptIssueUpdate(BaseModel):
+    status: Literal["open", "resolved", "dismissed"]
+    closed_reason: Optional[str] = Field(default=None, max_length=500)
 
 
 class SettingUpdate(BaseModel):

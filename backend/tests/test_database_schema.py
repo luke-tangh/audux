@@ -66,6 +66,8 @@ class TestDatabaseSchema:
                 "library_health_tasks",
                 "playback_events",
                 "search_index",
+                "transcript_chapters",
+                "transcript_issues",
             }.issubset(tables)
 
             indexes = {
@@ -86,6 +88,10 @@ class TestDatabaseSchema:
                 "ux_saved_views_name_nocase",
                 "ux_library_health_tasks_active_type",
                 "ix_playback_events_audio_started",
+                "ux_transcripts_current_audio",
+                "ux_transcripts_audio_revision",
+                "ux_transcript_segments_revision_index",
+                "ux_transcript_chapters_revision_index",
             }.issubset(indexes)
 
     def test_unmarked_database_is_rejected_without_changes(self):

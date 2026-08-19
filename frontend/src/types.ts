@@ -77,6 +77,8 @@ export type SearchHit = {
   start_seconds?: number;
   end_seconds?: number;
   segment_index?: number;
+  transcript_revision_id?: number;
+  segment_id?: number;
   context_before?: string;
   context_after?: string;
 };
@@ -322,20 +324,59 @@ export type TranscriptSegment = {
   text: string;
 };
 
+export type TranscriptChapter = {
+  id: number;
+  transcript_id: number;
+  chapter_index: number;
+  title: string;
+  start_seconds: number;
+  end_seconds: number;
+  source_type: "user" | "agent" | string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TranscriptIssue = {
+  id: number;
+  audio_id: number;
+  transcript_id: number;
+  segment_id?: number;
+  code: string;
+  severity: "error" | "warning" | "info" | string;
+  evidence: Record<string, unknown>;
+  status: "open" | "resolved" | "dismissed" | string;
+  closed_reason?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TranscriptRevisionSummary = {
+  id: number;
+  audio_id: number;
+  revision_number: number;
+  parent_revision_id?: number;
+  is_current: boolean;
+  source_type: "asr" | "manual" | "agent" | string;
+  provider_name?: string;
+  language?: string;
+  full_text: string;
+  model_name?: string;
+  task_config_summary?: Record<string, unknown>;
+  glossary_version?: string;
+  quality_metrics?: Record<string, unknown>;
+  status: string;
+  generated_at: string;
+  accepted_at?: string;
+  updated_at: string;
+};
+
 export type TranscriptSegmentEdit = Pick<TranscriptSegment, "id" | "text">;
 
 export type Transcript = {
-  transcript: {
-    id: number;
-    audio_id: number;
-    language?: string;
-    full_text: string;
-    model_name?: string;
-    status: string;
-    generated_at: string;
-    updated_at: string;
-  };
+  transcript: TranscriptRevisionSummary;
   segments: TranscriptSegment[];
+  chapters?: TranscriptChapter[];
+  issues?: TranscriptIssue[];
   cleared_segments?: number;
   updated_segments?: number;
 };
@@ -623,6 +664,12 @@ export type LLMTestResult = {
   privacy_warning_code?: string;
   latency_ms?: number;
   model_name?: string;
+  capabilities?: {
+    structured_output: boolean;
+    tool_calling: boolean;
+    streaming_tool_calling: boolean;
+    agent_execution: boolean;
+  };
 };
 
 export type BatchTaskResult = {

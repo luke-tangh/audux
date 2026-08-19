@@ -7,6 +7,7 @@ from app.ai_client import (
     list_openai_compatible_models,
     parse_ai_json_content,
     parse_ai_json_response,
+    probe_openai_compatible_capabilities,
 )
 
 
@@ -168,3 +169,53 @@ class TestAIModelDiscovery:
 
         with pytest.raises(ValueError, match="models response schema"):
             asyncio.run(list_openai_compatible_models("http://localhost:11434/v1"))
+
+
+def test_capability_probe_detects_structured_and_streaming_tool_calls(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured: list[dict] = []
+
+    class FakeResponse:
+        def __init__(self, payload: dict, text: str = ""):
+            self.payload = payload
+            self.text = text
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    class FakeAsyncClient:
+        def __init__(self, timeout):
+            assert timeout == 10
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return None
+
+        async def post(self, url, **kwargs):
+            payload = kwargs["json"]
+            captured.append(payload)
+            if payload.get("stream"):
+                return FakeResponse({}, 'data: {"delta":{"tool_calls":[]}}')
+            if payload.get("tools"):
+                return FakeResponse({"choices": [{"message": {"tool_calls": [{"id": "1"}]}}]})
+            return FakeResponse({"choices": [{"message": {"content": '{"ok":true}'}}]})
+
+    monkeypatch.setattr("app.ai_client.httpx.AsyncClient", FakeAsyncClient)
+    capabilities = asyncio.run(
+        probe_openai_compatible_capabilities(
+            "http://127.0.0.1:1234/v1",
+            "model-a",
+            timeout=60,
+        )
+    )
+    assert capabilities.structured_output is True
+    assert capabilities.tool_calling is True
+    assert capabilities.streaming_tool_calling is True
+    assert capabilities.agent_execution is True
+    assert len(captured) == 3

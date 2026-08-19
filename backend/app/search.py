@@ -42,7 +42,9 @@ def rebuild_audio_search_index(
     tag_text = " ".join([t.name for t in tag_rows])
 
     transcript = session.exec(
-        select(Transcript).where(Transcript.audio_id == audio_id)
+        select(Transcript)
+        .where(Transcript.audio_id == audio_id)
+        .where(Transcript.is_current.is_(True))
     ).first()
     transcript_text = transcript.full_text if transcript else ""
 

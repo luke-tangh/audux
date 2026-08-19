@@ -226,7 +226,9 @@ def _task_has_completed_output(session: Session, task: AITask) -> bool:
     """
     if task.task_type == "transcribe":
         transcript = session.exec(
-            select(Transcript).where(Transcript.audio_id == task.audio_id)
+            select(Transcript)
+            .where(Transcript.audio_id == task.audio_id)
+            .where(Transcript.is_current.is_(True))
         ).first()
 
         return bool(transcript and transcript.status == "done")
@@ -625,57 +627,21 @@ async def handle_transcribe_task(task: TaskSnapshot):
         if not audio:
             raise ValueError("Audio not found")
 
-        old = session.exec(
-            select(Transcript).where(Transcript.audio_id == audio_id)
-        ).first()
+        from .services.transcript_service import create_transcript_revision
 
-        if old:
-            old_segments = session.exec(
-                select(TranscriptSegment).where(
-                    TranscriptSegment.transcript_id == old.id
-                )
-            ).all()
-
-            for seg in old_segments:
-                session.delete(seg)
-
-            # The models do not declare an ORM relationship, so flush child
-            # deletions before deleting the parent to satisfy SQLite FKs.
-            session.flush()
-            session.delete(old)
-            session.flush()
-
-        transcript = Transcript(
-            audio_id=audio_id,
+        create_transcript_revision(
+            session,
+            audio,
             language=result.get("language"),
             full_text=result["full_text"],
             model_name=result.get("model_name"),
-            status="done",
-            generated_at=now_iso(),
-            updated_at=now_iso(),
+            provider_name=asr_config["provider"],
+            source_type="asr",
+            task_config_summary=asr_config,
+            glossary_version=asr_config.get("glossary_version"),
+            quality_metrics=result.get("quality_metrics"),
+            segments=result.get("segments", []),
         )
-        session.add(transcript)
-        session.flush()
-
-        if transcript.id is None:
-            raise ValueError("Failed to create transcript")
-
-        for seg in result.get("segments", []):
-            row = TranscriptSegment(
-                transcript_id=transcript.id,
-                segment_index=seg["segment_index"],
-                start_seconds=seg["start_seconds"],
-                end_seconds=seg["end_seconds"],
-                text=seg["text"],
-            )
-            session.add(row)
-
-        audio.transcript_status = "done"
-        audio.updated_at = now_iso()
-        session.add(audio)
-
-        session.flush()
-        rebuild_audio_search_index(session, audio_id, commit=False)
         session.commit()
 
 
@@ -809,7 +775,9 @@ async def handle_analyze_task(task: TaskSnapshot):
             logger.warning("Analyze task uses non-local LLM endpoint: %s", endpoint)
 
         transcript = session.exec(
-            select(Transcript).where(Transcript.audio_id == audio_id)
+            select(Transcript)
+            .where(Transcript.audio_id == audio_id)
+            .where(Transcript.is_current.is_(True))
         ).first()
 
         transcript_text = transcript.full_text if transcript else ""

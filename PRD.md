@@ -4,8 +4,8 @@
 |---|---|
 | 产品名称 | Audux |
 | 产品类型 | 本地桌面音频播放器 / 音频知识库 |
-| 文档版本 | v0.5 |
-| 目标版本 | v0.5 核心工作流完善，发布版本待定 |
+| 文档版本 | v0.6 |
+| 目标版本 | v0.6 Agent-ready 可信内容基础，发布版本待定 |
 | 当前实现阶段 | 已完成 MVP+ 基础能力，暂停 Beta 发布并进入功能改善阶段 |
 | 运行形态 | Tauri 桌面应用 + 本地 FastAPI 后端 |
 | 核心原则 | 本地优先、隐私优先、离线可用、AI 可控、数据可迁移 |
@@ -2877,11 +2877,11 @@ R3 智能 Playlist，以及 R4 资料库健康中心与安全重新关联已经�
 
 ---
 
-## v0.6：Agent-ready 的可信内容基础（当前）
+## v0.6：Agent-ready 的可信内容基础（已完成）
 
 - R1 数据库备份与恢复、R2 保存视图、R3 智能 Playlist、R4 健康中心与安全重新关联已完成。
-- 下一步建立 Transcript revision、来源追踪、Segment 证据锚点、质量 issue 和章节模型。
-- 定义 ASR / LLM / Embedding Provider、Tool Registry、权限矩阵和匿名评测基线。
+- 已建立不可变 Transcript revision、来源追踪、Segment 证据锚点、质量 issue 和章节模型。
+- 已定义 ASR / LLM / Embedding Provider、Tool Registry、权限矩阵和匿名评测基线。
 
 ---
 

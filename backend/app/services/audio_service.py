@@ -26,6 +26,8 @@ from ..models import (
     Setting,
     Tag,
     Transcript,
+    TranscriptChapter,
+    TranscriptIssue,
     TranscriptSegment,
     now_iso,
 )
@@ -480,20 +482,38 @@ def delete_audio_item(
     ).all():
         session.delete(event)
 
-    transcript = session.exec(
+    transcripts = session.exec(
         select(Transcript).where(Transcript.audio_id == audio_id)
-    ).first()
+    ).all()
+    transcript_ids = [int(row.id) for row in transcripts if row.id is not None]
 
-    if transcript:
-        for seg in session.exec(
-            select(TranscriptSegment).where(
-                TranscriptSegment.transcript_id == transcript.id
+    if transcript_ids:
+        for issue in session.exec(
+            select(TranscriptIssue).where(
+                TranscriptIssue.transcript_id.in_(transcript_ids)
             )
         ).all():
-            session.delete(seg)
+            session.delete(issue)
+        for chapter in session.exec(
+            select(TranscriptChapter).where(
+                TranscriptChapter.transcript_id.in_(transcript_ids)
+            )
+        ).all():
+            session.delete(chapter)
+        for segment in session.exec(
+            select(TranscriptSegment).where(
+                TranscriptSegment.transcript_id.in_(transcript_ids)
+            )
+        ).all():
+            session.delete(segment)
 
         session.flush()
-        session.delete(transcript)
+        for transcript in transcripts:
+            transcript.parent_revision_id = None
+            session.add(transcript)
+        session.flush()
+        for transcript in transcripts:
+            session.delete(transcript)
 
     if item.cover_path:
         _delete_managed_cover_file(item.cover_path)

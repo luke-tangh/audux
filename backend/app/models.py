@@ -139,12 +139,24 @@ class Transcript(SQLModel, table=True):
     __tablename__ = "transcripts"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    audio_id: int = Field(foreign_key="audio_items.id", unique=True, index=True)
+    audio_id: int = Field(foreign_key="audio_items.id", index=True)
+    revision_number: int = 1
+    parent_revision_id: Optional[int] = Field(
+        default=None,
+        foreign_key="transcripts.id",
+    )
+    is_current: bool = Field(default=True, index=True)
+    source_type: str = Field(default="asr", index=True)
+    provider_name: Optional[str] = None
     language: Optional[str] = None
     full_text: str
     model_name: Optional[str] = None
+    task_config_json: Optional[str] = None
+    glossary_version: Optional[str] = None
+    quality_metrics_json: Optional[str] = None
     status: str = "done"
     generated_at: str = Field(default_factory=now_iso)
+    accepted_at: Optional[str] = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
 
@@ -157,6 +169,39 @@ class TranscriptSegment(SQLModel, table=True):
     start_seconds: float
     end_seconds: float
     text: str
+
+
+class TranscriptChapter(SQLModel, table=True):
+    __tablename__ = "transcript_chapters"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    transcript_id: int = Field(foreign_key="transcripts.id", index=True)
+    chapter_index: int
+    title: str
+    start_seconds: float
+    end_seconds: float
+    source_type: str = "user"
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class TranscriptIssue(SQLModel, table=True):
+    __tablename__ = "transcript_issues"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    audio_id: int = Field(foreign_key="audio_items.id", index=True)
+    transcript_id: int = Field(foreign_key="transcripts.id", index=True)
+    segment_id: Optional[int] = Field(
+        default=None,
+        foreign_key="transcript_segments.id",
+    )
+    code: str = Field(index=True)
+    severity: str = Field(index=True)
+    evidence_json: str
+    status: str = Field(default="open", index=True)
+    closed_reason: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
 
 
 class AITask(SQLModel, table=True):

@@ -584,6 +584,55 @@
   font-size: 12px;
 }
 
+.inspector-panel .transcript-revision-metadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.inspector-panel .transcript-revision-metadata dt {
+  color: var(--app-color-text-muted);
+  font-size: 12px;
+}
+
+.inspector-panel .transcript-revision-metadata dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.inspector-panel .transcript-revision-history,
+.inspector-panel .transcript-issue-list,
+.inspector-panel .transcript-chapter-list {
+  margin-top: 12px;
+}
+
+.inspector-panel .transcript-issue-list,
+.inspector-panel .transcript-chapter-list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-panel .transcript-issue-list li,
+.inspector-panel .transcript-chapter-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.inspector-panel .transcript-chapter-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .inspector-panel .file-info-card dl {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);

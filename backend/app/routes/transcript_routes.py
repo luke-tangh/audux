@@ -2,7 +2,15 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from ..db import get_session
-from ..schemas import TranscriptCreate, TranscriptSegmentsUpdate, TranscriptUpdate
+from ..schemas import (
+    TranscriptChapterCreate,
+    TranscriptChapterMerge,
+    TranscriptChapterUpdate,
+    TranscriptCreate,
+    TranscriptIssueUpdate,
+    TranscriptSegmentsUpdate,
+    TranscriptUpdate,
+)
 from ..services import transcript_service
 from .utils import service_call
 
@@ -18,6 +26,29 @@ def enqueue_transcribe(audio_id: int, session: Session = Depends(get_session)):
 @router.get("/audio-items/{audio_id}/transcript")
 def get_transcript(audio_id: int, session: Session = Depends(get_session)):
     return service_call(transcript_service.get_transcript, session, audio_id)
+
+
+@router.get("/audio-items/{audio_id}/transcript/revisions")
+def list_transcript_revisions(audio_id: int, session: Session = Depends(get_session)):
+    return service_call(
+        transcript_service.list_transcript_revisions,
+        session,
+        audio_id,
+    )
+
+
+@router.get("/audio-items/{audio_id}/transcript/revisions/{revision_id}")
+def get_transcript_revision(
+    audio_id: int,
+    revision_id: int,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        transcript_service.get_transcript_revision,
+        session,
+        audio_id,
+        revision_id,
+    )
 
 
 @router.get("/audio-items/{audio_id}/transcript/export")
@@ -70,4 +101,88 @@ def update_transcript_segments(
         audio_id,
         payload.segments,
         payload.expected_updated_at,
+    )
+
+
+@router.delete("/audio-items/{audio_id}/transcript")
+def delete_transcript(audio_id: int, session: Session = Depends(get_session)):
+    return service_call(transcript_service.delete_transcript, session, audio_id)
+
+
+@router.post("/audio-items/{audio_id}/transcript/validate")
+def revalidate_transcript(audio_id: int, session: Session = Depends(get_session)):
+    return service_call(transcript_service.revalidate_transcript, session, audio_id)
+
+
+@router.patch("/audio-items/{audio_id}/transcript/issues/{issue_id}")
+def update_transcript_issue(
+    audio_id: int,
+    issue_id: int,
+    payload: TranscriptIssueUpdate,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        transcript_service.update_transcript_issue,
+        session,
+        audio_id,
+        issue_id,
+        payload,
+    )
+
+
+@router.post("/audio-items/{audio_id}/transcript/chapters")
+def create_transcript_chapter(
+    audio_id: int,
+    payload: TranscriptChapterCreate,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        transcript_service.create_chapter,
+        session,
+        audio_id,
+        payload,
+    )
+
+
+@router.post("/audio-items/{audio_id}/transcript/chapters/merge")
+def merge_transcript_chapters(
+    audio_id: int,
+    payload: TranscriptChapterMerge,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        transcript_service.merge_chapters,
+        session,
+        audio_id,
+        payload,
+    )
+
+
+@router.patch("/audio-items/{audio_id}/transcript/chapters/{chapter_id}")
+def update_transcript_chapter(
+    audio_id: int,
+    chapter_id: int,
+    payload: TranscriptChapterUpdate,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        transcript_service.update_chapter,
+        session,
+        audio_id,
+        chapter_id,
+        payload,
+    )
+
+
+@router.delete("/audio-items/{audio_id}/transcript/chapters/{chapter_id}")
+def delete_transcript_chapter(
+    audio_id: int,
+    chapter_id: int,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        transcript_service.delete_chapter,
+        session,
+        audio_id,
+        chapter_id,
     )

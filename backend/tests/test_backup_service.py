@@ -217,6 +217,22 @@ class TestDatabaseBackupService:
         self.set_value("snapshot")
         self.seed_library_data()
         backup = self.create_backup("目标快照")
+        with Session(self.engine) as session:
+            first_revision = session.exec(select(Transcript)).one()
+            first_revision.is_current = False
+            session.add(first_revision)
+            session.flush()
+            session.add(
+                Transcript(
+                    audio_id=first_revision.audio_id,
+                    revision_number=2,
+                    parent_revision_id=first_revision.id,
+                    is_current=True,
+                    source_type="manual",
+                    full_text="快照之后的修订",
+                )
+            )
+            session.commit()
         self.set_value("current")
         with Session(self.engine) as session:
             pending = backup_service.schedule_database_restore(session, backup["id"])
@@ -229,7 +245,10 @@ class TestDatabaseBackupService:
             assert session.exec(select(AudioItem.title_user)).one() == "快照音频"
             assert session.exec(select(Tag.name)).one() == "快照标签"
             assert session.exec(select(Playlist.name)).one() == "快照列表"
-            assert session.exec(select(Transcript.full_text)).one() == "快照转写"
+            restored_revisions = session.exec(select(Transcript)).all()
+            assert len(restored_revisions) == 1
+            assert restored_revisions[0].full_text == "快照转写"
+            assert restored_revisions[0].is_current is True
             assert len(session.exec(select(AITask)).all()) == 1
             assert len(session.exec(select(ScanTask)).all()) == 1
         assert not backup_service.PENDING_RESTORE_PATH.exists()

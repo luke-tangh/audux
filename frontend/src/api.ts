@@ -816,6 +816,12 @@ export const api = {
 
   getTranscript: (audioId: number) => request<Transcript>(`/audio-items/${audioId}/transcript`),
 
+  listTranscriptRevisions: (audioId: number) =>
+    request<Transcript["transcript"][]>(`/audio-items/${audioId}/transcript/revisions`),
+
+  getTranscriptRevision: (audioId: number, revisionId: number) =>
+    request<Transcript>(`/audio-items/${audioId}/transcript/revisions/${revisionId}`),
+
   updateTranscript: (audioId: number, fullText: string, expectedUpdatedAt: string) =>
     request<Transcript>(`/audio-items/${audioId}/transcript`, {
       method: "PATCH",
@@ -837,6 +843,64 @@ export const api = {
         segments
       })
     }),
+
+  validateTranscript: (audioId: number) =>
+    request<Transcript>(`/audio-items/${audioId}/transcript/validate`, {
+      method: "POST"
+    }),
+
+  updateTranscriptIssue: (
+    audioId: number,
+    issueId: number,
+    status: "open" | "resolved" | "dismissed",
+    closedReason?: string
+  ) =>
+    request<NonNullable<Transcript["issues"]>[number]>(
+      `/audio-items/${audioId}/transcript/issues/${issueId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ status, closed_reason: closedReason })
+      }
+    ),
+
+  createTranscriptChapter: (
+    audioId: number,
+    payload: {
+      expected_revision_id: number;
+      title: string;
+      start_seconds: number;
+      end_seconds: number;
+    }
+  ) =>
+    request<NonNullable<Transcript["chapters"]>[number]>(
+      `/audio-items/${audioId}/transcript/chapters`,
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
+
+  updateTranscriptChapter: (
+    audioId: number,
+    chapterId: number,
+    payload: { title?: string; start_seconds?: number; end_seconds?: number }
+  ) =>
+    request<NonNullable<Transcript["chapters"]>[number]>(
+      `/audio-items/${audioId}/transcript/chapters/${chapterId}`,
+      { method: "PATCH", body: JSON.stringify(payload) }
+    ),
+
+  deleteTranscriptChapter: (audioId: number, chapterId: number) =>
+    request<{ ok: boolean }>(
+      `/audio-items/${audioId}/transcript/chapters/${chapterId}`,
+      { method: "DELETE" }
+    ),
+
+  mergeTranscriptChapters: (audioId: number, chapterIds: number[], title?: string) =>
+    request<NonNullable<Transcript["chapters"]>[number]>(
+      `/audio-items/${audioId}/transcript/chapters/merge`,
+      {
+        method: "POST",
+        body: JSON.stringify({ chapter_ids: chapterIds, title })
+      }
+    ),
 
   transcriptExportUrl: (audioId: number, format: "txt" | "json" | "srt") =>
     appendAccessToken(

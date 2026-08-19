@@ -655,7 +655,9 @@ def find_relink_candidates(
 
 def _relink_impacts(session: Session, item: AudioItem) -> dict:
     transcript = session.exec(
-        select(Transcript).where(Transcript.audio_id == item.id)
+        select(Transcript)
+        .where(Transcript.audio_id == item.id)
+        .where(Transcript.is_current.is_(True))
     ).first()
     segment_count = 0
     if transcript and transcript.id is not None:

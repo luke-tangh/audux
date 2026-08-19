@@ -3,6 +3,8 @@ from typing import Optional
 
 import httpx
 
+from .providers import LLMCapabilities
+
 
 async def list_openai_compatible_models(
     endpoint: str,
@@ -71,7 +73,93 @@ async def call_openai_compatible_chat(
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(url, headers=headers, json=payload)
         resp.raise_for_status()
-        return resp.json()
+    return resp.json()
+
+
+async def probe_openai_compatible_capabilities(
+    endpoint: str,
+    model_name: str,
+    api_key: Optional[str] = None,
+    timeout: int = 60,
+) -> LLMCapabilities:
+    """Probe optional features independently; an unsupported probe is not a connection failure."""
+    url = endpoint.rstrip("/") + "/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    base = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": "Return a minimal test result."}],
+        "temperature": 0,
+        "max_tokens": 32,
+    }
+    tool = {
+        "type": "function",
+        "function": {
+            "name": "capability_probe",
+            "description": "Return the probe value.",
+            "parameters": {
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+                "required": ["value"],
+                "additionalProperties": False,
+            },
+        },
+    }
+    structured_output = False
+    tool_calling = False
+    streaming_tool_calling = False
+
+    probe_timeout = max(1, min(timeout, 10))
+    async with httpx.AsyncClient(timeout=probe_timeout) as client:
+        try:
+            response = await client.post(
+                url,
+                headers=headers,
+                json={
+                    **base,
+                    "messages": [
+                        {"role": "user", "content": 'Return JSON: {"ok":true}'}
+                    ],
+                    "response_format": {"type": "json_object"},
+                },
+            )
+            response.raise_for_status()
+            content = get_ai_message_content(response.json())
+            structured_output = isinstance(json.loads(content), dict)
+        except Exception:
+            structured_output = False
+
+        tool_payload = {
+            **base,
+            "tools": [tool],
+            "tool_choice": {"type": "function", "function": {"name": "capability_probe"}},
+        }
+        try:
+            response = await client.post(url, headers=headers, json=tool_payload)
+            response.raise_for_status()
+            message = response.json()["choices"][0]["message"]
+            tool_calling = bool(message.get("tool_calls"))
+        except Exception:
+            tool_calling = False
+
+        if tool_calling:
+            try:
+                response = await client.post(
+                    url,
+                    headers=headers,
+                    json={**tool_payload, "stream": True},
+                )
+                response.raise_for_status()
+                streaming_tool_calling = '"tool_calls"' in response.text
+            except Exception:
+                streaming_tool_calling = False
+
+    return LLMCapabilities(
+        structured_output=structured_output,
+        tool_calling=tool_calling,
+        streaming_tool_calling=streaming_tool_calling,
+    )
 
 
 def get_ai_message_content(response: dict) -> str:

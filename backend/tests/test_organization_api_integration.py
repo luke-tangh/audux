@@ -200,13 +200,16 @@ class TestOrganizationApi(ApiIntegrationTest):
         )
         assert updated.status_code == 200, updated.text
         assert updated.json()['transcript']['full_text'] == '手动修订后的关键文本'
-        assert updated.json()['transcript']['generated_at'] == generated_at
+        assert updated.json()['transcript']['generated_at'] != generated_at
+        assert updated.json()['transcript']['revision_number'] == 2
         assert updated.json()['segments'] == []
         assert updated.json()['cleared_segments'] == 1
 
         with Session(self.engine) as session:
             transcript = session.exec(
-                select(Transcript).where(Transcript.audio_id == self.audio.id)
+                select(Transcript)
+                .where(Transcript.audio_id == self.audio.id)
+                .where(Transcript.is_current.is_(True))
             ).one()
             assert transcript.model_name == 'test-model'
             assert session.exec(
@@ -216,6 +219,12 @@ class TestOrganizationApi(ApiIntegrationTest):
             ).all() == []
             assert search_audio_ids(session, '手动修订') == [self.audio.id]
             assert search_audio_ids(session, '旧的转写') == []
+            historical = session.exec(
+                select(Transcript)
+                .where(Transcript.audio_id == self.audio.id)
+                .where(Transcript.is_current.is_(False))
+            ).one()
+            assert historical.generated_at == generated_at
 
             audio = session.get(AudioItem, self.audio.id)
             audio.transcript_status = "running"

@@ -650,7 +650,9 @@ export default function DetailPanel({
 
         {activeTab === "transcript" && (
           <TranscriptTab
+            audioId={audio.id}
             transcript={transcript}
+            onTranscriptChanged={setTranscript}
             onTranscribe={transcribe}
             onExportTranscript={exportTranscript}
             onJumpToSegment={jumpToSegment}
