@@ -147,7 +147,7 @@ def _manifest_url() -> str:
     if configured:
         return configured
     return (
-        "https://github.com/luke-tangh/local-audio-library/releases/download/"
+        "https://github.com/luke-tangh/audux/releases/download/"
         f"v{APP_VERSION}/whisper-components.json"
     )
 

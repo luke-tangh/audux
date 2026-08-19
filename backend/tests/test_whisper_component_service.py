@@ -13,6 +13,16 @@ from tests import api_test_support  # noqa: F401
 from app.services import whisper_component_service as service
 
 
+def test_manifest_url_defaults_to_audux_release(monkeypatch):
+    monkeypatch.delenv(service.WHISPER_MANIFEST_URL_ENV, raising=False)
+    monkeypatch.setattr(service, "APP_VERSION", "1.2.3")
+
+    assert service._manifest_url() == (
+        "https://github.com/luke-tangh/audux/releases/download/"
+        "v1.2.3/whisper-components.json"
+    )
+
+
 @pytest.mark.parametrize(
     "url",
     [
