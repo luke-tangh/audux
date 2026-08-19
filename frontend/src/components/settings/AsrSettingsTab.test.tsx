@@ -36,7 +36,10 @@ function renderTab(
     onInstallWhisperComponent: vi.fn(),
     onCancelWhisperComponentInstall: vi.fn(),
     onRemoveWhisperComponent: vi.fn(),
-    onSaveAsr: vi.fn()
+    saveStatus: "idle" as const,
+    saveError: null,
+    onRetrySave: vi.fn(),
+    onFlushSave: vi.fn()
   };
 
   render(

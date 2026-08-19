@@ -881,6 +881,12 @@ export const api = {
       body: JSON.stringify({ key, value })
     }),
 
+  setSettingsSection: (section: "asr" | "llm", values: Record<string, string>) =>
+    request<{ key: string; value: string; updated_at: string }[]>(`/settings/${section}`, {
+      method: "PUT",
+      body: JSON.stringify({ values })
+    }),
+
   listSettings: () => request<{ key: string; value: string; updated_at: string }[]>("/settings"),
 
   getWhisperComponentStatus: () =>

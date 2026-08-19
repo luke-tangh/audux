@@ -20,7 +20,7 @@ const apiMocks = vi.hoisted(() => ({
   getLogs: vi.fn(),
   getLibraryHealth: vi.fn(),
   listLibraryHealthTasks: vi.fn(),
-  setSetting: vi.fn()
+  setSettingsSection: vi.fn()
 }));
 
 vi.mock("../api", () => ({
@@ -56,7 +56,7 @@ async function editLlmModel() {
   fireEvent.change(model, { target: { value: "local-model" } });
 }
 
-describe("unsaved settings navigation", () => {
+describe("settings auto-save", () => {
   beforeEach(() => {
     for (const mock of Object.values(apiMocks)) mock.mockReset();
 
@@ -95,32 +95,37 @@ describe("unsaved settings navigation", () => {
     apiMocks.getLogs.mockResolvedValue({ content: "" });
     apiMocks.getLibraryHealth.mockResolvedValue(null);
     apiMocks.listLibraryHealthTasks.mockResolvedValue([]);
-    apiMocks.setSetting.mockResolvedValue({});
+    apiMocks.setSettingsSection.mockResolvedValue([]);
   });
 
-  it("prompts to save before switching settings sections", async () => {
+  it("automatically saves a changed section as one grouped request", async () => {
     const { onDirtyChange } = renderPanel();
     await waitFor(() => expect(apiMocks.listSettings).toHaveBeenCalled());
     await editLlmModel();
     await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true));
 
-    fireEvent.click(screen.getByRole("button", { name: "ASR" }));
-    const dialog = await screen.findByRole("dialog", {
-      name: /保存未保存的设置|Save unsaved settings/
+    await waitFor(() => {
+      expect(apiMocks.setSettingsSection).toHaveBeenCalledTimes(1);
+    }, { timeout: 2000 });
+    expect(apiMocks.setSettingsSection).toHaveBeenCalledWith("llm", {
+      "llm.endpoint": "",
+      "llm.model_name": "local-model",
+      "llm.api_key": "",
+      "llm.timeout": "60",
+      "llm.max_tokens": "800",
+      "llm.temperature": "0.2",
+      "llm.allow_remote_endpoint": "false",
+      "ai.output_language": "auto"
     });
-    expect(dialog).toHaveTextContent("LLM");
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+    expect(await screen.findByText(/已自动保存|Auto-saved/)).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: /继续编辑|Keep editing/ }));
-    expect(screen.getByRole("button", { name: "LLM" })).toHaveAttribute(
-      "aria-current",
-      "page"
-    );
-    expect(screen.getByLabelText(/模型名称|Model name/)).toHaveValue("local-model");
-
+  it("flushes auto-save before switching settings sections", async () => {
+    renderPanel();
+    await waitFor(() => expect(apiMocks.listSettings).toHaveBeenCalled());
+    await editLlmModel();
     fireEvent.click(screen.getByRole("button", { name: "ASR" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: /保存并离开|Save and leave/ })
-    );
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "ASR" })).toHaveAttribute(
@@ -128,11 +133,28 @@ describe("unsaved settings navigation", () => {
         "page"
       );
     });
-    expect(apiMocks.setSetting).toHaveBeenCalledWith("llm.model_name", "local-model");
-    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+    expect(apiMocks.setSettingsSection).toHaveBeenCalledTimes(1);
   });
 
-  it("exposes the same save guard when leaving the settings page", async () => {
+  it("keeps invalid drafts local instead of sending them to the backend", async () => {
+    const { onDirtyChange } = renderPanel();
+    await waitFor(() => expect(apiMocks.listSettings).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "LLM" }));
+    fireEvent.click(await screen.findByRole("checkbox", {
+      name: /显示高级设置|Show advanced settings/
+    }));
+    fireEvent.change(screen.getByLabelText(/Timeout/), {
+      target: { value: "" }
+    });
+
+    expect(await screen.findByText(
+      /LLM Timeout 必须为|LLM timeout must be/
+    )).toBeInTheDocument();
+    expect(apiMocks.setSettingsSection).not.toHaveBeenCalled();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it("flushes the latest change when leaving the settings page", async () => {
     let beforeLeave: (() => Promise<boolean>) | null = null;
     const onBeforeLeaveChange = vi.fn((handler: (() => Promise<boolean>) | null) => {
       beforeLeave = handler;
@@ -146,36 +168,26 @@ describe("unsaved settings navigation", () => {
     act(() => {
       leaveResult = beforeLeave!();
     });
-    fireEvent.click(
-      await screen.findByRole("button", { name: /继续编辑|Keep editing/ })
-    );
-    await expect(leaveResult!).resolves.toBe(false);
-
-    act(() => {
-      leaveResult = beforeLeave!();
-    });
-    fireEvent.click(
-      await screen.findByRole("button", { name: /保存并离开|Save and leave/ })
-    );
     await expect(leaveResult!).resolves.toBe(true);
+    expect(apiMocks.setSettingsSection).toHaveBeenCalledTimes(1);
   });
 
-  it("stays on the current section when saving fails", async () => {
-    apiMocks.setSetting.mockRejectedValueOnce(new Error("save failed"));
+  it("stays on the current section and exposes retry when auto-save fails", async () => {
+    apiMocks.setSettingsSection.mockRejectedValueOnce(new Error("save failed"));
     renderPanel();
     await waitFor(() => expect(apiMocks.listSettings).toHaveBeenCalled());
     await editLlmModel();
 
     fireEvent.click(screen.getByRole("button", { name: "ASR" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: /保存并离开|Save and leave/ })
-    );
-
-    await waitFor(() => expect(apiMocks.setSetting).toHaveBeenCalled());
+    const dialog = await screen.findByRole("dialog", {
+      name: /设置尚未保存|Settings not saved/
+    });
+    expect(dialog).toHaveTextContent(/自动保存未能完成|Auto-save could not finish/);
     expect(screen.getByRole("button", { name: "LLM" })).toHaveAttribute(
       "aria-current",
       "page"
     );
     expect(screen.getByLabelText(/模型名称|Model name/)).toHaveValue("local-model");
+    expect(screen.getByRole("button", { name: /重试|Retry/ })).toBeInTheDocument();
   });
 });

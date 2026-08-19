@@ -9,10 +9,12 @@ import {
 } from "../ui";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
+import type { AutoSaveStatus } from "../../hooks/useAutoSaveSection";
 import type {
   ExternalAsrPreprocessingStatus,
   WhisperComponentStatus
 } from "../../types";
+import SettingsAutoSaveStatus from "./SettingsAutoSaveStatus";
 
 type AsrSettingsTabProps = {
   asrProvider: string;
@@ -64,7 +66,10 @@ type AsrSettingsTabProps = {
   onInstallWhisperComponent: () => void;
   onCancelWhisperComponentInstall: () => void;
   onRemoveWhisperComponent: () => void;
-  onSaveAsr: () => void;
+  saveStatus: AutoSaveStatus;
+  saveError: string | null;
+  onRetrySave: () => void;
+  onFlushSave: () => void;
 };
 
 function formatBytes(value: number): string {
@@ -123,7 +128,10 @@ export default function AsrSettingsTab({
   onInstallWhisperComponent,
   onCancelWhisperComponentInstall,
   onRemoveWhisperComponent,
-  onSaveAsr
+  saveStatus,
+  saveError,
+  onRetrySave,
+  onFlushSave
 }: AsrSettingsTabProps) {
   const { t } = useTranslation();
   const [advanced, setAdvanced] = useState(false);
@@ -155,7 +163,17 @@ export default function AsrSettingsTab({
   }
 
   return (
-    <div className={`settings-tab-stack ${advanced ? "settings-mode-advanced" : "settings-mode-basic"}`}>
+    <div
+      className={`settings-tab-stack ${advanced ? "settings-mode-advanced" : "settings-mode-basic"}`}
+      onBlurCapture={(event) => {
+        if (
+          event.target instanceof HTMLInputElement ||
+          event.target instanceof HTMLTextAreaElement
+        ) {
+          window.setTimeout(onFlushSave, 0);
+        }
+      }}
+    >
       <PanelCard title={t("settings.asr.presetsTitle")} className="max-form-card">
         <div className="settings-preset-grid">
           {(["fast", "balanced", "accurate", "external"] as const).map((preset) => (
@@ -239,11 +257,6 @@ export default function AsrSettingsTab({
         <PanelCard
           title={t("settings.asr.chunkingTitle")}
           className="max-form-card"
-          actions={
-            <Button variant="filled" onClick={onSaveAsr}>
-              {t("settings.asr.save")}
-            </Button>
-          }
         >
           <div className="settings-form-grid">
             <CheckboxField
@@ -334,9 +347,11 @@ export default function AsrSettingsTab({
         title={t("settings.asr.providerTitle")}
         className="max-form-card"
         actions={
-          <Button variant="filled" onClick={onSaveAsr}>
-            {t("settings.asr.save")}
-          </Button>
+          <SettingsAutoSaveStatus
+            status={saveStatus}
+            error={saveError}
+            onRetry={onRetrySave}
+          />
         }
       >
       <div className="settings-form-grid">

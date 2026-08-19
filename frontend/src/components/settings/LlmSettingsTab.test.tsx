@@ -16,7 +16,10 @@ function renderTab(overrides: Partial<ComponentProps<typeof LlmSettingsTab>> = {
     onLlmAllowRemoteEndpointChange: vi.fn(),
     onAiOutputLanguageChange: vi.fn(),
     onDiscoverLlmModels: vi.fn().mockResolvedValue(["model-a", "model-b"]),
-    onSaveLlm: vi.fn(),
+    saveStatus: "idle" as const,
+    saveError: null,
+    onRetrySave: vi.fn(),
+    onFlushSave: vi.fn(),
     onTestLlm: vi.fn()
   };
 

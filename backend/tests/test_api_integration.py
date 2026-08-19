@@ -65,6 +65,40 @@ class TestLocalApiSecurity(ApiIntegrationTest):
         assert accepted.status_code == 200
         assert accepted.json()['value'] == 'sampled'
 
+    def test_settings_sections_are_validated_and_saved_as_a_group(self):
+        values = {
+            "llm.endpoint": "http://127.0.0.1:1234/v1",
+            "llm.model_name": "local-model",
+            "llm.api_key": "",
+            "llm.timeout": "60",
+            "llm.max_tokens": "800",
+            "llm.temperature": "0.20",
+            "llm.allow_remote_endpoint": "false",
+            "ai.output_language": "auto",
+        }
+        saved = self.client.put(
+            "/settings/llm",
+            headers=self.auth_headers(include_client=True),
+            json={"values": values},
+        )
+
+        assert saved.status_code == 200
+        assert len(saved.json()) == len(values)
+        with Session(self.engine) as session:
+            assert session.get(Setting, "llm.model_name").value == "local-model"
+            assert session.get(Setting, "llm.temperature").value == "0.20"
+
+        invalid_values = {**values, "llm.model_name": "partial", "llm.timeout": ""}
+        rejected = self.client.put(
+            "/settings/llm",
+            headers=self.auth_headers(include_client=True),
+            json={"values": invalid_values},
+        )
+        assert rejected.status_code == 400
+        assert rejected.json()["detail"]["code"] == "settings.invalid_value"
+        with Session(self.engine) as session:
+            assert session.get(Setting, "llm.model_name").value == "local-model"
+
     def test_token_file_is_private_and_not_stored_as_a_setting(
         self,
         monkeypatch: pytest.MonkeyPatch,

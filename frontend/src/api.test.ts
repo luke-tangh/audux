@@ -74,6 +74,32 @@ describe("local API client", () => {
     );
   });
 
+  it("sends an entire settings section in one authenticated request", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ token: "settings-token" }))
+      .mockResolvedValueOnce(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { api, LOCAL_AUDIO_CLIENT_HEADER } = await import("./api");
+    const values = {
+      "llm.endpoint": "http://127.0.0.1:1234/v1",
+      "llm.model_name": "local-model"
+    };
+    await api.setSettingsSection("llm", values);
+
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "http://127.0.0.1:8765/settings/llm"
+    );
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({
+      method: "PUT",
+      body: JSON.stringify({ values })
+    });
+    expect(requestHeaders(fetchMock, 1)[LOCAL_AUDIO_CLIENT_HEADER]).toBe(
+      "local-audio-library"
+    );
+  });
+
   it("shares one token request across concurrent protected calls", async () => {
     const fetchMock = vi.fn((input: string | URL | Request) => {
       const url = String(input);

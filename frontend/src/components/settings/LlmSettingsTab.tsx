@@ -1,6 +1,8 @@
 import { Button, CheckboxField, PanelCard, SelectField, TextField } from "../ui";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
+import type { AutoSaveStatus } from "../../hooks/useAutoSaveSection";
+import SettingsAutoSaveStatus from "./SettingsAutoSaveStatus";
 
 type ServicePreset = "ollama" | "lmstudio" | "custom";
 
@@ -32,7 +34,10 @@ type LlmSettingsTabProps = {
   onLlmAllowRemoteEndpointChange: (value: boolean) => void;
   onAiOutputLanguageChange: (value: string) => void;
   onDiscoverLlmModels: () => Promise<string[] | null>;
-  onSaveLlm: () => void;
+  saveStatus: AutoSaveStatus;
+  saveError: string | null;
+  onRetrySave: () => void;
+  onFlushSave: () => void;
   onTestLlm: () => void;
 };
 
@@ -56,7 +61,10 @@ export default function LlmSettingsTab({
   onLlmAllowRemoteEndpointChange,
   onAiOutputLanguageChange,
   onDiscoverLlmModels,
-  onSaveLlm,
+  saveStatus,
+  saveError,
+  onRetrySave,
+  onFlushSave,
   onTestLlm
 }: LlmSettingsTabProps) {
   const { t } = useTranslation();
@@ -117,7 +125,17 @@ export default function LlmSettingsTab({
     }
   }
   return (
-    <div className={`settings-tab-stack ${advanced ? "settings-mode-advanced" : "settings-mode-basic"}`}>
+    <div
+      className={`settings-tab-stack ${advanced ? "settings-mode-advanced" : "settings-mode-basic"}`}
+      onBlurCapture={(event) => {
+        if (
+          event.target instanceof HTMLInputElement ||
+          event.target instanceof HTMLTextAreaElement
+        ) {
+          window.setTimeout(onFlushSave, 0);
+        }
+      }}
+    >
       <PanelCard title={t("settings.llm.presetsTitle")} className="max-form-card">
         <div className="settings-preset-grid">
           {(["ollama", "lmstudio", "custom"] as const).map((preset) => (
@@ -139,9 +157,11 @@ export default function LlmSettingsTab({
       title={t("settings.llm.title")}
       className="max-form-card"
       actions={
-        <Button variant="filled" onClick={onSaveLlm}>
-          {t("settings.llm.save")}
-        </Button>
+        <SettingsAutoSaveStatus
+          status={saveStatus}
+          error={saveError}
+          onRetry={onRetrySave}
+        />
       }
     >
       <div className="settings-form-grid">

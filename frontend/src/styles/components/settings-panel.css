@@ -369,6 +369,35 @@
   gap: 14px;
 }
 
+.settings-panel .settings-auto-save-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  max-width: min(420px, 55vw);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.settings-panel .settings-auto-save-status.saving,
+.settings-panel .settings-auto-save-status.dirty {
+  color: var(--md-sys-color-primary);
+}
+
+.settings-panel .settings-auto-save-status.saved {
+  color: var(--md-sys-color-on-success-container);
+}
+
+.settings-panel .settings-auto-save-status.error {
+  color: var(--md-sys-color-error);
+}
+
+.settings-panel .settings-auto-save-status.error > span {
+  overflow-wrap: anywhere;
+}
+
 .settings-panel .whisper-component-status strong,
 .settings-panel .whisper-component-status span {
   display: block;

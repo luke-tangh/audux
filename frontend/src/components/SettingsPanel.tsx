@@ -23,6 +23,7 @@ import { useTheme } from "../theme";
 import { useLocale } from "../i18n/LocaleProvider";
 import { useTranslation } from "react-i18next";
 import { localizedPrivacyWarning, localizedStoredError } from "../i18n/errors";
+import { useAutoSaveSection } from "../hooks/useAutoSaveSection";
 import AsrSettingsTab from "./settings/AsrSettingsTab";
 import LibrarySettingsTab from "./settings/LibrarySettingsTab";
 import HealthSettingsTab from "./settings/HealthSettingsTab";
@@ -44,6 +45,22 @@ type Props = {
   onBeforeLeaveChange?: (handler: (() => Promise<boolean>) | null) => void;
   onDirtyChange?: (dirty: boolean) => void;
 };
+
+function validHttpEndpoint(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      Boolean(parsed.hostname) &&
+      !parsed.username &&
+      !parsed.password &&
+      !parsed.search &&
+      !parsed.hash
+    );
+  } catch {
+    return false;
+  }
+}
 
 export default function SettingsPanel({
   refresh,
@@ -116,8 +133,6 @@ export default function SettingsPanel({
   const [llmAllowRemoteEndpoint, setLlmAllowRemoteEndpoint] = useState(false);
   const [aiOutputLanguage, setAiOutputLanguage] = useState("auto");
   const [settingsLoadVersion, setSettingsLoadVersion] = useState(0);
-  const [savedAsrSignature, setSavedAsrSignature] = useState<string | null>(null);
-  const [savedLlmSignature, setSavedLlmSignature] = useState<string | null>(null);
 
   const [llmTestResult, setLlmTestResult] = useState("");
   const [backendStatus, setBackendStatus] = useState("checking");
@@ -127,41 +142,69 @@ export default function SettingsPanel({
   const scanInitializedRef = useRef(false);
   const beforeLeaveRef = useRef<() => Promise<boolean>>(async () => true);
 
-  const asrSignature = JSON.stringify([
-    asrProvider,
-    asrModelName,
-    asrDevice,
-    asrComputeType,
-    asrBeamSize,
-    asrExternalEndpoint,
-    asrExternalModelName,
-    asrExternalApiKey,
-    asrExternalLanguage,
-    asrExternalTimestampPolicy,
-    asrExternalTimeout,
-    asrExternalAllowRemoteEndpoint,
-    asrExternalChunkingEnabled,
-    asrExternalChunkSeconds,
-    asrExternalChunkOverlapSeconds,
-    asrExternalChunkConcurrency,
-    asrExternalPreferSilence,
-    asrExternalVadThreshold,
-    asrExternalMinimumSilenceMs,
-    asrExternalFormattingEnabled,
-    asrExternalCaseGlossary
-  ]);
-  const llmSignature = JSON.stringify([
-    llmEndpoint,
-    llmModel,
-    llmApiKey,
-    llmTimeout,
-    llmMaxTokens,
-    llmTemperature,
-    llmAllowRemoteEndpoint,
-    aiOutputLanguage
-  ]);
-  const asrDirty = savedAsrSignature !== null && asrSignature !== savedAsrSignature;
-  const llmDirty = savedLlmSignature !== null && llmSignature !== savedLlmSignature;
+  const asrSettingsValues: Record<string, string> = {
+    "asr.provider": asrProvider,
+    "asr.model_name": asrModelName.trim(),
+    "asr.device": asrDevice.trim(),
+    "asr.compute_type": asrComputeType.trim(),
+    "asr.beam_size": asrBeamSize.trim(),
+    "asr.external.endpoint": asrExternalEndpoint.trim(),
+    "asr.external.model_name": asrExternalModelName.trim(),
+    "asr.external.api_key": asrExternalApiKey,
+    "asr.external.language": asrExternalLanguage.trim(),
+    "asr.external.timestamp_policy": asrExternalTimestampPolicy,
+    "asr.external.timeout": asrExternalTimeout.trim(),
+    "asr.external.allow_remote_endpoint": asrExternalAllowRemoteEndpoint
+      ? "true"
+      : "false",
+    "asr.external.chunking_enabled": asrExternalChunkingEnabled
+      ? "true"
+      : "false",
+    "asr.external.chunk_seconds": asrExternalChunkSeconds.trim(),
+    "asr.external.chunk_overlap_seconds": asrExternalChunkOverlapSeconds.trim(),
+    "asr.external.chunk_concurrency": asrExternalChunkConcurrency.trim(),
+    "asr.external.prefer_silence": asrExternalPreferSilence ? "true" : "false",
+    "asr.external.vad_threshold": asrExternalVadThreshold.trim(),
+    "asr.external.minimum_silence_ms": asrExternalMinimumSilenceMs.trim(),
+    "asr.external.formatting_enabled": asrExternalFormattingEnabled
+      ? "true"
+      : "false",
+    "asr.external.case_glossary": asrExternalCaseGlossary
+  };
+  const llmSettingsValues: Record<string, string> = {
+    "llm.endpoint": llmEndpoint.trim(),
+    "llm.model_name": llmModel.trim(),
+    "llm.api_key": llmApiKey,
+    "llm.timeout": llmTimeout.trim(),
+    "llm.max_tokens": llmMaxTokens.trim(),
+    "llm.temperature": llmTemperature.trim(),
+    "llm.allow_remote_endpoint": llmAllowRemoteEndpoint ? "true" : "false",
+    "ai.output_language": aiOutputLanguage
+  };
+  const asrSignature = JSON.stringify(asrSettingsValues);
+  const llmSignature = JSON.stringify(llmSettingsValues);
+  const asrAutoSave = useAutoSaveSection({
+    value: asrSettingsValues,
+    signature: asrSignature,
+    enabled: settingsLoadVersion > 0,
+    resetVersion: settingsLoadVersion,
+    validate: validateAsrSettings,
+    save: async (values) => {
+      await api.setSettingsSection("asr", values);
+    }
+  });
+  const llmAutoSave = useAutoSaveSection({
+    value: llmSettingsValues,
+    signature: llmSignature,
+    enabled: settingsLoadVersion > 0,
+    resetVersion: settingsLoadVersion,
+    validate: validateLlmSettings,
+    save: async (values) => {
+      await api.setSettingsSection("llm", values);
+    }
+  });
+  const asrDirty = asrAutoSave.isDirty;
+  const llmDirty = llmAutoSave.isDirty;
   const settingsDirty = asrDirty || llmDirty;
 
   function applyScanTasks(rows: ScanTask[], allowNotify = true) {
@@ -423,13 +466,6 @@ export default function SettingsPanel({
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (settingsLoadVersion === 0) return;
-
-    setSavedAsrSignature(asrSignature);
-    setSavedLlmSignature(llmSignature);
-  }, [settingsLoadVersion]);
-
   async function chooseFolder() {
     const selected = await pickAudioFolder();
 
@@ -578,141 +614,83 @@ export default function SettingsPanel({
     }
   }
 
-  async function saveAsr(): Promise<boolean> {
-    if (asrProvider === "faster_whisper" && !whisperComponent?.available) {
-      notify?.(t("settings.asr.installRequired"), "error");
-      return false;
+  function validateAsrSettings(values: Record<string, string>): string | null {
+    const provider = values["asr.provider"];
+    if (provider === "faster_whisper") {
+      const beamSize = Number(values["asr.beam_size"]);
+      if (
+        !values["asr.model_name"] ||
+        !values["asr.device"] ||
+        !values["asr.compute_type"] ||
+        !Number.isInteger(beamSize) ||
+        beamSize <= 0
+      ) {
+        return t("settings.autoSave.asrLocalInvalid");
+      }
+      return null;
     }
 
-    const warning = asrEndpointPrivacyWarning(asrExternalEndpoint);
+    const endpoint = values["asr.external.endpoint"];
     if (
-      asrProvider === "external" &&
+      !endpoint ||
+      !validHttpEndpoint(endpoint) ||
+      !values["asr.external.model_name"]
+    ) {
+      return t("settings.autoSave.externalAsrRequired");
+    }
+
+    const warning = asrEndpointPrivacyWarning(endpoint);
+    if (
       warning &&
-      !asrExternalAllowRemoteEndpoint
+      values["asr.external.allow_remote_endpoint"] !== "true"
     ) {
-      notify?.(t("settings.asr.allowRemoteRequired"), "error");
-      return false;
+      return t("settings.asr.allowRemoteRequired");
     }
 
-    const chunkSeconds = Number(asrExternalChunkSeconds);
-    const overlapSeconds = Number(asrExternalChunkOverlapSeconds);
-    const chunkConcurrency = Number(asrExternalChunkConcurrency);
-    const vadThreshold = Number(asrExternalVadThreshold);
-    const minimumSilenceMs = Number(asrExternalMinimumSilenceMs);
-    if (
-      asrProvider === "external" &&
-      asrExternalChunkingEnabled &&
-      (!Number.isFinite(chunkSeconds) ||
-        chunkSeconds < 5 ||
-        chunkSeconds > 600 ||
-        !Number.isFinite(overlapSeconds) ||
-        overlapSeconds < 0 ||
-        overlapSeconds > 10 ||
-        overlapSeconds >= chunkSeconds / 2 ||
-        !Number.isInteger(chunkConcurrency) ||
-        chunkConcurrency < 1 ||
-        chunkConcurrency > 4 ||
-        !Number.isFinite(vadThreshold) ||
-        vadThreshold < 0.1 ||
-        vadThreshold > 0.9 ||
-        !Number.isInteger(minimumSilenceMs) ||
-        minimumSilenceMs < 100 ||
-        minimumSilenceMs > 5000)
-    ) {
-      notify?.(t("settings.asr.chunkingInvalid"), "error");
-      return false;
+    const timeout = Number(values["asr.external.timeout"]);
+    if (!Number.isInteger(timeout) || timeout <= 0) {
+      return t("settings.autoSave.timeoutInvalid");
     }
 
+    const chunkSeconds = Number(values["asr.external.chunk_seconds"]);
+    const overlapSeconds = Number(
+      values["asr.external.chunk_overlap_seconds"]
+    );
+    const chunkConcurrency = Number(
+      values["asr.external.chunk_concurrency"]
+    );
+    const vadThreshold = Number(values["asr.external.vad_threshold"]);
+    const minimumSilenceMs = Number(
+      values["asr.external.minimum_silence_ms"]
+    );
     if (
-      asrProvider === "external" &&
-      asrExternalFormattingEnabled &&
-      !validCaseGlossary(asrExternalCaseGlossary)
+      !Number.isFinite(chunkSeconds) ||
+      chunkSeconds < 5 ||
+      chunkSeconds > 600 ||
+      !Number.isFinite(overlapSeconds) ||
+      overlapSeconds < 0 ||
+      overlapSeconds > 10 ||
+      overlapSeconds >= chunkSeconds / 2 ||
+      !Number.isInteger(chunkConcurrency) ||
+      chunkConcurrency < 1 ||
+      chunkConcurrency > 4 ||
+      !Number.isFinite(vadThreshold) ||
+      vadThreshold < 0.1 ||
+      vadThreshold > 0.9 ||
+      !Number.isInteger(minimumSilenceMs) ||
+      minimumSilenceMs < 100 ||
+      minimumSilenceMs > 5000
     ) {
-      notify?.(t("settings.asr.caseGlossaryInvalid"), "error");
-      return false;
+      return t("settings.asr.chunkingInvalid");
     }
 
     if (
-      asrProvider === "external" &&
-      asrExternalChunkingEnabled &&
-      !externalAsrPreprocessing?.available
+      values["asr.external.formatting_enabled"] === "true" &&
+      !validCaseGlossary(values["asr.external.case_glossary"])
     ) {
-      notify?.(t("settings.asr.ffmpegInstallRequired"), "error");
-      return false;
+      return t("settings.asr.caseGlossaryInvalid");
     }
-
-    try {
-      await api.setSetting("asr.provider", asrProvider);
-      await api.setSetting("asr.model_name", asrModelName.trim() || "small");
-      await api.setSetting("asr.device", asrDevice.trim() || "cpu");
-      await api.setSetting("asr.compute_type", asrComputeType.trim() || "int8");
-      await api.setSetting("asr.beam_size", asrBeamSize.trim() || "5");
-      await api.setSetting("asr.external.endpoint", asrExternalEndpoint.trim());
-      await api.setSetting(
-        "asr.external.model_name",
-        asrExternalModelName.trim()
-      );
-      await api.setSetting("asr.external.api_key", asrExternalApiKey);
-      await api.setSetting(
-        "asr.external.language",
-        asrExternalLanguage.trim() || "auto"
-      );
-      await api.setSetting(
-        "asr.external.timestamp_policy",
-        asrExternalTimestampPolicy
-      );
-      await api.setSetting(
-        "asr.external.timeout",
-        asrExternalTimeout.trim() || "3600"
-      );
-      await api.setSetting(
-        "asr.external.allow_remote_endpoint",
-        asrExternalAllowRemoteEndpoint ? "true" : "false"
-      );
-      await api.setSetting(
-        "asr.external.chunking_enabled",
-        asrExternalChunkingEnabled ? "true" : "false"
-      );
-      await api.setSetting(
-        "asr.external.chunk_seconds",
-        asrExternalChunkSeconds.trim() || "28"
-      );
-      await api.setSetting(
-        "asr.external.chunk_overlap_seconds",
-        asrExternalChunkOverlapSeconds.trim() || "1"
-      );
-      await api.setSetting(
-        "asr.external.chunk_concurrency",
-        asrExternalChunkConcurrency.trim() || "1"
-      );
-      await api.setSetting(
-        "asr.external.prefer_silence",
-        asrExternalPreferSilence ? "true" : "false"
-      );
-      await api.setSetting(
-        "asr.external.vad_threshold",
-        asrExternalVadThreshold.trim() || "0.5"
-      );
-      await api.setSetting(
-        "asr.external.minimum_silence_ms",
-        asrExternalMinimumSilenceMs.trim() || "400"
-      );
-      await api.setSetting(
-        "asr.external.formatting_enabled",
-        asrExternalFormattingEnabled ? "true" : "false"
-      );
-      await api.setSetting(
-        "asr.external.case_glossary",
-        asrExternalCaseGlossary
-      );
-
-      setSavedAsrSignature(asrSignature);
-      notify?.(t("settings.asr.saved"), "success");
-      return true;
-    } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
-      return false;
-    }
+    return null;
   }
 
   async function installWhisperComponent() {
@@ -756,33 +734,35 @@ export default function SettingsPanel({
     }
   }
 
-  async function saveLlm(): Promise<boolean> {
-    const warning = endpointPrivacyWarning(llmEndpoint);
-    if (warning && !llmAllowRemoteEndpoint) {
-      notify?.(t("settings.llm.allowRemoteRequired"), "error");
-      return false;
+  function validateLlmSettings(values: Record<string, string>): string | null {
+    const endpoint = values["llm.endpoint"];
+    if (endpoint && !validHttpEndpoint(endpoint)) {
+      return t("settings.autoSave.llmEndpointInvalid");
+    }
+    if (
+      endpointPrivacyWarning(endpoint) &&
+      values["llm.allow_remote_endpoint"] !== "true"
+    ) {
+      return t("settings.llm.allowRemoteRequired");
     }
 
-    try {
-      await api.setSetting("llm.endpoint", llmEndpoint.trim());
-      await api.setSetting("llm.model_name", llmModel.trim());
-      await api.setSetting("llm.api_key", llmApiKey);
-      await api.setSetting("llm.timeout", llmTimeout.trim() || "60");
-      await api.setSetting("llm.max_tokens", llmMaxTokens.trim() || "800");
-      await api.setSetting("llm.temperature", llmTemperature.trim() || "0.2");
-      await api.setSetting("ai.output_language", aiOutputLanguage);
-      await api.setSetting(
-        "llm.allow_remote_endpoint",
-        llmAllowRemoteEndpoint ? "true" : "false"
-      );
-
-      setSavedLlmSignature(llmSignature);
-      notify?.(t("settings.llm.saved"), "success");
-      return true;
-    } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
-      return false;
+    const timeout = Number(values["llm.timeout"]);
+    const maxTokens = Number(values["llm.max_tokens"]);
+    const temperature = Number(values["llm.temperature"]);
+    if (
+      !Number.isInteger(timeout) ||
+      timeout < 1 ||
+      timeout > 3600 ||
+      !Number.isInteger(maxTokens) ||
+      maxTokens <= 0 ||
+      !values["llm.temperature"] ||
+      !Number.isFinite(temperature) ||
+      temperature < 0 ||
+      temperature > 2
+    ) {
+      return t("settings.autoSave.llmParametersInvalid");
     }
+    return null;
   }
 
   async function testLlm() {
@@ -1242,28 +1222,28 @@ export default function SettingsPanel({
   }
 
   async function saveDirtySettings() {
-    if (asrDirty && !(await saveAsr())) return false;
-    if (llmDirty && !(await saveLlm())) return false;
+    if (asrDirty && !(await asrAutoSave.flush())) {
+      setActiveTab("asr");
+      return false;
+    }
+    if (llmDirty && !(await llmAutoSave.flush())) {
+      setActiveTab("llm");
+      return false;
+    }
     return true;
   }
 
   async function requestBeforeLeave() {
     if (!settingsDirty) return true;
 
-    const sections = [
-      asrDirty ? t("settings.tabs.asr") : "",
-      llmDirty ? t("settings.tabs.llm") : ""
-    ].filter(Boolean).join(t("settings.unsaved.sectionSeparator"));
-    const shouldSave = await dialog.confirm({
-      title: t("settings.unsaved.title"),
-      message: t("settings.unsaved.message", { sections }),
-      confirmLabel: t("settings.unsaved.saveAndLeave"),
-      cancelLabel: t("settings.unsaved.keepEditing"),
+    if (await saveDirtySettings()) return true;
+    await dialog.alert({
+      title: t("settings.autoSave.leaveBlockedTitle"),
+      message: t("settings.autoSave.leaveBlockedMessage"),
+      confirmLabel: t("common.actions.close"),
       tone: "warning"
     });
-
-    if (!shouldSave) return false;
-    return saveDirtySettings();
+    return false;
   }
 
   async function requestTabChange(nextTab: SettingsTab) {
@@ -1448,7 +1428,12 @@ export default function SettingsPanel({
             onInstallWhisperComponent={installWhisperComponent}
             onCancelWhisperComponentInstall={cancelWhisperComponentInstall}
             onRemoveWhisperComponent={removeWhisperComponent}
-            onSaveAsr={saveAsr}
+            saveStatus={asrAutoSave.status}
+            saveError={asrAutoSave.error}
+            onRetrySave={asrAutoSave.retry}
+            onFlushSave={() => {
+              void asrAutoSave.flush();
+            }}
           />
         )}
 
@@ -1473,7 +1458,12 @@ export default function SettingsPanel({
             onLlmAllowRemoteEndpointChange={setLlmAllowRemoteEndpoint}
             onAiOutputLanguageChange={setAiOutputLanguage}
             onDiscoverLlmModels={discoverLlmModels}
-            onSaveLlm={saveLlm}
+            saveStatus={llmAutoSave.status}
+            saveError={llmAutoSave.error}
+            onRetrySave={llmAutoSave.retry}
+            onFlushSave={() => {
+              void llmAutoSave.flush();
+            }}
             onTestLlm={testLlm}
           />
         )}

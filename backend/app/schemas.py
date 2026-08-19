@@ -134,6 +134,10 @@ class SettingUpdate(BaseModel):
     value: str
 
 
+class SettingsSectionUpdate(BaseModel):
+    values: dict[str, str] = Field(min_length=1, max_length=32)
+
+
 class DatabaseBackupCreate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=80)
 

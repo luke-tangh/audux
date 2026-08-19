@@ -399,6 +399,20 @@ async function mockManagementApi(page: Page, state: MockState) {
       return;
     }
 
+    if (method === "PUT" && url.pathname.startsWith("/settings/")) {
+      const body = parseRequestBody(request) as { values: Record<string, string> };
+      state.mutations.push({ method, path: url.pathname, body });
+      await route.fulfill({
+        json: Object.entries(body.values).map(([key, value]) => ({
+          key,
+          value,
+          updated_at: NOW
+        })),
+        headers
+      });
+      return;
+    }
+
     if (method === "GET" && url.pathname === "/maintenance/database-backups") {
       await route.fulfill({ json: state.backups, headers });
       return;
@@ -1355,7 +1369,7 @@ test.describe("v0.5 management workflows", () => {
     });
   });
 
-  test("prompts to save changed settings before leaving the settings page", async ({
+  test("auto-saves changed settings before leaving the settings page", async ({
     page
   }) => {
     const state = createMockState();
@@ -1363,27 +1377,28 @@ test.describe("v0.5 management workflows", () => {
     await openSettings(page);
     await page.getByRole("button", { name: "LLM", exact: true }).click();
     await page.getByRole("textbox", { name: "模型名称" }).fill("local-model");
+    await expect(page.getByText("已自动保存")).toBeVisible();
 
     const libraryShortcut = page
       .locator(".sidebar-nav")
       .getByRole("button", { name: /资料库.*全部音频/ });
     await libraryShortcut.click();
-    let dialog = page.getByRole("dialog", { name: "保存未保存的设置？" });
-    await expect(dialog).toContainText("LLM");
-    await dialog.getByRole("button", { name: "继续编辑" }).click();
-    await expect(page.getByRole("textbox", { name: "模型名称" })).toHaveValue(
-      "local-model"
-    );
-
-    await libraryShortcut.click();
-    dialog = page.getByRole("dialog", { name: "保存未保存的设置？" });
-    await dialog.getByRole("button", { name: "保存并离开" }).click();
-
     await expect(page.locator(".audio-row").first()).toBeVisible();
     expect(state.mutations).toContainEqual({
       method: "PUT",
-      path: "/settings",
-      body: { key: "llm.model_name", value: "local-model" }
+      path: "/settings/llm",
+      body: {
+        values: {
+          "llm.endpoint": "",
+          "llm.model_name": "local-model",
+          "llm.api_key": "",
+          "llm.timeout": "60",
+          "llm.max_tokens": "800",
+          "llm.temperature": "0.2",
+          "llm.allow_remote_endpoint": "false",
+          "ai.output_language": "auto"
+        }
+      }
     });
   });
 
