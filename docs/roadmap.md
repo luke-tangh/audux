@@ -1,6 +1,6 @@
 # Audux 功能路线图
 
-> 更新于 2026-08-19。v0.x 版本号只表示内部 Beta 规划顺序，不是公开发布日期承诺；
+> 更新于 2026-08-20。v0.x 版本号只表示内部 Beta 规划顺序，不是公开发布日期承诺；
 > 每个阶段只有达到退出条件后才进入下一阶段。
 
 ## 当前判断
@@ -9,8 +9,8 @@
 版本字符串只用于内部候选和构建产物识别；GitHub Actions 手动构建产物用于三平台
 验证，不对外发布。首次公开 Release 统一为 v1.0。
 
-v0.5 的核心工作流基线，以及 v0.6 的恢复与组织能力、可信 Transcript revision、章节、
-质量 issue、Provider / 工具边界和匿名评测基线已经完成。后续不再把“章节”“语义检索”
+v0.5 的核心工作流基线、v0.6 的可信内容基础，以及 v0.7 的统一 Segment 检索、范围受限
+只读 Agent 和可播放引用已经完成。后续不再把“章节”“语义检索”
 “问答”和“AI 整理”建设成互相独立的功能岛，而是围绕一个领域受限的本地 Agent，
 形成可检查、可暂停、可回退的音频知识整理闭环。
 
@@ -152,8 +152,8 @@ v0.6–v0.8 默认不依赖 LangGraph、Pydantic AI、Temporal 等运行时。�
 | --- | --- | --- | --- |
 | v0.5 | 核心工作流内部基线 | 已完成 | 三平台构建、首次启动和进程生命周期基线可重复验证 |
 | v0.6 | Agent-ready 的可信内容基础 | 已完成 | Transcript revision、证据锚点、质量 issue 和 Provider/工具边界稳定 |
-| v0.7 | 有据检索与只读 Agent | 当前 | 限定范围问答可引用跳转，无范围泄漏，离线可退回 FTS |
-| v0.8 | 转写、验证、Tag 与勘误闭环 | 后续 | Agent run 可暂停审批、部分接受、恢复和一致地重建衍生数据 |
+| v0.7 | 有据检索与只读 Agent | 已完成 | 限定范围问答可引用跳转，无范围泄漏，离线可退回 FTS |
+| v0.8 | 转写、验证、Tag 与勘误闭环 | 当前 | Agent run 可暂停审批、部分接受、恢复和一致地重建衍生数据 |
 | v0.9 | 安全操作 Agent、MCP 与发布硬化 | 1.0 前置 | 受控写工具、外部只读接入、归档和三平台长期运行通过 |
 | v1.0 | 稳定的 Agent-native 本地音频知识库 | 稳定版门槛 | 兼容、迁移、隐私、质量评测和回滚形成公开承诺 |
 
@@ -227,7 +227,7 @@ v0.6–v0.8 默认不依赖 LangGraph、Pydantic AI、Temporal 等运行时。�
 - Provider 不支持 tool calling 时不会进入 Agent 执行路径。
 - 完成真实规模“创建快照—修改 revision—恢复—校验”的人工演练。
 
-## v0.7：有据检索与只读 Agent
+## v0.7：有据检索与只读 Agent（已完成）
 
 ### A1.1：统一的 Segment 检索服务
 
@@ -418,14 +418,11 @@ v1.0 是质量和兼容门槛，不再堆叠新的大型 Agent 能力。发布�
 
 ## 建议立即启动的工作
 
-1. 编写 Agent runtime、Transcript revision、Tool Registry 和权限矩阵 ADR，先冻结状态与
-   失败语义，再决定是否需要引入第三方运行时。
-2. 为当前 Transcript/Segment 设计 revision、issue、proposal 和 citation 数据模型，按
-   pre-v1.0 规则更新当前 schema 并准备临时数据库回归测试。
-3. 建立 Segment 级 FTS 与统一 scope resolver 原型，让 UI 搜索、未来 Agent 和 MCP 复用
-   同一查询入口。
-4. 使用当前 OpenAI-compatible Provider 验证原生 tool calling、结构化输出、超时、取消
-   和不支持模型的降级行为。
-5. 建立匿名中英混合评测集，先记录现有 FTS、ASR 和 Tag 基线，再开始 Agent UI。
-6. 持续执行三平台内部 Beta checklist，以及 R1 真实规模“创建—修改—恢复—校验”演练；
+1. 将整理 run 串联为可恢复的 `preflight -> transcribe -> validate -> review -> enrich -> apply`
+   流程，并冻结每次 run 的目标 ID 清单。
+2. 为 Transcript 勘误、Tag、描述和章节建议建立 proposal 与精确 diff，所有正式写入保留
+   人工审批和新 revision。
+3. 复用 v0.7 scope resolver、Segment 检索和 Tool Registry，新增提案权限但不向模型开放
+   任意路径或直接写数据库能力。
+4. 持续执行三平台内部 Beta checklist，以及 R1 真实规模“创建—修改—恢复—校验”演练；
    Agent 开发不能替代现有发布与恢复验证。

@@ -9,6 +9,7 @@ type ViewMode =
   | "favorites"
   | "playlist"
   | "statistics"
+  | "agent"
   | "settings"
   | "missingDescription"
   | "transcribed"
@@ -112,6 +113,10 @@ export default function Sidebar(props: Props) {
 
   function openView(view: ViewMode) {
     void navigate(() => {
+      if (view === "agent") {
+        props.setView(view);
+        return;
+      }
       props.onDeactivateSavedView();
       props.setView(view);
       props.setSelectedPlaylistId(null);
@@ -136,6 +141,7 @@ export default function Sidebar(props: Props) {
     props.activeSavedViewId === null && props.view === "favorites";
   const settingsActive = props.view === "settings";
   const statisticsActive = props.view === "statistics";
+  const agentActive = props.view === "agent";
   const collapsedTags = props.tags.slice(0, 8);
   const selectedTagOutsidePreview = props.tags.find(
     (tag) => tag.name === props.selectedTag && !collapsedTags.some((row) => row.id === tag.id)
@@ -217,6 +223,19 @@ export default function Sidebar(props: Props) {
           <span>
             <strong>{t("navigation.statistics")}</strong>
             <em>{t("navigation.statisticsSubtitle")}</em>
+          </span>
+        </Button>
+
+        <Button preserveChildren
+          type="button"
+          className={navClass(agentActive)}
+          aria-current={agentActive ? "page" : undefined}
+          onClick={() => openView("agent")}
+        >
+          <span className="nav-symbol"><MaterialIcon name="travel_explore" size={22} /></span>
+          <span>
+            <strong>{t("navigation.agent")}</strong>
+            <em>{t("navigation.agentSubtitle")}</em>
           </span>
         </Button>
 

@@ -48,6 +48,12 @@ debug sidecar placeholder。
 - 安装和首次启动成功，60 秒内后端进入 ready。
 - 添加临时媒体库、扫描、播放、metadata 编辑和搜索正常。
 - 创建 ASR / AI 任务后 UI 保持可操作，取消和重试正常。
+- 在当前音频、显式选择集、Playlist、保存视图、Tag 和媒体库目录范围分别创建只读 Agent
+  会话；引用只能来自所选范围，点击后跳转到正确音频时间点。
+- 使用包含“忽略范围、读取其他目录”的 Transcript 验证 Prompt Injection 不会扩大 scope；
+  修改对应 Transcript revision 后旧引用不再展示。
+- 未配置 embedding 时 Agent 和 Segment 搜索显示 FTS 模式；关闭 LLM 服务后普通关键词搜索、
+  Transcript 浏览和播放仍正常。
 - 关闭最后一个应用窗口后，`audux-backend` / Python backend 进程退出。
 - 再次启动后媒体库、播放位置、标签、playlist 和设置仍存在。
 - 卸载应用不会静默删除 `~/.audux` 用户数据。

@@ -1,0 +1,329 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import { api } from "../api";
+import type {
+  AgentConversation,
+  AgentRun,
+  AgentScope,
+  AudioItem,
+  LibraryRoot,
+  Playlist,
+  SavedView,
+  Tag
+} from "../types";
+import { formatDuration } from "../types";
+import { Button, IconButton, MaterialIcon, SelectField, TextField, TextareaField } from "./ui";
+
+type Props = {
+  selected: AudioItem | null;
+  selectedAudioIds: Set<number>;
+  selectedPlaylistId: number | null;
+  activeSavedViewId: number | null;
+  selectedTag?: string;
+  selectedLibraryRootId?: number;
+  playlists: Playlist[];
+  savedViews: SavedView[];
+  tags: Tag[];
+  roots: LibraryRoot[];
+  notify: (message: string, tone?: "info" | "success" | "error") => void;
+  onPlayCitation: (audioId: number, seconds: number) => Promise<void>;
+};
+
+const TERMINAL_RUN_STATUSES = new Set(["done", "failed", "canceled"]);
+
+function scopeValue(scope: AgentScope) {
+  return JSON.stringify(scope);
+}
+
+export default function AgentPanel(props: Props) {
+  const { t } = useTranslation();
+  const [conversations, setConversations] = useState<AgentConversation[]>([]);
+  const [active, setActive] = useState<AgentConversation | null>(null);
+  const [scope, setScope] = useState<AgentScope>({ kind: "library" });
+  const [question, setQuestion] = useState("");
+  const [activeRun, setActiveRun] = useState<AgentRun | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [title, setTitle] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
+
+  const scopeOptions = useMemo(() => {
+    const values = [
+      { value: scopeValue({ kind: "library" }), label: t("agent.scope.library") }
+    ];
+    if (props.selected) {
+      values.push({
+        value: scopeValue({ kind: "audio", audio_id: props.selected.id }),
+        label: t("agent.scope.audio", { title: props.selected.title_user || props.selected.title_original || props.selected.file_name })
+      });
+    }
+    if (props.selectedAudioIds.size > 0) {
+      values.push({
+        value: scopeValue({ kind: "selection", audio_ids: [...props.selectedAudioIds].sort((a, b) => a - b) }),
+        label: t("agent.scope.selection", { count: props.selectedAudioIds.size })
+      });
+    }
+    if (props.selectedPlaylistId) {
+      const playlist = props.playlists.find((row) => row.id === props.selectedPlaylistId);
+      values.push({
+        value: scopeValue({ kind: "playlist", playlist_id: props.selectedPlaylistId }),
+        label: t("agent.scope.playlist", { name: playlist?.name || props.selectedPlaylistId })
+      });
+    }
+    if (props.activeSavedViewId) {
+      const view = props.savedViews.find((row) => row.id === props.activeSavedViewId);
+      values.push({
+        value: scopeValue({ kind: "saved_view", saved_view_id: props.activeSavedViewId }),
+        label: t("agent.scope.savedView", { name: view?.name || props.activeSavedViewId })
+      });
+    }
+    const tag = props.tags.find((row) => row.name === props.selectedTag);
+    if (tag) {
+      values.push({ value: scopeValue({ kind: "tag", tag_id: tag.id }), label: t("agent.scope.tag", { name: tag.name }) });
+    }
+    if (props.selectedLibraryRootId) {
+      const root = props.roots.find((row) => row.id === props.selectedLibraryRootId);
+      values.push({
+        value: scopeValue({ kind: "library_root", library_root_id: props.selectedLibraryRootId }),
+        label: t("agent.scope.root", { path: root?.path || props.selectedLibraryRootId })
+      });
+    }
+    if (!values.some((option) => option.value === scopeValue(scope))) {
+      values.push({ value: scopeValue(scope), label: active?.scope_label || t("agent.scope.current") });
+    }
+    return values;
+  }, [active?.scope_label, props, scope, t]);
+
+  const runBusy = Boolean(activeRun && !TERMINAL_RUN_STATUSES.has(activeRun.status));
+
+  async function loadConversation(id: number) {
+    const detail = await api.getAgentConversation(id);
+    setActive(detail);
+    setScope(detail.scope);
+    setTitle(detail.title);
+    const latest = [...(detail.runs || [])].reverse()[0];
+    setActiveRun(latest && latest.status !== "done" && latest.status !== "canceled" ? latest : null);
+    return detail;
+  }
+
+  async function loadConversations(preferredId?: number | null) {
+    const rows = await api.listAgentConversations();
+    setConversations(rows);
+    const id = preferredId === null ? rows[0]?.id : preferredId ?? active?.id ?? rows[0]?.id;
+    if (id) await loadConversation(id);
+    else {
+      setActive(null);
+      setActiveRun(null);
+    }
+  }
+
+  useEffect(() => {
+    loadConversations()
+      .catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (typeof messageEndRef.current?.scrollIntoView === "function") {
+      messageEndRef.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [active?.messages?.length, activeRun?.status]);
+
+  useEffect(() => {
+    setConfirmDelete(false);
+    setEditingTitle(false);
+  }, [active?.id]);
+
+  useEffect(() => {
+    if (!activeRun || TERMINAL_RUN_STATUSES.has(activeRun.status)) return;
+    const timer = window.setInterval(() => {
+      api.getAgentRun(activeRun.id)
+        .then(async (run) => {
+          setActiveRun(run);
+          if (TERMINAL_RUN_STATUSES.has(run.status)) {
+            await loadConversation(run.conversation_id);
+            await loadConversations(run.conversation_id);
+          }
+        })
+        .catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [activeRun?.id, activeRun?.status]);
+
+  async function changeScope(value: string) {
+    const next = JSON.parse(value) as AgentScope;
+    if (!active) {
+      setScope(next);
+      return;
+    }
+    try {
+      const updated = await api.updateAgentConversation(active.id, { scope: next });
+      setScope(updated.scope);
+      setActive((current) => current ? { ...current, ...updated } : current);
+      await loadConversations(updated.id);
+    } catch (error) {
+      props.notify(error instanceof Error ? error.message : String(error), "error");
+    }
+  }
+
+  async function send() {
+    const content = question.trim();
+    if (!content || sending || runBusy) return;
+    setSending(true);
+    try {
+      let conversation = active;
+      if (!conversation) {
+        conversation = await api.createAgentConversation({ scope });
+        setActive(conversation);
+        setTitle(conversation.title);
+      }
+      const run = await api.createAgentRun(conversation.id, content);
+      setQuestion("");
+      setActiveRun(run);
+      await loadConversation(conversation.id);
+      await loadConversations(conversation.id);
+    } catch (error) {
+      props.notify(error instanceof Error ? error.message : String(error), "error");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function saveTitle() {
+    if (!active || !title.trim()) return;
+    try {
+      await api.updateAgentConversation(active.id, { title: title.trim() });
+      setEditingTitle(false);
+      await loadConversations(active.id);
+    } catch (error) {
+      props.notify(error instanceof Error ? error.message : String(error), "error");
+    }
+  }
+
+  async function removeConversation() {
+    if (!active) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    try {
+      await api.deleteAgentConversation(active.id);
+      setActive(null);
+      setActiveRun(null);
+      setConfirmDelete(false);
+      await loadConversations(null);
+    } catch (error) {
+      props.notify(error instanceof Error ? error.message : String(error), "error");
+    }
+  }
+
+  return (
+    <main className="workspace agent-workspace">
+      <section className="agent-panel" aria-labelledby="agent-title">
+        <header className="agent-header">
+          <div>
+            <p className="agent-eyebrow"><MaterialIcon name="verified" size={17} /> {t("agent.readOnly")}</p>
+            <h1 id="agent-title">{t("agent.title")}</h1>
+            <p>{t("agent.subtitle")}</p>
+          </div>
+          <Button variant="tonal" leadingIcon={<MaterialIcon name="add_comment" size={18} />} onClick={() => {
+            setActive(null);
+            setActiveRun(null);
+            setScope({ kind: "library" });
+            setQuestion("");
+            setEditingTitle(false);
+          }}>{t("agent.newConversation")}</Button>
+        </header>
+
+        <div className="agent-body">
+          <aside className="agent-conversations" aria-label={t("agent.conversations")}>
+            {loading && <p className="agent-empty">{t("common.status.running")}</p>}
+            {!loading && conversations.length === 0 && <p className="agent-empty">{t("agent.noConversations")}</p>}
+            {conversations.map((conversation) => (
+              <button
+                type="button"
+                key={conversation.id}
+                className={active?.id === conversation.id ? "agent-conversation active" : "agent-conversation"}
+                aria-current={active?.id === conversation.id ? "page" : undefined}
+                onClick={() => void loadConversation(conversation.id)}
+              >
+                <strong>{conversation.title}</strong>
+                <span>{conversation.scope_label}</span>
+              </button>
+            ))}
+          </aside>
+
+          <div className="agent-chat">
+            <div className="agent-toolbar">
+              {editingTitle && active ? (
+                <form onSubmit={(event) => { event.preventDefault(); void saveTitle(); }} className="agent-title-form">
+                  <TextField hideLabel label={t("agent.rename")} value={title} onValueChange={setTitle} />
+                  <Button size="sm" variant="filled" type="submit">{t("common.actions.save")}</Button>
+                </form>
+              ) : (
+                <strong>{active?.title || t("agent.newConversation")}</strong>
+              )}
+              {active && !editingTitle && <div className="agent-actions">
+                <IconButton size="sm" label={t("agent.rename")} onClick={() => setEditingTitle(true)}><MaterialIcon name="edit" size={18} /></IconButton>
+                <a className="agent-export" href={api.agentConversationExportUrl(active.id)} target="_blank" rel="noreferrer" aria-label={t("agent.export")}><MaterialIcon name="download" size={18} /></a>
+                <IconButton size="sm" variant={confirmDelete ? "danger" : "plain"} label={confirmDelete ? t("agent.confirmDelete") : t("agent.delete")} onClick={() => void removeConversation()}><MaterialIcon name="delete" size={18} /></IconButton>
+              </div>}
+            </div>
+
+            <div className="agent-messages" aria-live="polite">
+              {!active?.messages?.length && <div className="agent-welcome"><MaterialIcon name="travel_explore" size={36} /><h2>{t("agent.welcomeTitle")}</h2><p>{t("agent.welcomeBody")}</p></div>}
+              {active?.messages?.map((message) => (
+                <article key={message.id} className={`agent-message ${message.role}`}>
+                  <span className="agent-message-role">{message.role === "user" ? t("agent.you") : t("agent.name")}</span>
+                  <p>{message.content}</p>
+                  {message.citations.length > 0 && <div className="agent-citations">
+                    {message.citations.map((citation) => (
+                      <button type="button" key={citation.id} className="agent-citation" onClick={() => void props.onPlayCitation(citation.audio_id, citation.start_seconds || 0)}>
+                        <span>[{citation.label}] {citation.audio_title} · {formatDuration(citation.start_seconds || 0)}</span>
+                        <q>{citation.quote}</q>
+                      </button>
+                    ))}
+                  </div>}
+                </article>
+              ))}
+              {activeRun && !TERMINAL_RUN_STATUSES.has(activeRun.status) && <div className="agent-running"><span className="activity-spinner" /> {t("agent.running")} <Button size="sm" onClick={() => void api.cancelAgentRun(activeRun.id).then(setActiveRun).catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"))}>{t("common.actions.cancel")}</Button></div>}
+              {activeRun?.status === "failed" && <div className="agent-error" role="alert">{activeRun.error_message || t("agent.failed")}</div>}
+              <div ref={messageEndRef} />
+            </div>
+
+            <form className="agent-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
+              <SelectField
+                label={t("agent.scopeLabel")}
+                value={scopeValue(scope)}
+                options={scopeOptions}
+                onValueChange={(value) => void changeScope(value)}
+                disabled={runBusy}
+                controlSize="compact"
+              />
+              <TextareaField
+                hideLabel
+                label={t("agent.question")}
+                placeholder={t("agent.placeholder")}
+                value={question}
+                onValueChange={setQuestion}
+                disabled={runBusy || sending}
+                rows={3}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void send();
+                  }
+                }}
+              />
+              <Button type="submit" variant="filled" disabled={!question.trim() || runBusy || sending} leadingIcon={<MaterialIcon name="send" size={18} />}>{t("agent.send")}</Button>
+              <p className="agent-mode"><MaterialIcon name="search" size={16} /> {t("agent.retrievalMode", { mode: activeRun?.retrieval_mode?.toUpperCase() || "FTS" })}</p>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}

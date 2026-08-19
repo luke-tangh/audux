@@ -49,6 +49,8 @@ async def call_openai_compatible_chat(
     timeout: int = 60,
     max_tokens: Optional[int] = 800,
     temperature: Optional[float] = 0.2,
+    tools: Optional[list[dict]] = None,
+    tool_choice: Optional[dict | str] = None,
 ) -> dict:
     url = endpoint.rstrip("/") + "/chat/completions"
 
@@ -69,6 +71,12 @@ async def call_openai_compatible_chat(
 
     if max_tokens is not None:
         payload["max_tokens"] = max_tokens
+
+    if tools is not None:
+        payload["tools"] = tools
+
+    if tool_choice is not None:
+        payload["tool_choice"] = tool_choice
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(url, headers=headers, json=payload)

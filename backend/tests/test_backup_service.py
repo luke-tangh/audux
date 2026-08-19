@@ -9,6 +9,9 @@ from sqlmodel import SQLModel, Session, create_engine, select
 from app import db
 from app.models import (
     AITask,
+    AgentConversation,
+    AgentMessage,
+    AgentRun,
     AudioItem,
     AudioTag,
     LibraryHealthTask,
@@ -187,11 +190,34 @@ class TestDatabaseBackupService:
         with Session(self.engine) as session:
             session.add(AITask(audio_id=999, task_type="analyze", status="running"))
             session.add(LibraryHealthTask(task_type="health_check", status="running"))
+            conversation = AgentConversation(
+                title="active",
+                scope_json='{"kind":"library"}',
+            )
+            session.add(conversation)
+            session.flush()
+            message = AgentMessage(
+                conversation_id=conversation.id,
+                role="user",
+                content="question",
+            )
+            session.add(message)
+            session.flush()
+            session.add(
+                AgentRun(
+                    conversation_id=conversation.id,
+                    user_message_id=message.id,
+                    status="running",
+                    scope_json='{"kind":"library"}',
+                    allowed_audio_ids_json="[]",
+                )
+            )
             session.commit()
             blocked = backup_service.restore_preflight(session, backup["id"])
             assert blocked["ok"] is False
             assert blocked["active_ai_tasks"] == 1
             assert blocked["active_health_tasks"] == 1
+            assert blocked["active_agent_runs"] == 1
 
             task = session.exec(select(AITask)).one()
             task.status = "done"
@@ -199,6 +225,9 @@ class TestDatabaseBackupService:
             health_task = session.exec(select(LibraryHealthTask)).one()
             health_task.status = "done"
             session.add(health_task)
+            agent_run = session.exec(select(AgentRun)).one()
+            agent_run.status = "done"
+            session.add(agent_run)
             session.commit()
             pending = backup_service.schedule_database_restore(session, backup["id"])
 

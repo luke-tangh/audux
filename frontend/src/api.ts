@@ -1,5 +1,8 @@
 import type {
   ActivityFeed,
+  AgentConversation,
+  AgentRun,
+  AgentScope,
   AISuggestions,
   AITask,
   AudioDetail,
@@ -365,6 +368,43 @@ export function asrEndpointPrivacyWarning(endpoint: string): string | null {
 
 export const api = {
   ensureAuthToken: ensureLocalApiToken,
+
+  listAgentConversations: () =>
+    request<AgentConversation[]>("/agent/conversations"),
+
+  createAgentConversation: (payload: { title?: string; scope: AgentScope }) =>
+    request<AgentConversation>("/agent/conversations", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+
+  getAgentConversation: (id: number) =>
+    request<AgentConversation>(`/agent/conversations/${id}`),
+
+  updateAgentConversation: (
+    id: number,
+    payload: { title?: string; scope?: AgentScope }
+  ) => request<AgentConversation>(`/agent/conversations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  }),
+
+  deleteAgentConversation: (id: number) =>
+    request<{ ok: boolean }>(`/agent/conversations/${id}`, { method: "DELETE" }),
+
+  createAgentRun: (conversationId: number, content: string) =>
+    request<AgentRun>(`/agent/conversations/${conversationId}/runs`, {
+      method: "POST",
+      body: JSON.stringify({ content })
+    }),
+
+  getAgentRun: (id: number) => request<AgentRun>(`/agent/runs/${id}`),
+
+  cancelAgentRun: (id: number) =>
+    request<AgentRun>(`/agent/runs/${id}/cancel`, { method: "POST" }),
+
+  agentConversationExportUrl: (id: number) =>
+    appendAccessToken(`${API_BASE}/agent/conversations/${id}/export`),
 
   health: () => request<{ status: string }>("/health"),
 

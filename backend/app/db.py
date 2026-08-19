@@ -10,7 +10,7 @@ from .time_utils import utc_now_iso
 
 
 logger = logging.getLogger(__name__)
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 APP_DATA_DIR = Path.home() / ".audux"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -166,6 +166,25 @@ def create_fts_tables():
                 """
             )
         )
+        conn.execute(
+            text(
+                """
+                CREATE VIRTUAL TABLE IF NOT EXISTS segment_search_index USING fts5(
+                    audio_id UNINDEXED,
+                    transcript_id UNINDEXED,
+                    segment_id UNINDEXED,
+                    segment_index UNINDEXED,
+                    start_seconds UNINDEXED,
+                    end_seconds UNINDEXED,
+                    title,
+                    author,
+                    description,
+                    tags,
+                    transcript
+                );
+                """
+            )
+        )
 
 
 def _write_current_schema_marker():
@@ -293,6 +312,19 @@ def create_current_schema_objects():
         """
         CREATE INDEX IF NOT EXISTS ix_transcript_issues_revision_status
         ON transcript_issues(transcript_id, status);
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_runs_active_conversation
+        ON agent_runs(conversation_id)
+        WHERE status IN ('pending', 'running', 'cancel_requested');
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_agent_run_steps_index
+        ON agent_run_steps(run_id, step_index);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_agent_conversations_updated
+        ON agent_conversations(updated_at DESC);
         """,
     ]
 

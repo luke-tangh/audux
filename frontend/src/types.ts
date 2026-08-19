@@ -83,6 +83,69 @@ export type SearchHit = {
   context_after?: string;
 };
 
+export type AgentScope =
+  | { kind: "library" }
+  | { kind: "audio"; audio_id: number }
+  | { kind: "selection"; audio_ids: number[] }
+  | { kind: "playlist"; playlist_id: number }
+  | { kind: "saved_view"; saved_view_id: number }
+  | { kind: "tag"; tag_id: number }
+  | { kind: "library_root"; library_root_id: number };
+
+export type AgentCitation = {
+  id: number;
+  run_id: number;
+  message_id: number;
+  audio_id: number;
+  audio_title: string;
+  transcript_id?: number | null;
+  segment_id?: number | null;
+  start_seconds?: number | null;
+  end_seconds?: number | null;
+  quote: string;
+  label: string;
+  created_at: string;
+};
+
+export type AgentMessage = {
+  id: number;
+  conversation_id: number;
+  role: "user" | "assistant";
+  content: string;
+  run_id?: number | null;
+  created_at: string;
+  citations: AgentCitation[];
+};
+
+export type AgentRun = {
+  id: number;
+  conversation_id: number;
+  user_message_id: number;
+  status: "pending" | "running" | "cancel_requested" | "done" | "failed" | "canceled";
+  scope: AgentScope;
+  retrieval_mode: "fts" | "hybrid" | string;
+  fallback_reason?: string | null;
+  error_message?: string | null;
+  error_code?: string | null;
+  created_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  updated_at: string;
+  message?: AgentMessage | null;
+};
+
+export type AgentConversation = {
+  id: number;
+  title: string;
+  scope: AgentScope;
+  scope_label: string;
+  scope_audio_count: number;
+  created_at: string;
+  updated_at: string;
+  messages?: AgentMessage[];
+  runs?: AgentRun[];
+};
+
 export type AudioItem = {
   id: number;
   file_path: string;
@@ -601,6 +664,7 @@ export type DatabaseRestorePreflight = {
   active_ai_tasks: number;
   active_scan_tasks: number;
   active_health_tasks: number;
+  active_agent_runs: number;
   required_bytes: number;
   free_bytes: number;
   restart_required: boolean;

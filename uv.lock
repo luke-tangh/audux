@@ -321,7 +321,7 @@ wheels = [
 
 [[package]]
 name = "audux"
-version = "0.6.0b1"
+version = "0.7.0b1"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },

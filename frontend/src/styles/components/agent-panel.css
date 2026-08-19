@@ -1,0 +1,316 @@
+.agent-workspace {
+  overflow: hidden;
+}
+
+.agent-panel {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+}
+
+.agent-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.agent-header h1,
+.agent-header p {
+  margin: 0;
+}
+
+.agent-header h1 {
+  margin-top: 4px;
+  color: var(--md-sys-color-on-surface);
+  font-size: 26px;
+}
+
+.agent-header > div > p:last-child {
+  margin-top: 6px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.agent-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--md-sys-color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.agent-body {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+}
+
+.agent-conversations {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.agent-conversation {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  color: var(--md-sys-color-on-surface);
+  background: transparent;
+  border: 0;
+  border-radius: var(--md-sys-shape-corner-medium);
+  cursor: pointer;
+}
+
+.agent-conversation:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.agent-conversation.active {
+  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-secondary-container);
+}
+
+.agent-conversation span,
+.agent-empty {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
+}
+
+.agent-chat {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.agent-toolbar {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.agent-actions,
+.agent-title-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-title-form {
+  width: min(460px, 100%);
+}
+
+.agent-title-form .ui-field-group {
+  flex: 1;
+}
+
+.agent-export {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: 50%;
+}
+
+.agent-export:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.agent-messages {
+  min-height: 0;
+  overflow: auto;
+  padding: 24px clamp(18px, 4vw, 64px);
+}
+
+.agent-welcome {
+  max-width: 520px;
+  margin: 10vh auto 0;
+  text-align: center;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.agent-welcome h2 {
+  margin: 12px 0 8px;
+  color: var(--md-sys-color-on-surface);
+}
+
+.agent-message {
+  max-width: 760px;
+  margin: 0 0 22px;
+}
+
+.agent-message.user {
+  margin-left: auto;
+  padding: 14px 18px;
+  color: var(--md-sys-color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+  border-radius: 20px 20px 6px 20px;
+}
+
+.agent-message.assistant {
+  margin-right: auto;
+}
+
+.agent-message-role {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--md-sys-color-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.agent-message p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
+.agent-citations {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.agent-citation {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  cursor: pointer;
+}
+
+.agent-citation:hover {
+  border-color: var(--md-sys-color-primary);
+}
+
+.agent-citation span {
+  color: var(--md-sys-color-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.agent-citation q {
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.agent-running,
+.agent-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 760px;
+  padding: 12px 14px;
+  border-radius: var(--md-sys-shape-corner-medium);
+}
+
+.agent-running {
+  color: var(--md-sys-color-on-secondary-container);
+  background: var(--md-sys-color-secondary-container);
+}
+
+.agent-error {
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.agent-composer {
+  display: grid;
+  grid-template-columns: minmax(180px, 250px) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.agent-composer textarea {
+  min-height: 72px;
+  resize: none;
+}
+
+.agent-mode {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .agent-header {
+    padding: 18px;
+  }
+
+  .agent-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .agent-conversations {
+    display: flex;
+    gap: 6px;
+    border-right: 0;
+    border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  }
+
+  .agent-conversation {
+    width: auto;
+    min-width: 150px;
+  }
+
+  .agent-composer {
+    grid-template-columns: 1fr auto;
+  }
+
+  .agent-composer .ui-select-field {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .agent-header {
+    flex-direction: column;
+  }
+
+  .agent-messages {
+    padding: 18px 12px;
+  }
+
+  .agent-composer {
+    padding: 10px;
+  }
+}

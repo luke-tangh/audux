@@ -3,6 +3,7 @@ export type ViewMode =
   | "favorites"
   | "playlist"
   | "statistics"
+  | "agent"
   | "settings"
   | "missingDescription"
   | "transcribed"

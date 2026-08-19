@@ -14,6 +14,7 @@ from ..asr_config import (
 from ..local_security import ensure_asr_endpoint_allowed
 from ..logger import get_logger
 from ..models import (
+    AgentCitation,
     AITask,
     AudioItem,
     Transcript,
@@ -687,6 +688,10 @@ def delete_transcript(session: Session, audio_id: int) -> dict:
     if not revisions:
         raise ServiceError(404, "Transcript not found")
     revision_ids = [int(row.id) for row in revisions if row.id is not None]
+    for citation in session.exec(
+        select(AgentCitation).where(AgentCitation.transcript_id.in_(revision_ids))
+    ).all():
+        session.delete(citation)
     for issue in session.exec(
         select(TranscriptIssue).where(TranscriptIssue.transcript_id.in_(revision_ids))
     ).all():

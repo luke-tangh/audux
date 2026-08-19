@@ -244,6 +244,69 @@ class BatchAudioRequest(BaseModel):
     audio_ids: List[int]
 
 
+AgentScopeKind = Literal[
+    "library",
+    "audio",
+    "selection",
+    "playlist",
+    "saved_view",
+    "tag",
+    "library_root",
+]
+
+
+class AgentScope(BaseModel):
+    kind: AgentScopeKind = "library"
+    audio_id: Optional[int] = Field(default=None, gt=0)
+    audio_ids: List[int] = Field(default_factory=list, max_length=500)
+    playlist_id: Optional[int] = Field(default=None, gt=0)
+    saved_view_id: Optional[int] = Field(default=None, gt=0)
+    tag_id: Optional[int] = Field(default=None, gt=0)
+    library_root_id: Optional[int] = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_scope_reference(self):
+        expected = {
+            "audio": self.audio_id,
+            "selection": self.audio_ids,
+            "playlist": self.playlist_id,
+            "saved_view": self.saved_view_id,
+            "tag": self.tag_id,
+            "library_root": self.library_root_id,
+        }
+        if self.kind != "library" and not expected[self.kind]:
+            raise ValueError(f"{self.kind} scope reference is required")
+        return self
+
+
+class SegmentSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    scope: AgentScope = Field(default_factory=AgentScope)
+    limit: int = Field(default=20, ge=1, le=100)
+    mode: Literal["auto", "fts", "hybrid"] = "auto"
+
+
+class AgentConversationCreate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=80)
+    scope: AgentScope = Field(default_factory=AgentScope)
+
+
+class AgentConversationUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    scope: Optional[AgentScope] = None
+
+    @model_validator(mode="after")
+    def require_conversation_change(self):
+        if self.title is None and self.scope is None:
+            raise ValueError("title or scope is required")
+        return self
+
+
+class AgentRunCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=4000)
+
+
+
 BatchOrganizationAction = Literal[
     "add_tags",
     "remove_tags",

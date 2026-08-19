@@ -2,10 +2,14 @@ from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
-from sqlmodel import Session
+from sqlalchemy import func
+from sqlmodel import Session, select
 
 from .providers import LLMCapabilities
+from .models import AudioItem, AudioTag, Playlist, Tag, Transcript
+from .schemas import AgentScope
 from .services.common import ServiceError
+from .services.retrieval_service import search_segments
 from .services.transcript_service import get_transcript
 
 
@@ -47,6 +51,19 @@ class GetTranscriptSegmentArgs(BaseModel):
 
 class ListTranscriptIssuesArgs(BaseModel):
     audio_id: int = Field(gt=0)
+
+
+class SearchScopeArgs(BaseModel):
+    query: str = Field(min_length=1, max_length=500)
+    limit: int = Field(default=10, ge=1, le=40)
+
+
+class GetAudioDetailsArgs(BaseModel):
+    audio_id: int = Field(gt=0)
+
+
+class EmptyArgs(BaseModel):
+    pass
 
 
 ToolHandler = Callable[[ToolContext, BaseModel], dict[str, Any]]
@@ -160,8 +177,103 @@ def _list_transcript_issues(context: ToolContext, payload: BaseModel) -> dict[st
     }
 
 
+def _search_scope(context: ToolContext, payload: BaseModel) -> dict[str, Any]:
+    args = SearchScopeArgs.model_validate(payload)
+    return search_segments(
+        context.session,
+        args.query,
+        AgentScope.model_construct(
+            kind="selection",
+            audio_ids=sorted(context.allowed_audio_ids),
+        ),
+        limit=args.limit,
+        mode="auto",
+    )
+
+
+def _get_audio_details(context: ToolContext, payload: BaseModel) -> dict[str, Any]:
+    args = GetAudioDetailsArgs.model_validate(payload)
+    context.require_audio(args.audio_id)
+    audio = context.session.get(AudioItem, args.audio_id)
+    if not audio:
+        raise ServiceError(404, "Audio not found")
+    tags = context.session.exec(
+        select(Tag)
+        .join(AudioTag, AudioTag.tag_id == Tag.id)
+        .where(AudioTag.audio_id == args.audio_id)
+        .order_by(Tag.name)
+    ).all()
+    transcript = context.session.exec(
+        select(Transcript)
+        .where(Transcript.audio_id == args.audio_id)
+        .where(Transcript.is_current.is_(True))
+    ).first()
+    return {
+        "audio_id": args.audio_id,
+        "title": audio.title_user or audio.title_original or audio.file_name,
+        "author": audio.author_user or audio.author_original or "",
+        "description": audio.description_user or audio.description_ai or audio.description_original or "",
+        "duration_seconds": audio.duration_seconds,
+        "language": audio.language,
+        "tags": [tag.name for tag in tags],
+        "revision_id": transcript.id if transcript else None,
+    }
+
+
+def _list_scope_tags(context: ToolContext, payload: BaseModel) -> dict[str, Any]:
+    EmptyArgs.model_validate(payload)
+    if not context.allowed_audio_ids:
+        return {"tags": []}
+    rows = context.session.exec(
+        select(Tag.id, Tag.name, func.count(AudioTag.audio_id))
+        .join(AudioTag, AudioTag.tag_id == Tag.id)
+        .where(AudioTag.audio_id.in_(context.allowed_audio_ids))
+        .group_by(Tag.id, Tag.name)
+        .order_by(func.count(AudioTag.audio_id).desc(), Tag.name)
+    ).all()
+    return {"tags": [{"id": row[0], "name": row[1], "count": row[2]} for row in rows]}
+
+
+def _list_playlists(context: ToolContext, payload: BaseModel) -> dict[str, Any]:
+    EmptyArgs.model_validate(payload)
+    rows = context.session.exec(select(Playlist).order_by(Playlist.name)).all()
+    return {"playlists": [{"id": row.id, "name": row.name, "kind": row.kind} for row in rows]}
+
+
+def _scope_statistics(context: ToolContext, payload: BaseModel) -> dict[str, Any]:
+    EmptyArgs.model_validate(payload)
+    if not context.allowed_audio_ids:
+        return {"audio_count": 0, "duration_seconds": 0, "transcribed_count": 0}
+    rows = context.session.exec(
+        select(AudioItem).where(AudioItem.id.in_(context.allowed_audio_ids))
+    ).all()
+    return {
+        "audio_count": len(rows),
+        "duration_seconds": sum(row.duration_seconds or 0 for row in rows),
+        "transcribed_count": sum(row.transcript_status == "done" for row in rows),
+    }
+
+
 def build_default_tool_registry() -> ToolRegistry:
     registry = ToolRegistry()
+    registry.register(
+        RegisteredTool(
+            name="search_scope",
+            description="Search metadata and current transcript segments only inside the server-provided Agent scope.",
+            permission="read",
+            input_model=SearchScopeArgs,
+            handler=_search_scope,
+        )
+    )
+    registry.register(
+        RegisteredTool(
+            name="get_audio_details",
+            description="Read metadata for one audio item inside the active scope.",
+            permission="read",
+            input_model=GetAudioDetailsArgs,
+            handler=_get_audio_details,
+        )
+    )
     registry.register(
         RegisteredTool(
             name="get_transcript_segment",
@@ -179,6 +291,15 @@ def build_default_tool_registry() -> ToolRegistry:
             input_model=ListTranscriptIssuesArgs,
             handler=_list_transcript_issues,
         )
+    )
+    registry.register(
+        RegisteredTool("list_scope_tags", "List tags used by audio in the active scope.", "read", EmptyArgs, _list_scope_tags)
+    )
+    registry.register(
+        RegisteredTool("list_playlists", "List playlist names and kinds without reading out-of-scope audio.", "read", EmptyArgs, _list_playlists)
+    )
+    registry.register(
+        RegisteredTool("scope_statistics", "Summarize counts and duration inside the active scope.", "read", EmptyArgs, _scope_statistics)
     )
     return registry
 

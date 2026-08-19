@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from sqlmodel import Session, select
 from sqlalchemy import text
 
-from .models import AudioItem, Tag, AudioTag, Transcript
+from .models import AudioItem, Tag, AudioTag, Transcript, TranscriptSegment
 
 
 @dataclass(frozen=True)
@@ -52,6 +52,10 @@ def rebuild_audio_search_index(
         text("DELETE FROM search_index WHERE audio_id = :audio_id"),
         {"audio_id": audio_id},
     )
+    session.execute(
+        text("DELETE FROM segment_search_index WHERE audio_id = :audio_id"),
+        {"audio_id": audio_id},
+    )
 
     session.execute(
         text(
@@ -69,6 +73,94 @@ def rebuild_audio_search_index(
             "transcript": transcript_text,
         },
     )
+
+    if transcript and transcript.id is not None:
+        segments = list(
+            session.exec(
+                select(TranscriptSegment)
+                .where(TranscriptSegment.transcript_id == transcript.id)
+                .order_by(TranscriptSegment.segment_index)
+            ).all()
+        )
+        if not segments and transcript.full_text.strip():
+            session.execute(
+                text(
+                    """
+                    INSERT INTO segment_search_index(
+                        audio_id, transcript_id, segment_id, segment_index,
+                        start_seconds, end_seconds, title, author, description,
+                        tags, transcript
+                    ) VALUES (
+                        :audio_id, :transcript_id, 0, 0, 0, :end_seconds,
+                        :title, :author, :description, :tags, :transcript
+                    )
+                    """
+                ),
+                {
+                    "audio_id": audio_id,
+                    "transcript_id": transcript.id,
+                    "end_seconds": audio.duration_seconds or 0,
+                    "title": get_display_title(audio),
+                    "author": get_display_author(audio),
+                    "description": get_display_description(audio),
+                    "tags": tag_text,
+                    "transcript": transcript.full_text,
+                },
+            )
+        else:
+            for segment in segments:
+                session.execute(
+                    text(
+                        """
+                        INSERT INTO segment_search_index(
+                            audio_id, transcript_id, segment_id, segment_index,
+                            start_seconds, end_seconds, title, author, description,
+                            tags, transcript
+                        ) VALUES (
+                            :audio_id, :transcript_id, :segment_id, :segment_index,
+                            :start_seconds, :end_seconds, :title, :author,
+                            :description, :tags, :transcript
+                        )
+                        """
+                    ),
+                    {
+                        "audio_id": audio_id,
+                        "transcript_id": transcript.id,
+                        "segment_id": segment.id,
+                        "segment_index": segment.segment_index,
+                        "start_seconds": segment.start_seconds,
+                        "end_seconds": segment.end_seconds,
+                        "title": get_display_title(audio),
+                        "author": get_display_author(audio),
+                        "description": get_display_description(audio),
+                        "tags": tag_text,
+                        "transcript": segment.text,
+                    },
+                )
+    else:
+        # Metadata-only rows make the unified service useful before transcription.
+        session.execute(
+            text(
+                """
+                INSERT INTO segment_search_index(
+                    audio_id, transcript_id, segment_id, segment_index,
+                    start_seconds, end_seconds, title, author, description,
+                    tags, transcript
+                ) VALUES (
+                    :audio_id, 0, 0, 0, 0, :end_seconds,
+                    :title, :author, :description, :tags, ''
+                )
+                """
+            ),
+            {
+                "audio_id": audio_id,
+                "end_seconds": audio.duration_seconds or 0,
+                "title": get_display_title(audio),
+                "author": get_display_author(audio),
+                "description": get_display_description(audio),
+                "tags": tag_text,
+            },
+        )
 
     if commit:
         session.commit()

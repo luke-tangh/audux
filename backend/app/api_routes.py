@@ -14,6 +14,8 @@ from .routes.settings_routes import router as settings_router
 from .routes.statistics_routes import router as statistics_router
 from .routes.tag_routes import router as tag_router
 from .routes.transcript_routes import router as transcript_router
+from .routes.retrieval_routes import router as retrieval_router
+from .routes.agent_routes import router as agent_router
 
 
 router = APIRouter()
@@ -26,6 +28,8 @@ router.include_router(tag_router)
 router.include_router(playlist_router)
 router.include_router(saved_view_router)
 router.include_router(transcript_router)
+router.include_router(retrieval_router)
+router.include_router(agent_router)
 router.include_router(ai_router)
 router.include_router(asr_router)
 router.include_router(settings_router)

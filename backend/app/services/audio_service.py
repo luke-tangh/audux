@@ -18,6 +18,7 @@ from ..local_security import ensure_asr_endpoint_allowed, ensure_llm_endpoint_al
 from ..logger import get_logger
 from ..models import (
     AITask,
+    AgentCitation,
     AudioItem,
     AudioTag,
     LibraryRoot,
@@ -482,6 +483,11 @@ def delete_audio_item(
     ).all():
         session.delete(event)
 
+    for citation in session.exec(
+        select(AgentCitation).where(AgentCitation.audio_id == audio_id)
+    ).all():
+        session.delete(citation)
+
     transcripts = session.exec(
         select(Transcript).where(Transcript.audio_id == audio_id)
     ).all()
@@ -520,6 +526,10 @@ def delete_audio_item(
 
     session.execute(
         text("DELETE FROM search_index WHERE audio_id = :audio_id"),
+        {"audio_id": audio_id},
+    )
+    session.execute(
+        text("DELETE FROM segment_search_index WHERE audio_id = :audio_id"),
         {"audio_id": audio_id},
     )
 

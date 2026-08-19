@@ -272,3 +272,89 @@ class LibraryHealthTask(SQLModel, table=True):
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     updated_at: str = Field(default_factory=now_iso)
+
+
+class AgentConversation(SQLModel, table=True):
+    __tablename__ = "agent_conversations"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str = "新会话"
+    scope_json: str
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class AgentMessage(SQLModel, table=True):
+    __tablename__ = "agent_messages"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    conversation_id: int = Field(foreign_key="agent_conversations.id", index=True)
+    role: str = Field(index=True)
+    content: str
+    run_id: Optional[int] = Field(default=None, index=True)
+    created_at: str = Field(default_factory=now_iso)
+
+
+class AgentRun(SQLModel, table=True):
+    __tablename__ = "agent_runs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    conversation_id: int = Field(foreign_key="agent_conversations.id", index=True)
+    user_message_id: int = Field(foreign_key="agent_messages.id")
+    status: str = Field(default="pending", index=True)
+    scope_json: str
+    allowed_audio_ids_json: str
+    retrieval_mode: str = "fts"
+    fallback_reason: Optional[str] = None
+    max_steps: int = 6
+    max_candidates: int = 20
+    max_transcript_characters: int = 24000
+    token_budget: int = 4800
+    error_message: Optional[str] = None
+    error_code: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class AgentRunStep(SQLModel, table=True):
+    __tablename__ = "agent_run_steps"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="agent_runs.id", index=True)
+    step_index: int
+    kind: str
+    status: str = "done"
+    detail_json: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+
+
+class AgentToolCall(SQLModel, table=True):
+    __tablename__ = "agent_tool_calls"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="agent_runs.id", index=True)
+    step_id: Optional[int] = Field(default=None, foreign_key="agent_run_steps.id")
+    tool_name: str
+    arguments_json: str
+    output_json: Optional[str] = None
+    status: str = "done"
+    error_message: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+
+
+class AgentCitation(SQLModel, table=True):
+    __tablename__ = "agent_citations"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="agent_runs.id", index=True)
+    message_id: int = Field(foreign_key="agent_messages.id", index=True)
+    audio_id: int = Field(foreign_key="audio_items.id", index=True)
+    transcript_id: Optional[int] = Field(default=None, foreign_key="transcripts.id")
+    segment_id: Optional[int] = Field(default=None, foreign_key="transcript_segments.id")
+    start_seconds: Optional[float] = None
+    end_seconds: Optional[float] = None
+    quote: str
+    label: str
+    created_at: str = Field(default_factory=now_iso)
