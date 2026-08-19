@@ -1,6 +1,16 @@
 import { Button, CheckboxField, PanelCard, SelectField, TextField } from "../ui";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type ServicePreset = "ollama" | "lmstudio" | "custom";
+
+function servicePresetForEndpoint(endpoint: string): ServicePreset {
+  const normalizedEndpoint = endpoint.trim().replace(/\/+$/, "");
+
+  if (normalizedEndpoint === "http://127.0.0.1:11434/v1") return "ollama";
+  if (normalizedEndpoint === "http://127.0.0.1:1234/v1") return "lmstudio";
+  return "custom";
+}
 
 type LlmSettingsTabProps = {
   llmEndpoint: string;
@@ -54,13 +64,21 @@ export default function LlmSettingsTab({
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [modelDiscoveryMessage, setModelDiscoveryMessage] = useState("");
   const [discoveringModels, setDiscoveringModels] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<ServicePreset>(() =>
+    servicePresetForEndpoint(llmEndpoint)
+  );
+
+  useEffect(() => {
+    setSelectedPreset(servicePresetForEndpoint(llmEndpoint));
+  }, [llmEndpoint]);
 
   function resetDiscoveredModels() {
     setAvailableModels([]);
     setModelDiscoveryMessage("");
   }
 
-  function applyPreset(preset: "ollama" | "lmstudio" | "custom") {
+  function applyPreset(preset: ServicePreset) {
+    setSelectedPreset(preset);
     const endpoint = preset === "ollama"
       ? "http://127.0.0.1:11434/v1"
       : preset === "lmstudio"
@@ -103,7 +121,14 @@ export default function LlmSettingsTab({
       <PanelCard title={t("settings.llm.presetsTitle")} className="max-form-card">
         <div className="settings-preset-grid">
           {(["ollama", "lmstudio", "custom"] as const).map((preset) => (
-            <Button preserveChildren className="settings-preset" variant="outlined" key={preset} onClick={() => applyPreset(preset)}>
+            <Button
+              preserveChildren
+              className={`settings-preset ${selectedPreset === preset ? "active" : ""}`}
+              variant={selectedPreset === preset ? "tonal" : "outlined"}
+              key={preset}
+              aria-pressed={selectedPreset === preset}
+              onClick={() => applyPreset(preset)}
+            >
               <strong>{t(`settings.llm.presets.${preset}.title`)}</strong>
               <span>{t(`settings.llm.presets.${preset}.description`)}</span>
             </Button>

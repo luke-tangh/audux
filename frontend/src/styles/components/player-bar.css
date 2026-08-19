@@ -234,8 +234,9 @@
 }
 
 .player-option-trigger[aria-expanded="true"] {
-  color: var(--md-sys-color-on-secondary-container);
-  background: var(--md-sys-color-secondary-container);
+  color: var(--app-color-on-selection-container);
+  background: var(--app-color-selection-container);
+  box-shadow: inset 0 0 0 1px var(--app-color-selection-outline);
 }
 
 .player-speed-toggle {
@@ -291,8 +292,9 @@
 }
 
 .player-speed-options button.selected {
-  color: var(--md-sys-color-on-secondary-container);
-  background: var(--md-sys-color-secondary-container);
+  color: var(--app-color-on-selection-container);
+  background: var(--app-color-selection-container);
+  box-shadow: inset 0 -3px 0 var(--app-color-selection-indicator);
 }
 
 .player-volume-popover {
@@ -444,6 +446,7 @@
 
 .queue-row.active {
   background: var(--md-sys-color-primary-container);
+  box-shadow: inset 3px 0 0 var(--app-color-selection-indicator);
 }
 
 .queue-row-main {

@@ -64,16 +64,24 @@ describe("LLM service and model selection", () => {
 
   it("keeps service presets visible for custom services and does not insert model defaults", () => {
     const callbacks = renderTab();
+    const lmStudio = screen.getByRole("button", { name: /LM Studio/ });
+    const custom = screen.getByRole("button", { name: /自定义服务|Custom service/ });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /自定义服务|Custom service/ })
-    );
+    expect(lmStudio).toHaveAttribute("aria-pressed", "true");
+    expect(lmStudio).toHaveClass("active");
+
+    fireEvent.click(custom);
+    expect(custom).toHaveAttribute("aria-pressed", "true");
+    expect(lmStudio).toHaveAttribute("aria-pressed", "false");
     expect(
       screen.getByRole("heading", { name: /选择本地模型服务|Choose a local model service/ })
     ).toBeInTheDocument();
     expect(callbacks.onLlmModelChange).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: /Ollama/ }));
+    const ollama = screen.getByRole("button", { name: /Ollama/ });
+    fireEvent.click(ollama);
+    expect(ollama).toHaveAttribute("aria-pressed", "true");
+    expect(custom).toHaveAttribute("aria-pressed", "false");
     expect(callbacks.onLlmEndpointChange).toHaveBeenCalledWith(
       "http://127.0.0.1:11434/v1"
     );

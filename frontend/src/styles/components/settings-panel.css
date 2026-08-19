@@ -105,8 +105,9 @@
 }
 
 .settings-panel .settings-nav-group > button.active {
-  color: var(--md-sys-color-on-secondary-container);
-  background: var(--md-sys-color-secondary-container);
+  color: var(--app-color-on-selection-container);
+  background: var(--app-color-selection-container);
+  box-shadow: inset 3px 0 0 var(--app-color-selection-indicator);
 }
 
 .settings-panel .settings-content {
@@ -614,10 +615,24 @@
   border-radius: var(--md-sys-shape-corner-large);
 }
 
+.settings-preset.ui-button.active,
+.settings-preset.ui-button[aria-pressed="true"] {
+  color: var(--app-color-on-selection-container);
+  border-color: var(--app-color-selection-outline);
+  background: var(--app-color-selection-container);
+  box-shadow: inset 0 -4px 0 var(--app-color-selection-indicator);
+}
+
 .settings-preset span {
   color: var(--md-sys-color-on-surface-variant);
   font-size: 12px;
   line-height: 1.4;
+}
+
+.settings-preset.active span,
+.settings-preset[aria-pressed="true"] span {
+  color: var(--app-color-on-selection-container);
+  opacity: 0.82;
 }
 
 .model-download-note {

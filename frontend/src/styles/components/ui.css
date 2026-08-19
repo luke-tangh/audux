@@ -694,8 +694,9 @@
 }
 
 .ui-select-field-option-selected {
-  color: var(--md-sys-color-on-secondary-container);
-  background: var(--md-state-primary-pressed);
+  color: var(--app-color-on-selection-container);
+  background: var(--app-color-selection-container);
+  box-shadow: inset 3px 0 0 var(--app-color-selection-indicator);
 }
 
 .ui-select-field-option-selected.ui-select-field-option-active,
@@ -743,8 +744,8 @@
 }
 
 :root[data-theme="light"] .ui-select-field-option-selected {
-  color: var(--md-sys-color-on-secondary-container);
-  background: var(--md-sys-color-secondary-container);
+  color: var(--app-color-on-selection-container);
+  background: var(--app-color-selection-container);
 }
 
 :root[data-theme="light"] .ui-select-field-option-selected.ui-select-field-option-active,

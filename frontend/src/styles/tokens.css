@@ -122,6 +122,14 @@
   --app-player-height: 96px;
   --app-color-text-muted: #a8a2ad;
   --app-color-text-faint: #96909b;
+  --app-color-selection-container: var(--md-sys-color-secondary-container);
+  --app-color-on-selection-container: var(--md-sys-color-on-secondary-container);
+  --app-color-selection-outline: color-mix(
+    in srgb,
+    var(--md-sys-color-primary) 58%,
+    var(--md-sys-color-outline-variant)
+  );
+  --app-color-selection-indicator: var(--md-sys-color-primary);
   --app-motion-transition: var(--md-sys-motion-duration-short) var(--md-sys-motion-easing-standard);
 }
 
@@ -181,8 +189,8 @@
 
   --md-sys-color-secondary: #625b71;
   --md-sys-color-on-secondary: #ffffff;
-  --md-sys-color-secondary-container: #ebe7f1;
-  --md-sys-color-on-secondary-container: #1d192b;
+  --md-sys-color-secondary-container: #e5dcf3;
+  --md-sys-color-on-secondary-container: #241a35;
 
   --md-sys-color-tertiary: #7d5260;
   --md-sys-color-on-tertiary: #ffffff;
@@ -204,8 +212,18 @@
   --md-sys-color-warning-container: #ffddb0;
   --md-sys-color-on-warning-container: #261900;
 
-  --text-muted: #675f6b;
-  --text-faint: #6d6671;
+  --app-color-text-muted: #625a67;
+  --app-color-text-faint: #6d6671;
+
+  --md-state-primary-hover: color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent);
+  --md-state-primary-pressed: color-mix(in srgb, var(--md-sys-color-primary) 18%, transparent);
+  --md-state-primary-selected: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
+  --md-state-primary-focus: color-mix(in srgb, var(--md-sys-color-primary) 26%, transparent);
+  --md-state-primary-focus-ring: color-mix(in srgb, var(--md-sys-color-primary) 82%, transparent);
+
+  --app-color-selection-container: #e5dcf3;
+  --app-color-on-selection-container: #241a35;
+  --app-color-selection-outline: #7458a8;
 
   --md-sys-elevation-1:
     0 1px 2px rgba(0, 0, 0, 0.18),

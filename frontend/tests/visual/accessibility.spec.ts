@@ -197,6 +197,76 @@ test.describe("MD3 accessibility behavior", () => {
     await expect(page.locator("html")).toHaveAttribute("data-theme-mode", "light");
   });
 
+  test("keeps light-theme text and selected controls visibly distinct", async ({
+    page
+  }) => {
+    await mockLibraryApi(page);
+    await page.addInitScript(() => {
+      window.localStorage.setItem("local-audio-library-theme", "light");
+    });
+    await page.goto("/");
+
+    const selectedRow = page.locator(".audio-row").nth(1);
+    await selectedRow.getByRole("button", { name: "查看音频详情：测试音频 2" }).click();
+    await expect(selectedRow).toHaveClass(/selected/);
+    await expect(selectedRow).toHaveCSS("background-color", "rgb(229, 220, 243)");
+    await expect(selectedRow).toHaveCSS("border-left-color", "rgb(116, 88, 168)");
+    await expect
+      .poll(() => selectedRow.evaluate((element) => getComputedStyle(element).boxShadow))
+      .toContain("rgb(103, 80, 164)");
+
+    const lightTextTokens = await selectedRow.evaluate(() => {
+      const rootStyle = getComputedStyle(document.documentElement);
+
+      return {
+        mutedText: rootStyle.getPropertyValue("--app-color-text-muted").trim(),
+        faintText: rootStyle.getPropertyValue("--app-color-text-faint").trim()
+      };
+    });
+
+    expect(lightTextTokens).toEqual({
+      mutedText: "#625a67",
+      faintText: "#6d6671"
+    });
+
+    await page.getByRole("button", { name: "设置中心" }).click();
+    const activeSettingsSection = page.locator(".settings-nav-group > button.active");
+    await expect(activeSettingsSection).toBeVisible();
+    await expect(activeSettingsSection).toHaveCSS(
+      "background-color",
+      "rgb(229, 220, 243)"
+    );
+
+    const themeSelect = page.getByRole("combobox", { name: "主题" });
+    await themeSelect.click();
+    const selectedTheme = page.getByRole("option", { name: "浅色" });
+    await expect(selectedTheme).toHaveCSS(
+      "background-color",
+      "rgb(229, 220, 243)"
+    );
+    const selectedThemeShadow = await selectedTheme.evaluate(
+      (element) => getComputedStyle(element).boxShadow
+    );
+    expect(selectedThemeShadow).toContain("rgb(103, 80, 164)");
+
+    await selectedTheme.click();
+    await page.getByRole("button", { name: "LLM", exact: true }).click();
+    const ollamaPreset = page.getByRole("button", { name: /Ollama/ });
+    await ollamaPreset.click();
+    await expect(ollamaPreset).toHaveAttribute("aria-pressed", "true");
+    await expect(ollamaPreset).toHaveCSS(
+      "background-color",
+      "rgb(229, 220, 243)"
+    );
+    await expect(ollamaPreset).toHaveCSS(
+      "border-color",
+      "rgb(116, 88, 168)"
+    );
+    await expect
+      .poll(() => ollamaPreset.evaluate((element) => getComputedStyle(element).boxShadow))
+      .toContain("rgb(103, 80, 164)");
+  });
+
   test("aligns the AI output language control with LLM text fields", async ({ page }) => {
     await mockLibraryApi(page);
     await page.goto("/");

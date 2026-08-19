@@ -43,12 +43,13 @@
 }
 
 .batch-selection-toolbar.active {
-  background: var(--md-sys-color-secondary-container);
+  background: var(--app-color-selection-container);
+  box-shadow: inset 0 -2px 0 var(--app-color-selection-outline);
 }
 
 .batch-selection-toolbar strong {
   margin-right: 4px;
-  color: var(--md-sys-color-on-secondary-container);
+  color: var(--app-color-on-selection-container);
   font-size: 13px;
   white-space: nowrap;
 }
@@ -97,13 +98,10 @@
 }
 
 .audio-row.selected {
-  border-color: color-mix(in srgb, var(--md-sys-color-primary) 34%, transparent);
-  color: var(--md-sys-color-on-secondary-container);
-  background: color-mix(
-    in srgb,
-    var(--md-sys-color-secondary-container) 68%,
-    var(--md-sys-color-surface-container)
-  );
+  border-color: var(--app-color-selection-outline);
+  color: var(--app-color-on-selection-container);
+  background: var(--app-color-selection-container);
+  box-shadow: inset 4px 0 0 var(--app-color-selection-indicator);
 }
 
 .audio-row.selection-mode {
@@ -113,6 +111,7 @@
 .audio-row.batch-selected {
   border-color: var(--md-sys-color-primary);
   background: var(--md-sys-color-primary-container);
+  box-shadow: inset 4px 0 0 var(--app-color-selection-indicator);
 }
 
 .batch-row-checkbox {
@@ -232,7 +231,7 @@
 }
 
 .audio-row.selected .title {
-  color: var(--md-sys-color-on-secondary-container);
+  color: var(--app-color-on-selection-container);
 }
 
 .badge,
@@ -270,8 +269,8 @@
 }
 
 .audio-row.selected .meta-line {
-  color: var(--md-sys-color-on-secondary-container);
-  opacity: 0.78;
+  color: var(--app-color-on-selection-container);
+  opacity: 0.84;
 }
 
 .meta-dot {
@@ -290,8 +289,8 @@
 }
 
 .audio-row.selected .description-line {
-  color: var(--md-sys-color-on-secondary-container);
-  opacity: 0.8;
+  color: var(--app-color-on-selection-container);
+  opacity: 0.86;
 }
 
 .row-tags,
@@ -345,8 +344,8 @@
 }
 
 .audio-row.selected .mini-tag {
-  color: var(--md-sys-color-on-secondary-container);
-  border-color: rgba(255, 255, 255, 0.18);
+  color: var(--app-color-on-selection-container);
+  border-color: var(--app-color-selection-outline);
 }
 
 .muted-tag {
