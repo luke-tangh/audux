@@ -17,7 +17,7 @@ type ThemeContextValue = {
   setThemeMode: (mode: ThemeMode) => void;
 };
 
-const STORAGE_KEY = "local-audio-library-theme";
+const STORAGE_KEY = "audux-theme";
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function systemTheme(): ResolvedTheme {

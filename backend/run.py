@@ -5,7 +5,7 @@ import uvicorn
 
 
 DEFAULT_API_PORT = 8765
-API_PORT_ENV = "LOCAL_AUDIO_LIBRARY_API_PORT"
+API_PORT_ENV = "AUDUX_API_PORT"
 
 
 def _api_port_from_env() -> int:

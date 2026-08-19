@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page, Request } from "@playwright/test";
 
 const NOW = "2026-08-08T00:00:00Z";
-const SESSION_KEY = "local-audio-library-playback-session";
+const SESSION_KEY = "audux-playback-session";
 
 const AUDIO_ITEMS = [
   {
@@ -55,7 +55,7 @@ async function mockPlaybackApi(page: Page, state: MockPlaybackState) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers":
-        "Content-Type, X-Local-Audio-Client, X-Local-Audio-Token",
+        "Content-Type, X-Audux-Client, X-Audux-Token",
       "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
     };
 

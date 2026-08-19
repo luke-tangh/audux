@@ -31,8 +31,8 @@ from ..version import APP_VERSION
 from .common import ServiceError
 
 
-WHISPER_COMPONENT_ENV = "LOCAL_AUDIO_LIBRARY_WHISPER_COMPANION"
-WHISPER_MANIFEST_URL_ENV = "LOCAL_AUDIO_LIBRARY_WHISPER_MANIFEST_URL"
+WHISPER_COMPONENT_ENV = "AUDUX_WHISPER_COMPANION"
+WHISPER_MANIFEST_URL_ENV = "AUDUX_WHISPER_MANIFEST_URL"
 WHISPER_COMPONENT_DIR = COMPONENTS_DIR / "whisper"
 WHISPER_MODEL_CACHE_DIR = MODELS_DIR / "faster-whisper"
 WHISPER_PROTOCOL_VERSION = 1
@@ -85,7 +85,7 @@ def whisper_target_triple() -> str:
 
 
 def _executable_name() -> str:
-    return "local-audio-whisper.exe" if os.name == "nt" else "local-audio-whisper"
+    return "audux-whisper.exe" if os.name == "nt" else "audux-whisper"
 
 
 def _target_dir() -> Path:

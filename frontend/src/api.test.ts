@@ -55,7 +55,7 @@ describe("local API client", () => {
       }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const { api, LOCAL_AUDIO_CLIENT_HEADER } = await import("./api");
+    const { api, AUDUX_CLIENT_HEADER } = await import("./api");
     await api.importLibraryRoot("/audio");
     await api.listActivities(25);
 
@@ -66,8 +66,8 @@ describe("local API client", () => {
       method: "POST",
       body: JSON.stringify({ path: "/audio" })
     });
-    expect(requestHeaders(fetchMock, 1)[LOCAL_AUDIO_CLIENT_HEADER]).toBe(
-      "local-audio-library"
+    expect(requestHeaders(fetchMock, 1)[AUDUX_CLIENT_HEADER]).toBe(
+      "audux"
     );
     expect(fetchMock.mock.calls[2]?.[0]).toBe(
       "http://127.0.0.1:8765/activities?limit=25"
@@ -81,7 +81,7 @@ describe("local API client", () => {
       .mockResolvedValueOnce(jsonResponse([]));
     vi.stubGlobal("fetch", fetchMock);
 
-    const { api, LOCAL_AUDIO_CLIENT_HEADER } = await import("./api");
+    const { api, AUDUX_CLIENT_HEADER } = await import("./api");
     const values = {
       "llm.endpoint": "http://127.0.0.1:1234/v1",
       "llm.model_name": "local-model"
@@ -95,8 +95,8 @@ describe("local API client", () => {
       method: "PUT",
       body: JSON.stringify({ values })
     });
-    expect(requestHeaders(fetchMock, 1)[LOCAL_AUDIO_CLIENT_HEADER]).toBe(
-      "local-audio-library"
+    expect(requestHeaders(fetchMock, 1)[AUDUX_CLIENT_HEADER]).toBe(
+      "audux"
     );
   });
 
@@ -111,16 +111,16 @@ describe("local API client", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { api, LOCAL_AUDIO_CLIENT_HEADER, LOCAL_AUDIO_TOKEN_HEADER } = await import("./api");
+    const { api, AUDUX_CLIENT_HEADER, AUDUX_TOKEN_HEADER } = await import("./api");
     await Promise.all([api.listLibraryRoots(), api.listTags()]);
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("http://127.0.0.1:8765/auth/token");
-    expect(requestHeaders(fetchMock, 0)[LOCAL_AUDIO_CLIENT_HEADER]).toBe(
-      "local-audio-library"
+    expect(requestHeaders(fetchMock, 0)[AUDUX_CLIENT_HEADER]).toBe(
+      "audux"
     );
-    expect(requestHeaders(fetchMock, 1)[LOCAL_AUDIO_TOKEN_HEADER]).toBe("shared-token");
-    expect(requestHeaders(fetchMock, 2)[LOCAL_AUDIO_TOKEN_HEADER]).toBe("shared-token");
+    expect(requestHeaders(fetchMock, 1)[AUDUX_TOKEN_HEADER]).toBe("shared-token");
+    expect(requestHeaders(fetchMock, 2)[AUDUX_TOKEN_HEADER]).toBe("shared-token");
   });
 
   it("refreshes an expired token once and retries the protected request", async () => {
@@ -132,12 +132,12 @@ describe("local API client", () => {
       .mockResolvedValueOnce(jsonResponse([]));
     vi.stubGlobal("fetch", fetchMock);
 
-    const { api, LOCAL_AUDIO_TOKEN_HEADER } = await import("./api");
+    const { api, AUDUX_TOKEN_HEADER } = await import("./api");
     await expect(api.listLibraryRoots()).resolves.toEqual([]);
 
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    expect(requestHeaders(fetchMock, 1)[LOCAL_AUDIO_TOKEN_HEADER]).toBe("expired-token");
-    expect(requestHeaders(fetchMock, 3)[LOCAL_AUDIO_TOKEN_HEADER]).toBe("fresh-token");
+    expect(requestHeaders(fetchMock, 1)[AUDUX_TOKEN_HEADER]).toBe("expired-token");
+    expect(requestHeaders(fetchMock, 3)[AUDUX_TOKEN_HEADER]).toBe("fresh-token");
   });
 
   it("shares one refresh when concurrent requests reject the same token", async () => {
@@ -161,14 +161,14 @@ describe("local API client", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { api, LOCAL_AUDIO_TOKEN_HEADER } = await import("./api");
+    const { api, AUDUX_TOKEN_HEADER } = await import("./api");
     await api.ensureAuthToken();
     await Promise.all([api.listLibraryRoots(), api.listTags()]);
 
     expect(tokenRequests).toBe(2);
     expect(fetchMock).toHaveBeenCalledTimes(6);
-    expect(requestHeaders(fetchMock, 4)[LOCAL_AUDIO_TOKEN_HEADER]).toBe("new-token");
-    expect(requestHeaders(fetchMock, 5)[LOCAL_AUDIO_TOKEN_HEADER]).toBe("new-token");
+    expect(requestHeaders(fetchMock, 4)[AUDUX_TOKEN_HEADER]).toBe("new-token");
+    expect(requestHeaders(fetchMock, 5)[AUDUX_TOKEN_HEADER]).toBe("new-token");
   });
 
   it("does not set a JSON content type for cover FormData", async () => {
@@ -178,15 +178,15 @@ describe("local API client", () => {
       .mockResolvedValueOnce(jsonResponse({ id: 7 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    const { api, LOCAL_AUDIO_CLIENT_HEADER, LOCAL_AUDIO_TOKEN_HEADER } = await import("./api");
+    const { api, AUDUX_CLIENT_HEADER, AUDUX_TOKEN_HEADER } = await import("./api");
     await api.uploadCover(7, new File(["cover"], "cover.png", { type: "image/png" }));
 
     const init = fetchMock.mock.calls[1]?.[1] as RequestInit;
     const headers = init.headers as Record<string, string>;
     expect(init.body).toBeInstanceOf(FormData);
     expect(headers["Content-Type"]).toBeUndefined();
-    expect(headers[LOCAL_AUDIO_CLIENT_HEADER]).toBe("local-audio-library");
-    expect(headers[LOCAL_AUDIO_TOKEN_HEADER]).toBe("cover-token");
+    expect(headers[AUDUX_CLIENT_HEADER]).toBe("audux");
+    expect(headers[AUDUX_TOKEN_HEADER]).toBe("cover-token");
   });
 
   it("preserves structured backend error details", async () => {
@@ -365,7 +365,7 @@ describe("local API client", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { api, LOCAL_AUDIO_CLIENT_HEADER } = await import("./api");
+    const { api, AUDUX_CLIENT_HEADER } = await import("./api");
     await api.startPlaybackEvent(7, 12.5);
     await api.updatePlaybackEvent(44, {
       listened_seconds: 30,
@@ -381,11 +381,11 @@ describe("local API client", () => {
       ["http://127.0.0.1:8765/playback-events/44", "PATCH"],
       ["http://127.0.0.1:8765/statistics/overview?days=90", undefined]
     ]);
-    expect(requestHeaders(fetchMock, 1)[LOCAL_AUDIO_CLIENT_HEADER]).toBe(
-      "local-audio-library"
+    expect(requestHeaders(fetchMock, 1)[AUDUX_CLIENT_HEADER]).toBe(
+      "audux"
     );
-    expect(requestHeaders(fetchMock, 2)[LOCAL_AUDIO_CLIENT_HEADER]).toBe(
-      "local-audio-library"
+    expect(requestHeaders(fetchMock, 2)[AUDUX_CLIENT_HEADER]).toBe(
+      "audux"
     );
     expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body))).toEqual({
       start_position_seconds: 12.5

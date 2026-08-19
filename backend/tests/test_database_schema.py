@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlmodel import create_engine
 
 TEST_RUNTIME_DIR = tempfile.TemporaryDirectory(
-    prefix="local-audio-schema-module-test-"
+    prefix="audux-schema-module-test-"
 )
 
 with pytest.MonkeyPatch.context() as monkeypatch:

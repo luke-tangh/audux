@@ -8,7 +8,7 @@ async function mockEmptyLibrary(page: import("@playwright/test").Page) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers":
-        "Content-Type, X-Local-Audio-Client, X-Local-Audio-Token",
+        "Content-Type, X-Audux-Client, X-Audux-Token",
       "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
     };
 
@@ -247,7 +247,7 @@ test.describe("MD3 visual regression", () => {
 
     await page.keyboard.press("Escape");
     await page.evaluate(() => {
-      window.localStorage.setItem("local-audio-library-theme", "dark");
+      window.localStorage.setItem("audux-theme", "dark");
     });
     await page.reload();
     await stabilize(page);

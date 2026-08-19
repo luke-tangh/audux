@@ -1,12 +1,12 @@
 [package]
-name = "local-audio-library"
+name = "audux"
 version = "0.5.0-beta.1"
-description = "Local Audio Library"
+description = "Audux"
 authors = ["Luke Tang <Luke.TangH@outlook.com>"]
 edition = "2021"
 
 [lib]
-name = "local_audio_library_lib"
+name = "audux_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

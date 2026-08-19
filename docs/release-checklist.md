@@ -35,8 +35,8 @@ cargo check --locked
 - Linux x64 bundle
 - Windows x64 NSIS (`.exe`) bundle
 - macOS 13+ x64 bundle
-- 三个平台的 `local-audio-library-lite-<target>.zip`
-- 三个平台的 `local-audio-whisper-<target>.zip` 和 descriptor
+- 三个平台的 `audux-lite-<target>.zip`
+- 三个平台的 `audux-whisper-<target>.zip` 和 descriptor
 
 手动触发不得创建 GitHub Release。检查每个平台 artifact 中确实包含安装包，而不是
 debug sidecar placeholder。
@@ -48,9 +48,9 @@ debug sidecar placeholder。
 - 安装和首次启动成功，60 秒内后端进入 ready。
 - 添加临时媒体库、扫描、播放、metadata 编辑和搜索正常。
 - 创建 ASR / AI 任务后 UI 保持可操作，取消和重试正常。
-- 关闭最后一个应用窗口后，`local-audio-backend` / Python backend 进程退出。
+- 关闭最后一个应用窗口后，`audux-backend` / Python backend 进程退出。
 - 再次启动后媒体库、播放位置、标签、playlist 和设置仍存在。
-- 卸载应用不会静默删除 `~/.local_audio_library` 用户数据。
+- 卸载应用不会静默删除 `~/.audux` 用户数据。
 
 browser-lite 每个平台至少验证：
 

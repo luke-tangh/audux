@@ -92,11 +92,11 @@ export async function ensureApiBase(): Promise<string> {
   return resolveApiBase();
 }
 
-export const LOCAL_AUDIO_CLIENT_HEADER = "X-Local-Audio-Client";
-export const LOCAL_AUDIO_CLIENT_ID = "local-audio-library";
+export const AUDUX_CLIENT_HEADER = "X-Audux-Client";
+export const AUDUX_CLIENT_ID = "audux";
 
-export const LOCAL_AUDIO_TOKEN_HEADER = "X-Local-Audio-Token";
-export const LOCAL_AUDIO_TOKEN_QUERY = "access_token";
+export const AUDUX_TOKEN_HEADER = "X-Audux-Token";
+export const AUDUX_TOKEN_QUERY = "access_token";
 
 let localApiToken: string | null = null;
 let localApiTokenPromise: Promise<string> | null = null;
@@ -213,7 +213,7 @@ export async function ensureLocalApiToken(): Promise<string> {
     const base = await resolveApiBase();
     const resp = await fetch(`${base}/auth/token`, {
       headers: {
-        [LOCAL_AUDIO_CLIENT_HEADER]: LOCAL_AUDIO_CLIENT_ID
+        [AUDUX_CLIENT_HEADER]: AUDUX_CLIENT_ID
       }
     });
 
@@ -244,7 +244,7 @@ function resetLocalApiToken() {
 
 function authQuery(): string {
   if (!localApiToken) return "";
-  return `${LOCAL_AUDIO_TOKEN_QUERY}=${encodeURIComponent(localApiToken)}`;
+  return `${AUDUX_TOKEN_QUERY}=${encodeURIComponent(localApiToken)}`;
 }
 
 function appendQuery(url: string, params: Record<string, string | number | undefined>) {
@@ -286,10 +286,10 @@ async function request<T = any>(
     ...(options?.headers as Record<string, string> | undefined)
   };
 
-  headers[LOCAL_AUDIO_CLIENT_HEADER] = LOCAL_AUDIO_CLIENT_ID;
+  headers[AUDUX_CLIENT_HEADER] = AUDUX_CLIENT_ID;
 
   if (!isTokenFreePath(path)) {
-    headers[LOCAL_AUDIO_TOKEN_HEADER] = await ensureLocalApiToken();
+    headers[AUDUX_TOKEN_HEADER] = await ensureLocalApiToken();
   }
 
   if (!isFormData && !headers["Content-Type"] && body !== undefined) {

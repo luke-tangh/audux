@@ -16,7 +16,7 @@ from .models import Setting
 
 logger = get_logger(__name__)
 
-ALLOW_ALL_CORS = os.getenv("LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS", "").lower() in {
+ALLOW_ALL_CORS = os.getenv("AUDUX_ALLOW_ALL_CORS", "").lower() in {
     "1",
     "true",
     "yes",
@@ -30,12 +30,12 @@ LOCAL_ORIGIN_REGEX = (
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
-LOCAL_CLIENT_HEADER_NAME = "X-Local-Audio-Client"
-LOCAL_CLIENT_HEADER_VALUE = "local-audio-library"
+AUDUX_CLIENT_HEADER_NAME = "X-Audux-Client"
+AUDUX_CLIENT_HEADER_VALUE = "audux"
 
-LOCAL_TOKEN_HEADER_NAME = "X-Local-Audio-Token"
-LOCAL_TOKEN_QUERY_NAME = "access_token"
-LOCAL_TOKEN_FILE = APP_DATA_DIR / "local_api_token"
+AUDUX_TOKEN_HEADER_NAME = "X-Audux-Token"
+AUDUX_TOKEN_QUERY_NAME = "access_token"
+AUDUX_TOKEN_FILE = APP_DATA_DIR / "local_api_token"
 
 PUBLIC_PATHS = {
     "/health",
@@ -71,8 +71,8 @@ def _get_or_create_local_api_token() -> str:
     - 不是系统级认证，无法防同机恶意进程读取本地 API。
     """
     try:
-        if LOCAL_TOKEN_FILE.exists():
-            token = LOCAL_TOKEN_FILE.read_text(encoding="utf-8").strip()
+        if AUDUX_TOKEN_FILE.exists():
+            token = AUDUX_TOKEN_FILE.read_text(encoding="utf-8").strip()
             if token:
                 return token
     except Exception:
@@ -81,9 +81,9 @@ def _get_or_create_local_api_token() -> str:
     token = secrets.token_urlsafe(32)
 
     try:
-        LOCAL_TOKEN_FILE.write_text(token, encoding="utf-8")
+        AUDUX_TOKEN_FILE.write_text(token, encoding="utf-8")
         try:
-            os.chmod(LOCAL_TOKEN_FILE, 0o600)
+            os.chmod(AUDUX_TOKEN_FILE, 0o600)
         except Exception:
             pass
     except Exception:
@@ -116,9 +116,9 @@ def _path_allows_query_token(path: str) -> bool:
 def _request_has_valid_local_token(request: Request) -> bool:
     expected = _get_or_create_local_api_token()
 
-    provided = request.headers.get(LOCAL_TOKEN_HEADER_NAME)
+    provided = request.headers.get(AUDUX_TOKEN_HEADER_NAME)
     if not provided and _path_allows_query_token(request.url.path):
-        provided = request.query_params.get(LOCAL_TOKEN_QUERY_NAME)
+        provided = request.query_params.get(AUDUX_TOKEN_QUERY_NAME)
 
     if not provided:
         return False

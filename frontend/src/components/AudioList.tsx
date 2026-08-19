@@ -311,7 +311,7 @@ export default function AudioList({
   const [density, setDensity] = useState<"compact" | "comfortable">(() => {
     try {
       const storedDensity = window.localStorage.getItem(
-        "local-audio-library-list-density"
+        "audux-list-density"
       );
       if (storedDensity === "comfortable" || storedDensity === "compact") {
         return storedDensity;
@@ -351,7 +351,7 @@ export default function AudioList({
     const nextDensity = density === "compact" ? "comfortable" : "compact";
     setDensity(nextDensity);
     try {
-      window.localStorage.setItem("local-audio-library-list-density", nextDensity);
+      window.localStorage.setItem("audux-list-density", nextDensity);
     } catch {
       // The visual preference remains active for this session when storage is unavailable.
     }

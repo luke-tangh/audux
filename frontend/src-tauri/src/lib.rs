@@ -13,7 +13,7 @@ use tauri::Manager;
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 const BACKEND_API_HOST: &str = "127.0.0.1";
-const BACKEND_PORT_ENV: &str = "LOCAL_AUDIO_LIBRARY_API_PORT";
+const BACKEND_PORT_ENV: &str = "AUDUX_API_PORT";
 const DEFAULT_BACKEND_PORT: u16 = 8765;
 
 #[cfg(debug_assertions)]
@@ -126,11 +126,11 @@ fn restart_application(app: tauri::AppHandle) {
     app.restart();
 }
 
-fn local_audio_data_dir() -> Result<PathBuf, String> {
+fn audux_data_dir() -> Result<PathBuf, String> {
     let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
         .map(PathBuf::from)
         .ok_or_else(|| "Could not resolve the user home directory".to_string())?;
-    Ok(home.join(".local_audio_library"))
+    Ok(home.join(".audux"))
 }
 
 fn open_directory(path: &Path) -> Result<(), String> {
@@ -154,12 +154,12 @@ fn open_directory(path: &Path) -> Result<(), String> {
 
 #[tauri::command]
 fn open_app_data_directory() -> Result<(), String> {
-    open_directory(&local_audio_data_dir()?)
+    open_directory(&audux_data_dir()?)
 }
 
 #[tauri::command]
 fn open_logs_directory() -> Result<(), String> {
-    open_directory(&local_audio_data_dir()?.join("logs"))
+    open_directory(&audux_data_dir()?.join("logs"))
 }
 
 fn start_backend_sidecar(app: &tauri::AppHandle) {
@@ -225,7 +225,7 @@ fn find_dev_python() -> std::path::PathBuf {
     use std::env;
     use std::path::PathBuf;
 
-    if let Ok(value) = env::var("LOCAL_AUDIO_LIBRARY_PYTHON") {
+    if let Ok(value) = env::var("AUDUX_PYTHON") {
         let value = value.trim();
         if !value.is_empty() {
             return PathBuf::from(value);
@@ -350,7 +350,7 @@ fn start_backend_in_release(app: &tauri::AppHandle) {
 
     let shell = app.shell();
 
-    let result = shell.sidecar("local-audio-backend");
+    let result = shell.sidecar("audux-backend");
 
     match result {
         Ok(cmd) => match cmd.spawn() {

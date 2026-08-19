@@ -83,7 +83,7 @@ def calculate_sampled_file_hash(path: Path, file_size: Optional[int] = None) -> 
         file_size = path.stat().st_size
 
     digest = hashlib.sha256()
-    digest.update(b"local-audio-library-sampled-hash-v1")
+    digest.update(b"audux-sampled-hash-v1")
     digest.update(str(file_size).encode("utf-8"))
 
     if file_size <= 0:

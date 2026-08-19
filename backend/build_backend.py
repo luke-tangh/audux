@@ -75,10 +75,10 @@ def build_with_asr() -> bool:
 
     To create a lite/smoke build without faster-whisper:
 
-        LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 \\
+        AUDUX_BUILD_WITH_ASR=0 \\
           uv run --locked --group build python backend/build_backend.py
     """
-    value = os.getenv("LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR")
+    value = os.getenv("AUDUX_BUILD_WITH_ASR")
 
     if _env_falsey(value):
         return False
@@ -120,12 +120,12 @@ def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
     if include_asr:
         if not module_available("faster_whisper"):
             raise RuntimeError(
-                "LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR is enabled, but faster-whisper "
+                "AUDUX_BUILD_WITH_ASR is enabled, but faster-whisper "
                 "is not installed.\n\n"
                 "For full release build:\n"
                 "  uv sync --locked --extra asr --group build\n\n"
                 "For a lite build without embedded faster-whisper:\n"
-                "  LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 "
+                "  AUDUX_BUILD_WITH_ASR=0 "
                 "uv run --locked --group build python backend/build_backend.py"
             )
 
@@ -177,7 +177,7 @@ def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
 def main():
     ensure_pyinstaller_available()
 
-    name = "local-audio-backend"
+    name = "audux-backend"
     target = tauri_target_triple()
     include_asr = build_with_asr()
 

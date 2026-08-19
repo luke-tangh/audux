@@ -93,7 +93,7 @@ def test_read_manifest_rejects_invalid_asset_names(monkeypatch, asset_name):
 def test_installed_executable_requires_matching_metadata(monkeypatch, tmp_path):
     target_dir = tmp_path / "component"
     target_dir.mkdir()
-    executable = target_dir / "local-audio-whisper"
+    executable = target_dir / "audux-whisper"
     executable.write_bytes(b"companion")
     metadata_path = target_dir / "component.json"
 
@@ -129,11 +129,11 @@ def test_install_archive_rejects_additional_files(monkeypatch, tmp_path):
     monkeypatch.setattr(service, "WHISPER_COMPONENT_DIR", tmp_path / "components")
     monkeypatch.setattr(service, "APP_VERSION", "1.2.3")
     monkeypatch.setattr(service, "whisper_target_triple", lambda: "test-target")
-    monkeypatch.setattr(service, "_executable_name", lambda: "local-audio-whisper")
+    monkeypatch.setattr(service, "_executable_name", lambda: "audux-whisper")
     archive = tmp_path / "component.zip"
     executable_bytes = b"verified executable"
     with zipfile.ZipFile(archive, "w") as bundle:
-        bundle.writestr("local-audio-whisper", executable_bytes)
+        bundle.writestr("audux-whisper", executable_bytes)
         bundle.writestr("unexpected.txt", b"not allowed")
 
     with pytest.raises(ValueError, match="unexpected contents"):
@@ -141,7 +141,7 @@ def test_install_archive_rejects_additional_files(monkeypatch, tmp_path):
             archive,
             {
                 "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
-                "executable_name": "local-audio-whisper",
+                "executable_name": "audux-whisper",
                 "executable_sha256": hashlib.sha256(executable_bytes).hexdigest(),
             },
         )

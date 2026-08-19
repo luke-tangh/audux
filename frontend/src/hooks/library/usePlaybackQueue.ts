@@ -24,7 +24,7 @@ type UsePlaybackQueueParams = {
   notify: Notify;
 };
 
-export const PLAYBACK_SESSION_STORAGE_KEY = "local-audio-library-playback-session";
+export const PLAYBACK_SESSION_STORAGE_KEY = "audux-playback-session";
 
 export function usePlaybackQueue({
   audioItems,

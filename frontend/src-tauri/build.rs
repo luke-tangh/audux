@@ -3,8 +3,8 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-const SIDECAR_BASENAME: &str = "local-audio-backend";
-const DEV_PLACEHOLDER_MARKER: &[u8] = b"LOCAL_AUDIO_LIBRARY_DEV_SIDECAR_PLACEHOLDER\n";
+const SIDECAR_BASENAME: &str = "audux-backend";
+const DEV_PLACEHOLDER_MARKER: &[u8] = b"AUDUX_DEV_SIDECAR_PLACEHOLDER\n";
 
 fn target_sidecar_path() -> Option<PathBuf> {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").ok()?;

@@ -27,7 +27,7 @@ export default function StartupScreen({ state, error = "", onRetry }: Props) {
         <div className={`startup-icon ${failed ? "failed" : ""}`}>
           <MaterialIcon name={failed ? "error" : "bolt"} size={38} />
         </div>
-        <span className="eyebrow">Local Audio Library</span>
+        <span className="eyebrow">Audux</span>
         <h1>{failed ? t("startup.failedTitle") : t("startup.startingTitle")}</h1>
         <p>{failed ? errorHint(error, t) : t("startup.startingDescription")}</p>
         {!failed && <div className="startup-loader" aria-hidden="true"><span /></div>}

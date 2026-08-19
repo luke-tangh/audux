@@ -11,8 +11,8 @@ from sqlmodel import Session, create_engine
 
 # Importing app.main initializes the normal data directories and logger. Resolve
 # those module-level paths under a process-lifetime temporary directory so API
-# tests never touch the user's ~/.local_audio_library data.
-TEST_RUNTIME_DIR = tempfile.TemporaryDirectory(prefix="local-audio-library-tests-")
+# tests never touch the user's ~/.audux data.
+TEST_RUNTIME_DIR = tempfile.TemporaryDirectory(prefix="audux-tests-")
 
 with pytest.MonkeyPatch.context() as monkeypatch:
     monkeypatch.setattr(Path, "home", lambda: Path(TEST_RUNTIME_DIR.name))
@@ -88,7 +88,7 @@ class ApiIntegrationTest:
             app.dependency_overrides[get_session] = get_test_session
             monkeypatch.setattr(
                 local_security,
-                "LOCAL_TOKEN_FILE",
+                "AUDUX_TOKEN_FILE",
                 self.root_path / "local_api_token",
             )
             monkeypatch.setattr(tasks, "engine", self.engine)
@@ -105,8 +105,8 @@ class ApiIntegrationTest:
             token_response = self.client.get(
                 "/auth/token",
                 headers={
-                    local_security.LOCAL_CLIENT_HEADER_NAME:
-                        local_security.LOCAL_CLIENT_HEADER_VALUE,
+                    local_security.AUDUX_CLIENT_HEADER_NAME:
+                        local_security.AUDUX_CLIENT_HEADER_VALUE,
                 },
             )
             if token_response.status_code != 200:
@@ -127,12 +127,12 @@ class ApiIntegrationTest:
         origin: str | None = None,
     ) -> dict[str, str]:
         headers = {
-            local_security.LOCAL_TOKEN_HEADER_NAME: self.token,
+            local_security.AUDUX_TOKEN_HEADER_NAME: self.token,
         }
 
         if include_client:
-            headers[local_security.LOCAL_CLIENT_HEADER_NAME] = (
-                local_security.LOCAL_CLIENT_HEADER_VALUE
+            headers[local_security.AUDUX_CLIENT_HEADER_NAME] = (
+                local_security.AUDUX_CLIENT_HEADER_VALUE
             )
 
         if origin:

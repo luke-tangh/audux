@@ -12,7 +12,7 @@ from .time_utils import utc_now_iso
 logger = logging.getLogger(__name__)
 CURRENT_SCHEMA_VERSION = 2
 
-APP_DATA_DIR = Path.home() / ".local_audio_library"
+APP_DATA_DIR = Path.home() / ".audux"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 COVERS_DIR = APP_DATA_DIR / "covers"

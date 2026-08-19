@@ -5,7 +5,7 @@ import { displayTitle } from "../../types";
 import { Button, MaterialIcon } from "../ui";
 import { useTranslation } from "react-i18next";
 
-const QUEUE_DRAG_TYPE = "application/x-local-audio-queue-index";
+const QUEUE_DRAG_TYPE = "application/x-audux-queue-index";
 
 type QueuePopoverProps = {
   queue: AudioItem[];

@@ -20,10 +20,10 @@ class TestLoggerRedaction:
             "GET /export/metadata?format=json&access_token=[redacted]"
         )
 
-    def test_redacts_local_audio_token_header(self):
-        value = "X-Local-Audio-Token: super-secret-token"
+    def test_redacts_audux_token_header(self):
+        value = "X-Audux-Token: super-secret-token"
 
-        assert redact_sensitive_text(value) == "X-Local-Audio-Token: [redacted]"
+        assert redact_sensitive_text(value) == "X-Audux-Token: [redacted]"
 
     def test_redacts_authorization_bearer_header(self):
         value = "Authorization: Bearer super-secret-api-key"
@@ -33,7 +33,7 @@ class TestLoggerRedaction:
     def test_redacts_multiple_sensitive_values(self):
         value = (
             "Authorization: Bearer api-key, "
-            "X-Local-Audio-Token: local-token, "
+            "X-Audux-Token: local-token, "
             "GET /cover?access_token=query-token"
         )
 

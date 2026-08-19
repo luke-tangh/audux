@@ -1,3 +1,3 @@
 fn main() {
-    local_audio_library_lib::run()
+    audux_lib::run()
 }

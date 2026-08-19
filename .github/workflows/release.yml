@@ -100,7 +100,7 @@ jobs:
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v7
         with:
-          name: local-audio-library-${{ matrix.name }}
+          name: audux-${{ matrix.name }}
           # Upload distributable files only. In particular, exclude the
           # uncompressed Linux *.AppDir staging tree used to build AppImage.
           path: |
@@ -110,8 +110,8 @@ jobs:
             frontend/src-tauri/target/release/bundle/**/*.msi
             frontend/src-tauri/target/release/bundle/**/*.exe
             frontend/src-tauri/target/release/bundle/**/*.dmg
-            backend/dist/browser-lite/local-audio-library-lite-*.zip
-            backend/dist/whisper-components/local-audio-whisper-*.zip
+            backend/dist/browser-lite/audux-lite-*.zip
+            backend/dist/whisper-components/audux-whisper-*.zip
           if-no-files-found: error
 
   publish-release:
@@ -127,7 +127,7 @@ jobs:
       - name: Download bundle artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: local-audio-library-*
+          pattern: audux-*
           path: release-artifacts
           merge-multiple: false
 
@@ -154,6 +154,6 @@ jobs:
             release-artifacts/**/*.msi
             release-artifacts/**/*.exe
             release-artifacts/**/*.dmg
-            release-artifacts/**/local-audio-library-lite-*.zip
-            release-artifacts/**/local-audio-whisper-*.zip
+            release-artifacts/**/audux-lite-*.zip
+            release-artifacts/**/audux-whisper-*.zip
             release-artifacts/whisper-components.json

@@ -15,7 +15,7 @@ if (!existsSync(backendScript)) {
 }
 
 const candidates = [];
-const configuredPython = process.env.LOCAL_AUDIO_LIBRARY_PYTHON?.trim();
+const configuredPython = process.env.AUDUX_PYTHON?.trim();
 
 if (configuredPython) {
   candidates.push({ command: configuredPython, args: [] });
@@ -87,7 +87,7 @@ for (const candidate of candidates) {
 console.error(
   [
     "No usable Python 3 executable was found.",
-    "Set LOCAL_AUDIO_LIBRARY_PYTHON to a Python executable, or run `uv sync` at the project root.",
+    "Set AUDUX_PYTHON to a Python executable, or run `uv sync` at the project root.",
   ].join("\n"),
 );
 process.exit(1);

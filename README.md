@@ -1,6 +1,6 @@
-# Local Audio Library
+# Audux
 
-Local Audio Library 是一个本地优先的私人音频知识库应用，支持扫描本地音频目录、读取 metadata 和封面、播放、标签整理、播放列表、ASR 转写、LLM 生成描述与标签、全文搜索、任务队列和 Tauri 桌面封装。
+Audux 是一个本地优先的私人音频知识库应用，支持扫描本地音频目录、读取 metadata 和封面、播放、标签整理、播放列表、ASR 转写、LLM 生成描述与标签、全文搜索、任务队列和 Tauri 桌面封装。
 
 ## 功能特性
 
@@ -80,18 +80,18 @@ Local Audio Library 是一个本地优先的私人音频知识库应用，支持
 应用数据默认存放在：
 
 ```txt
-~/.local_audio_library
+~/.audux
 ```
 
 其中包括：
 
 ```txt
-~/.local_audio_library/database.sqlite
-~/.local_audio_library/covers
-~/.local_audio_library/logs
-~/.local_audio_library/exports
-~/.local_audio_library/backups
-~/.local_audio_library/local_api_token
+~/.audux/database.sqlite
+~/.audux/covers
+~/.audux/logs
+~/.audux/exports
+~/.audux/backups
+~/.audux/local_api_token
 ```
 
 `local_api_token` 是后端自动生成的本地随机 API token，用于防止外部网页直接访问敏感接口。
@@ -166,7 +166,7 @@ npm run tauri:dev
 
 开发模式下，Rust 侧会尝试使用：
 
-1. `LOCAL_AUDIO_LIBRARY_PYTHON` 环境变量指定的 Python
+1. `AUDUX_PYTHON` 环境变量指定的 Python
 2. 当前 `VIRTUAL_ENV`
 3. Windows 使用 `python`
 4. macOS / Linux 使用 `python3`
@@ -192,7 +192,7 @@ asr.beam_size = 5
 桌面发布包默认不包含 faster-whisper、CTranslate2、PyAV 等运行时。先在“设置 →
 ASR”下载当前平台的 Whisper 组件；组件 ZIP 会校验版本、平台、大小和 SHA-256 后再
 安装。`small` / `medium` / `large-v3` 等模型权重仍在首次转写时下载到
-`~/.local_audio_library/models/faster-whisper/`。移除组件不会删除模型缓存。
+`~/.audux/models/faster-whisper/`。移除组件不会删除模型缓存。
 
 如果希望完全离线，先完成组件和模型下载，或把 `asr.model_name` 配置为本地模型路径。
 
@@ -354,13 +354,13 @@ llm.temperature
 2. POST / PUT / PATCH / DELETE 需要：
 
 ```txt
-X-Local-Audio-Client: local-audio-library
+X-Audux-Client: audux
 ```
 
 3. 除 `/health`、`/auth/token`、API docs 外，所有 API 都需要本地随机 token：
 
 ```txt
-X-Local-Audio-Token: <token>
+X-Audux-Token: <token>
 ```
 
 4. `<audio>`、`<img>`、导出下载等无法添加 header 的场景使用 query token：
@@ -374,7 +374,7 @@ X-Local-Audio-Token: <token>
 开发环境可以通过环境变量允许所有 CORS：
 
 ```bash
-LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS=1
+AUDUX_ALLOW_ALL_CORS=1
 ```
 
 不建议在日常使用或打包版本中启用该选项。
@@ -425,7 +425,7 @@ uv run --locked --group build python backend/build_backend.py
 该命令会生成：
 
 ```txt
-frontend/src-tauri/binaries/local-audio-backend-<target-triple>
+frontend/src-tauri/binaries/audux-backend-<target-triple>
 ```
 
 如需单独构建当前平台的可选 Whisper companion：
@@ -438,7 +438,7 @@ uv run --locked --extra asr --group build python backend/build_whisper_companion
 产物位于 `backend/dist/whisper-components/`，包含平台 ZIP 和 manifest descriptor。
 Release workflow 会为三个目标平台构建 lite 安装包和 companion，并汇总生成
 `whisper-components.json`。下载地址默认指向与应用版本相同的 GitHub Release；开发
-或镜像测试可用 `LOCAL_AUDIO_LIBRARY_WHISPER_MANIFEST_URL` 指定 HTTPS manifest。
+或镜像测试可用 `AUDUX_WHISPER_MANIFEST_URL` 指定 HTTPS manifest。
 
 不同平台的 native 依赖仍建议在目标平台上实际测试。
 
@@ -458,14 +458,14 @@ uv run --locked --group build python backend/build_browser_lite.py
 产物位于 `backend/dist/browser-lite/`：
 
 ```txt
-local-audio-library-lite-<target-triple>[.exe]
-local-audio-library-lite-<target-triple>.zip
+audux-lite-<target-triple>[.exe]
+audux-lite-<target-triple>.zip
 ```
 
 Windows 双击可执行文件会显示控制台；Linux 和 macOS 建议从终端运行。保持终端开启，
 按 `Ctrl+C` 即可停止服务。浏览器前端和 API 使用同一回环 origin，不需要放宽 CORS，
-也不依赖固定端口。可用 `LOCAL_AUDIO_LIBRARY_BROWSER_PORT` 指定端口，或设置
-`LOCAL_AUDIO_LIBRARY_BROWSER_OPEN=0` 禁止自动打开浏览器。
+也不依赖固定端口。可用 `AUDUX_BROWSER_PORT` 指定端口，或设置
+`AUDUX_BROWSER_OPEN=0` 禁止自动打开浏览器。
 
 browser-lite 仍然需要本机 backend 才能访问文件系统，因此它不是可部署到公共静态
 网站的纯网页。Tauri 原生文件/目录选择器不可用，媒体库路径需要手动输入；Whisper
@@ -505,7 +505,7 @@ npm run tauri:build
 `tauri:build` 会先调用当前平台的 Python，生成带正确 target triple 的
 backend sidecar，再构建前端和 Tauri 安装包。Python 的查找顺序为：
 
-1. `LOCAL_AUDIO_LIBRARY_PYTHON`
+1. `AUDUX_PYTHON`
 2. 已激活的 `VIRTUAL_ENV`
 3. 仓库根目录的 `.venv`
 4. Windows 上的 `python` / `py -3`
@@ -522,7 +522,10 @@ Release 构建前请确认：
 
 显式多选与批量整理、Transcript 保真修订与搜索上下文、播放队列与会话连续性、
 手动数据库备份与安全恢复、保存视图、智能 Playlist 以及资料库健康中心与安全重新关联
-已经完成；下一项是 Transcript 章节。v0.5 已冻结功能范围并进入 Beta 发布验证，不再追加 F5。
+已经完成。后续以领域受限 Agent 为主线，当前先建设 Transcript revision、证据锚点、
+质量 issue 和 Provider / Tool Registry 边界，再推进分段有据检索，以及“转写—验证—
+Tag / 描述建议—人工勘误—索引回写”闭环。v0.5 已冻结功能范围并进入 Beta 发布验证，
+不再追加 F5。
 详细范围见 [`docs/roadmap.md`](docs/roadmap.md)。仓库中的 `0.5.0-beta.1` 仍是内部候选
 标识，不代表已经发布；v1.0 前所有版本均保留为内部 Beta，首次公开 Release 统一为
 v1.0。
@@ -555,20 +558,20 @@ npm run build:backend
 
 ```bash
 curl http://127.0.0.1:8765/auth/token \
-  -H "X-Local-Audio-Client: local-audio-library"
+  -H "X-Audux-Client: audux"
 ```
 
 然后带 header：
 
 ```bash
 curl http://127.0.0.1:8765/library-roots \
-  -H "X-Local-Audio-Token: <token>"
+  -H "X-Audux-Token: <token>"
 ```
 
 POST / PUT / PATCH / DELETE 还需要本地客户端 header：
 
 ```bash
--H "X-Local-Audio-Client: local-audio-library"
+-H "X-Audux-Client: audux"
 ```
 
 ### 后端未启动

@@ -57,8 +57,8 @@ def main() -> None:
         )
 
     target = tauri_target_triple()
-    executable_name = f"local-audio-whisper{exe_suffix()}"
-    command = build_command("local-audio-whisper")
+    executable_name = f"audux-whisper{exe_suffix()}"
+    command = build_command("audux-whisper")
 
     subprocess.check_call(command, cwd=ROOT)
 
@@ -70,7 +70,7 @@ def main() -> None:
         executable.chmod(executable.stat().st_mode | 0o111)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    asset_name = f"local-audio-whisper-{target}.zip"
+    asset_name = f"audux-whisper-{target}.zip"
     archive = OUTPUT_DIR / asset_name
     compression = zipfile.ZIP_DEFLATED
     compresslevel = 9

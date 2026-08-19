@@ -223,7 +223,7 @@ async function mockManagementApi(page: Page, state: MockState) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers":
-        "Content-Type, X-Local-Audio-Client, X-Local-Audio-Token",
+        "Content-Type, X-Audux-Client, X-Audux-Token",
       "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS"
     };
 

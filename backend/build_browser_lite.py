@@ -85,7 +85,7 @@ def main() -> None:
             "cd frontend && npm run build:browser-lite"
         )
 
-    executable_base = "local-audio-library-lite"
+    executable_base = "audux-lite"
     executable_name = f"{executable_base}{exe_suffix()}"
     subprocess.check_call(build_command(executable_base), cwd=ROOT)
 
@@ -98,13 +98,13 @@ def main() -> None:
     target = tauri_target_triple()
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     target_executable = OUTPUT_DIR / (
-        f"local-audio-library-lite-{target}{exe_suffix()}"
+        f"audux-lite-{target}{exe_suffix()}"
     )
     shutil.copy2(built, target_executable)
     if platform.system().lower() != "windows":
         target_executable.chmod(target_executable.stat().st_mode | 0o111)
 
-    archive = OUTPUT_DIR / f"local-audio-library-lite-{target}.zip"
+    archive = OUTPUT_DIR / f"audux-lite-{target}.zip"
     with zipfile.ZipFile(
         archive,
         "w",

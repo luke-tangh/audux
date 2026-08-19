@@ -12,7 +12,7 @@ SENSITIVE_PATTERNS = [
     # URLs: ?access_token=xxx or &access_token=xxx
     re.compile(r"([?&]access_token=)[^&\s]+", re.IGNORECASE),
     # Headers, if they ever appear in logs
-    re.compile(r"(X-Local-Audio-Token:\s*)[^\s,;]+", re.IGNORECASE),
+    re.compile(r"(X-Audux-Token:\s*)[^\s,;]+", re.IGNORECASE),
     re.compile(r"(Authorization:\s*Bearer\s+)[^\s,;]+", re.IGNORECASE),
 ]
 

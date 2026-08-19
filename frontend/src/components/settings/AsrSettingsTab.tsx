@@ -391,7 +391,7 @@ export default function AsrSettingsTab({
               <span>{t("settings.asr.modelDownloadNote", {
                 size: modelDownloadEstimate || t("settings.asr.modelDownloadUnknown")
               })}</span>
-              <code>~/.local_audio_library/models/faster-whisper/</code>
+              <code>~/.audux/models/faster-whisper/</code>
             </div>
           </>
         )}

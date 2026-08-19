@@ -1,5 +1,5 @@
 (function initializeTheme() {
-  var storageKey = "local-audio-library-theme";
+  var storageKey = "audux-theme";
   var themeMode = "system";
 
   try {

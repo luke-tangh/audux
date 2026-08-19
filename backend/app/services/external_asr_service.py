@@ -661,7 +661,7 @@ async def transcribe_external_audio_chunked(
                 raise ExternalAsrCanceled()
             results[index] = result
 
-    with tempfile.TemporaryDirectory(prefix="local-audio-asr-chunks-") as tmp_dir:
+    with tempfile.TemporaryDirectory(prefix="audux-asr-chunks-") as tmp_dir:
         upload_tasks: list[asyncio.Task[None]] = []
         try:
             for index, chunk in enumerate(chunks):

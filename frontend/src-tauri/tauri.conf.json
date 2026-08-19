@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Local Audio Library",
+  "productName": "Audux",
   "version": "0.5.0-beta.1",
-  "identifier": "com.luketang.localaudiolibrary",
+  "identifier": "com.luketang.audux",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Local Audio Library",
+        "title": "Audux",
         "width": 1280,
         "height": 800,
         "minWidth": 1000,
@@ -29,7 +29,7 @@
     "active": true,
     "targets": "all",
     "externalBin": [
-      "binaries/local-audio-backend"
+      "binaries/audux-backend"
     ],
     "icon": [
       "icons/32x32.png",

@@ -4,7 +4,7 @@
 
 These instructions apply to the entire repository.
 
-Local Audio Library is a local-first desktop application with three layers:
+Audux is a local-first desktop application with three layers:
 
 - `frontend/`: React 19, TypeScript, Vite, and the browser-facing API client.
 - `backend/`: FastAPI, SQLModel/SQLite, audio scanning, transcription, and AI tasks.
@@ -58,7 +58,7 @@ uv sync --locked --group test
 
 In sandboxed or managed environments, the default uv cache under `~/.cache/uv`
 may be read-only and fail with `Could not acquire lock` or `Read-only file
-system`. Set `UV_CACHE_DIR=/tmp/local-audio-library-uv-cache` for `uv sync` and
+system`. Set `UV_CACHE_DIR=/tmp/audux-uv-cache` for `uv sync` and
 `uv run` commands in that environment. The `/tmp` cache is disposable; this
 cache error is not a reason to skip tests.
 
@@ -131,7 +131,7 @@ npm run build:backend
 For a lightweight sidecar without ASR:
 
 ```bash
-LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
+AUDUX_BUILD_WITH_ASR=0 npm run build:backend
 ```
 
 ## Architecture and behavior constraints
@@ -147,10 +147,10 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 - Do not weaken origin checks, CSP, token checks, or unsafe-method client-header
   checks to work around a development problem.
 - All non-exempt API requests require the local API token. Mutating requests
-  also require `X-Local-Audio-Client: local-audio-library`.
+  also require `X-Audux-Client: audux`.
 - Media, cover, and download URLs may use the access token query parameter
   because those browser elements cannot attach custom headers.
-- `LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS=1` is development-only and must not become
+- `AUDUX_ALLOW_ALL_CORS=1` is development-only and must not become
   a production default.
 - Never log, commit, expose, or place real LLM API keys or the local API token in
   fixtures, screenshots, or error messages.
@@ -167,7 +167,7 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 
 ### Database and user data
 
-- Runtime data lives under `~/.local_audio_library/`.
+- Runtime data lives under `~/.audux/`.
 - Treat the database, covers, logs, exports, and API token as user data. Do not
   delete or reset them during tests or schema changes.
 - Before v1.0, update the current schema directly and increment its schema marker.
@@ -203,7 +203,7 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 ### Tests
 
 - Backend tests must use temporary databases, media roots, covers, logs, and
-  token files. Never point automated tests at `~/.local_audio_library/`.
+  token files. Never point automated tests at `~/.audux/`.
 - `backend/tests/conftest.py` establishes a process-wide temporary home before
   test collection. Do not bypass this isolation when creating alternate test
   entry points; API tests should also use `tests.api_test_support` for their
@@ -228,7 +228,7 @@ LOCAL_AUDIO_LIBRARY_BUILD_WITH_ASR=0 npm run build:backend
 - Keep platform-specific behavior behind Rust `cfg` checks or explicit target
   detection.
 - Tauri `externalBin` filenames must match
-  `local-audio-backend-<target-triple>[.exe]`.
+  `audux-backend-<target-triple>[.exe]`.
 - Never ship the debug sidecar placeholder in a release bundle.
 - Do not commit files from `frontend/src-tauri/binaries/`,
   `frontend/src-tauri/target/`, `frontend/dist/`, `frontend/node_modules/`,

@@ -12,8 +12,8 @@ import uvicorn
 from app.browser_lite import create_browser_lite_app
 
 
-BROWSER_PORT_ENV = "LOCAL_AUDIO_LIBRARY_BROWSER_PORT"
-BROWSER_OPEN_ENV = "LOCAL_AUDIO_LIBRARY_BROWSER_OPEN"
+BROWSER_PORT_ENV = "AUDUX_BROWSER_PORT"
+BROWSER_OPEN_ENV = "AUDUX_BROWSER_OPEN"
 
 
 def _requested_port() -> int:
@@ -66,7 +66,7 @@ def main() -> None:
 
     port = int(listener.getsockname()[1])
     url = f"http://127.0.0.1:{port}"
-    print("Local Audio Library browser-lite")
+    print("Audux browser-lite")
     print(f"Open: {url}")
     print("Keep this terminal open. Press Ctrl+C to stop the application.")
 
@@ -105,7 +105,7 @@ def main() -> None:
         while server_thread.is_alive():
             server_thread.join(timeout=0.5)
     except KeyboardInterrupt:
-        print("\nStopping Local Audio Library...")
+        print("\nStopping Audux...")
         server.should_exit = True
         server_thread.join(timeout=15)
     finally:

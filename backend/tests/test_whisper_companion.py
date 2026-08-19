@@ -56,9 +56,9 @@ def test_install_archive_verifies_and_activates_component(monkeypatch, tmp_path)
     monkeypatch.setattr(service, "WHISPER_COMPONENT_DIR", component_root)
     monkeypatch.setattr(service, "APP_VERSION", "1.2.3")
     monkeypatch.setattr(service, "whisper_target_triple", lambda: "test-target")
-    monkeypatch.setattr(service, "_executable_name", lambda: "local-audio-whisper")
+    monkeypatch.setattr(service, "_executable_name", lambda: "audux-whisper")
 
-    executable = tmp_path / "local-audio-whisper"
+    executable = tmp_path / "audux-whisper"
     executable.write_bytes(b"verified companion")
     archive = tmp_path / "component.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
@@ -85,17 +85,17 @@ def test_install_archive_rejects_checksum_mismatch(monkeypatch, tmp_path):
     monkeypatch.setattr(service, "WHISPER_COMPONENT_DIR", tmp_path / "components")
     monkeypatch.setattr(service, "APP_VERSION", "1.2.3")
     monkeypatch.setattr(service, "whisper_target_triple", lambda: "test-target")
-    monkeypatch.setattr(service, "_executable_name", lambda: "local-audio-whisper")
+    monkeypatch.setattr(service, "_executable_name", lambda: "audux-whisper")
     archive = tmp_path / "component.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
-        bundle.writestr("local-audio-whisper", b"payload")
+        bundle.writestr("audux-whisper", b"payload")
 
     with pytest.raises(ValueError, match="checksum"):
         service._install_from_archive(
             archive,
             {
                 "archive_sha256": "0" * 64,
-                "executable_name": "local-audio-whisper",
+                "executable_name": "audux-whisper",
                 "executable_sha256": "0" * 64,
             },
         )

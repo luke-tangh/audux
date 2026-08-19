@@ -44,7 +44,7 @@ function parseBody(request: Request): Record<string, unknown> {
 export async function mockPlayerBar(page: Page) {
   await page.addInitScript(({ ids }) => {
     window.localStorage.setItem(
-      "local-audio-library-playback-session",
+      "audux-playback-session",
       JSON.stringify({
         version: 1,
         audio_ids: ids,
@@ -59,7 +59,7 @@ export async function mockPlayerBar(page: Page) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers":
-        "Content-Type, X-Local-Audio-Client, X-Local-Audio-Token",
+        "Content-Type, X-Audux-Client, X-Audux-Token",
       "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
     };
 

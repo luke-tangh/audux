@@ -5,7 +5,7 @@ import { messages } from "./catalog";
 export type UiLanguage = "zh-CN" | "en";
 export type UiLanguagePreference = "system" | UiLanguage;
 
-export const UI_LANGUAGE_STORAGE_KEY = "local-audio-library-language";
+export const UI_LANGUAGE_STORAGE_KEY = "audux-language";
 
 function resource(languageIndex: 0 | 1): Record<string, string> {
   return Object.fromEntries(

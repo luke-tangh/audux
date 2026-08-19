@@ -19,7 +19,7 @@ class TestLocalApiSecurity(ApiIntegrationTest):
         assert self.client.get('/settings').status_code == 401
         invalid_token = self.client.get(
             "/settings",
-            headers={"X-Local-Audio-Token": "not-the-token"},
+            headers={"X-Audux-Token": "not-the-token"},
         )
         assert invalid_token.status_code == 401
 
@@ -103,7 +103,7 @@ class TestLocalApiSecurity(ApiIntegrationTest):
         self,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        token_path = Path(local_security.LOCAL_TOKEN_FILE)
+        token_path = Path(local_security.AUDUX_TOKEN_FILE)
         assert token_path.read_text(encoding='utf-8') == self.token
 
         token_path.unlink()

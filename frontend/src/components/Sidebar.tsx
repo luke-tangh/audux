@@ -159,7 +159,7 @@ export default function Sidebar(props: Props) {
         </div>
 
         <div className="brand-copy">
-          <h2>Local Audio</h2>
+          <h2>Audux</h2>
           <p>{t("navigation.brandSubtitle")}</p>
         </div>
 

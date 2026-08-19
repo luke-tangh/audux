@@ -15,10 +15,10 @@ from .services.health_service import recover_interrupted_health_tasks
 from .local_security import (
     ALLOW_ALL_CORS,
     LOCAL_ORIGIN_REGEX,
-    LOCAL_CLIENT_HEADER_NAME,
-    LOCAL_CLIENT_HEADER_VALUE,
-    LOCAL_TOKEN_HEADER_NAME,
-    LOCAL_TOKEN_QUERY_NAME,
+    AUDUX_CLIENT_HEADER_NAME,
+    AUDUX_CLIENT_HEADER_VALUE,
+    AUDUX_TOKEN_HEADER_NAME,
+    AUDUX_TOKEN_QUERY_NAME,
     UNSAFE_METHODS,
     _get_or_create_local_api_token,
     _is_allowed_request_origin,
@@ -47,12 +47,12 @@ async def lifespan(_: FastAPI):
         logger.exception("Failed to recover interrupted library health tasks")
 
     start_worker_once()
-    logger.info("Local Audio Library backend started")
+    logger.info("Audux backend started")
     yield
 
 
 app = FastAPI(
-    title="Local Audio Library API",
+    title="Audux API",
     version=APP_VERSION,
     lifespan=lifespan,
 )
@@ -68,7 +68,7 @@ app.add_middleware(
 
 if ALLOW_ALL_CORS:
     logger.warning(
-        "LOCAL_AUDIO_LIBRARY_ALLOW_ALL_CORS is enabled. "
+        "AUDUX_ALLOW_ALL_CORS is enabled. "
         "This is intended for development only."
     )
 
@@ -94,16 +94,16 @@ async def local_request_guard(request: Request, call_next):
             )
 
         if path == "/auth/token":
-            client_header = request.headers.get(LOCAL_CLIENT_HEADER_NAME)
-            if client_header != LOCAL_CLIENT_HEADER_VALUE:
+            client_header = request.headers.get(AUDUX_CLIENT_HEADER_NAME)
+            if client_header != AUDUX_CLIENT_HEADER_VALUE:
                 return JSONResponse(
                     status_code=403,
                     content={"detail": {"code": "security.missing_client", "params": {}, "fallback": "Missing local client header"}},
                 )
 
         if request.method.upper() in UNSAFE_METHODS:
-            client_header = request.headers.get(LOCAL_CLIENT_HEADER_NAME)
-            if client_header != LOCAL_CLIENT_HEADER_VALUE:
+            client_header = request.headers.get(AUDUX_CLIENT_HEADER_NAME)
+            if client_header != AUDUX_CLIENT_HEADER_VALUE:
                 return JSONResponse(
                     status_code=403,
                     content={"detail": {"code": "security.missing_client", "params": {}, "fallback": "Missing local client header"}},
@@ -128,8 +128,8 @@ def health():
 def get_auth_token():
     return {
         "token": _get_or_create_local_api_token(),
-        "header": LOCAL_TOKEN_HEADER_NAME,
-        "query": LOCAL_TOKEN_QUERY_NAME,
+        "header": AUDUX_TOKEN_HEADER_NAME,
+        "query": AUDUX_TOKEN_QUERY_NAME,
     }
 
 

@@ -40,7 +40,7 @@ async function mockLibraryApi(page: import("@playwright/test").Page) {
     const headers = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers":
-        "Content-Type, X-Local-Audio-Client, X-Local-Audio-Token",
+        "Content-Type, X-Audux-Client, X-Audux-Token",
       "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
     };
 
@@ -161,8 +161,8 @@ test.describe("MD3 accessibility behavior", () => {
   test("bootstraps and persists the selected UI language", async ({ page }) => {
     await mockLibraryApi(page);
     await page.addInitScript(() => {
-      if (!window.localStorage.getItem("local-audio-library-language")) {
-        window.localStorage.setItem("local-audio-library-language", "en");
+      if (!window.localStorage.getItem("audux-language")) {
+        window.localStorage.setItem("audux-language", "en");
       }
     });
 
@@ -178,7 +178,7 @@ test.describe("MD3 accessibility behavior", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
     await expect(page.getByRole("heading", { name: "设置中心" })).toBeVisible();
     await expect.poll(() => page.evaluate(() =>
-      window.localStorage.getItem("local-audio-library-language")
+      window.localStorage.getItem("audux-language")
     )).toBe("zh-CN");
 
     await page.reload();
@@ -188,7 +188,7 @@ test.describe("MD3 accessibility behavior", () => {
 
   test("applies the stored theme during bootstrap", async ({ page }) => {
     await page.addInitScript(() => {
-      window.localStorage.setItem("local-audio-library-theme", "light");
+      window.localStorage.setItem("audux-theme", "light");
     });
 
     await page.goto("/");
@@ -202,7 +202,7 @@ test.describe("MD3 accessibility behavior", () => {
   }) => {
     await mockLibraryApi(page);
     await page.addInitScript(() => {
-      window.localStorage.setItem("local-audio-library-theme", "light");
+      window.localStorage.setItem("audux-theme", "light");
     });
     await page.goto("/");
 

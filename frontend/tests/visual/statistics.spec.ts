@@ -87,14 +87,14 @@ const STATISTICS = {
 
 async function mockStatisticsApi(page: Page) {
   await page.addInitScript(() => {
-    window.localStorage.setItem("local-audio-library-language", "zh-CN");
+    window.localStorage.setItem("audux-language", "zh-CN");
   });
   await page.route("http://127.0.0.1:8765/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const headers = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type, X-Local-Audio-Client, X-Local-Audio-Token",
+      "Access-Control-Allow-Headers": "Content-Type, X-Audux-Client, X-Audux-Token",
       "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
     };
 
