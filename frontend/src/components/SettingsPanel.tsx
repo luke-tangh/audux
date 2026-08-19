@@ -41,9 +41,16 @@ import {
 type Props = {
   refresh: () => void;
   notify?: (message: string, type?: ToastType) => void;
+  onBeforeLeaveChange?: (handler: (() => Promise<boolean>) | null) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
-export default function SettingsPanel({ refresh, notify }: Props) {
+export default function SettingsPanel({
+  refresh,
+  notify,
+  onBeforeLeaveChange,
+  onDirtyChange
+}: Props) {
   const dialog = useDialog();
   const { themeMode, setThemeMode, resolvedTheme } = useTheme();
   const { languagePreference, setLanguagePreference } = useLocale();
@@ -108,6 +115,9 @@ export default function SettingsPanel({ refresh, notify }: Props) {
   const [llmTemperature, setLlmTemperature] = useState("0.2");
   const [llmAllowRemoteEndpoint, setLlmAllowRemoteEndpoint] = useState(false);
   const [aiOutputLanguage, setAiOutputLanguage] = useState("auto");
+  const [settingsLoadVersion, setSettingsLoadVersion] = useState(0);
+  const [savedAsrSignature, setSavedAsrSignature] = useState<string | null>(null);
+  const [savedLlmSignature, setSavedLlmSignature] = useState<string | null>(null);
 
   const [llmTestResult, setLlmTestResult] = useState("");
   const [backendStatus, setBackendStatus] = useState("checking");
@@ -115,6 +125,44 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
   const scanStatusRef = useRef<Record<number, string>>({});
   const scanInitializedRef = useRef(false);
+  const beforeLeaveRef = useRef<() => Promise<boolean>>(async () => true);
+
+  const asrSignature = JSON.stringify([
+    asrProvider,
+    asrModelName,
+    asrDevice,
+    asrComputeType,
+    asrBeamSize,
+    asrExternalEndpoint,
+    asrExternalModelName,
+    asrExternalApiKey,
+    asrExternalLanguage,
+    asrExternalTimestampPolicy,
+    asrExternalTimeout,
+    asrExternalAllowRemoteEndpoint,
+    asrExternalChunkingEnabled,
+    asrExternalChunkSeconds,
+    asrExternalChunkOverlapSeconds,
+    asrExternalChunkConcurrency,
+    asrExternalPreferSilence,
+    asrExternalVadThreshold,
+    asrExternalMinimumSilenceMs,
+    asrExternalFormattingEnabled,
+    asrExternalCaseGlossary
+  ]);
+  const llmSignature = JSON.stringify([
+    llmEndpoint,
+    llmModel,
+    llmApiKey,
+    llmTimeout,
+    llmMaxTokens,
+    llmTemperature,
+    llmAllowRemoteEndpoint,
+    aiOutputLanguage
+  ]);
+  const asrDirty = savedAsrSignature !== null && asrSignature !== savedAsrSignature;
+  const llmDirty = savedLlmSignature !== null && llmSignature !== savedLlmSignature;
+  const settingsDirty = asrDirty || llmDirty;
 
   function applyScanTasks(rows: ScanTask[], allowNotify = true) {
     let shouldRefresh = false;
@@ -353,6 +401,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
           ).toLowerCase()
         )
       );
+      setSettingsLoadVersion((version) => version + 1);
     } catch (err) {
       console.error(err);
       setBackendStatus("failed");
@@ -373,6 +422,13 @@ export default function SettingsPanel({ refresh, notify }: Props) {
 
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (settingsLoadVersion === 0) return;
+
+    setSavedAsrSignature(asrSignature);
+    setSavedLlmSignature(llmSignature);
+  }, [settingsLoadVersion]);
 
   async function chooseFolder() {
     const selected = await pickAudioFolder();
@@ -522,10 +578,10 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     }
   }
 
-  async function saveAsr() {
+  async function saveAsr(): Promise<boolean> {
     if (asrProvider === "faster_whisper" && !whisperComponent?.available) {
       notify?.(t("settings.asr.installRequired"), "error");
-      return;
+      return false;
     }
 
     const warning = asrEndpointPrivacyWarning(asrExternalEndpoint);
@@ -535,7 +591,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       !asrExternalAllowRemoteEndpoint
     ) {
       notify?.(t("settings.asr.allowRemoteRequired"), "error");
-      return;
+      return false;
     }
 
     const chunkSeconds = Number(asrExternalChunkSeconds);
@@ -564,7 +620,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         minimumSilenceMs > 5000)
     ) {
       notify?.(t("settings.asr.chunkingInvalid"), "error");
-      return;
+      return false;
     }
 
     if (
@@ -573,7 +629,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       !validCaseGlossary(asrExternalCaseGlossary)
     ) {
       notify?.(t("settings.asr.caseGlossaryInvalid"), "error");
-      return;
+      return false;
     }
 
     if (
@@ -582,7 +638,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       !externalAsrPreprocessing?.available
     ) {
       notify?.(t("settings.asr.ffmpegInstallRequired"), "error");
-      return;
+      return false;
     }
 
     try {
@@ -650,9 +706,12 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         asrExternalCaseGlossary
       );
 
+      setSavedAsrSignature(asrSignature);
       notify?.(t("settings.asr.saved"), "success");
+      return true;
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
+      return false;
     }
   }
 
@@ -697,11 +756,11 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     }
   }
 
-  async function saveLlm() {
+  async function saveLlm(): Promise<boolean> {
     const warning = endpointPrivacyWarning(llmEndpoint);
     if (warning && !llmAllowRemoteEndpoint) {
       notify?.(t("settings.llm.allowRemoteRequired"), "error");
-      return;
+      return false;
     }
 
     try {
@@ -717,9 +776,12 @@ export default function SettingsPanel({ refresh, notify }: Props) {
         llmAllowRemoteEndpoint ? "true" : "false"
       );
 
+      setSavedLlmSignature(llmSignature);
       notify?.(t("settings.llm.saved"), "success");
+      return true;
     } catch (err) {
       notify?.(err instanceof Error ? err.message : String(err), "error");
+      return false;
     }
   }
 
@@ -768,6 +830,29 @@ export default function SettingsPanel({ refresh, notify }: Props) {
       setLlmTestResult(t("settings.llm.testFailedResult", { error: message }));
       notify?.(t("settings.llm.testFailed", { error: message }), "error");
     }
+  }
+
+  async function discoverLlmModels(): Promise<string[] | null> {
+    const warning = endpointPrivacyWarning(llmEndpoint);
+    if (warning && !llmAllowRemoteEndpoint) {
+      const ok = await dialog.confirm({
+        title: t("settings.llm.discoverRemoteTitle"),
+        message: t("settings.llm.discoverRemoteMessage", { warning }),
+        confirmLabel: t("settings.llm.discoverContinue"),
+        cancelLabel: t("common.actions.cancel"),
+        tone: "privacy"
+      });
+
+      if (!ok) return null;
+    }
+
+    const result = await api.discoverLlmModels({
+      endpoint: llmEndpoint.trim(),
+      api_key: llmApiKey || undefined,
+      timeout: Number(llmTimeout || "60")
+    });
+
+    return result.models;
   }
 
   async function rebuildSearch() {
@@ -1156,6 +1241,52 @@ export default function SettingsPanel({ refresh, notify }: Props) {
     }
   }
 
+  async function saveDirtySettings() {
+    if (asrDirty && !(await saveAsr())) return false;
+    if (llmDirty && !(await saveLlm())) return false;
+    return true;
+  }
+
+  async function requestBeforeLeave() {
+    if (!settingsDirty) return true;
+
+    const sections = [
+      asrDirty ? t("settings.tabs.asr") : "",
+      llmDirty ? t("settings.tabs.llm") : ""
+    ].filter(Boolean).join(t("settings.unsaved.sectionSeparator"));
+    const shouldSave = await dialog.confirm({
+      title: t("settings.unsaved.title"),
+      message: t("settings.unsaved.message", { sections }),
+      confirmLabel: t("settings.unsaved.saveAndLeave"),
+      cancelLabel: t("settings.unsaved.keepEditing"),
+      tone: "warning"
+    });
+
+    if (!shouldSave) return false;
+    return saveDirtySettings();
+  }
+
+  async function requestTabChange(nextTab: SettingsTab) {
+    if (nextTab === activeTab || !(await requestBeforeLeave())) return;
+    setActiveTab(nextTab);
+  }
+
+  beforeLeaveRef.current = requestBeforeLeave;
+
+  useEffect(() => {
+    onDirtyChange?.(settingsDirty);
+  }, [onDirtyChange, settingsDirty]);
+
+  useEffect(() => {
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange]);
+
+  useEffect(() => {
+    const handler = () => beforeLeaveRef.current();
+    onBeforeLeaveChange?.(handler);
+    return () => onBeforeLeaveChange?.(null);
+  }, [onBeforeLeaveChange]);
+
   const llmWarning = endpointPrivacyWarning(llmEndpoint);
   const asrExternalWarning = asrEndpointPrivacyWarning(asrExternalEndpoint);
   const settingsGroups: Array<{
@@ -1212,7 +1343,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
                   type="button"
                   className={activeTab === item.id ? "active" : ""}
                   aria-current={activeTab === item.id ? "page" : undefined}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => void requestTabChange(item.id)}
                 >
                   <MaterialIcon name={item.icon} size={18} />
                   <span>{t(`settings.tabs.${item.id}`)}</span>
@@ -1341,6 +1472,7 @@ export default function SettingsPanel({ refresh, notify }: Props) {
             onLlmTemperatureChange={setLlmTemperature}
             onLlmAllowRemoteEndpointChange={setLlmAllowRemoteEndpoint}
             onAiOutputLanguageChange={setAiOutputLanguage}
+            onDiscoverLlmModels={discoverLlmModels}
             onSaveLlm={saveLlm}
             onTestLlm={testLlm}
           />

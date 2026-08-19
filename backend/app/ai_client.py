@@ -1,6 +1,42 @@
 import json
-import httpx
 from typing import Optional
+
+import httpx
+
+
+async def list_openai_compatible_models(
+    endpoint: str,
+    api_key: Optional[str] = None,
+    timeout: int = 60,
+) -> list[str]:
+    url = endpoint.rstrip("/") + "/models"
+    headers = {"Accept": "application/json"}
+
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        payload = response.json()
+
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("Invalid OpenAI-compatible models response schema")
+
+    model_ids: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        model_id = row.get("id") if isinstance(row, dict) else None
+        if not isinstance(model_id, str):
+            continue
+        model_id = model_id.strip()
+        if not model_id or model_id in seen:
+            continue
+        seen.add(model_id)
+        model_ids.append(model_id)
+
+    return model_ids
 
 
 async def call_openai_compatible_chat(

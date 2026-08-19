@@ -602,6 +602,19 @@ export type LLMConfigPayload = {
   temperature?: number;
 };
 
+export type LLMModelDiscoveryPayload = {
+  endpoint: string;
+  api_key?: string;
+  timeout: number;
+};
+
+export type LLMModelDiscoveryResult = {
+  models: string[];
+  is_local_endpoint?: boolean;
+  privacy_warning?: string;
+  privacy_warning_code?: string;
+};
+
 export type LLMTestResult = {
   ok: boolean;
   content: string;

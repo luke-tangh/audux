@@ -202,6 +202,12 @@ class LLMConfig(BaseModel):
     temperature: Optional[float] = 0.2
 
 
+class LLMModelDiscoveryConfig(BaseModel):
+    endpoint: str
+    api_key: Optional[str] = None
+    timeout: int = Field(default=60, ge=1, le=3600)
+
+
 class BatchAudioRequest(BaseModel):
     audio_ids: List[int]
 

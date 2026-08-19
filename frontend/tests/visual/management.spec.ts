@@ -224,7 +224,7 @@ async function mockManagementApi(page: Page, state: MockState) {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers":
         "Content-Type, X-Local-Audio-Client, X-Local-Audio-Token",
-      "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS"
+      "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS"
     };
 
     if (method === "OPTIONS") {
@@ -389,6 +389,13 @@ async function mockManagementApi(page: Page, state: MockState) {
 
     if (method === "GET" && url.pathname === "/settings") {
       await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (method === "PUT" && url.pathname === "/settings") {
+      const body = parseRequestBody(request) as { key: string; value: string };
+      state.mutations.push({ method, path: url.pathname, body });
+      await route.fulfill({ json: { ...body, updated_at: NOW }, headers });
       return;
     }
 
@@ -1345,6 +1352,38 @@ test.describe("v0.5 management workflows", () => {
       method: "POST",
       path: "/asr/whisper-component/install",
       body: null
+    });
+  });
+
+  test("prompts to save changed settings before leaving the settings page", async ({
+    page
+  }) => {
+    const state = createMockState();
+    await mockManagementApi(page, state);
+    await openSettings(page);
+    await page.getByRole("button", { name: "LLM", exact: true }).click();
+    await page.getByRole("textbox", { name: "模型名称" }).fill("local-model");
+
+    const libraryShortcut = page
+      .locator(".sidebar-nav")
+      .getByRole("button", { name: /资料库.*全部音频/ });
+    await libraryShortcut.click();
+    let dialog = page.getByRole("dialog", { name: "保存未保存的设置？" });
+    await expect(dialog).toContainText("LLM");
+    await dialog.getByRole("button", { name: "继续编辑" }).click();
+    await expect(page.getByRole("textbox", { name: "模型名称" })).toHaveValue(
+      "local-model"
+    );
+
+    await libraryShortcut.click();
+    dialog = page.getByRole("dialog", { name: "保存未保存的设置？" });
+    await dialog.getByRole("button", { name: "保存并离开" }).click();
+
+    await expect(page.locator(".audio-row").first()).toBeVisible();
+    expect(state.mutations).toContainEqual({
+      method: "PUT",
+      path: "/settings",
+      body: { key: "llm.model_name", value: "local-model" }
     });
   });
 

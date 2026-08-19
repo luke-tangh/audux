@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from ..db import get_session
-from ..schemas import LLMConfig
+from ..schemas import LLMConfig, LLMModelDiscoveryConfig
 from ..services import ai_service
 from ..services.common import ServiceError
 from .utils import raise_http, service_call
@@ -22,6 +22,14 @@ def enqueue_analyze(audio_id: int, session: Session = Depends(get_session)):
 async def test_llm_config(payload: LLMConfig):
     try:
         return await ai_service.test_llm_config(payload)
+    except ServiceError as error:
+        raise_http(error)
+
+
+@router.post("/ai/models")
+async def discover_llm_models(payload: LLMModelDiscoveryConfig):
+    try:
+        return await ai_service.discover_llm_models(payload)
     except ServiceError as error:
         raise_http(error)
 

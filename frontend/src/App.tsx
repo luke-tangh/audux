@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Sidebar from "./components/Sidebar";
@@ -21,6 +21,8 @@ export default function App() {
   const dialog = useDialog();
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorDirty, setInspectorDirty] = useState(false);
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const settingsBeforeLeaveRef = useRef<(() => Promise<boolean>) | null>(null);
   const [compactNavigation, setCompactNavigation] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
   );
@@ -147,7 +149,7 @@ export default function App() {
   }, [selected]);
 
   useEffect(() => {
-    if (!inspectorDirty) return;
+    if (!inspectorDirty && !settingsDirty) return;
 
     function preventWindowClose(event: BeforeUnloadEvent) {
       event.preventDefault();
@@ -156,7 +158,7 @@ export default function App() {
 
     window.addEventListener("beforeunload", preventWindowClose);
     return () => window.removeEventListener("beforeunload", preventWindowClose);
-  }, [inspectorDirty]);
+  }, [inspectorDirty, settingsDirty]);
 
   useEffect(() => {
     if (!inspectorOpen || !window.matchMedia("(max-width: 1040px)").matches) return;
@@ -226,7 +228,12 @@ export default function App() {
     });
   }
 
-  async function prepareInspectorNavigation() {
+  async function prepareWorkspaceNavigation() {
+    if (view === "settings" && settingsBeforeLeaveRef.current) {
+      const settingsReady = await settingsBeforeLeaveRef.current();
+      if (!settingsReady) return false;
+    }
+
     if (!inspectorDirty) return true;
 
     const allowed = await confirmDiscardInspectorChanges();
@@ -236,6 +243,13 @@ export default function App() {
     setInspectorOpen(false);
     return true;
   }
+
+  const handleSettingsBeforeLeaveChange = useCallback(
+    (handler: (() => Promise<boolean>) | null) => {
+      settingsBeforeLeaveRef.current = handler;
+    },
+    []
+  );
 
   async function requestOpenSettings() {
     if (!(await confirmDiscardInspectorChanges())) return;
@@ -287,7 +301,7 @@ export default function App() {
           compactNavigation={compactNavigation}
           navigationOpen={navigationOpen}
           onCloseNavigation={() => closeNavigation(true)}
-          onBeforeNavigate={prepareInspectorNavigation}
+          onBeforeNavigate={prepareWorkspaceNavigation}
           view={view}
           setView={setView}
           tags={tags}
@@ -320,7 +334,12 @@ export default function App() {
 
         {view === "settings" ? (
           <main className="workspace settings-workspace">
-            <SettingsPanel refresh={refresh} notify={notify} />
+            <SettingsPanel
+              refresh={refresh}
+              notify={notify}
+              onBeforeLeaveChange={handleSettingsBeforeLeaveChange}
+              onDirtyChange={setSettingsDirty}
+            />
           </main>
         ) : view === "statistics" ? (
           <main className="workspace statistics-workspace">

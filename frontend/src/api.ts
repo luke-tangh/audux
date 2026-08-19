@@ -17,6 +17,8 @@ import type {
   LibraryHealthSummary,
   LibraryHealthTask,
   LLMConfigPayload,
+  LLMModelDiscoveryPayload,
+  LLMModelDiscoveryResult,
   LLMTestResult,
   PaginatedAudioItems,
   PlaybackQueueResolution,
@@ -802,6 +804,12 @@ export const api = {
 
   testLlm: (payload: LLMConfigPayload) =>
     request<LLMTestResult>("/ai/test-llm", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+
+  discoverLlmModels: (payload: LLMModelDiscoveryPayload) =>
+    request<LLMModelDiscoveryResult>("/ai/models", {
       method: "POST",
       body: JSON.stringify(payload)
     }),

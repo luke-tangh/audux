@@ -5,7 +5,11 @@ import { LocaleProvider } from "../../i18n/LocaleProvider";
 import AsrSettingsTab from "./AsrSettingsTab";
 import { DEFAULT_CASE_GLOSSARY } from "./settingsUtils";
 
-function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
+function renderTab(
+  chunkingEnabled: boolean,
+  ffmpegAvailable = false,
+  showAdvanced = false
+) {
   const callbacks = {
     onAsrProviderChange: vi.fn(),
     onAsrModelNameChange: vi.fn(),
@@ -78,19 +82,55 @@ function renderTab(chunkingEnabled: boolean, ffmpegAvailable = false) {
     </LocaleProvider>
   );
 
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: /显示高级设置|Show advanced settings/
-    })
-  );
+  if (showAdvanced) {
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /显示高级设置|Show advanced settings/
+      })
+    );
+  }
 
   return callbacks;
 }
 
 describe("external ASR chunk settings", () => {
-  it("keeps chunk parameters hidden while the default is off", () => {
+  it("reveals advanced settings below their checkbox", () => {
+    renderTab(false);
+
+    expect(
+      screen.queryByLabelText(/自定义大小写词典|Custom casing glossary/)
+    ).not.toBeInTheDocument();
+    const toggle = screen.getByRole("checkbox", {
+      name: /显示高级设置|Show advanced settings/
+    });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(toggle).toBeChecked();
+    const timestampPolicy = screen.getByLabelText(
+      /时间戳策略|Timestamp policy/
+    );
+    expect(
+      toggle.compareDocumentPosition(timestampPolicy) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      screen.getByLabelText(/自定义大小写词典|Custom casing glossary/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /选择转写方式|Choose a transcription setup/
+      })
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces chunking in basic settings and keeps parameters collapsed while off", () => {
     const callbacks = renderTab(false);
 
+    expect(
+      screen.getByRole("heading", {
+        name: /长音频切片与 VAD|Long-audio chunking and VAD/
+      })
+    ).toBeInTheDocument();
     expect(
       screen.queryByLabelText(/单片最长秒数|Maximum chunk length/)
     ).not.toBeInTheDocument();
@@ -102,7 +142,7 @@ describe("external ASR chunk settings", () => {
     expect(callbacks.onExternalChunkingEnabledChange).toHaveBeenCalledWith(true);
   });
 
-  it("shows parameters and installation guidance when FFmpeg is missing", () => {
+  it("shows chunk and VAD parameters in basic settings when enabled", () => {
     const callbacks = renderTab(true);
 
     expect(
@@ -128,7 +168,7 @@ describe("external ASR chunk settings", () => {
   });
 
   it("exposes text normalization and the custom casing glossary", () => {
-    const callbacks = renderTab(false);
+    const callbacks = renderTab(false, false, true);
 
     expect(
       screen.getByRole("checkbox", {

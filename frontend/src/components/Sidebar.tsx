@@ -510,14 +510,15 @@ export default function Sidebar(props: Props) {
           type="button"
           className={settingsActive ? "settings-nav active" : "settings-nav"}
           aria-current={settingsActive ? "page" : undefined}
-          onClick={() =>
+          onClick={() => {
+            if (settingsActive) return;
             void navigate(() => {
               props.onDeactivateSavedView();
               props.setView("settings");
               props.setSelectedTag(undefined);
               props.setSelectedPlaylistId(null);
-            })
-          }
+            });
+          }}
         >
           <MaterialIcon name="settings" size={20} />
           <strong>{t("navigation.settings")}</strong>

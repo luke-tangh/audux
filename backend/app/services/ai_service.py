@@ -11,7 +11,11 @@ from ..asr_config import (
     parse_task_input_payload,
     resolve_asr_task_config,
 )
-from ..ai_client import call_openai_compatible_chat, get_ai_message_content
+from ..ai_client import (
+    call_openai_compatible_chat,
+    get_ai_message_content,
+    list_openai_compatible_models,
+)
 from ..local_security import (
     _llm_privacy_warning,
     ensure_asr_endpoint_allowed,
@@ -19,12 +23,42 @@ from ..local_security import (
 )
 from ..logger import get_logger
 from ..models import AITask, AudioItem, Setting, now_iso
+from ..schemas import LLMModelDiscoveryConfig
 from ..tasks import get_active_task
 from .common import BUSY_AUDIO_TASK_STATUSES, ServiceError, _is_unique_constraint_error
 from .whisper_component_service import is_whisper_companion_available
 
 
 logger = get_logger(__name__)
+
+
+async def discover_llm_models(payload: LLMModelDiscoveryConfig) -> dict:
+    endpoint = payload.endpoint.strip()
+    if not endpoint:
+        raise ServiceError(400, "endpoint is required", "ai.endpoint_required")
+
+    warning = _llm_privacy_warning(endpoint)
+
+    try:
+        models = await list_openai_compatible_models(
+            endpoint=endpoint,
+            api_key=payload.api_key or None,
+            timeout=payload.timeout,
+        )
+    except Exception as error:
+        raise ServiceError(
+            400,
+            f"Failed to discover LLM models: {error}",
+            "ai.model_discovery_failed",
+            {"error": str(error)},
+        ) from error
+
+    return {
+        "models": models,
+        "is_local_endpoint": warning is None,
+        "privacy_warning": warning,
+        "privacy_warning_code": "llm.remote" if warning else None,
+    }
 
 
 def enqueue_analyze(session: Session, audio_id: int) -> dict:

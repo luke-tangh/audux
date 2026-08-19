@@ -155,32 +155,23 @@ export default function AsrSettingsTab({
   }
 
   return (
-    <div className={`asr-settings-stack ${advanced ? "settings-mode-advanced" : "settings-mode-basic"}`}>
-      <div className="settings-mode-switcher">
-        <div><strong>{t("settings.simple.title")}</strong><span>{t("settings.simple.description")}</span></div>
-        <Button variant="outlined" size="sm" onClick={() => setAdvanced((value) => !value)}>
-          {advanced ? t("settings.simple.useBasic") : t("settings.simple.showAdvanced")}
-        </Button>
-      </div>
-
-      {!advanced && (
-        <PanelCard title={t("settings.asr.presetsTitle")} className="max-form-card">
-          <div className="settings-preset-grid">
-            {(["fast", "balanced", "accurate", "external"] as const).map((preset) => (
-              <Button
-                preserveChildren
-                className="settings-preset"
-                key={preset}
-                variant={(preset === "external" ? asrProvider === "external" : asrProvider === "faster_whisper" && asrModelName === (preset === "fast" ? "tiny" : preset === "accurate" ? "medium" : "small")) ? "tonal" : "outlined"}
-                onClick={() => applyPreset(preset)}
-              >
-                <strong>{t(`settings.asr.presets.${preset}.title`)}</strong>
-                <span>{t(`settings.asr.presets.${preset}.description`)}</span>
-              </Button>
-            ))}
-          </div>
-        </PanelCard>
-      )}
+    <div className={`settings-tab-stack ${advanced ? "settings-mode-advanced" : "settings-mode-basic"}`}>
+      <PanelCard title={t("settings.asr.presetsTitle")} className="max-form-card">
+        <div className="settings-preset-grid">
+          {(["fast", "balanced", "accurate", "external"] as const).map((preset) => (
+            <Button
+              preserveChildren
+              className="settings-preset"
+              key={preset}
+              variant={(preset === "external" ? asrProvider === "external" : asrProvider === "faster_whisper" && asrModelName === (preset === "fast" ? "tiny" : preset === "accurate" ? "medium" : "small")) ? "tonal" : "outlined"}
+              onClick={() => applyPreset(preset)}
+            >
+              <strong>{t(`settings.asr.presets.${preset}.title`)}</strong>
+              <span>{t(`settings.asr.presets.${preset}.description`)}</span>
+            </Button>
+          ))}
+        </div>
+      </PanelCard>
       <PanelCard
         title={t("settings.asr.whisperTitle")}
         className="max-form-card"
@@ -244,204 +235,26 @@ export default function AsrSettingsTab({
         <p className="muted">{t("settings.asr.componentDescription")}</p>
       </PanelCard>
 
-      <PanelCard
-        title={t("settings.asr.providerTitle")}
-        className="max-form-card"
-        actions={
-          <Button variant="filled" onClick={onSaveAsr}>
-            {t("settings.asr.save")}
-          </Button>
-        }
-      >
-      <div className="settings-form-grid">
-        <div className="asr-device-field">
-          <span className="ui-field-label" aria-hidden="true">
-            Provider
-          </span>
-
-          <SelectField
-            label={t("settings.asr.provider")}
-            hideLabel
-            controlHeight={48}
-            controlWidth="100%"
-            controlMinWidth={0}
-            controlMaxWidth="100%"
-            menuWidth="control"
-            value={asrProvider}
-            options={[
-              { value: "faster_whisper", label: t("settings.asr.localComponent") },
-              { value: "external", label: t("settings.asr.externalLocal") }
-            ]}
-            onValueChange={onAsrProviderChange}
-          />
-        </div>
-
-        {asrProvider === "faster_whisper" && (
-          <>
-            <TextField
-              label={t("settings.asr.modelPath")}
-              value={asrModelName}
-              placeholder={t("settings.asr.modelPlaceholder")}
-              onValueChange={onAsrModelNameChange}
-            />
-
-            <div className="model-download-note">
-              <MaterialIcon name="hard_drive" size={18} />
-              <span>{t("settings.asr.modelDownloadNote", {
-                size: modelDownloadEstimate || t("settings.asr.modelDownloadUnknown")
-              })}</span>
-              <code>~/.local_audio_library/models/faster-whisper/</code>
-            </div>
-
-            <div className="asr-device-field advanced-setting">
-              <span className="ui-field-label" aria-hidden="true">
-                Device
-              </span>
-
-              <SelectField
-                label={t("settings.asr.device")}
-                hideLabel
-                controlHeight={48}
-                controlWidth="100%"
-                controlMinWidth={0}
-                controlMaxWidth="100%"
-                menuWidth="control"
-                value={asrDevice}
-                options={[
-                  { value: "cpu", label: "cpu" },
-                  { value: "cuda", label: "cuda" }
-                ]}
-                onValueChange={onAsrDeviceChange}
-              />
-            </div>
-
-            <TextField
-              wrapperClassName="advanced-setting"
-              label={t("settings.asr.computeType")}
-              value={asrComputeType}
-              placeholder="int8 / float16 / float32"
-              onValueChange={onAsrComputeTypeChange}
-            />
-
-            <TextField
-              wrapperClassName="advanced-setting"
-              label={t("settings.asr.beamSize")}
-              value={asrBeamSize}
-              placeholder="5"
-              onValueChange={onAsrBeamSizeChange}
-            />
-          </>
-        )}
-
-        {asrProvider === "external" && (
-          <>
-            <TextField
-              label={t("settings.common.endpoint")}
-              value={externalEndpoint}
-              placeholder="http://127.0.0.1:8000/v1"
-              onValueChange={onExternalEndpointChange}
-            />
-
-            <TextField
-              label={t("settings.common.modelName")}
-              value={externalModelName}
-              placeholder="qwen3-asr-1.7b"
-              onValueChange={onExternalModelNameChange}
-            />
-
-            <TextField
-              label={t("settings.common.apiKey")}
-              type="password"
-              autoComplete="off"
-              value={externalApiKey}
-              placeholder={t("settings.common.optional")}
-              onValueChange={onExternalApiKeyChange}
-            />
-
-            <TextField
-              label={t("settings.asr.language")}
-              value={externalLanguage}
-              placeholder="auto / zh / en"
-              onValueChange={onExternalLanguageChange}
-            />
-
-            <div className="asr-device-field advanced-setting">
-              <span className="ui-field-label" aria-hidden="true">
-                {t("settings.asr.timestampPolicy")}
-              </span>
-
-              <SelectField
-                label={t("settings.asr.timestampPolicy")}
-                hideLabel
-                controlHeight={48}
-                controlWidth="100%"
-                controlMinWidth={0}
-                controlMaxWidth="100%"
-                menuWidth="control"
-                value={externalTimestampPolicy}
-                options={[
-                  { value: "off", label: t("settings.asr.timestampOff") },
-                  { value: "preferred", label: t("settings.asr.timestampPreferred") },
-                  { value: "required", label: t("settings.asr.timestampRequired") }
-                ]}
-                onValueChange={onExternalTimestampPolicyChange}
-              />
-            </div>
-
-            <TextField
-              wrapperClassName="advanced-setting"
-              label={t("settings.common.timeout")}
-              inputMode="numeric"
-              value={externalTimeout}
-              placeholder="3600"
-              onValueChange={onExternalTimeoutChange}
-            />
-
+      {asrProvider === "external" && (
+        <PanelCard
+          title={t("settings.asr.chunkingTitle")}
+          className="max-form-card"
+          actions={
+            <Button variant="filled" onClick={onSaveAsr}>
+              {t("settings.asr.save")}
+            </Button>
+          }
+        >
+          <div className="settings-form-grid">
             <CheckboxField
               wrapperClassName="wide"
-              label={t("settings.asr.allowRemote")}
-              description={t("settings.asr.allowRemoteDescription")}
-              checked={externalAllowRemoteEndpoint}
-              onCheckedChange={onExternalAllowRemoteEndpointChange}
-            />
-
-            <CheckboxField
-              wrapperClassName="wide advanced-setting"
-              label={t("settings.asr.formattingEnabled")}
-              description={t("settings.asr.formattingDescription")}
-              checked={externalFormattingEnabled}
-              onCheckedChange={onExternalFormattingEnabledChange}
-            />
-
-            {advanced && externalFormattingEnabled && (
-              <>
-                <TextareaField
-                  wrapperClassName="advanced-setting"
-                  wide
-                  label={t("settings.asr.caseGlossary")}
-                  helperText={t("settings.asr.caseGlossaryDescription")}
-                  value={externalCaseGlossary}
-                  rows={10}
-                  placeholder={"ark asr=ARK-ASR\npytorch=PyTorch\nopenai=OpenAI"}
-                  onValueChange={onExternalCaseGlossaryChange}
-                />
-                <div className="wide advanced-setting">
-                  <Button variant="outlined" onClick={onResetExternalCaseGlossary}>
-                    {t("settings.asr.resetCaseGlossary")}
-                  </Button>
-                </div>
-              </>
-            )}
-
-            <CheckboxField
-              wrapperClassName="wide advanced-setting"
               label={t("settings.asr.chunkingEnabled")}
               description={t("settings.asr.chunkingDescription")}
               checked={externalChunkingEnabled}
               onCheckedChange={onExternalChunkingEnabledChange}
             />
 
-            {advanced && externalChunkingEnabled && (
+            {externalChunkingEnabled && (
               <>
                 <div className="wide" aria-live="polite">
                   {externalPreprocessing?.available ? (
@@ -511,6 +324,214 @@ export default function AsrSettingsTab({
                     />
                   </>
                 )}
+              </>
+            )}
+          </div>
+        </PanelCard>
+      )}
+
+      <PanelCard
+        title={t("settings.asr.providerTitle")}
+        className="max-form-card"
+        actions={
+          <Button variant="filled" onClick={onSaveAsr}>
+            {t("settings.asr.save")}
+          </Button>
+        }
+      >
+      <div className="settings-form-grid">
+        <div className="asr-device-field">
+          <span className="ui-field-label" aria-hidden="true">
+            Provider
+          </span>
+
+          <SelectField
+            label={t("settings.asr.provider")}
+            hideLabel
+            controlHeight={48}
+            controlWidth="100%"
+            controlMinWidth={0}
+            controlMaxWidth="100%"
+            menuWidth="control"
+            value={asrProvider}
+            options={[
+              { value: "faster_whisper", label: t("settings.asr.localComponent") },
+              { value: "external", label: t("settings.asr.externalLocal") }
+            ]}
+            onValueChange={onAsrProviderChange}
+          />
+        </div>
+
+        {asrProvider === "faster_whisper" && (
+          <>
+            <TextField
+              label={t("settings.asr.modelPath")}
+              value={asrModelName}
+              placeholder={t("settings.asr.modelPlaceholder")}
+              onValueChange={onAsrModelNameChange}
+            />
+
+            <div className="model-download-note">
+              <MaterialIcon name="hard_drive" size={18} />
+              <span>{t("settings.asr.modelDownloadNote", {
+                size: modelDownloadEstimate || t("settings.asr.modelDownloadUnknown")
+              })}</span>
+              <code>~/.local_audio_library/models/faster-whisper/</code>
+            </div>
+          </>
+        )}
+
+        {asrProvider === "external" && (
+          <>
+            <TextField
+              label={t("settings.common.endpoint")}
+              value={externalEndpoint}
+              placeholder="http://127.0.0.1:8000/v1"
+              onValueChange={onExternalEndpointChange}
+            />
+
+            <TextField
+              label={t("settings.common.modelName")}
+              value={externalModelName}
+              placeholder="qwen3-asr-1.7b"
+              onValueChange={onExternalModelNameChange}
+            />
+
+            <TextField
+              label={t("settings.common.apiKey")}
+              type="password"
+              autoComplete="off"
+              value={externalApiKey}
+              placeholder={t("settings.common.optional")}
+              onValueChange={onExternalApiKeyChange}
+            />
+
+            <TextField
+              label={t("settings.asr.language")}
+              value={externalLanguage}
+              placeholder="auto / zh / en"
+              onValueChange={onExternalLanguageChange}
+            />
+
+            <CheckboxField
+              wrapperClassName="wide"
+              label={t("settings.asr.allowRemote")}
+              description={t("settings.asr.allowRemoteDescription")}
+              checked={externalAllowRemoteEndpoint}
+              onCheckedChange={onExternalAllowRemoteEndpointChange}
+            />
+          </>
+        )}
+
+        <CheckboxField
+          wrapperClassName="wide settings-advanced-toggle"
+          label={t("settings.simple.showAdvanced")}
+          description={t("settings.simple.advancedDescription")}
+          checked={advanced}
+          onCheckedChange={setAdvanced}
+        />
+
+        {asrProvider === "faster_whisper" && (
+          <>
+            <div className="asr-device-field advanced-setting">
+              <span className="ui-field-label" aria-hidden="true">
+                Device
+              </span>
+
+              <SelectField
+                label={t("settings.asr.device")}
+                hideLabel
+                controlHeight={48}
+                controlWidth="100%"
+                controlMinWidth={0}
+                controlMaxWidth="100%"
+                menuWidth="control"
+                value={asrDevice}
+                options={[
+                  { value: "cpu", label: "cpu" },
+                  { value: "cuda", label: "cuda" }
+                ]}
+                onValueChange={onAsrDeviceChange}
+              />
+            </div>
+
+            <TextField
+              wrapperClassName="advanced-setting"
+              label={t("settings.asr.computeType")}
+              value={asrComputeType}
+              placeholder="int8 / float16 / float32"
+              onValueChange={onAsrComputeTypeChange}
+            />
+
+            <TextField
+              wrapperClassName="advanced-setting"
+              label={t("settings.asr.beamSize")}
+              value={asrBeamSize}
+              placeholder="5"
+              onValueChange={onAsrBeamSizeChange}
+            />
+          </>
+        )}
+
+        {asrProvider === "external" && (
+          <>
+            <div className="asr-device-field advanced-setting">
+              <span className="ui-field-label" aria-hidden="true">
+                {t("settings.asr.timestampPolicy")}
+              </span>
+
+              <SelectField
+                label={t("settings.asr.timestampPolicy")}
+                hideLabel
+                controlHeight={48}
+                controlWidth="100%"
+                controlMinWidth={0}
+                controlMaxWidth="100%"
+                menuWidth="control"
+                value={externalTimestampPolicy}
+                options={[
+                  { value: "off", label: t("settings.asr.timestampOff") },
+                  { value: "preferred", label: t("settings.asr.timestampPreferred") },
+                  { value: "required", label: t("settings.asr.timestampRequired") }
+                ]}
+                onValueChange={onExternalTimestampPolicyChange}
+              />
+            </div>
+
+            <TextField
+              wrapperClassName="advanced-setting"
+              label={t("settings.common.timeout")}
+              inputMode="numeric"
+              value={externalTimeout}
+              placeholder="3600"
+              onValueChange={onExternalTimeoutChange}
+            />
+
+            <CheckboxField
+              wrapperClassName="wide advanced-setting"
+              label={t("settings.asr.formattingEnabled")}
+              description={t("settings.asr.formattingDescription")}
+              checked={externalFormattingEnabled}
+              onCheckedChange={onExternalFormattingEnabledChange}
+            />
+
+            {advanced && externalFormattingEnabled && (
+              <>
+                <TextareaField
+                  wrapperClassName="advanced-setting"
+                  wide
+                  label={t("settings.asr.caseGlossary")}
+                  helperText={t("settings.asr.caseGlossaryDescription")}
+                  value={externalCaseGlossary}
+                  rows={10}
+                  placeholder={"ark asr=ARK-ASR\npytorch=PyTorch\nopenai=OpenAI"}
+                  onValueChange={onExternalCaseGlossaryChange}
+                />
+                <div className="wide advanced-setting">
+                  <Button variant="outlined" onClick={onResetExternalCaseGlossary}>
+                    {t("settings.asr.resetCaseGlossary")}
+                  </Button>
+                </div>
               </>
             )}
           </>

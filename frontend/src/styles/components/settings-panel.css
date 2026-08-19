@@ -363,7 +363,7 @@
   max-width: 780px;
 }
 
-.settings-panel .asr-settings-stack {
+.settings-panel .settings-tab-stack {
   display: grid;
   gap: 14px;
 }
@@ -585,26 +585,15 @@
   display: none !important;
 }
 
-.settings-mode-switcher {
+.settings-panel .settings-inline-actions {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-sys-shape-corner-large);
-  background: var(--md-sys-color-surface-container-low);
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
 }
 
-.settings-mode-switcher > div {
-  display: grid;
-  gap: 2px;
-}
-
-.settings-mode-switcher span {
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: 12px;
+.settings-panel .settings-advanced-toggle {
+  padding-top: 2px;
 }
 
 .settings-preset-grid {

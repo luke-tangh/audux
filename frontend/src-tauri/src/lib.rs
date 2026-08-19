@@ -83,23 +83,28 @@ fn terminate_std_child(child: &mut Child) -> io::Result<()> {
 }
 
 #[tauri::command]
-async fn pick_audio_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+async fn pick_audio_folder(window: tauri::Window) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
 
-    let folder = app.dialog().file().blocking_pick_folder();
+    let dialog = window.dialog().file();
+    #[cfg(any(windows, target_os = "macos"))]
+    let dialog = dialog.set_parent(&window);
+    let folder = dialog.blocking_pick_folder();
 
     Ok(folder.map(|p| p.to_string()))
 }
 
 #[tauri::command]
-async fn pick_audio_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
+async fn pick_audio_file(window: tauri::Window) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
 
-    let file = app
+    let dialog = window
         .dialog()
         .file()
-        .add_filter("Audio", &["mp3", "m4a", "flac", "wav", "ogg"])
-        .blocking_pick_file();
+        .add_filter("Audio", &["mp3", "m4a", "flac", "wav", "ogg"]);
+    #[cfg(any(windows, target_os = "macos"))]
+    let dialog = dialog.set_parent(&window);
+    let file = dialog.blocking_pick_file();
 
     Ok(file.map(|p| p.to_string()))
 }
