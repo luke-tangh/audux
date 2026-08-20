@@ -87,7 +87,10 @@ async fn pick_audio_folder(window: tauri::Window) -> Result<Option<String>, Stri
     use tauri_plugin_dialog::DialogExt;
 
     let dialog = window.dialog().file();
-    #[cfg(any(windows, target_os = "macos"))]
+    // Binding the Common Item Dialog to the WebView window can prevent it from
+    // appearing during the first Windows launch. macOS still needs an explicit
+    // parent so the picker is presented as a sheet for this window.
+    #[cfg(target_os = "macos")]
     let dialog = dialog.set_parent(&window);
     let folder = dialog.blocking_pick_folder();
 
@@ -102,7 +105,7 @@ async fn pick_audio_file(window: tauri::Window) -> Result<Option<String>, String
         .dialog()
         .file()
         .add_filter("Audio", &["mp3", "m4a", "flac", "wav", "ogg"]);
-    #[cfg(any(windows, target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     let dialog = dialog.set_parent(&window);
     let file = dialog.blocking_pick_file();
 

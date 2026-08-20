@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "../i18n/LocaleProvider";
 import ActivityCenter from "./ActivityCenter";
@@ -19,6 +19,11 @@ vi.mock("../api", () => ({
 }));
 
 describe("ActivityCenter", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    vi.clearAllMocks();
+  });
+
   it("shows failed work and retries it from the global panel", async () => {
     mocks.listActivities.mockResolvedValue({
       items: [{
@@ -53,5 +58,39 @@ describe("ActivityCenter", () => {
 
     await waitFor(() => expect(mocks.retryTask).toHaveBeenCalledWith(9));
     expect(notify).toHaveBeenCalledWith(expect.any(String), "info");
+  });
+
+  it("starts at the upper right and persists a dragged position without opening", async () => {
+    mocks.listActivities.mockResolvedValue({
+      items: [],
+      active_count: 0,
+      failed_count: 0
+    });
+
+    const { container } = render(
+      <LocaleProvider>
+        <ActivityCenter />
+      </LocaleProvider>
+    );
+
+    await waitFor(() => expect(mocks.listActivities).toHaveBeenCalled());
+    const root = container.querySelector<HTMLElement>(".activity-center");
+    const trigger = screen.getByRole("button", { name: /活动中心|activity center/i });
+    expect(root?.style.top).toBe("72px");
+
+    fireEvent.pointerDown(trigger, { pointerId: 4, button: 0, clientX: 990, clientY: 72 });
+    fireEvent.pointerMove(trigger, { pointerId: 4, clientX: 420, clientY: 230 });
+    fireEvent.pointerUp(trigger, { pointerId: 4, clientX: 420, clientY: 230 });
+    fireEvent.click(trigger);
+
+    expect(screen.queryByRole("complementary", { name: /任务与活动|tasks and activity/i })).not.toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem("audux.activity-center.position.v1") || "null")).toEqual({
+      x: expect.any(Number),
+      y: 230
+    });
+    expect(root?.style.top).toBe("230px");
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole("complementary", { name: /任务与活动|tasks and activity/i })).toBeInTheDocument();
   });
 });

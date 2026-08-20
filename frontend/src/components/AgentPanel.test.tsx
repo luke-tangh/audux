@@ -73,6 +73,8 @@ describe("AgentPanel", () => {
   it("creates a scoped conversation and starts a persistent run", async () => {
     renderPanel();
     const question = await screen.findByLabelText(/问题|Question/);
+    expect(question.closest(".agent-composer-surface")).toBeInTheDocument();
+    expect(screen.getByText(/Shift \+ Enter/)).toBeInTheDocument();
     fireEvent.change(question, { target: { value: "长期记忆有哪些建议？" } });
     fireEvent.click(screen.getByRole("button", { name: /发送|Send/ }));
 

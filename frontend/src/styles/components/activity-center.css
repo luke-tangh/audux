@@ -1,13 +1,21 @@
 .activity-center {
   position: fixed;
   z-index: 90;
-  right: 18px;
-  bottom: calc(var(--app-player-height) + 16px);
 }
 
 .activity-center-trigger {
   position: relative;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
   box-shadow: var(--md-sys-elevation-2);
+}
+
+.activity-center-trigger.dragging,
+.activity-center-trigger.dragging:active {
+  cursor: grabbing;
+  transform: none;
+  box-shadow: var(--md-sys-elevation-4);
 }
 
 .activity-badge {
@@ -32,11 +40,7 @@
 }
 
 .activity-center-panel {
-  position: absolute;
-  right: 0;
-  bottom: 52px;
-  width: min(410px, calc(100vw - 28px));
-  max-height: min(620px, calc(100vh - var(--app-player-height) - 90px));
+  position: fixed;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -126,11 +130,4 @@
   display: flex;
   justify-content: flex-end;
   gap: 7px;
-}
-
-@media (max-width: 640px) {
-  .activity-center {
-    right: 10px;
-    bottom: calc(var(--app-player-height) + 10px);
-  }
 }

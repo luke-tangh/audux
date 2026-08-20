@@ -247,21 +247,106 @@
 
 .agent-composer {
   display: grid;
-  grid-template-columns: minmax(180px, 250px) minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 10px;
-  padding: 14px 18px;
+  gap: 7px;
+  padding: 12px clamp(14px, 3vw, 40px) 10px;
   border-top: 1px solid var(--md-sys-color-outline-variant);
   background: var(--md-sys-color-surface-container-low);
 }
 
-.agent-composer textarea {
-  min-height: 72px;
+.agent-composer-surface {
+  overflow: hidden;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--md-sys-elevation-1);
+  transition:
+    border-color var(--app-motion-transition),
+    box-shadow var(--app-motion-transition),
+    background var(--app-motion-transition);
+}
+
+.agent-composer-surface:focus-within {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-highest);
+  box-shadow: 0 0 0 1px var(--md-sys-color-primary), var(--md-sys-elevation-2);
+}
+
+.agent-composer-context {
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px 5px 12px;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.agent-scope-control {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--md-sys-color-primary);
+}
+
+.agent-scope-control .ui-select-field {
+  flex: 0 1 360px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.agent-scope-control .ui-select-field:hover {
+  border-color: var(--md-sys-color-outline-variant);
+  background: var(--md-state-primary-hover);
+}
+
+.agent-question-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+}
+
+.agent-question-field textarea {
+  min-height: 68px;
+  max-height: 180px;
+  padding: 4px 2px;
   resize: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  line-height: 1.55;
+}
+
+.agent-question-field textarea:hover,
+.agent-question-field textarea:focus {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.agent-question-field textarea:focus-visible {
+  outline: 0;
+}
+
+.agent-send {
+  align-self: end;
+  min-width: 96px;
+  margin-bottom: 1px;
+}
+
+.agent-composer-hint {
+  margin: 0 8px;
+  color: var(--app-color-text-faint);
+  font-size: 11px;
+  text-align: right;
 }
 
 .agent-mode {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -292,13 +377,6 @@
     min-width: 150px;
   }
 
-  .agent-composer {
-    grid-template-columns: 1fr auto;
-  }
-
-  .agent-composer .ui-select-field {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 600px) {
@@ -312,5 +390,40 @@
 
   .agent-composer {
     padding: 10px;
+  }
+
+  .agent-composer-context {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+  }
+
+  .agent-scope-control .ui-select-field {
+    flex: 1;
+    max-width: none;
+  }
+
+  .agent-mode {
+    padding-left: 24px;
+  }
+
+  .agent-question-row {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .agent-send {
+    min-width: 48px;
+    width: 48px;
+    padding: 0;
+  }
+
+  .agent-send .ui-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
   }
 }

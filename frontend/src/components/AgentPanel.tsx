@@ -295,31 +295,46 @@ export default function AgentPanel(props: Props) {
             </div>
 
             <form className="agent-composer" onSubmit={(event) => { event.preventDefault(); void send(); }}>
-              <SelectField
-                label={t("agent.scopeLabel")}
-                value={scopeValue(scope)}
-                options={scopeOptions}
-                onValueChange={(value) => void changeScope(value)}
-                disabled={runBusy}
-                controlSize="compact"
-              />
-              <TextareaField
-                hideLabel
-                label={t("agent.question")}
-                placeholder={t("agent.placeholder")}
-                value={question}
-                onValueChange={setQuestion}
-                disabled={runBusy || sending}
-                rows={3}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void send();
-                  }
-                }}
-              />
-              <Button type="submit" variant="filled" disabled={!question.trim() || runBusy || sending} leadingIcon={<MaterialIcon name="send" size={18} />}>{t("agent.send")}</Button>
-              <p className="agent-mode"><MaterialIcon name="search" size={16} /> {t("agent.retrievalMode", { mode: activeRun?.retrieval_mode?.toUpperCase() || "FTS" })}</p>
+              <div className="agent-composer-surface">
+                <div className="agent-composer-context">
+                  <div className="agent-scope-control">
+                    <MaterialIcon name="filter_list" size={17} />
+                    <SelectField
+                      hideLabel
+                      label={t("agent.scopeLabel")}
+                      value={scopeValue(scope)}
+                      options={scopeOptions}
+                      onValueChange={(value) => void changeScope(value)}
+                      disabled={runBusy}
+                      controlSize="mini"
+                      controlMinWidth={180}
+                      controlMaxWidth="min(100%, 360px)"
+                      variant="outlined"
+                    />
+                  </div>
+                  <p className="agent-mode"><MaterialIcon name="search" size={16} /> {t("agent.retrievalMode", { mode: activeRun?.retrieval_mode?.toUpperCase() || "FTS" })}</p>
+                </div>
+                <div className="agent-question-row">
+                  <TextareaField
+                    hideLabel
+                    wrapperClassName="agent-question-field"
+                    label={t("agent.question")}
+                    placeholder={t("agent.placeholder")}
+                    value={question}
+                    onValueChange={setQuestion}
+                    disabled={runBusy || sending}
+                    rows={3}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        void send();
+                      }
+                    }}
+                  />
+                  <Button className="agent-send" type="submit" variant="filled" disabled={!question.trim() || runBusy || sending} leadingIcon={<MaterialIcon name="send" size={18} />}>{t("agent.send")}</Button>
+                </div>
+              </div>
+              <p className="agent-composer-hint">{t("agent.inputHint")}</p>
             </form>
           </div>
         </div>
