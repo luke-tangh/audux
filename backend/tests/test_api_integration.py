@@ -5,7 +5,7 @@ from sqlmodel import Session
 
 from tests.api_test_support import ApiIntegrationTest
 from app import local_security
-from app.models import AudioItem, Setting
+from app.models import AITask, AudioItem, Setting
 
 
 class TestLocalApiSecurity(ApiIntegrationTest):
@@ -214,3 +214,57 @@ class TestLibraryRootPathRestrictions(ApiIntegrationTest):
 
         assert response.status_code == 400
         assert response.json()['detail']['code'] == 'audio.outside_library'
+
+    def test_delete_file_revalidates_library_boundary_and_cleans_up_after_commit(self):
+        library = self.root_path / "library"
+        root = self.add_library_root(library)
+        inside = library / "inside.mp3"
+        audio = self.add_audio(inside, root_id=root.id)
+
+        deleted = self.client.request(
+            "DELETE",
+            f"/audio-items/{audio.id}?delete_file=true",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert deleted.status_code == 200, deleted.text
+        assert deleted.json() == {
+            "ok": True,
+            "file_deleted": True,
+            "cleanup_error": None,
+        }
+        assert not inside.exists()
+        with Session(self.engine) as session:
+            assert session.get(AudioItem, audio.id) is None
+
+        outside = self.root_path / "outside.mp3"
+        detached = self.add_audio(outside, root_id=None)
+        rejected = self.client.request(
+            "DELETE",
+            f"/audio-items/{detached.id}?delete_file=true",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert rejected.status_code == 400, rejected.text
+        assert rejected.json()["detail"]["code"] == "audio.outside_library"
+        assert outside.is_file()
+        with Session(self.engine) as session:
+            assert session.get(AudioItem, detached.id) is not None
+
+        busy_path = library / "busy.mp3"
+        busy = self.add_audio(busy_path, root_id=root.id)
+        with Session(self.engine) as session:
+            session.add(
+                AITask(audio_id=busy.id, task_type="transcribe", status="running")
+            )
+            session.commit()
+
+        active_task_rejection = self.client.request(
+            "DELETE",
+            f"/audio-items/{busy.id}",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert active_task_rejection.status_code == 409
+        assert active_task_rejection.json()["detail"]["code"] == (
+            "audio.task_active_delete"
+        )
+        with Session(self.engine) as session:
+            assert session.get(AudioItem, busy.id) is not None

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Sidebar from "./components/Sidebar";
@@ -6,10 +6,6 @@ import TopBar from "./components/TopBar";
 import AudioList from "./components/AudioList";
 import DetailPanel from "./components/DetailPanel";
 import PlayerBar from "./components/PlayerBar";
-import SettingsPanel from "./components/SettingsPanel";
-import StatisticsPage from "./components/StatisticsPage";
-import AgentPanel from "./components/AgentPanel";
-import OrganizationPanel from "./components/OrganizationPanel";
 import ToastStack from "./components/ToastStack";
 import ActivityCenter from "./components/ActivityCenter";
 import OnboardingWizard from "./components/OnboardingWizard";
@@ -19,6 +15,16 @@ import { IconButton, MaterialIcon } from "./components/ui";
 import { useActivityCenterPreference } from "./hooks/useActivityCenterPreference";
 import { useLibraryController } from "./hooks/useLibraryController";
 import { api } from "./api";
+
+const SettingsPanel = lazy(() => import("./components/SettingsPanel"));
+const StatisticsPage = lazy(() => import("./components/StatisticsPage"));
+const AgentPanel = lazy(() => import("./components/AgentPanel"));
+const OrganizationPanel = lazy(() => import("./components/OrganizationPanel"));
+
+function WorkspaceLoading() {
+  const { t } = useTranslation();
+  return <p className="muted" role="status">{t("activities.loading")}</p>;
+}
 
 export default function App() {
   const { t } = useTranslation();
@@ -352,84 +358,92 @@ export default function App() {
 
         {view === "settings" ? (
           <main className="workspace settings-workspace">
-            <SettingsPanel
-              refresh={refresh}
-              notify={notify}
-              activityCenterEnabled={activityCenterEnabled}
-              onActivityCenterEnabledChange={updateActivityCenterEnabled}
-              onBeforeLeaveChange={handleSettingsBeforeLeaveChange}
-              onDirtyChange={setSettingsDirty}
-            />
+            <Suspense fallback={<WorkspaceLoading />}>
+              <SettingsPanel
+                refresh={refresh}
+                notify={notify}
+                activityCenterEnabled={activityCenterEnabled}
+                onActivityCenterEnabledChange={updateActivityCenterEnabled}
+                onBeforeLeaveChange={handleSettingsBeforeLeaveChange}
+                onDirtyChange={setSettingsDirty}
+              />
+            </Suspense>
           </main>
         ) : view === "statistics" ? (
           <main className="workspace statistics-workspace">
-            <StatisticsPage
-              onOpenMissing={() => {
-                clearFilters();
-                setView("missing");
-              }}
-              onOpenUntranscribed={() => {
-                clearFilters();
-                setHasTranscriptFilter("no");
-                setView("library");
-              }}
-              onOpenMissingDescription={() => {
-                clearFilters();
-                setView("missingDescription");
-              }}
-              onOpenAiFailed={() => {
-                clearFilters();
-                setView("aiFailed");
-              }}
-              onOpenSettings={() => void requestOpenSettings()}
-            />
+            <Suspense fallback={<WorkspaceLoading />}>
+              <StatisticsPage
+                onOpenMissing={() => {
+                  clearFilters();
+                  setView("missing");
+                }}
+                onOpenUntranscribed={() => {
+                  clearFilters();
+                  setHasTranscriptFilter("no");
+                  setView("library");
+                }}
+                onOpenMissingDescription={() => {
+                  clearFilters();
+                  setView("missingDescription");
+                }}
+                onOpenAiFailed={() => {
+                  clearFilters();
+                  setView("aiFailed");
+                }}
+                onOpenSettings={() => void requestOpenSettings()}
+              />
+            </Suspense>
           </main>
         ) : view === "agent" ? (
-          <AgentPanel
-            selected={selected}
-            selectedAudioIds={selectedAudioIds}
-            selectedPlaylistId={selectedPlaylistId}
-            activeSavedViewId={activeSavedViewId}
-            selectedTag={selectedTag}
-            selectedLibraryRootId={selectedLibraryRootId}
-            playlists={playlists}
-            savedViews={savedViews}
-            tags={tags}
-            roots={roots}
-            notify={notify}
-            onPlayCitation={async (audioId, seconds) => {
-              const existing = playbackQueue.find((row) => row.id === audioId)
-                || audioItems.find((row) => row.id === audioId);
-              const item = existing || (await api.getAudioDetail(audioId)).audio;
-              const queue = playbackQueue.some((row) => row.id === audioId)
-                ? playbackQueue
-                : [item, ...playbackQueue];
-              await playAudioAt(item, seconds, queue);
-            }}
-          />
+          <Suspense fallback={<main className="workspace"><WorkspaceLoading /></main>}>
+            <AgentPanel
+              selected={selected}
+              selectedAudioIds={selectedAudioIds}
+              selectedPlaylistId={selectedPlaylistId}
+              activeSavedViewId={activeSavedViewId}
+              selectedTag={selectedTag}
+              selectedLibraryRootId={selectedLibraryRootId}
+              playlists={playlists}
+              savedViews={savedViews}
+              tags={tags}
+              roots={roots}
+              notify={notify}
+              onPlayCitation={async (audioId, seconds) => {
+                const existing = playbackQueue.find((row) => row.id === audioId)
+                  || audioItems.find((row) => row.id === audioId);
+                const item = existing || (await api.getAudioDetail(audioId)).audio;
+                const queue = playbackQueue.some((row) => row.id === audioId)
+                  ? playbackQueue
+                  : [item, ...playbackQueue];
+                await playAudioAt(item, seconds, queue);
+              }}
+            />
+          </Suspense>
         ) : view === "organization" ? (
-          <OrganizationPanel
-            selected={selected}
-            selectedAudioIds={selectedAudioIds}
-            selectedPlaylistId={selectedPlaylistId}
-            activeSavedViewId={activeSavedViewId}
-            selectedTag={selectedTag}
-            selectedLibraryRootId={selectedLibraryRootId}
-            playlists={playlists}
-            savedViews={savedViews}
-            tags={tags}
-            roots={roots}
-            notify={notify}
-            onPlayEvidence={async (audioId, seconds) => {
-              const existing = playbackQueue.find((row) => row.id === audioId)
-                || audioItems.find((row) => row.id === audioId);
-              const item = existing || (await api.getAudioDetail(audioId)).audio;
-              const queue = playbackQueue.some((row) => row.id === audioId)
-                ? playbackQueue
-                : [item, ...playbackQueue];
-              await playAudioAt(item, seconds, queue);
-            }}
-          />
+          <Suspense fallback={<main className="workspace"><WorkspaceLoading /></main>}>
+            <OrganizationPanel
+              selected={selected}
+              selectedAudioIds={selectedAudioIds}
+              selectedPlaylistId={selectedPlaylistId}
+              activeSavedViewId={activeSavedViewId}
+              selectedTag={selectedTag}
+              selectedLibraryRootId={selectedLibraryRootId}
+              playlists={playlists}
+              savedViews={savedViews}
+              tags={tags}
+              roots={roots}
+              notify={notify}
+              onPlayEvidence={async (audioId, seconds) => {
+                const existing = playbackQueue.find((row) => row.id === audioId)
+                  || audioItems.find((row) => row.id === audioId);
+                const item = existing || (await api.getAudioDetail(audioId)).audio;
+                const queue = playbackQueue.some((row) => row.id === audioId)
+                  ? playbackQueue
+                  : [item, ...playbackQueue];
+                await playAudioAt(item, seconds, queue);
+              }}
+            />
+          </Suspense>
         ) : (
           <>
             <main className="workspace">

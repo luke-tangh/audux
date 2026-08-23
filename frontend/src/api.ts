@@ -5,6 +5,7 @@ import type {
   AgentScope,
   AISuggestions,
   AITask,
+  AudioDeleteResult,
   AudioDetail,
   AudioItem,
   AudioSortMode,
@@ -45,6 +46,7 @@ import type {
   WhisperComponentStatus
 } from "./types";
 import i18n from "./i18n";
+import { resolveTauriBackendBaseUrl } from "./tauri";
 
 export const DEFAULT_API_BASE = "http://127.0.0.1:8765";
 const BROWSER_LITE_MODE = import.meta.env.VITE_BROWSER_LITE === "true";
@@ -73,8 +75,7 @@ async function resolveApiBase(): Promise<string> {
   apiBasePromise = (async () => {
     try {
       if (isTauriRuntimeSync()) {
-        const { invoke } = await import("@tauri-apps/api/core");
-        const value = await invoke<string>("backend_base_url");
+        const value = await resolveTauriBackendBaseUrl();
         const normalized = String(value || "").trim().replace(/\/+$/, "");
 
         if (normalized) {
@@ -605,7 +606,7 @@ export const api = {
     }),
 
   deleteAudio: (id: number, deleteFile = false) =>
-    request<{ ok: boolean }>(`/audio-items/${id}?delete_file=${String(deleteFile)}`, {
+    request<AudioDeleteResult>(`/audio-items/${id}?delete_file=${String(deleteFile)}`, {
       method: "DELETE"
     }),
 

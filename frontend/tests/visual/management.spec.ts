@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-fixtures";
 import type { Page } from "@playwright/test";
 import type { Playlist, SavedView, SavedViewQuery } from "../../src/types";
 
@@ -710,13 +710,26 @@ async function mockManagementApi(page: Page, state: MockState) {
       return;
     }
 
-    if (method === "GET" && url.pathname === "/audio-items/1/ai-suggestions") {
+    if (method === "GET" && /^\/audio-items\/\d+\/ai-suggestions$/.test(url.pathname)) {
       await route.fulfill({ json: { task_id: null, tags: [] }, headers });
       return;
     }
 
     if (method === "GET" && url.pathname === "/audio-items/1/transcript") {
       await route.fulfill({ json: state.transcript, headers });
+      return;
+    }
+
+    if (method === "GET" && url.pathname === "/audio-items/2/transcript") {
+      await route.fulfill({ json: null, headers });
+      return;
+    }
+
+    if (
+      method === "GET" &&
+      url.pathname === "/audio-items/1/transcript/revisions"
+    ) {
+      await route.fulfill({ json: [state.transcript.transcript], headers });
       return;
     }
 
@@ -895,10 +908,11 @@ async function mockManagementApi(page: Page, state: MockState) {
 async function openSettings(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "设置中心" }).click();
-  await expect(page.getByRole("button", { name: "资料库", exact: true })).toHaveAttribute(
-    "aria-current",
-    "page"
-  );
+  await expect(
+    page
+      .getByLabel("设置分类")
+      .getByRole("button", { name: "资料库", exact: true })
+  ).toHaveAttribute("aria-current", "page");
 }
 
 test.describe("v0.5 management workflows", () => {
@@ -1057,7 +1071,7 @@ test.describe("v0.5 management workflows", () => {
     await dialog.getByRole("button", { name: "继续编辑" }).click();
     await expect(titleField).toHaveValue("尚未保存的标题");
 
-    await page.getByRole("button", { name: /收藏.*常听内容/ }).click();
+    await page.getByRole("button", { name: "收藏", exact: true }).click();
     dialog = page.getByRole("dialog", { name: "放弃未保存的元数据修改？" });
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", { name: "继续编辑" }).click();
@@ -1387,7 +1401,7 @@ test.describe("v0.5 management workflows", () => {
 
     const libraryShortcut = page
       .locator(".sidebar-nav")
-      .getByRole("button", { name: /资料库.*全部音频/ });
+      .getByRole("button", { name: "资料库", exact: true });
     await libraryShortcut.click();
     await expect(page.locator(".audio-row").first()).toBeVisible();
     expect(state.mutations).toContainEqual({

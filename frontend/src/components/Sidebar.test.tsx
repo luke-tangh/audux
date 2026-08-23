@@ -36,7 +36,7 @@ describe("saved views in the sidebar", () => {
     const { container } = render(
       <LocaleProvider>
         <Sidebar
-          collapsed={false}
+          collapsed
           onCollapsedChange={onCollapsedChange}
           view="library"
           setView={vi.fn()}
@@ -82,15 +82,21 @@ describe("saved views in the sidebar", () => {
       Node.DOCUMENT_POSITION_FOLLOWING
     );
 
-    expect(
-      screen.getByRole("button", { name: /资料库.*全部音频|Library.*All audio/ })
-    ).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: /资料库|Library/ })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.getByRole("button", { name: /收藏|Favorites/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /统计|Statistics/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /资料检索|Grounded Agent/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /整理工作台|Organization/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /设置|Settings/ })).toBeInTheDocument();
     const allTags = screen.getByRole("button", { name: /全部标签|All tags/ });
     expect(allTags).toHaveAttribute("aria-pressed", "false");
     expect(allTags).not.toHaveClass("active");
 
-    fireEvent.click(screen.getByRole("button", { name: /收起侧栏|Collapse sidebar/ }));
-    expect(onCollapsedChange).toHaveBeenCalledWith(true);
+    fireEvent.click(screen.getByRole("button", { name: /展开侧栏|Expand sidebar/ }));
+    expect(onCollapsedChange).toHaveBeenCalledWith(false);
   });
 
   it("applies and exposes explicit management actions for the active view", () => {

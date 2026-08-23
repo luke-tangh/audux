@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-fixtures";
 import type { Page, Request } from "@playwright/test";
 
 const NOW = "2026-08-08T00:00:00Z";

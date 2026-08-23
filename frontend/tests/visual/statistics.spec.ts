@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-fixtures";
 import type { Page } from "@playwright/test";
 
 const NOW = "2026-08-18T12:00:00";
@@ -109,6 +109,8 @@ async function mockStatisticsApi(page: Page) {
         json: { ...STATISTICS, period_days: Number(url.searchParams.get("days") || 30) },
         headers
       });
+    } else if (url.pathname === "/settings") {
+      await route.fulfill({ json: [], headers });
     } else if (["/tags", "/playlists", "/saved-views"].includes(url.pathname)) {
       await route.fulfill({ json: [], headers });
     } else if (url.pathname === "/library-roots") {
@@ -144,7 +146,7 @@ test.describe("statistics dashboard", () => {
   test("shows actionable library and listening insights", async ({ page }) => {
     await mockStatisticsApi(page);
     await page.goto("/");
-    await page.getByRole("button", { name: /统计.*馆藏与聆听概览/ }).click();
+    await page.getByRole("button", { name: "统计", exact: true }).click();
 
     await expect(page.getByRole("heading", { name: "资料库统计" })).toBeVisible();
     await expect(page.locator(".statistics-kpi strong")).toHaveText([

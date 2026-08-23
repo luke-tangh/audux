@@ -18,6 +18,7 @@ from ..models import (
     AITask,
     AudioItem,
     OrganizationProposal,
+    OrganizationRunTarget,
     Transcript,
     TranscriptChapter,
     TranscriptIssue,
@@ -719,6 +720,25 @@ def delete_transcript(session: Session, audio_id: int) -> dict:
     if not revisions:
         raise ServiceError(404, "Transcript not found")
     revision_ids = [int(row.id) for row in revisions if row.id is not None]
+    organization_reference = (
+        session.exec(
+            select(OrganizationRunTarget.id).where(
+                OrganizationRunTarget.source_transcript_id.in_(revision_ids)
+            )
+        ).first()
+        or session.exec(
+            select(OrganizationProposal.id).where(
+                OrganizationProposal.source_transcript_id.in_(revision_ids)
+            )
+        ).first()
+    )
+    if organization_reference is not None:
+        raise ServiceError(
+            409,
+            "Transcript is referenced by an organization run",
+            code="organization.transcript_referenced",
+        )
+
     for citation in session.exec(
         select(AgentCitation).where(AgentCitation.transcript_id.in_(revision_ids))
     ).all():

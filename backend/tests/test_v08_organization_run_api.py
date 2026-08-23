@@ -1,5 +1,6 @@
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 from sqlmodel import Session, select
@@ -78,6 +79,36 @@ class TestV08OrganizationRunApi(ApiIntegrationTest):
         ).json()
         assert [target["audio_id"] for target in loaded["targets"]] == [self.audio.id]
         assert [event["event_type"] for event in loaded["audit_events"]] == ["run.created"]
+
+    def test_organization_audit_references_block_audio_and_transcript_deletion(self):
+        transcript = self._seed_transcript()
+        self._create_run()
+        source_path = Path(self.audio.file_path)
+
+        transcript_response = self.client.request(
+            "DELETE",
+            f"/audio-items/{self.audio.id}/transcript",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert transcript_response.status_code == 409, transcript_response.text
+        assert transcript_response.json()["detail"]["code"] == (
+            "organization.transcript_referenced"
+        )
+
+        audio_response = self.client.request(
+            "DELETE",
+            f"/audio-items/{self.audio.id}?delete_file=true",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert audio_response.status_code == 409, audio_response.text
+        assert audio_response.json()["detail"]["code"] == (
+            "organization.audio_referenced"
+        )
+        assert source_path.is_file()
+
+        with Session(self.engine) as session:
+            assert session.get(AudioItem, self.audio.id) is not None
+            assert session.get(Transcript, transcript["transcript"]["id"]) is not None
 
     def test_edited_acceptance_validates_the_value_before_recording_decision(self):
         transcript = self._seed_transcript()

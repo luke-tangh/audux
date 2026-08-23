@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-fixtures";
 
 const MOCK_AUDIO_ITEMS = [
   {
@@ -69,6 +69,43 @@ async function mockLibraryApi(page: import("@playwright/test").Page) {
         },
         headers
       });
+      return;
+    }
+
+    if (url.pathname === "/settings" || url.pathname === "/scan-tasks") {
+      await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (url.pathname === "/asr/whisper-component") {
+      await route.fulfill({
+        json: {
+          status: "not_installed",
+          available: false,
+          source: null,
+          app_version: "0.8.0-beta.1",
+          target: "test-target",
+          downloaded_bytes: 0,
+          total_bytes: null,
+          error_message: null
+        },
+        headers
+      });
+      return;
+    }
+
+    if (url.pathname === "/maintenance/database-backups") {
+      await route.fulfill({ json: [], headers });
+      return;
+    }
+
+    if (url.pathname === "/maintenance/database-restore") {
+      await route.fulfill({ json: { pending: null, last_result: null }, headers });
+      return;
+    }
+
+    if (url.pathname === "/logs/app") {
+      await route.fulfill({ json: { file: "app.log", content: "" }, headers });
       return;
     }
 
@@ -158,6 +195,17 @@ async function mockLibraryApi(page: import("@playwright/test").Page) {
 }
 
 test.describe("MD3 accessibility behavior", () => {
+  test("keeps collapsed sidebar navigation accessible by name", async ({ page }) => {
+    await mockLibraryApi(page);
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "收起侧栏" }).click();
+
+    for (const name of ["资料库", "收藏", "统计", "有据问答", "整理工作台", "设置中心"]) {
+      await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+    }
+  });
+
   test("bootstraps and persists the selected UI language", async ({ page }) => {
     await mockLibraryApi(page);
     await page.addInitScript(() => {
@@ -187,6 +235,7 @@ test.describe("MD3 accessibility behavior", () => {
   });
 
   test("applies the stored theme during bootstrap", async ({ page }) => {
+    await mockLibraryApi(page);
     await page.addInitScript(() => {
       window.localStorage.setItem("audux-theme", "light");
     });

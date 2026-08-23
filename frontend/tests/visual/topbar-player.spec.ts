@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-fixtures";
 import { mockPlayerBar, PLAYER_AUDIO_ITEMS } from "./player-fixture";
 
 async function mockEmptyLibrary(page: import("@playwright/test").Page) {

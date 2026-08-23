@@ -22,6 +22,9 @@ from ..models import (
     AudioItem,
     AudioTag,
     LibraryRoot,
+    OrganizationAuditEvent,
+    OrganizationProposal,
+    OrganizationRunTarget,
     PlaybackEvent,
     PlaylistItem,
     Setting,
@@ -461,13 +464,51 @@ def delete_audio_item(
     if not item:
         raise ServiceError(404, "Audio item not found")
 
+    active_task = session.exec(
+        select(AITask)
+        .where(AITask.audio_id == audio_id)
+        .where(AITask.status.in_(list(BUSY_AUDIO_TASK_STATUSES)))
+    ).first()
+    if active_task:
+        raise ServiceError(
+            409,
+            "Audio cannot be deleted while a task is active",
+            code="audio.task_active_delete",
+        )
+
+    organization_reference = (
+        session.exec(
+            select(OrganizationRunTarget.id).where(
+                OrganizationRunTarget.audio_id == audio_id
+            )
+        ).first()
+        or session.exec(
+            select(OrganizationProposal.id).where(
+                OrganizationProposal.audio_id == audio_id
+            )
+        ).first()
+        or session.exec(
+            select(OrganizationAuditEvent.id).where(
+                OrganizationAuditEvent.audio_id == audio_id
+            )
+        ).first()
+    )
+    if organization_reference is not None:
+        raise ServiceError(
+            409,
+            "Audio is referenced by an organization run",
+            code="organization.audio_referenced",
+        )
+
+    audio_path = Path(item.file_path)
     if delete_file:
-        path = Path(item.file_path)
-        if path.exists():
-            try:
-                path.unlink()
-            except Exception as e:
-                raise ServiceError(400, f"Failed to delete file: {e}") from e
+        if _find_library_root_id_for_path(session, audio_path) is None:
+            raise ServiceError(
+                400,
+                "Audio file path must be within a configured library root",
+            )
+
+    cover_path = item.cover_path
 
     for link in session.exec(select(AudioTag).where(AudioTag.audio_id == audio_id)).all():
         session.delete(link)
@@ -521,9 +562,6 @@ def delete_audio_item(
         for transcript in transcripts:
             session.delete(transcript)
 
-    if item.cover_path:
-        _delete_managed_cover_file(item.cover_path)
-
     session.execute(
         text("DELETE FROM search_index WHERE audio_id = :audio_id"),
         {"audio_id": audio_id},
@@ -535,12 +573,41 @@ def delete_audio_item(
 
     # These models do not declare ORM relationships, so SQLAlchemy cannot infer
     # the child-before-parent delete order from an in-memory relationship graph.
-    session.flush()
-    session.delete(item)
-    session.commit()
+    try:
+        session.flush()
+        session.delete(item)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+
+    # Filesystem changes cannot participate in the SQLite transaction. Perform
+    # them only after the database deletion succeeds so a failed commit never
+    # destroys user data while leaving the database entry behind.
+    if cover_path:
+        _delete_managed_cover_file(cover_path)
+
+    file_deleted = False
+    file_delete_error = None
+    if delete_file and audio_path.exists():
+        try:
+            audio_path.unlink()
+            file_deleted = True
+        except OSError as error:
+            file_delete_error = "audio.delete_file_failed"
+            logger.warning(
+                "Audio entry deleted but source file cleanup failed id=%s path=%s",
+                audio_id,
+                audio_path,
+                exc_info=error,
+            )
 
     logger.info("Audio item deleted id=%s delete_file=%s", audio_id, delete_file)
-    return {"ok": True}
+    return {
+        "ok": True,
+        "file_deleted": file_deleted,
+        "cleanup_error": file_delete_error,
+    }
 
 
 def relocate_audio_item(

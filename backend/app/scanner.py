@@ -640,8 +640,20 @@ def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int
             break
 
         try:
-            resolved = str(file_path.resolve())
-            stat = file_path.stat()
+            resolved_path = file_path.resolve(strict=True)
+            resolved_path.relative_to(root_path)
+            stat = resolved_path.stat()
+            file_path = resolved_path
+            resolved = str(resolved_path)
+        except ValueError:
+            logger.warning(
+                "Skipping audio candidate outside library root root=%s candidate=%s",
+                root_path,
+                file_path,
+            )
+            processed += 1
+            update_progress()
+            continue
         except Exception as e:
             logger.warning("Skipping unavailable audio file %s: %s", file_path, e)
             processed += 1

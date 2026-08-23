@@ -15,6 +15,21 @@ function isIgnoredByViteWatcher(path: string): boolean {
 export default defineConfig({
   plugins: [react()],
 
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "frontend-framework",
+              test: /node_modules[\\/](?:i18next|react|react-dom|react-i18next|scheduler|use-sync-external-store)[\\/]/
+            }
+          ]
+        }
+      }
+    }
+  },
+
   // 保留 Rust / Python 后端日志，不要被 Vite 清屏
   clearScreen: false,
 

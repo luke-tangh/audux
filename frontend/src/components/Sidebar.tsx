@@ -202,6 +202,7 @@ export default function Sidebar(props: Props) {
         <Button preserveChildren
           type="button"
           className={navClass(allAudioActive)}
+          aria-label={t("navigation.library")}
           aria-current={allAudioActive ? "page" : undefined}
           onClick={() =>
             void navigate(() => {
@@ -222,6 +223,7 @@ export default function Sidebar(props: Props) {
         <Button preserveChildren
           type="button"
           className={navClass(favoriteActive)}
+          aria-label={t("navigation.favorites")}
           aria-current={favoriteActive ? "page" : undefined}
           onClick={() => openView("favorites")}
         >
@@ -235,6 +237,7 @@ export default function Sidebar(props: Props) {
         <Button preserveChildren
           type="button"
           className={navClass(statisticsActive)}
+          aria-label={t("navigation.statistics")}
           aria-current={statisticsActive ? "page" : undefined}
           onClick={() => openView("statistics")}
         >
@@ -248,6 +251,7 @@ export default function Sidebar(props: Props) {
         <Button preserveChildren
           type="button"
           className={navClass(agentActive)}
+          aria-label={t("navigation.agent")}
           aria-current={agentActive ? "page" : undefined}
           onClick={() => openView("agent")}
         >
@@ -261,6 +265,7 @@ export default function Sidebar(props: Props) {
         <Button preserveChildren
           type="button"
           className={navClass(organizationActive)}
+          aria-label={t("navigation.organization")}
           aria-current={organizationActive ? "page" : undefined}
           onClick={() => openView("organization")}
         >
@@ -560,6 +565,7 @@ export default function Sidebar(props: Props) {
         <Button preserveChildren
           type="button"
           className={settingsActive ? "settings-nav active" : "settings-nav"}
+          aria-label={t("navigation.settings")}
           aria-current={settingsActive ? "page" : undefined}
           onClick={() => {
             if (settingsActive) return;

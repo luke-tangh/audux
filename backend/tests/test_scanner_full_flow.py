@@ -83,6 +83,19 @@ class TestScannerFullFlow(ApiIntegrationTest):
             assert rows[0].play_count == 4
             assert rows[0].is_missing is False
 
+    def test_scan_rejects_file_symlinks_that_escape_the_library_root(self):
+        outside = self.root_path / "outside.mp3"
+        outside.write_bytes(b"outside-audio")
+        escaped = self.library / "escaped.mp3"
+        escaped.symlink_to(outside)
+
+        assert self.scan() == {"imported": 0, "updated": 0, "missing": 0}
+
+        with Session(self.engine) as session:
+            assert session.exec(select(AudioItem)).all() == []
+
+        assert outside.read_bytes() == b"outside-audio"
+
     def test_precanceled_scan_finishes_without_enumerating_files(self, monkeypatch):
         (self.library / "pending.mp3").write_bytes(b"audio")
         with Session(self.engine) as session:

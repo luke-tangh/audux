@@ -289,6 +289,12 @@ export type AudioItem = {
   playlist_order_index?: number;
 };
 
+export type AudioDeleteResult = {
+  ok: boolean;
+  file_deleted: boolean;
+  cleanup_error: string | null;
+};
+
 export type PaginatedAudioItems = {
   items: AudioItem[];
   total: number;
