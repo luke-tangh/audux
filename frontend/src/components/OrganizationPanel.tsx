@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toErrorMessage } from "../i18n/errors";
 
 import { api } from "../api";
 import type {
@@ -25,6 +26,7 @@ import {
 } from "./ui";
 import { usePolling } from "../hooks/usePolling";
 import { serializeAgentScope, useAgentScopeOptions } from "../hooks/useAgentScopeOptions";
+import { TERMINAL_ORGANIZATION_STATUSES } from "../constants";
 
 type Props = {
   selected: AudioItem | null;
@@ -41,7 +43,6 @@ type Props = {
   onPlayEvidence: (audioId: number, seconds: number) => Promise<void>;
 };
 
-const TERMINAL = new Set(["done", "partial", "failed", "canceled", "interrupted"]);
 const DEFAULT_OPTIONS: OrganizationRunOptions = {
   transcribe_missing: false,
   generate_corrections: true,
@@ -98,23 +99,30 @@ export default function OrganizationPanel(props: Props) {
 
   useEffect(() => {
     loadRuns()
-      .catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"))
+      .catch((error) => props.notify(toErrorMessage(error), "error"))
       .finally(() => setLoading(false));
   }, []);
 
   usePolling({
-    enabled: Boolean(active && !TERMINAL.has(active.status) && active.status !== "awaiting_review"),
+    enabled: Boolean(
+      active &&
+        !TERMINAL_ORGANIZATION_STATUSES.has(active.status) &&
+        active.status !== "awaiting_review"
+    ),
     intervalMs: 1200,
     task: async () => {
       if (!active) return;
       const run = await api.getOrganizationRun(active.id);
       setActive(run);
-      if (TERMINAL.has(run.status) || run.status === "awaiting_review") {
+      if (
+        TERMINAL_ORGANIZATION_STATUSES.has(run.status) ||
+        run.status === "awaiting_review"
+      ) {
         await loadRuns(run.id);
       }
     },
     onError: (error) =>
-      props.notify(error instanceof Error ? error.message : String(error), "error")
+      props.notify(toErrorMessage(error), "error")
   });
 
   async function createRun() {
@@ -126,7 +134,7 @@ export default function OrganizationPanel(props: Props) {
       await loadRuns(run.id);
       props.notify(t("organization.created"), "success");
     } catch (error) {
-      props.notify(error instanceof Error ? error.message : String(error), "error");
+      props.notify(toErrorMessage(error), "error");
     } finally {
       setBusy(false);
     }
@@ -148,7 +156,7 @@ export default function OrganizationPanel(props: Props) {
       await api.decideOrganizationProposal(proposal.id, decision, decision === "accepted" ? editedValue(proposal) : undefined);
       setActive(await api.getOrganizationRun(proposal.run_id));
     } catch (error) {
-      props.notify(error instanceof Error ? error.message : String(error), "error");
+      props.notify(toErrorMessage(error), "error");
     } finally {
       setBusy(false);
     }
@@ -163,7 +171,7 @@ export default function OrganizationPanel(props: Props) {
       await loadRuns(run.id);
       props.notify(t("organization.applied"), "success");
     } catch (error) {
-      props.notify(error instanceof Error ? error.message : String(error), "error");
+      props.notify(toErrorMessage(error), "error");
     } finally {
       setBusy(false);
     }
@@ -179,7 +187,7 @@ export default function OrganizationPanel(props: Props) {
       setActive(await api.getOrganizationRun(run.id));
       await loadRuns(run.id);
     } catch (error) {
-      props.notify(error instanceof Error ? error.message : String(error), "error");
+      props.notify(toErrorMessage(error), "error");
     } finally {
       setBusy(false);
     }
@@ -242,7 +250,7 @@ export default function OrganizationPanel(props: Props) {
                 <div className="organization-summary">
                   <div><h2>{t("organization.runTitle", { id: active.id })}</h2><p>{t("organization.counts", { targets: active.target_count, failed: active.failed_count, review: active.pending_review_count })}</p></div>
                   <div className="organization-run-actions">
-                    {!TERMINAL.has(active.status) && <Button size="sm" variant="text" disabled={busy} onClick={() => void runAction("cancel")}>{t("common.actions.cancel")}</Button>}
+                    {!TERMINAL_ORGANIZATION_STATUSES.has(active.status) && <Button size="sm" variant="text" disabled={busy} onClick={() => void runAction("cancel")}>{t("common.actions.cancel")}</Button>}
                     {(["failed", "canceled", "interrupted"].includes(active.status)) && <Button size="sm" variant="tonal" disabled={busy} onClick={() => void runAction("retry")}>{t("common.actions.retry")}</Button>}
                     <StatusPill value={active.status} />
                   </div>

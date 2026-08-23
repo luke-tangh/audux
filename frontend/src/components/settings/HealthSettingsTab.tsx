@@ -11,6 +11,7 @@ import type {
 } from "../../types";
 import { Button, PanelCard, StatusPill } from "../ui";
 import { formatFileSize } from "./settingsUtils";
+import { isActiveTaskStatus } from "../../constants";
 
 type Props = {
   summary: LibraryHealthSummary | null;
@@ -168,7 +169,7 @@ export default function HealthSettingsTab({
                 </div>
               )}
               <div className="health-row-actions">
-                {["pending", "running", "cancel_requested"].includes(task.status) && (
+                {isActiveTaskStatus(task.status) && (
                   <Button variant="text" onClick={() => onCancelTask(task)}>
                     {t("common.actions.cancel")}
                   </Button>

@@ -4,9 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import { api } from "../api";
 import type { ActivityFeed, ActivityItem } from "../types";
-import { localizedStoredError } from "../i18n/errors";
+import { localizedStoredError, toErrorMessage } from "../i18n/errors";
 import { Button, IconButton, MaterialIcon, StatusPill } from "./ui";
 import { usePolling } from "../hooks/usePolling";
+import { TERMINAL_ACTIVITY_STATUSES } from "../constants";
 
 type Props = {
   onActivityChanged?: () => void;
@@ -14,7 +15,6 @@ type Props = {
 };
 
 const EMPTY_FEED: ActivityFeed = { items: [], active_count: 0, failed_count: 0 };
-const TERMINAL = new Set(["done", "partial", "failed", "canceled", "interrupted", "installed"]);
 const POSITION_STORAGE_KEY = "audux.activity-center.position.v1";
 const TRIGGER_SIZE = 40;
 const VIEWPORT_MARGIN = 12;
@@ -105,7 +105,7 @@ export default function ActivityCenter({ onActivityChanged, notify }: Props) {
       if (announce && Object.keys(statusRef.current).length > 0) {
         const completed = next.items.some((item) => {
           const previous = statusRef.current[item.id];
-          return previous && previous !== item.status && TERMINAL.has(item.status);
+          return previous && previous !== item.status && TERMINAL_ACTIVITY_STATUSES.has(item.status);
         });
         if (completed) onActivityChanged?.();
       }
@@ -113,7 +113,7 @@ export default function ActivityCenter({ onActivityChanged, notify }: Props) {
       setFeed(next);
     } catch (error) {
       if (openRef.current) {
-        notify?.(error instanceof Error ? error.message : String(error), "error");
+        notify?.(toErrorMessage(error), "error");
       }
     } finally {
       setLoading(false);
@@ -247,7 +247,7 @@ export default function ActivityCenter({ onActivityChanged, notify }: Props) {
       await load(false);
       onActivityChanged?.();
     } catch (error) {
-      notify?.(error instanceof Error ? error.message : String(error), "error");
+      notify?.(toErrorMessage(error), "error");
     }
   }
 

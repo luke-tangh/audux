@@ -3,6 +3,7 @@ import { Button, CheckboxField, PanelCard, TextField } from "../ui";
 import { scanProgress } from "./settingsUtils";
 import { useTranslation } from "react-i18next";
 import { localizedStoredError } from "../../i18n/errors";
+import { isActiveTaskStatus } from "../../constants";
 
 type LibrarySettingsTabProps = {
   roots: LibraryRoot[];
@@ -120,7 +121,7 @@ export default function LibrarySettingsTab({
               </div>
             )}
 
-            {(task.status === "pending" || task.status === "running") && (
+            {isActiveTaskStatus(task.status) && (
               <Button variant="text" onClick={() => onCancelScan(task)}>
                 {t("common.actions.cancel")}
               </Button>

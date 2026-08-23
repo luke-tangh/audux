@@ -8,6 +8,7 @@ import type {
   TranscriptFilter,
   ViewMode
 } from "./types";
+import { isActiveTaskStatus } from "../../constants";
 
 export function transcriptFilterToParam(value: TranscriptFilter): boolean | undefined {
   if (value === "yes") return true;
@@ -22,7 +23,7 @@ export function missingFilterToParam(value: MissingFilter): boolean | undefined 
 }
 
 export function isBusyStatus(status?: string): boolean {
-  return status === "pending" || status === "running" || status === "cancel_requested";
+  return Boolean(status && isActiveTaskStatus(status));
 }
 
 export function isSmartView(view: ViewMode): boolean {

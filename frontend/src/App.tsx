@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
 import Sidebar from "./components/Sidebar";
@@ -10,9 +10,9 @@ import ToastStack from "./components/ToastStack";
 import ActivityCenter from "./components/ActivityCenter";
 import OnboardingWizard from "./components/OnboardingWizard";
 import StartupScreen from "./components/StartupScreen";
-import { useDialog } from "./components/dialog/UnifiedDialog";
 import { IconButton, MaterialIcon } from "./components/ui";
 import { useActivityCenterPreference } from "./hooks/useActivityCenterPreference";
+import { useAppShellController } from "./hooks/useAppShellController";
 import { useLibraryController } from "./hooks/useLibraryController";
 import { api } from "./api";
 
@@ -28,19 +28,6 @@ function WorkspaceLoading() {
 
 export default function App() {
   const { t } = useTranslation();
-  const dialog = useDialog();
-  const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [inspectorDirty, setInspectorDirty] = useState(false);
-  const [settingsDirty, setSettingsDirty] = useState(false);
-  const settingsBeforeLeaveRef = useRef<(() => Promise<boolean>) | null>(null);
-  const [compactNavigation, setCompactNavigation] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
-  );
-  const [navigationOpen, setNavigationOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
-    typeof window !== "undefined" && window.localStorage.getItem("audux.sidebar.collapsed") === "true"
-  );
-  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const {
     enabled: activityCenterEnabled,
     updateEnabled: updateActivityCenterEnabled
@@ -157,6 +144,34 @@ export default function App() {
     movePlaylistItemTo,
     handleAudioDeleted
   } = useLibraryController();
+  const {
+    inspectorOpen,
+    setInspectorDirty,
+    setSettingsDirty,
+    compactNavigation,
+    navigationOpen,
+    setNavigationOpen,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    onboardingOpen,
+    setOnboardingOpen,
+    openInspector,
+    closeInspector,
+    prepareWorkspaceNavigation,
+    handleSettingsBeforeLeaveChange,
+    requestOpenSettings,
+    closeNavigation
+  } = useAppShellController({
+    selected,
+    setSelected,
+    view,
+    openSettings,
+    initialized,
+    rootsLength: roots.length,
+    activeSavedViewId,
+    selectedPlaylistId,
+    selectedTag
+  });
 
   async function playReferencedAudio(audioId: number, seconds: number) {
     const existing = playbackQueue.find((row) => row.id === audioId)
@@ -166,135 +181,6 @@ export default function App() {
       ? playbackQueue
       : [item, ...playbackQueue];
     await playAudioAt(item, seconds, queue);
-  }
-
-  useEffect(() => {
-    if (!selected) {
-      setInspectorOpen(false);
-      setInspectorDirty(false);
-    }
-  }, [selected]);
-
-  useEffect(() => {
-    if (!inspectorDirty && !settingsDirty) return;
-
-    function preventWindowClose(event: BeforeUnloadEvent) {
-      event.preventDefault();
-      event.returnValue = "";
-    }
-
-    window.addEventListener("beforeunload", preventWindowClose);
-    return () => window.removeEventListener("beforeunload", preventWindowClose);
-  }, [inspectorDirty, settingsDirty]);
-
-  useEffect(() => {
-    if (!inspectorOpen || !window.matchMedia("(max-width: 1040px)").matches) return;
-
-    const frame = window.requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>(".inspector-close-button")?.focus();
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [inspectorOpen, selected?.id]);
-
-  useEffect(() => {
-    const query = window.matchMedia("(max-width: 860px)");
-    const update = () => {
-      setCompactNavigation(query.matches);
-      if (!query.matches) setNavigationOpen(false);
-    };
-
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-
-  useEffect(() => {
-    if (!compactNavigation) return;
-    setNavigationOpen(false);
-  }, [
-    activeSavedViewId,
-    compactNavigation,
-    selectedPlaylistId,
-    selectedTag,
-    view
-  ]);
-
-  useEffect(() => {
-    window.localStorage.setItem("audux.sidebar.collapsed", String(sidebarCollapsed));
-  }, [sidebarCollapsed]);
-
-  useEffect(() => {
-    if (initialized && roots.length === 0) setOnboardingOpen(true);
-  }, [initialized, roots.length]);
-
-  async function confirmDiscardInspectorChanges() {
-    if (!inspectorDirty) return true;
-
-    return dialog.confirm({
-      title: t("detail.overview.discardTitle"),
-      message: t("detail.overview.discardMessage"),
-      confirmLabel: t("detail.overview.discardChanges"),
-      cancelLabel: t("detail.overview.keepEditing"),
-      tone: "warning",
-      destructive: true
-    });
-  }
-
-  async function openInspector(item: NonNullable<typeof selected>) {
-    if (selected?.id !== item.id && !(await confirmDiscardInspectorChanges())) return;
-
-    setInspectorDirty(false);
-    setSelected(item);
-    setInspectorOpen(true);
-  }
-
-  async function closeInspector() {
-    if (!(await confirmDiscardInspectorChanges())) return;
-
-    setInspectorDirty(false);
-    setInspectorOpen(false);
-    window.requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>(".audio-row.selected .audio-row-primary")?.focus();
-    });
-  }
-
-  async function prepareWorkspaceNavigation() {
-    if (view === "settings" && settingsBeforeLeaveRef.current) {
-      const settingsReady = await settingsBeforeLeaveRef.current();
-      if (!settingsReady) return false;
-    }
-
-    if (!inspectorDirty) return true;
-
-    const allowed = await confirmDiscardInspectorChanges();
-    if (!allowed) return false;
-
-    setInspectorDirty(false);
-    setInspectorOpen(false);
-    return true;
-  }
-
-  const handleSettingsBeforeLeaveChange = useCallback(
-    (handler: (() => Promise<boolean>) | null) => {
-      settingsBeforeLeaveRef.current = handler;
-    },
-    []
-  );
-
-  async function requestOpenSettings() {
-    if (!(await confirmDiscardInspectorChanges())) return;
-    setInspectorDirty(false);
-    openSettings();
-  }
-
-  function closeNavigation(restoreFocus = false) {
-    setNavigationOpen(false);
-    if (restoreFocus) {
-      window.requestAnimationFrame(() => {
-        document.querySelector<HTMLElement>(".app-navigation-toggle")?.focus();
-      });
-    }
   }
 
   if (startupState !== "ready") {
@@ -543,6 +429,7 @@ export default function App() {
                   audio={selected}
                   refresh={refresh}
                   onPlay={(item) => playAudio(item, audioItems)}
+                  onPlayAt={(item, seconds) => playAudioAt(item, seconds, audioItems)}
                   onAddToQueue={addToQueue}
                   onPlayNext={playNextAudio}
                   playlists={manualPlaylists}

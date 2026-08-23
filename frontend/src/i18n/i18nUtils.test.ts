@@ -9,7 +9,7 @@ import {
   systemLanguage,
   UI_LANGUAGE_STORAGE_KEY
 } from "./index";
-import { localizedPrivacyWarning, localizedStoredError } from "./errors";
+import { localizedPrivacyWarning, localizedStoredError, toErrorMessage } from "./errors";
 import { formatDateTime, formatLanguageName } from "./format";
 
 function translationMock(): { t: TFunction; call: ReturnType<typeof vi.fn> } {
@@ -59,6 +59,11 @@ describe("i18n helpers", () => {
       "Remote warning"
     );
     expect(localizedPrivacyWarning(t, undefined, "")).toBe("");
+  });
+
+  it("normalizes thrown values into displayable messages", () => {
+    expect(toErrorMessage(new Error("offline"))).toBe("offline");
+    expect(toErrorMessage("unavailable")).toBe("unavailable");
   });
 
   it("formats valid dates and preserves missing or invalid values", () => {

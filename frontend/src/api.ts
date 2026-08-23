@@ -1,57 +1,10 @@
-import type {
-  ActivityFeed,
-  AgentConversation,
-  AgentOperationPlan,
-  AgentRun,
-  AgentScope,
-  ArchiveImportDryRun,
-  AISuggestions,
-  AITask,
-  AudioDeleteResult,
-  AudioDetail,
-  AudioItem,
-  AudioListQuery,
-  BatchTaskResult,
-  BatchOrganizationPayload,
-  BatchOrganizationResult,
-  DatabaseBackup,
-  DatabaseRestorePreflight,
-  DatabaseRestoreStatus,
-  DiagnosticBundleRecord,
-  ExternalAsrPreprocessingStatus,
-  LibraryRoot,
-  LibraryImportResult,
-  LibraryHealthSummary,
-  LibraryHealthTask,
-  LLMConfigPayload,
-  LLMModelDiscoveryPayload,
-  LLMModelDiscoveryResult,
-  LLMTestResult,
-  OrganizationProposal,
-  OrganizationProposalKind,
-  OrganizationRun,
-  OrganizationRunOptions,
-  PaginatedAudioItems,
-  PlaybackQueueResolution,
-  PlaybackEvent,
-  PortableArchiveRecord,
-  Playlist,
-  PlaylistDetail,
-  PlaylistListQuery,
-  ScanTask,
-  SafeRelinkCandidates,
-  SafeRelinkPreview,
-  SavedView,
-  SavedViewQuery,
-  Tag,
-  TagMergeResult,
-  StatisticsOverview,
-  Transcript,
-  TranscriptSegmentEdit,
-  WhisperComponentStatus
-} from "./types";
 import i18n from "./i18n";
 import { resolveTauriBackendBaseUrl } from "./tauri";
+import { createAgentApi } from "./api/agentApi";
+import { createAiApi } from "./api/aiApi";
+import type { ApiContext } from "./api/context";
+import { createLibraryApi } from "./api/libraryApi";
+import { createSettingsApi } from "./api/settingsApi";
 
 export const DEFAULT_API_BASE = "http://127.0.0.1:8765";
 const BROWSER_LITE_MODE = import.meta.env.VITE_BROWSER_LITE === "true";
@@ -69,30 +22,21 @@ function isTauriRuntimeSync(): boolean {
 }
 
 async function resolveApiBase(): Promise<string> {
-  if (apiBaseResolved) {
-    return API_BASE;
-  }
-
-  if (apiBasePromise) {
-    return apiBasePromise;
-  }
+  if (apiBaseResolved) return API_BASE;
+  if (apiBasePromise) return apiBasePromise;
 
   apiBasePromise = (async () => {
     try {
       if (isTauriRuntimeSync()) {
         const value = await resolveTauriBackendBaseUrl();
         const normalized = String(value || "").trim().replace(/\/+$/, "");
-
-        if (normalized) {
-          API_BASE = normalized;
-        }
+        if (normalized) API_BASE = normalized;
       }
-    } catch (err) {
-      console.warn("Failed to resolve Tauri backend base URL; using default", err);
+    } catch (error) {
+      console.warn("Failed to resolve Tauri backend base URL; using default", error);
     } finally {
       apiBaseResolved = true;
     }
-
     return API_BASE;
   })().finally(() => {
     apiBasePromise = null;
@@ -107,12 +51,15 @@ export async function ensureApiBase(): Promise<string> {
 
 export const AUDUX_CLIENT_HEADER = "X-Audux-Client";
 export const AUDUX_CLIENT_ID = "audux";
-
 export const AUDUX_TOKEN_HEADER = "X-Audux-Token";
 export const AUDUX_TOKEN_QUERY = "access_token";
 
 let localApiToken: string | null = null;
 let localApiTokenPromise: Promise<string> | null = null;
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 export class ApiError extends Error {
   status: number;
@@ -134,14 +81,9 @@ export class ApiError extends Error {
   }
 }
 
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function readableErrorFromJson(value: unknown): string {
   if (!isJsonObject(value)) {
     if (value === null || value === undefined) return "";
-
     try {
       return JSON.stringify(value, null, 2);
     } catch {
@@ -154,25 +96,15 @@ function readableErrorFromJson(value: unknown): string {
       ? value.detail.fallback
       : `HTTP error: ${value.detail.code}`;
     const params = isJsonObject(value.detail.params) ? value.detail.params : {};
-    return i18n.t(`errors.${value.detail.code}`, {
-      ...params,
-      defaultValue: fallback
-    });
+    return i18n.t(`errors.${value.detail.code}`, { ...params, defaultValue: fallback });
   }
-
-  if (typeof value.detail === "string") {
-    return value.detail;
-  }
-
+  if (typeof value.detail === "string") return value.detail;
   if (Array.isArray(value.detail)) {
-    return value.detail
-      .map((item) => {
-        if (isJsonObject(item) && typeof item.msg === "string") return item.msg;
-        return JSON.stringify(item);
-      })
-      .join("; ");
+    return value.detail.map((item) => {
+      if (isJsonObject(item) && typeof item.msg === "string") return item.msg;
+      return JSON.stringify(item);
+    }).join("; ");
   }
-
   if (value.detail !== undefined) {
     try {
       return JSON.stringify(value.detail, null, 2);
@@ -180,11 +112,7 @@ function readableErrorFromJson(value: unknown): string {
       return String(value.detail);
     }
   }
-
-  if (typeof value.message === "string") {
-    return value.message;
-  }
-
+  if (typeof value.message === "string") return value.message;
   try {
     return JSON.stringify(value, null, 2);
   } catch {
@@ -192,20 +120,17 @@ function readableErrorFromJson(value: unknown): string {
   }
 }
 
-async function parseErrorResponse(resp: Response): Promise<ApiError> {
-  const text = await resp.text();
-
-  if (!text) {
-    return new ApiError(`HTTP ${resp.status}`, resp.status);
-  }
+async function parseErrorResponse(response: Response): Promise<ApiError> {
+  const text = await response.text();
+  if (!text) return new ApiError(`HTTP ${response.status}`, response.status);
 
   try {
-    const json = JSON.parse(text);
-    const message = readableErrorFromJson(json) || `HTTP ${resp.status}`;
+    const json: unknown = JSON.parse(text);
+    const message = readableErrorFromJson(json) || `HTTP ${response.status}`;
     const detail = isJsonObject(json) ? json.detail : undefined;
-    return new ApiError(message, resp.status, detail, text);
+    return new ApiError(message, response.status, detail, text);
   } catch {
-    return new ApiError(text, resp.status, undefined, text);
+    return new ApiError(text, response.status, undefined, text);
   }
 }
 
@@ -214,77 +139,44 @@ function isTokenFreePath(path: string): boolean {
 }
 
 export async function ensureLocalApiToken(): Promise<string> {
-  if (localApiToken) {
-    return localApiToken;
-  }
-
-  if (localApiTokenPromise) {
-    return localApiTokenPromise;
-  }
+  if (localApiToken) return localApiToken;
+  if (localApiTokenPromise) return localApiTokenPromise;
 
   localApiTokenPromise = (async () => {
     const base = await resolveApiBase();
-    const resp = await fetch(`${base}/auth/token`, {
-      headers: {
-        [AUDUX_CLIENT_HEADER]: AUDUX_CLIENT_ID
-      }
+    const response = await fetch(`${base}/auth/token`, {
+      headers: { [AUDUX_CLIENT_HEADER]: AUDUX_CLIENT_ID }
     });
+    if (!response.ok) throw await parseErrorResponse(response);
 
-    if (!resp.ok) {
-      throw await parseErrorResponse(resp);
-    }
-
-    const json = await resp.json();
+    const json = await response.json();
     const token = String(json.token || "").trim();
-
-    if (!token) {
-      throw new Error("Local API token is empty");
-    }
-
+    if (!token) throw new Error("Local API token is empty");
     localApiToken = token;
     return token;
-  })()
-    .finally(() => {
-      localApiTokenPromise = null;
-    });
+  })().finally(() => {
+    localApiTokenPromise = null;
+  });
 
   return localApiTokenPromise;
 }
 
-function resetLocalApiToken() {
-  localApiToken = null;
-}
-
-function authQuery(): string {
-  if (!localApiToken) return "";
-  return `${AUDUX_TOKEN_QUERY}=${encodeURIComponent(localApiToken)}`;
-}
-
-function appendQuery(url: string, params: Record<string, string | number | undefined>) {
-  const entries = Object.entries(params).filter(
-    ([, value]) => value !== undefined && value !== ""
-  );
-
-  if (entries.length === 0) {
-    return url;
-  }
-
-  const sp = new URLSearchParams();
-
-  for (const [key, value] of entries) {
-    if (value !== undefined) {
-      sp.set(key, String(value));
-    }
-  }
-
-  return `${url}${url.includes("?") ? "&" : "?"}${sp.toString()}`;
-}
-
 function appendAccessToken(url: string): string {
-  const tokenQuery = authQuery();
-  if (!tokenQuery) return url;
+  if (!localApiToken) return url;
+  const token = `${AUDUX_TOKEN_QUERY}=${encodeURIComponent(localApiToken)}`;
+  return `${url}${url.includes("?") ? "&" : "?"}${token}`;
+}
 
-  return `${url}${url.includes("?") ? "&" : "?"}${tokenQuery}`;
+function appendQuery(
+  url: string,
+  params: Record<string, string | number | undefined>
+): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  }
+  const suffix = query.toString();
+  return suffix ? `${url}${url.includes("?") ? "&" : "?"}${suffix}` : url;
 }
 
 async function request<T = unknown>(
@@ -294,809 +186,66 @@ async function request<T = unknown>(
 ): Promise<T> {
   const body = options?.body;
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
-
   const headers: Record<string, string> = {
-    ...(options?.headers as Record<string, string> | undefined)
+    ...(options?.headers as Record<string, string> | undefined),
+    [AUDUX_CLIENT_HEADER]: AUDUX_CLIENT_ID
   };
 
-  headers[AUDUX_CLIENT_HEADER] = AUDUX_CLIENT_ID;
-
-  if (!isTokenFreePath(path)) {
-    headers[AUDUX_TOKEN_HEADER] = await ensureLocalApiToken();
-  }
-
+  if (!isTokenFreePath(path)) headers[AUDUX_TOKEN_HEADER] = await ensureLocalApiToken();
   if (!isFormData && !headers["Content-Type"] && body !== undefined) {
     headers["Content-Type"] = "application/json";
   }
 
   const base = await resolveApiBase();
-
-  const resp = await fetch(`${base}${path}`, {
-    ...options,
-    headers
-  });
-
-  if (resp.status === 401 && retryOnUnauthorized && !isTokenFreePath(path)) {
-    resetLocalApiToken();
+  const response = await fetch(`${base}${path}`, { ...options, headers });
+  if (response.status === 401 && retryOnUnauthorized && !isTokenFreePath(path)) {
+    localApiToken = null;
     await ensureLocalApiToken();
     return request<T>(path, options, false);
   }
+  if (!response.ok) throw await parseErrorResponse(response);
+  if (response.status === 204) return undefined as T;
 
-  if (!resp.ok) {
-    throw await parseErrorResponse(resp);
-  }
-
-  if (resp.status === 204) {
-    return undefined as T;
-  }
-
-  const text = await resp.text();
-  if (!text) {
-    return undefined as T;
-  }
-
-  return JSON.parse(text);
-}
-
-function audioListQueryString(params?: AudioListQuery): string {
-  const sp = new URLSearchParams();
-
-  if (params?.q) sp.set("q", params.q);
-  if (params?.tag) sp.set("tag", params.tag);
-  for (const tagId of params?.tag_ids || []) sp.append("tag_ids", String(tagId));
-  for (const tagId of params?.excluded_tag_ids || []) {
-    sp.append("excluded_tag_ids", String(tagId));
-  }
-  if (params?.tag_mode) sp.set("tag_mode", params.tag_mode);
-  if (params?.library_root_id !== undefined) {
-    sp.set("library_root_id", String(params.library_root_id));
-  }
-  if (params?.favorite !== undefined) sp.set("favorite", String(params.favorite));
-  if (params?.missing !== undefined) sp.set("missing", String(params.missing));
-  if (params?.has_transcript !== undefined) {
-    sp.set("has_transcript", String(params.has_transcript));
-  }
-  if (params?.missing_description !== undefined) {
-    sp.set("missing_description", String(params.missing_description));
-  }
-  if (params?.include_disabled_roots !== undefined) {
-    sp.set("include_disabled_roots", String(params.include_disabled_roots));
-  }
-  if (params?.ai_status) sp.set("ai_status", params.ai_status);
-  if (params?.transcript_status) sp.set("transcript_status", params.transcript_status);
-  if (params?.sort) sp.set("sort", params.sort);
-  if (params?.limit !== undefined) sp.set("limit", String(params.limit));
-  if (params?.offset !== undefined) sp.set("offset", String(params.offset));
-
-  return sp.toString();
+  const text = await response.text();
+  return text ? JSON.parse(text) : undefined as T;
 }
 
 export function isProbablyLocalEndpoint(endpoint: string): boolean {
   try {
-    const parsed = new URL(endpoint);
-    const host = parsed.hostname.toLowerCase();
-
-    return (
-      host === "localhost" ||
-      host.endsWith(".localhost") ||
-      host === "127.0.0.1" ||
-      host.startsWith("127.") ||
-      host === "::1" ||
-      host === "[::1]"
-    );
+    const host = new URL(endpoint).hostname.toLowerCase();
+    return host === "localhost" || host.endsWith(".localhost") ||
+      host === "127.0.0.1" || host.startsWith("127.") ||
+      host === "::1" || host === "[::1]";
   } catch {
     return false;
   }
 }
 
+function remoteEndpointWarning(endpoint: string, translationKey: string): string | null {
+  const normalized = endpoint.trim();
+  if (!normalized || isProbablyLocalEndpoint(normalized)) return null;
+  return i18n.t(translationKey);
+}
+
 export function endpointPrivacyWarning(endpoint: string): string | null {
-  if (!endpoint.trim()) return null;
-
-  if (isProbablyLocalEndpoint(endpoint.trim())) {
-    return null;
-  }
-
-  return i18n.t("warnings.llm.remote");
+  return remoteEndpointWarning(endpoint, "warnings.llm.remote");
 }
 
 export function asrEndpointPrivacyWarning(endpoint: string): string | null {
-  if (!endpoint.trim()) return null;
-
-  if (isProbablyLocalEndpoint(endpoint.trim())) {
-    return null;
-  }
-
-  return i18n.t("warnings.asr.remote");
+  return remoteEndpointWarning(endpoint, "warnings.asr.remote");
 }
+
+const context: ApiContext = {
+  request,
+  appendAccessToken,
+  appendQuery,
+  getApiBase: () => API_BASE
+};
 
 export const api = {
   ensureAuthToken: ensureLocalApiToken,
-
-  listAgentConversations: () =>
-    request<AgentConversation[]>("/agent/conversations"),
-
-  createAgentConversation: (payload: { title?: string; scope: AgentScope }) =>
-    request<AgentConversation>("/agent/conversations", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
-
-  getAgentConversation: (id: number) =>
-    request<AgentConversation>(`/agent/conversations/${id}`),
-
-  updateAgentConversation: (
-    id: number,
-    payload: { title?: string; scope?: AgentScope }
-  ) => request<AgentConversation>(`/agent/conversations/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify(payload)
-  }),
-
-  deleteAgentConversation: (id: number) =>
-    request<{ ok: boolean }>(`/agent/conversations/${id}`, { method: "DELETE" }),
-
-  createAgentRun: (conversationId: number, content: string) =>
-    request<AgentRun>(`/agent/conversations/${conversationId}/runs`, {
-      method: "POST",
-      body: JSON.stringify({ content })
-    }),
-
-  getAgentRun: (id: number) => request<AgentRun>(`/agent/runs/${id}`),
-
-  cancelAgentRun: (id: number) =>
-    request<AgentRun>(`/agent/runs/${id}/cancel`, { method: "POST" }),
-
-  approveAgentOperationPlan: (id: number, fingerprint: string) =>
-    request<AgentOperationPlan>(`/agent/operation-plans/${id}/approve`, {
-      method: "POST",
-      body: JSON.stringify({ fingerprint })
-    }),
-
-  rejectAgentOperationPlan: (id: number) =>
-    request<AgentOperationPlan>(`/agent/operation-plans/${id}/reject`, {
-      method: "POST"
-    }),
-
-  listOrganizationRuns: () => request<OrganizationRun[]>("/organization-runs"),
-
-  createOrganizationRun: (
-    scope: AgentScope,
-    options: OrganizationRunOptions
-  ) => request<OrganizationRun>("/organization-runs", {
-    method: "POST",
-    body: JSON.stringify({ scope, options })
-  }),
-
-  getOrganizationRun: (id: number) =>
-    request<OrganizationRun>(`/organization-runs/${id}`),
-
-  cancelOrganizationRun: (id: number) =>
-    request<OrganizationRun>(`/organization-runs/${id}/cancel`, { method: "POST" }),
-
-  retryOrganizationRun: (id: number) =>
-    request<OrganizationRun>(`/organization-runs/${id}/retry`, { method: "POST" }),
-
-  decideOrganizationProposal: (
-    id: number,
-    decision: "accepted" | "rejected" | "skipped",
-    editedValue?: unknown,
-    note?: string
-  ) => request<OrganizationProposal>(`/organization-proposals/${id}`, {
-    method: "PATCH",
-    body: JSON.stringify({ decision, edited_value: editedValue, note })
-  }),
-
-  applyOrganizationRun: (id: number, categories: OrganizationProposalKind[]) =>
-    request<OrganizationRun>(`/organization-runs/${id}/apply`, {
-      method: "POST",
-      body: JSON.stringify({ categories })
-    }),
-
-  agentConversationExportUrl: (id: number) =>
-    appendAccessToken(`${API_BASE}/agent/conversations/${id}/export`),
-
-  health: () => request<{ status: string }>("/health"),
-
-  listLibraryRoots: () => request<LibraryRoot[]>("/library-roots"),
-
-  createLibraryRoot: (path: string) =>
-    request<LibraryRoot>("/library-roots", {
-      method: "POST",
-      body: JSON.stringify({ path })
-    }),
-
-  importLibraryRoot: (path: string) =>
-    request<LibraryImportResult>("/library-roots/import", {
-      method: "POST",
-      body: JSON.stringify({ path })
-    }),
-
-  listActivities: (limit = 40) =>
-    request<ActivityFeed>(`/activities?limit=${limit}`),
-
-  updateLibraryRoot: (id: number, payload: { is_enabled?: boolean }) =>
-    request<LibraryRoot>(`/library-roots/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    }),
-
-  deleteLibraryRoot: (id: number) =>
-    request<{
-      ok: boolean;
-      detached_audio_items: number;
-      removed_scan_tasks: number;
-    }>(`/library-roots/${id}`, {
-      method: "DELETE"
-    }),
-
-  scanLibraryRoot: (id: number) =>
-    request<ScanTask>(`/library-roots/${id}/scan`, {
-      method: "POST"
-    }),
-
-  listScanTasks: (params?: { root_id?: number; limit?: number }) => {
-    const sp = new URLSearchParams();
-    if (params?.root_id !== undefined) sp.set("root_id", String(params.root_id));
-    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
-    const qs = sp.toString();
-    return request<ScanTask[]>(`/scan-tasks${qs ? `?${qs}` : ""}`);
-  },
-
-  cancelScanTask: (id: number) =>
-    request<ScanTask>(`/scan-tasks/${id}/cancel`, {
-      method: "POST"
-    }),
-
-  getLibraryHealth: () => request<LibraryHealthSummary>("/library-health"),
-
-  listLibraryHealthTasks: (limit = 20) =>
-    request<LibraryHealthTask[]>(`/library-health/tasks?limit=${limit}`),
-
-  startLibraryHealthCheck: () =>
-    request<LibraryHealthTask>("/library-health/checks", { method: "POST" }),
-
-  confirmDuplicateHashes: (audioIds: number[]) =>
-    request<LibraryHealthTask>("/library-health/duplicates/confirm", {
-      method: "POST",
-      body: JSON.stringify({ audio_ids: audioIds })
-    }),
-
-  cancelLibraryHealthTask: (id: number) =>
-    request<LibraryHealthTask>(`/library-health/tasks/${id}/cancel`, { method: "POST" }),
-
-  retryLibraryHealthTask: (id: number) =>
-    request<LibraryHealthTask>(`/library-health/tasks/${id}/retry`, { method: "POST" }),
-
-  findRelinkCandidates: (audioId: number) =>
-    request<SafeRelinkCandidates>(`/library-health/audio/${audioId}/relink-candidates`),
-
-  previewSafeRelink: (audioId: number, candidatePath: string) =>
-    request<SafeRelinkPreview>(`/library-health/audio/${audioId}/relink-preview`, {
-      method: "POST",
-      body: JSON.stringify({ candidate_path: candidatePath })
-    }),
-
-  commitSafeRelink: (
-    audioId: number,
-    candidatePath: string,
-    confirmation: SafeRelinkPreview["confirmation"]
-  ) =>
-    request<{ preserved: boolean }>(`/library-health/audio/${audioId}/relink`, {
-      method: "POST",
-      body: JSON.stringify({ candidate_path: candidatePath, ...confirmation })
-    }),
-
-  listAudioItems: (params?: AudioListQuery) => {
-    const qs = audioListQueryString(params);
-    return request<PaginatedAudioItems>(`/audio-items${qs ? `?${qs}` : ""}`);
-  },
-
-  getAudioDetail: (id: number) => request<AudioDetail>(`/audio-items/${id}`),
-
-  resolvePlaybackQueue: (audioIds: number[]) =>
-    request<PlaybackQueueResolution>("/audio-items/playback-queue/resolve", {
-      method: "POST",
-      body: JSON.stringify({ audio_ids: audioIds })
-    }),
-
-  getAiSuggestions: (id: number) =>
-    request<AISuggestions>(`/audio-items/${id}/ai-suggestions`),
-
-  updateAudio: (id: number, payload: Partial<AudioItem>) =>
-    request<AudioItem>(`/audio-items/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    }),
-
-  deleteAudio: (id: number, deleteFile = false) =>
-    request<AudioDeleteResult>(`/audio-items/${id}?delete_file=${String(deleteFile)}`, {
-      method: "DELETE"
-    }),
-
-  relocateAudio: (id: number, filePath: string) =>
-    request<AudioItem>(`/audio-items/${id}/relocate`, {
-      method: "POST",
-      body: JSON.stringify({ file_path: filePath })
-    }),
-
-  uploadCover: (id: number, file: File) => {
-    const fd = new FormData();
-    fd.append("file", file);
-
-    return request<AudioItem>(`/audio-items/${id}/cover`, {
-      method: "POST",
-      body: fd
-    });
-  },
-
-  deleteCover: (id: number) =>
-    request<AudioItem>(`/audio-items/${id}/cover`, {
-      method: "DELETE"
-    }),
-
-  coverUrl: (id: number, version?: string | number) =>
-    appendAccessToken(
-      appendQuery(`${API_BASE}/audio-items/${id}/cover`, {
-        v: version
-      })
-    ),
-
-  audioFileUrl: (id: number) => appendAccessToken(`${API_BASE}/audio-items/${id}/file`),
-
-  updatePlaybackPosition: (id: number, last_position_seconds: number) =>
-    request<{ ok: boolean }>(`/audio-items/${id}/playback-position`, {
-      method: "POST",
-      body: JSON.stringify({ last_position_seconds })
-    }),
-
-  incrementPlayCount: (id: number) =>
-    request<{ ok: boolean }>(`/audio-items/${id}/play-count`, {
-      method: "POST"
-    }),
-
-  startPlaybackEvent: (id: number, startPositionSeconds: number) =>
-    request<PlaybackEvent>(`/audio-items/${id}/playback-events`, {
-      method: "POST",
-      body: JSON.stringify({ start_position_seconds: startPositionSeconds })
-    }),
-
-  updatePlaybackEvent: (
-    eventId: number,
-    payload: {
-      listened_seconds: number;
-      end_position_seconds: number;
-      completed?: boolean;
-      finish?: boolean;
-      end_reason?: "paused" | "ended" | "track_change" | "closed";
-    }
-  ) =>
-    request<PlaybackEvent>(`/playback-events/${eventId}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    }),
-
-  getStatisticsOverview: (days = 30) =>
-    request<StatisticsOverview>(`/statistics/overview?days=${days}`),
-
-  listTags: () => request<Tag[]>("/tags"),
-
-  updateTag: (tagId: number, payload: { name: string }) =>
-    request<Tag>(`/tags/${tagId}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    }),
-
-  deleteTag: (tagId: number, force = false) =>
-    request<{ ok: boolean; affected_audio_items: number }>(
-      `/tags/${tagId}?force=${String(force)}`,
-      {
-        method: "DELETE"
-      }
-    ),
-
-  mergeTag: (sourceTagId: number, targetTagId: number) =>
-    request<TagMergeResult>(`/tags/${sourceTagId}/merge`, {
-      method: "POST",
-      body: JSON.stringify({ target_tag_id: targetTagId })
-    }),
-
-  addTags: (audioId: number, tags: string[], source: "user" | "ai" | "system" = "user") =>
-    request<Tag[]>(`/audio-items/${audioId}/tags`, {
-      method: "POST",
-      body: JSON.stringify({ tags, source })
-    }),
-
-  removeTag: (audioId: number, tagId: number) =>
-    request<{ ok: boolean }>(`/audio-items/${audioId}/tags/${tagId}`, {
-      method: "DELETE"
-    }),
-
-  listPlaylists: () => request<Playlist[]>("/playlists"),
-
-  listSavedViews: () => request<SavedView[]>("/saved-views"),
-
-  createSavedView: (name: string, query: SavedViewQuery) =>
-    request<SavedView>("/saved-views", {
-      method: "POST",
-      body: JSON.stringify({ name, query })
-    }),
-
-  updateSavedView: (
-    viewId: number,
-    payload: { name?: string; query?: SavedViewQuery }
-  ) =>
-    request<SavedView>(`/saved-views/${viewId}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    }),
-
-  copySavedView: (viewId: number, name?: string) =>
-    request<SavedView>(`/saved-views/${viewId}/copy`, {
-      method: "POST",
-      body: JSON.stringify({ name })
-    }),
-
-  reorderSavedViews: (viewIds: number[]) =>
-    request<SavedView[]>("/saved-views/reorder", {
-      method: "PATCH",
-      body: JSON.stringify({ view_ids: viewIds })
-    }),
-
-  deleteSavedView: (viewId: number) =>
-    request<{ ok: boolean }>(`/saved-views/${viewId}`, {
-      method: "DELETE"
-    }),
-
-  getPlaylist: (id: number, params?: { include_disabled_roots?: boolean }) => {
-    const sp = new URLSearchParams();
-
-    if (params?.include_disabled_roots !== undefined) {
-      sp.set("include_disabled_roots", String(params.include_disabled_roots));
-    }
-
-    const qs = sp.toString();
-    return request<PlaylistDetail>(`/playlists/${id}${qs ? `?${qs}` : ""}`);
-  },
-
-  listPlaylistItems: (
-    id: number,
-    params?: PlaylistListQuery
-  ) => {
-    const qs = audioListQueryString(params);
-    return request<PaginatedAudioItems>(`/playlists/${id}/items${qs ? `?${qs}` : ""}`);
-  },
-
-  createPlaylist: (name: string, description?: string) =>
-    request<Playlist>("/playlists", {
-      method: "POST",
-      body: JSON.stringify({ name, description })
-    }),
-
-  createSmartPlaylist: (savedViewId: number, name?: string, description?: string) =>
-    request<Playlist>("/playlists/smart", {
-      method: "POST",
-      body: JSON.stringify({
-        saved_view_id: savedViewId,
-        name,
-        description
-      })
-    }),
-
-  updatePlaylist: (playlistId: number, name: string) =>
-    request<Playlist>(`/playlists/${playlistId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ name })
-    }),
-
-  deletePlaylist: (playlistId: number) =>
-    request<{ ok: boolean; removed_items: number }>(`/playlists/${playlistId}`, {
-      method: "DELETE"
-    }),
-
-  addToPlaylist: (playlistId: number, audioId: number) =>
-    request(`/playlists/${playlistId}/items`, {
-      method: "POST",
-      body: JSON.stringify({ audio_id: audioId })
-    }),
-
-  removePlaylistItem: (playlistId: number, playlistItemId: number) =>
-    request<{ ok: boolean }>(`/playlists/${playlistId}/items/${playlistItemId}`, {
-      method: "DELETE"
-    }),
-
-  reorderPlaylistItems: (playlistId: number, itemIds: number[]) =>
-    request<{ ok: boolean; count: number }>(`/playlists/${playlistId}/items/reorder`, {
-      method: "PATCH",
-      body: JSON.stringify({ item_ids: itemIds })
-    }),
-
-  playlistExportUrl: (playlistId: number, format: "json" | "m3u") =>
-    appendAccessToken(
-      `${API_BASE}/playlists/${playlistId}/export?format=${encodeURIComponent(format)}`
-    ),
-
-  transcribe: (audioId: number) =>
-    request<AITask>(`/audio-items/${audioId}/transcribe`, {
-      method: "POST"
-    }),
-
-  analyze: (audioId: number) =>
-    request<AITask>(`/audio-items/${audioId}/analyze`, {
-      method: "POST"
-    }),
-
-  batchTranscribe: (audioIds: number[]) =>
-    request<BatchTaskResult>("/audio-items/batch/transcribe", {
-      method: "POST",
-      body: JSON.stringify({ audio_ids: audioIds })
-    }),
-
-  batchAnalyze: (audioIds: number[]) =>
-    request<BatchTaskResult>("/audio-items/batch/analyze", {
-      method: "POST",
-      body: JSON.stringify({ audio_ids: audioIds })
-    }),
-
-  organizeAudioBatch: (payload: BatchOrganizationPayload) =>
-    request<BatchOrganizationResult>("/audio-items/batch/organize", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
-
-  testLlm: (payload: LLMConfigPayload) =>
-    request<LLMTestResult>("/ai/test-llm", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
-
-  discoverLlmModels: (payload: LLMModelDiscoveryPayload) =>
-    request<LLMModelDiscoveryResult>("/ai/models", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
-
-  getTranscript: (audioId: number) => request<Transcript>(`/audio-items/${audioId}/transcript`),
-
-  listTranscriptRevisions: (audioId: number) =>
-    request<Transcript["transcript"][]>(`/audio-items/${audioId}/transcript/revisions`),
-
-  getTranscriptRevision: (audioId: number, revisionId: number) =>
-    request<Transcript>(`/audio-items/${audioId}/transcript/revisions/${revisionId}`),
-
-  updateTranscript: (audioId: number, fullText: string, expectedUpdatedAt: string) =>
-    request<Transcript>(`/audio-items/${audioId}/transcript`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        full_text: fullText,
-        expected_updated_at: expectedUpdatedAt
-      })
-    }),
-
-  updateTranscriptSegments: (
-    audioId: number,
-    segments: TranscriptSegmentEdit[],
-    expectedUpdatedAt: string
-  ) =>
-    request<Transcript>(`/audio-items/${audioId}/transcript/segments`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        expected_updated_at: expectedUpdatedAt,
-        segments
-      })
-    }),
-
-  validateTranscript: (audioId: number) =>
-    request<Transcript>(`/audio-items/${audioId}/transcript/validate`, {
-      method: "POST"
-    }),
-
-  updateTranscriptIssue: (
-    audioId: number,
-    issueId: number,
-    status: "open" | "resolved" | "dismissed",
-    closedReason?: string
-  ) =>
-    request<NonNullable<Transcript["issues"]>[number]>(
-      `/audio-items/${audioId}/transcript/issues/${issueId}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ status, closed_reason: closedReason })
-      }
-    ),
-
-  createTranscriptChapter: (
-    audioId: number,
-    payload: {
-      expected_revision_id: number;
-      title: string;
-      start_seconds: number;
-      end_seconds: number;
-    }
-  ) =>
-    request<NonNullable<Transcript["chapters"]>[number]>(
-      `/audio-items/${audioId}/transcript/chapters`,
-      { method: "POST", body: JSON.stringify(payload) }
-    ),
-
-  updateTranscriptChapter: (
-    audioId: number,
-    chapterId: number,
-    payload: { title?: string; start_seconds?: number; end_seconds?: number }
-  ) =>
-    request<NonNullable<Transcript["chapters"]>[number]>(
-      `/audio-items/${audioId}/transcript/chapters/${chapterId}`,
-      { method: "PATCH", body: JSON.stringify(payload) }
-    ),
-
-  deleteTranscriptChapter: (audioId: number, chapterId: number) =>
-    request<{ ok: boolean }>(
-      `/audio-items/${audioId}/transcript/chapters/${chapterId}`,
-      { method: "DELETE" }
-    ),
-
-  mergeTranscriptChapters: (audioId: number, chapterIds: number[], title?: string) =>
-    request<NonNullable<Transcript["chapters"]>[number]>(
-      `/audio-items/${audioId}/transcript/chapters/merge`,
-      {
-        method: "POST",
-        body: JSON.stringify({ chapter_ids: chapterIds, title })
-      }
-    ),
-
-  transcriptExportUrl: (audioId: number, format: "txt" | "json" | "srt") =>
-    appendAccessToken(
-      `${API_BASE}/audio-items/${audioId}/transcript/export?format=${encodeURIComponent(format)}`
-    ),
-
-  metadataExportUrl: (format: "json" | "csv") =>
-    appendAccessToken(`${API_BASE}/export/metadata?format=${encodeURIComponent(format)}`),
-
-  listTasks: (params?: {
-    status?: string;
-    task_type?: string;
-    audio_id?: number;
-    limit?: number;
-    offset?: number;
-  }) => {
-    const sp = new URLSearchParams();
-
-    if (params?.status) sp.set("status", params.status);
-    if (params?.task_type) sp.set("task_type", params.task_type);
-    if (params?.audio_id !== undefined) sp.set("audio_id", String(params.audio_id));
-    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
-    if (params?.offset !== undefined) sp.set("offset", String(params.offset));
-
-    const qs = sp.toString();
-    return request<AITask[]>(`/ai-tasks${qs ? `?${qs}` : ""}`);
-  },
-
-  retryTask: (taskId: number) =>
-    request<AITask>(`/ai-tasks/${taskId}/retry`, {
-      method: "POST"
-    }),
-
-  cancelTask: (taskId: number) =>
-    request<AITask>(`/ai-tasks/${taskId}/cancel`, {
-      method: "POST"
-    }),
-
-  setSetting: (key: string, value: string) =>
-    request("/settings", {
-      method: "PUT",
-      body: JSON.stringify({ key, value })
-    }),
-
-  setSettingsSection: (section: "asr" | "llm", values: Record<string, string>) =>
-    request<{ key: string; value: string; updated_at: string }[]>(`/settings/${section}`, {
-      method: "PUT",
-      body: JSON.stringify({ values })
-    }),
-
-  listSettings: () => request<{ key: string; value: string; updated_at: string }[]>("/settings"),
-
-  getWhisperComponentStatus: () =>
-    request<WhisperComponentStatus>("/asr/whisper-component"),
-
-  getExternalAsrPreprocessingStatus: () =>
-    request<ExternalAsrPreprocessingStatus>("/asr/external-preprocessing"),
-
-  installWhisperComponent: () =>
-    request<WhisperComponentStatus>("/asr/whisper-component/install", {
-      method: "POST"
-    }),
-
-  cancelWhisperComponentInstall: () =>
-    request<WhisperComponentStatus>("/asr/whisper-component/install/cancel", {
-      method: "POST"
-    }),
-
-  removeWhisperComponent: () =>
-    request<WhisperComponentStatus>("/asr/whisper-component", {
-      method: "DELETE"
-    }),
-
-  rebuildSearchIndex: () =>
-    request<{ ok: boolean; count: number }>("/maintenance/rebuild-search-index", {
-      method: "POST"
-    }),
-
-  cleanupTags: () =>
-    request<{ ok: boolean; deleted: number }>("/maintenance/cleanup-tags", {
-      method: "POST"
-    }),
-
-  createPortableArchive: () =>
-    request<PortableArchiveRecord>("/maintenance/archives", { method: "POST" }),
-
-  portableArchiveUrl: (id: string) =>
-    appendAccessToken(`${API_BASE}/maintenance/archives/${encodeURIComponent(id)}/file`),
-
-  dryRunPortableArchiveImport: (file: File) => {
-    const body = new FormData();
-    body.append("file", file);
-    return request<ArchiveImportDryRun>("/maintenance/archives/import/dry-run", {
-      method: "POST",
-      body
-    });
-  },
-
-  executePortableArchiveImport: (archiveId: string, fingerprint: string) =>
-    request<{ ok: boolean; missing_audio: number; counts: Record<string, number> }>(
-      "/maintenance/archives/import",
-      {
-        method: "POST",
-        body: JSON.stringify({ archive_id: archiveId, fingerprint })
-      }
-    ),
-
-  createDiagnosticBundle: () =>
-    request<DiagnosticBundleRecord>("/maintenance/diagnostics", { method: "POST" }),
-
-  diagnosticBundleUrl: (id: string) =>
-    appendAccessToken(`${API_BASE}/maintenance/diagnostics/${encodeURIComponent(id)}/file`),
-
-  listDatabaseBackups: () =>
-    request<DatabaseBackup[]>("/maintenance/database-backups"),
-
-  createDatabaseBackup: (name?: string) =>
-    request<DatabaseBackup>("/maintenance/database-backups", {
-      method: "POST",
-      body: JSON.stringify({ name: name || null })
-    }),
-
-  validateDatabaseBackup: (snapshotId: string) =>
-    request<DatabaseBackup>(
-      `/maintenance/database-backups/${encodeURIComponent(snapshotId)}/validate`,
-      { method: "POST" }
-    ),
-
-  deleteDatabaseBackup: (snapshotId: string) =>
-    request<{ ok: boolean; id: string }>(
-      `/maintenance/database-backups/${encodeURIComponent(snapshotId)}`,
-      { method: "DELETE" }
-    ),
-
-  preflightDatabaseRestore: (snapshotId: string) =>
-    request<DatabaseRestorePreflight>(
-      `/maintenance/database-backups/${encodeURIComponent(snapshotId)}/restore/preflight`,
-      { method: "POST" }
-    ),
-
-  scheduleDatabaseRestore: (snapshotId: string) =>
-    request<import("./types").PendingDatabaseRestore & { status: string; restart_required: boolean }>(
-      `/maintenance/database-backups/${encodeURIComponent(snapshotId)}/restore`,
-      { method: "POST" }
-    ),
-
-  getDatabaseRestoreStatus: () =>
-    request<DatabaseRestoreStatus>("/maintenance/database-restore"),
-
-  cancelPendingDatabaseRestore: () =>
-    request<{ ok: boolean }>("/maintenance/database-restore/pending", {
-      method: "DELETE"
-    }),
-
-  getLogs: (lines = 300) => request<{ file: string; content: string }>(`/logs/app?lines=${lines}`),
-
-  logsFileUrl: () => appendAccessToken(`${API_BASE}/logs/app/file`)
+  ...createAgentApi(context),
+  ...createLibraryApi(context),
+  ...createAiApi(context),
+  ...createSettingsApi(context)
 };

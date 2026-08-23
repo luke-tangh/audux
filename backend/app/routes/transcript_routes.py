@@ -11,23 +11,36 @@ from ..schemas import (
     TranscriptSegmentsUpdate,
     TranscriptUpdate,
 )
+from ..response_schemas import (
+    AITaskResponse,
+    OkResponse,
+    TranscriptChapterResponse,
+    TranscriptDeleteResponse,
+    TranscriptDiagnosticResponse,
+    TranscriptIssueResponse,
+    TranscriptResponse,
+    TranscriptRevisionResponse,
+)
 from ..services import transcript_service
 
 
 router = APIRouter()
 
 
-@router.post("/audio-items/{audio_id}/transcribe")
+@router.post("/audio-items/{audio_id}/transcribe", response_model=AITaskResponse)
 def enqueue_transcribe(audio_id: int, session: Session = Depends(get_session)):
     return transcript_service.enqueue_transcribe(session, audio_id)
 
 
-@router.get("/audio-items/{audio_id}/transcript")
+@router.get("/audio-items/{audio_id}/transcript", response_model=TranscriptResponse)
 def get_transcript(audio_id: int, session: Session = Depends(get_session)):
     return transcript_service.get_transcript(session, audio_id)
 
 
-@router.get("/audio-items/{audio_id}/transcript/revisions")
+@router.get(
+    "/audio-items/{audio_id}/transcript/revisions",
+    response_model=list[TranscriptRevisionResponse],
+)
 def list_transcript_revisions(audio_id: int, session: Session = Depends(get_session)):
     return transcript_service.list_transcript_revisions(
         session,
@@ -35,7 +48,10 @@ def list_transcript_revisions(audio_id: int, session: Session = Depends(get_sess
     )
 
 
-@router.get("/audio-items/{audio_id}/transcript/revisions/{revision_id}")
+@router.get(
+    "/audio-items/{audio_id}/transcript/revisions/{revision_id}",
+    response_model=TranscriptResponse,
+)
 def get_transcript_revision(
     audio_id: int,
     revision_id: int,
@@ -61,7 +77,7 @@ def export_transcript(
     )
 
 
-@router.post("/audio-items/{audio_id}/transcript")
+@router.post("/audio-items/{audio_id}/transcript", response_model=TranscriptResponse)
 def save_transcript(
     audio_id: int,
     payload: TranscriptCreate,
@@ -70,7 +86,7 @@ def save_transcript(
     return transcript_service.save_transcript(session, audio_id, payload)
 
 
-@router.patch("/audio-items/{audio_id}/transcript")
+@router.patch("/audio-items/{audio_id}/transcript", response_model=TranscriptResponse)
 def update_transcript(
     audio_id: int,
     payload: TranscriptUpdate,
@@ -84,7 +100,10 @@ def update_transcript(
     )
 
 
-@router.patch("/audio-items/{audio_id}/transcript/segments")
+@router.patch(
+    "/audio-items/{audio_id}/transcript/segments",
+    response_model=TranscriptResponse,
+)
 def update_transcript_segments(
     audio_id: int,
     payload: TranscriptSegmentsUpdate,
@@ -98,17 +117,26 @@ def update_transcript_segments(
     )
 
 
-@router.delete("/audio-items/{audio_id}/transcript")
+@router.delete(
+    "/audio-items/{audio_id}/transcript",
+    response_model=TranscriptDeleteResponse,
+)
 def delete_transcript(audio_id: int, session: Session = Depends(get_session)):
     return transcript_service.delete_transcript(session, audio_id)
 
 
-@router.post("/audio-items/{audio_id}/transcript/validate")
+@router.post(
+    "/audio-items/{audio_id}/transcript/validate",
+    response_model=TranscriptResponse,
+)
 def revalidate_transcript(audio_id: int, session: Session = Depends(get_session)):
     return transcript_service.revalidate_transcript(session, audio_id)
 
 
-@router.get("/audio-items/{audio_id}/transcript/diagnostics")
+@router.get(
+    "/audio-items/{audio_id}/transcript/diagnostics",
+    response_model=TranscriptDiagnosticResponse,
+)
 def transcript_diagnostics(audio_id: int, session: Session = Depends(get_session)):
     return transcript_service.transcript_diagnostic_summary(
         session,
@@ -116,7 +144,10 @@ def transcript_diagnostics(audio_id: int, session: Session = Depends(get_session
     )
 
 
-@router.patch("/audio-items/{audio_id}/transcript/issues/{issue_id}")
+@router.patch(
+    "/audio-items/{audio_id}/transcript/issues/{issue_id}",
+    response_model=TranscriptIssueResponse,
+)
 def update_transcript_issue(
     audio_id: int,
     issue_id: int,
@@ -131,7 +162,10 @@ def update_transcript_issue(
     )
 
 
-@router.post("/audio-items/{audio_id}/transcript/chapters")
+@router.post(
+    "/audio-items/{audio_id}/transcript/chapters",
+    response_model=TranscriptChapterResponse,
+)
 def create_transcript_chapter(
     audio_id: int,
     payload: TranscriptChapterCreate,
@@ -144,7 +178,10 @@ def create_transcript_chapter(
     )
 
 
-@router.post("/audio-items/{audio_id}/transcript/chapters/merge")
+@router.post(
+    "/audio-items/{audio_id}/transcript/chapters/merge",
+    response_model=TranscriptChapterResponse,
+)
 def merge_transcript_chapters(
     audio_id: int,
     payload: TranscriptChapterMerge,
@@ -157,7 +194,10 @@ def merge_transcript_chapters(
     )
 
 
-@router.patch("/audio-items/{audio_id}/transcript/chapters/{chapter_id}")
+@router.patch(
+    "/audio-items/{audio_id}/transcript/chapters/{chapter_id}",
+    response_model=TranscriptChapterResponse,
+)
 def update_transcript_chapter(
     audio_id: int,
     chapter_id: int,
@@ -172,7 +212,10 @@ def update_transcript_chapter(
     )
 
 
-@router.delete("/audio-items/{audio_id}/transcript/chapters/{chapter_id}")
+@router.delete(
+    "/audio-items/{audio_id}/transcript/chapters/{chapter_id}",
+    response_model=OkResponse,
+)
 def delete_transcript_chapter(
     audio_id: int,
     chapter_id: int,

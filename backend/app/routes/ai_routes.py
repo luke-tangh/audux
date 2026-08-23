@@ -5,6 +5,12 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..schemas import LLMConfig, LLMModelDiscoveryConfig
+from ..response_schemas import (
+    AITaskResponse,
+    LLMModelsResponse,
+    LLMTestResponse,
+    ToolSchemasResponse,
+)
 from ..services import ai_service
 from ..tool_registry import DEFAULT_TOOL_REGISTRY
 
@@ -12,27 +18,27 @@ from ..tool_registry import DEFAULT_TOOL_REGISTRY
 router = APIRouter()
 
 
-@router.get("/ai/tools")
+@router.get("/ai/tools", response_model=ToolSchemasResponse)
 def list_agent_tools():
     return {"tools": DEFAULT_TOOL_REGISTRY.schemas(maximum_permission="read")}
 
 
-@router.post("/audio-items/{audio_id}/analyze")
+@router.post("/audio-items/{audio_id}/analyze", response_model=AITaskResponse)
 def enqueue_analyze(audio_id: int, session: Session = Depends(get_session)):
     return ai_service.enqueue_analyze(session, audio_id)
 
 
-@router.post("/ai/test-llm")
+@router.post("/ai/test-llm", response_model=LLMTestResponse)
 async def test_llm_config(payload: LLMConfig):
     return await ai_service.test_llm_config(payload)
 
 
-@router.post("/ai/models")
+@router.post("/ai/models", response_model=LLMModelsResponse)
 async def discover_llm_models(payload: LLMModelDiscoveryConfig):
     return await ai_service.discover_llm_models(payload)
 
 
-@router.get("/ai-tasks")
+@router.get("/ai-tasks", response_model=list[AITaskResponse])
 def list_ai_tasks(
     status: Optional[str] = None,
     task_type: Optional[str] = None,
@@ -51,16 +57,16 @@ def list_ai_tasks(
     )
 
 
-@router.get("/ai-tasks/{task_id}")
+@router.get("/ai-tasks/{task_id}", response_model=AITaskResponse)
 def get_ai_task(task_id: int, session: Session = Depends(get_session)):
     return ai_service.get_ai_task(session, task_id)
 
 
-@router.post("/ai-tasks/{task_id}/retry")
+@router.post("/ai-tasks/{task_id}/retry", response_model=AITaskResponse)
 def retry_ai_task(task_id: int, session: Session = Depends(get_session)):
     return ai_service.retry_ai_task(session, task_id)
 
 
-@router.post("/ai-tasks/{task_id}/cancel")
+@router.post("/ai-tasks/{task_id}/cancel", response_model=AITaskResponse)
 def cancel_ai_task(task_id: int, session: Session = Depends(get_session)):
     return ai_service.cancel_ai_task(session, task_id)

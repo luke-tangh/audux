@@ -1,5 +1,9 @@
 import type { TFunction } from "i18next";
 
+export function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function parseParams(value?: string): Record<string, unknown> {
   if (!value) return {};
   try {

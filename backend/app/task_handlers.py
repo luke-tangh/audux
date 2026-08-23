@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from typing import Optional
 
 from sqlmodel import Session, select
@@ -137,9 +138,13 @@ async def handle_transcribe_task(task: TaskSnapshot):
         session.commit()
 
 
-def _ensure_llm_endpoint_allowed_for_worker(session: Session, endpoint: str) -> Optional[str]:
+def _ensure_endpoint_allowed_for_worker(
+    session: Session,
+    endpoint: str,
+    validator: Callable[[Session, str], Optional[str]],
+) -> Optional[str]:
     try:
-        return ensure_llm_endpoint_allowed(session, endpoint)
+        return validator(session, endpoint)
     except Exception as e:
         detail = getattr(e, "detail", None)
 
@@ -159,30 +164,22 @@ def _ensure_llm_endpoint_allowed_for_worker(session: Session, endpoint: str) -> 
             raise ValueError(str(detail)) from e
 
         raise
+
+
+def _ensure_llm_endpoint_allowed_for_worker(session: Session, endpoint: str) -> Optional[str]:
+    return _ensure_endpoint_allowed_for_worker(
+        session,
+        endpoint,
+        ensure_llm_endpoint_allowed,
+    )
 
 
 def _ensure_asr_endpoint_allowed_for_worker(session: Session, endpoint: str) -> Optional[str]:
-    try:
-        return ensure_asr_endpoint_allowed(session, endpoint)
-    except Exception as e:
-        detail = getattr(e, "detail", None)
-
-        if isinstance(detail, dict) and isinstance(detail.get("code"), str):
-            raise ServiceError(
-                getattr(e, "status_code", 400),
-                str(detail.get("fallback") or detail["code"]),
-                code=detail["code"],
-                params=(
-                    detail.get("params")
-                    if isinstance(detail.get("params"), dict)
-                    else {}
-                ),
-            ) from e
-
-        if detail:
-            raise ValueError(str(detail)) from e
-
-        raise
+    return _ensure_endpoint_allowed_for_worker(
+        session,
+        endpoint,
+        ensure_asr_endpoint_allowed,
+    )
 
 
 def _build_analyze_prompt(

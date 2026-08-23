@@ -1,13 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError, api, endpointPrivacyWarning } from "../api";
-import type {
-  AISuggestions,
-  AudioItem,
-  Playlist,
-  Tag,
-  Transcript,
-  TranscriptSegmentEdit
-} from "../types";
+import type { AudioItem, Playlist, TranscriptSegmentEdit } from "../types";
 import { pickAudioFile } from "../tauri";
 import { Button, PanelCard, Tabs } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
@@ -19,18 +12,19 @@ import OverviewTab from "./detail/OverviewTab";
 import TranscriptTab from "./detail/TranscriptTab";
 import {
   INSPECTOR_TABS,
-  type EditingPatch,
   type InspectorTab,
-  type NumericSelection,
   type ToastType
 } from "./detail/types";
 import { useTranslation } from "react-i18next";
-import { localizedPrivacyWarning } from "../i18n/errors";
+import { localizedPrivacyWarning, toErrorMessage } from "../i18n/errors";
+import { useAudioDetailController } from "../hooks/useAudioDetailController";
+import { isActiveTaskStatus } from "../constants";
 
 type Props = {
   audio: AudioItem | null;
   refresh: () => void;
   onPlay: (a: AudioItem) => void;
+  onPlayAt: (a: AudioItem, seconds: number) => void;
   onAddToQueue: (a: AudioItem) => void;
   onPlayNext: (a: AudioItem) => void;
   playlists: Playlist[];
@@ -45,6 +39,7 @@ export default function DetailPanel({
   audio,
   refresh,
   onPlay,
+  onPlayAt,
   onAddToQueue,
   onPlayNext,
   playlists,
@@ -58,178 +53,41 @@ export default function DetailPanel({
   const { t } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<InspectorTab>("overview");
-
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [tagInput, setTagInput] = useState("");
-  const [editing, setEditing] = useState<Partial<AudioItem>>({});
-  const [metadataBaseline, setMetadataBaseline] = useState<Partial<AudioItem>>({});
-  const [metadataLoaded, setMetadataLoaded] = useState(false);
-  const [metadataLoadError, setMetadataLoadError] = useState("");
-  const [detailLoadAttempt, setDetailLoadAttempt] = useState(0);
-  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
-  const [metadataSaveError, setMetadataSaveError] = useState("");
-  const [transcript, setTranscript] = useState<Transcript | null>(null);
-  const [aiSuggestions, setAiSuggestions] = useState<AISuggestions | null>(null);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<NumericSelection>("");
-  const [relocatePath, setRelocatePath] = useState("");
-  const [coverVersion, setCoverVersion] = useState(Date.now());
-
-  const lastLoadedAudioIdRef = useRef<number | null>(null);
-
-  const acceptedTagNames = useMemo(() => {
-    return new Set(tags.map((tag) => tag.name));
-  }, [tags]);
-
-  const availableExistingTags = useMemo(() => {
-    return allTags.filter((tag) => !acceptedTagNames.has(tag.name));
-  }, [allTags, acceptedTagNames]);
-
-  const metadataDirty = [
-    "title_user",
-    "author_user",
-    "album_user",
-    "description_user",
-    "language",
-    "is_favorite"
-  ].some((key) => editing[key as keyof AudioItem] !== metadataBaseline[key as keyof AudioItem]);
+  const detail = useAudioDetailController({ audio, refresh, notify, onDirtyChange });
+  const {
+    tags,
+    tagInput,
+    setTagInput,
+    editing,
+    metadataLoaded,
+    metadataLoadError,
+    retryMetadataLoad,
+    isSavingMetadata,
+    metadataSaveError,
+    metadataDirty,
+    transcript,
+    setTranscript,
+    aiSuggestions,
+    selectedPlaylist,
+    setSelectedPlaylist,
+    relocatePath,
+    setRelocatePath,
+    coverVersion,
+    refreshCover,
+    acceptedTagNames,
+    availableExistingTags,
+    updateEditing,
+    discardMetadataChanges,
+    saveMetadata,
+    reloadTagsAndSuggestions
+  } = detail;
 
   useEffect(() => {
-    onDirtyChange?.(metadataDirty);
-    return () => onDirtyChange?.(false);
-  }, [metadataDirty, onDirtyChange]);
-
-  useEffect(() => {
-    let canceled = false;
-
-    async function load() {
-      setTranscript(null);
-      setAiSuggestions(null);
-
-      if (!audio) {
-        setTags([]);
-        setAllTags([]);
-        setEditing({});
-        setMetadataLoaded(false);
-        setMetadataLoadError("");
-        setRelocatePath("");
-        setTagInput("");
-        setSelectedPlaylist("");
-        setMetadataSaveError("");
-        lastLoadedAudioIdRef.current = null;
-        return;
-      }
-
-      const audioIdChanged = lastLoadedAudioIdRef.current !== audio.id;
-      setMetadataLoadError("");
-
-      if (audioIdChanged) {
-        setMetadataLoaded(false);
-        setRelocatePath("");
-        setTagInput("");
-        setSelectedPlaylist("");
-        setMetadataSaveError("");
-        setActiveTab("overview");
-        setCoverVersion(Date.now());
-      }
-
-      const [detail, tagRows, transcriptValue, suggestionsValue] = await Promise.all([
-        api.getAudioDetail(audio.id),
-        api.listTags().catch(() => []),
-        api.getTranscript(audio.id).catch(() => null),
-        api.getAiSuggestions(audio.id).catch(() => null)
-      ]);
-
-      if (canceled) return;
-
-      lastLoadedAudioIdRef.current = audio.id;
-      setTags(detail.tags);
-      setAllTags(tagRows);
-      setTranscript(transcriptValue);
-      setAiSuggestions(suggestionsValue);
-
-      if (audioIdChanged) {
-        const metadata = {
-          title_user: detail.audio.title_user || "",
-          author_user: detail.audio.author_user || "",
-          album_user: detail.audio.album_user || "",
-          description_user: detail.audio.description_user || "",
-          language: detail.audio.language || "",
-          is_favorite: detail.audio.is_favorite
-        };
-        setEditing(metadata);
-        setMetadataBaseline(metadata);
-        setMetadataLoaded(true);
-      }
-    }
-
-    load().catch((err) => {
-      if (canceled) return;
-      console.error(err);
-      const message = err instanceof Error ? err.message : String(err);
-      setMetadataLoadError(message);
-      notify?.(message, "error");
-    });
-
-    return () => {
-      canceled = true;
-    };
-  }, [
-    audio?.id,
-    audio?.updated_at,
-    audio?.ai_status,
-    audio?.transcript_status,
-    detailLoadAttempt
-  ]);
+    setActiveTab("overview");
+  }, [audio?.id]);
 
   if (!audio) {
     return <DetailEmptyState />;
-  }
-
-  function updateEditing(patch: EditingPatch) {
-    setMetadataSaveError("");
-    setEditing((current) => ({
-      ...current,
-      ...patch
-    }));
-  }
-
-  async function reloadTagsAndSuggestions() {
-    const [detail, tagRows] = await Promise.all([
-      api.getAudioDetail(audio!.id),
-      api.listTags().catch(() => [])
-    ]);
-
-    setTags(detail.tags);
-    setAllTags(tagRows);
-
-    const suggestions = await api.getAiSuggestions(audio!.id).catch(() => null);
-    setAiSuggestions(suggestions);
-  }
-
-  async function save() {
-    if (isSavingMetadata) return;
-
-    setIsSavingMetadata(true);
-    setMetadataSaveError("");
-
-    try {
-      await api.updateAudio(audio!.id, editing);
-      setMetadataBaseline({ ...editing });
-      notify?.(t("detail.notifications.metadataSaved"), "success");
-      refresh();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setMetadataSaveError(message);
-      notify?.(message, "error");
-    } finally {
-      setIsSavingMetadata(false);
-    }
-  }
-
-  function discardMetadataChanges() {
-    setEditing({ ...metadataBaseline });
-    setMetadataSaveError("");
   }
 
   async function addTags() {
@@ -248,7 +106,7 @@ export default function DetailPanel({
       notify?.(t("detail.notifications.tagsAdded"), "success");
       refresh();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -260,7 +118,7 @@ export default function DetailPanel({
       notify?.(t("detail.notifications.tagRemoved"), "success");
       refresh();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -270,7 +128,7 @@ export default function DetailPanel({
       refresh();
       notify?.(t("detail.notifications.transcribeCreated"), "success");
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -319,7 +177,7 @@ export default function DetailPanel({
         return "conflict";
       }
 
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
       return "error";
     }
   }
@@ -346,7 +204,7 @@ export default function DetailPanel({
         return "conflict";
       }
 
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
       return "error";
     }
   }
@@ -388,7 +246,7 @@ export default function DetailPanel({
       notify?.(t("detail.notifications.analyzeCreated"), "success");
       setActiveTab("ai");
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -399,7 +257,7 @@ export default function DetailPanel({
       await api.addToPlaylist(Number(selectedPlaylist), audio!.id);
       notify?.(t("detail.notifications.playlistAdded"), "success");
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -416,7 +274,7 @@ export default function DetailPanel({
       notify?.(t("detail.notifications.descriptionAccepted"), "success");
       refresh();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -428,7 +286,7 @@ export default function DetailPanel({
       notify?.(t("detail.notifications.tagAccepted", { name: tagName }), "success");
       refresh();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -447,20 +305,12 @@ export default function DetailPanel({
       notify?.(t("detail.notifications.tagsAccepted", { count: names.length }), "success");
       refresh();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
   function jumpToSegment(startSeconds: number) {
-    onPlay(audio!);
-
-    setTimeout(() => {
-      const audioEl = document.querySelector("audio");
-      if (audioEl) {
-        audioEl.currentTime = startSeconds;
-        audioEl.play().catch(console.error);
-      }
-    }, 120);
+    onPlayAt(audio!, startSeconds);
   }
 
   async function uploadCover(file?: File) {
@@ -468,11 +318,11 @@ export default function DetailPanel({
 
     try {
       await api.uploadCover(audio!.id, file);
-      setCoverVersion(Date.now());
+      refreshCover();
       notify?.(t("detail.notifications.coverUploaded"), "success");
       refresh();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -490,11 +340,11 @@ export default function DetailPanel({
 
     try {
       await api.deleteCover(audio!.id);
-      setCoverVersion(Date.now());
+      refreshCover();
       notify?.(t("detail.notifications.coverDeleted"), "success");
       refresh();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -515,7 +365,7 @@ export default function DetailPanel({
       notify?.(t("detail.notifications.relocated"), "success");
       refresh();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -536,7 +386,7 @@ export default function DetailPanel({
       notify?.(t("detail.notifications.audioRemoved"), "success");
       onDeleted(audio!.id);
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -603,7 +453,7 @@ export default function DetailPanel({
             {metadataLoadError ? (
               <div className="detail-load-error" role="alert">
                 <p>{metadataLoadError}</p>
-                <Button variant="outlined" onClick={() => setDetailLoadAttempt((value) => value + 1)}>
+                <Button variant="outlined" onClick={retryMetadataLoad}>
                   {t("common.actions.retry")}
                 </Button>
               </div>
@@ -658,7 +508,7 @@ export default function DetailPanel({
             onJumpToSegment={jumpToSegment}
             onSaveFullTranscript={saveTranscriptEdit}
             onSaveTranscriptSegments={saveTranscriptSegments}
-            canEdit={!["pending", "running", "cancel_requested"].includes(
+            canEdit={!isActiveTaskStatus(
               audio.transcript_status
             )}
           />
@@ -692,7 +542,7 @@ export default function DetailPanel({
             >
               {t("detail.overview.discardChanges")}
             </Button>
-            <Button variant="filled" onClick={save} disabled={isSavingMetadata}>
+            <Button variant="filled" onClick={saveMetadata} disabled={isSavingMetadata}>
               {isSavingMetadata
                 ? t("detail.overview.saving")
                 : t("detail.overview.saveMetadata")}

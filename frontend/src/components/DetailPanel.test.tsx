@@ -59,8 +59,9 @@ describe("DetailPanel", () => {
     render(
       <DetailPanel
         audio={audio}
-        refresh={vi.fn()}
-        onPlay={vi.fn()}
+      refresh={vi.fn()}
+      onPlay={vi.fn()}
+      onPlayAt={vi.fn()}
         onAddToQueue={vi.fn()}
         onPlayNext={vi.fn()}
         playlists={[]}

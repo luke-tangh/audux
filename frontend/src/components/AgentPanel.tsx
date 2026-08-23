@@ -16,6 +16,8 @@ import { formatDuration } from "../types";
 import { Button, IconButton, MaterialIcon, SelectField, TextField, TextareaField } from "./ui";
 import { usePolling } from "../hooks/usePolling";
 import { serializeAgentScope, useAgentScopeOptions } from "../hooks/useAgentScopeOptions";
+import { toErrorMessage } from "../i18n/errors";
+import { TERMINAL_TASK_STATUSES } from "../constants";
 
 type Props = {
   selected: AudioItem | null;
@@ -32,7 +34,6 @@ type Props = {
   onPlayCitation: (audioId: number, seconds: number) => Promise<void>;
 };
 
-const TERMINAL_RUN_STATUSES = new Set(["done", "failed", "canceled"]);
 
 export default function AgentPanel(props: Props) {
   const { t } = useTranslation();
@@ -66,7 +67,7 @@ export default function AgentPanel(props: Props) {
 
   const runBusy = Boolean(
     activeRun && (
-      !TERMINAL_RUN_STATUSES.has(activeRun.status) ||
+      !TERMINAL_TASK_STATUSES.has(activeRun.status) ||
       activeRun.operation_plan?.status === "awaiting_approval"
     )
   );
@@ -99,7 +100,7 @@ export default function AgentPanel(props: Props) {
 
   useEffect(() => {
     loadConversations()
-      .catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"))
+      .catch((error) => props.notify(toErrorMessage(error), "error"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -115,20 +116,20 @@ export default function AgentPanel(props: Props) {
   }, [active?.id]);
 
   usePolling({
-    enabled: Boolean(activeRun && !TERMINAL_RUN_STATUSES.has(activeRun.status)),
+    enabled: Boolean(activeRun && !TERMINAL_TASK_STATUSES.has(activeRun.status)),
     intervalMs: 1000,
     task: async () => {
       if (!activeRun) return;
       const run = await api.getAgentRun(activeRun.id);
       setActiveRun(run);
-      if (TERMINAL_RUN_STATUSES.has(run.status)) {
+      if (TERMINAL_TASK_STATUSES.has(run.status)) {
         await loadConversation(run.conversation_id);
         await loadConversations(run.conversation_id);
         setActiveRun(run);
       }
     },
     onError: (error) =>
-      props.notify(error instanceof Error ? error.message : String(error), "error")
+      props.notify(toErrorMessage(error), "error")
   });
 
   async function changeScope(value: string) {
@@ -143,7 +144,7 @@ export default function AgentPanel(props: Props) {
       setActive((current) => current ? { ...current, ...updated } : current);
       await loadConversations(updated.id);
     } catch (error) {
-      props.notify(error instanceof Error ? error.message : String(error), "error");
+      props.notify(toErrorMessage(error), "error");
     }
   }
 
@@ -164,7 +165,7 @@ export default function AgentPanel(props: Props) {
       await loadConversation(conversation.id);
       await loadConversations(conversation.id);
     } catch (error) {
-      props.notify(error instanceof Error ? error.message : String(error), "error");
+      props.notify(toErrorMessage(error), "error");
     } finally {
       setSending(false);
     }
@@ -177,7 +178,7 @@ export default function AgentPanel(props: Props) {
       setEditingTitle(false);
       await loadConversations(active.id);
     } catch (error) {
-      props.notify(error instanceof Error ? error.message : String(error), "error");
+      props.notify(toErrorMessage(error), "error");
     }
   }
 
@@ -194,7 +195,7 @@ export default function AgentPanel(props: Props) {
       setConfirmDelete(false);
       await loadConversations(null);
     } catch (error) {
-      props.notify(error instanceof Error ? error.message : String(error), "error");
+      props.notify(toErrorMessage(error), "error");
     }
   }
 
@@ -213,7 +214,7 @@ export default function AgentPanel(props: Props) {
       );
       if (active) await loadConversations(active.id);
     } catch (error) {
-      props.notify(error instanceof Error ? error.message : String(error), "error");
+      props.notify(toErrorMessage(error), "error");
     } finally {
       setPlanAction(null);
     }
@@ -326,7 +327,7 @@ export default function AgentPanel(props: Props) {
                   {activeRun.operation_plan.error_message && <p className="agent-error">{activeRun.operation_plan.error_message}</p>}
                 </section>
               )}
-              {activeRun && !TERMINAL_RUN_STATUSES.has(activeRun.status) && <div className="agent-running"><span className="activity-spinner" /> {t("agent.running")} <Button size="sm" onClick={() => void api.cancelAgentRun(activeRun.id).then(setActiveRun).catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"))}>{t("common.actions.cancel")}</Button></div>}
+              {activeRun && !TERMINAL_TASK_STATUSES.has(activeRun.status) && <div className="agent-running"><span className="activity-spinner" /> {t("agent.running")} <Button size="sm" onClick={() => void api.cancelAgentRun(activeRun.id).then(setActiveRun).catch((error) => props.notify(toErrorMessage(error), "error"))}>{t("common.actions.cancel")}</Button></div>}
               {activeRun?.status === "failed" && <div className="agent-error" role="alert">{activeRun.error_message || t("agent.failed")}</div>}
               <div ref={messageEndRef} />
             </div>

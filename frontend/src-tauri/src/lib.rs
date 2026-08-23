@@ -113,11 +113,6 @@ async fn pick_audio_file(window: tauri::Window) -> Result<Option<String>, String
 }
 
 #[tauri::command]
-async fn backend_health() -> Result<bool, String> {
-    Ok(true)
-}
-
-#[tauri::command]
 async fn backend_base_url(app: tauri::AppHandle) -> Result<String, String> {
     let config = app.state::<BackendConfig>();
     Ok(config.base_url.clone())
@@ -396,7 +391,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             pick_audio_folder,
             pick_audio_file,
-            backend_health,
             backend_base_url,
             restart_application,
             open_app_data_directory,

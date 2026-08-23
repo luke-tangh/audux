@@ -24,6 +24,7 @@ import { useSavedViewController } from "./library/useSavedViewController";
 import { usePolling } from "./usePolling";
 import { useTranslation } from "react-i18next";
 import { formatDateTime } from "../i18n/format";
+import { toErrorMessage } from "../i18n/errors";
 import type {
   AudioListParams,
   MissingFilter,
@@ -316,7 +317,7 @@ export function useLibraryController() {
     } catch (err) {
       if (loadSeq !== loadSeqRef.current) return;
 
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       setLoadError(message);
       if (!startupReadyRef.current) {
         setStartupState("error");
@@ -378,7 +379,7 @@ export function useLibraryController() {
         if (page.facets) setFacets(page.facets);
       }
     } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), "error");
+      notify(toErrorMessage(err), "error");
     } finally {
       setLoadingMore(false);
     }
@@ -387,7 +388,7 @@ export function useLibraryController() {
   useEffect(() => {
     load().catch((err) => {
       console.error(err);
-      notify(err instanceof Error ? err.message : String(err), "error");
+      notify(toErrorMessage(err), "error");
     });
   }, [
     view,
@@ -583,7 +584,7 @@ export function useLibraryController() {
       notify(t("settings.playlist.created"), "success");
       return true;
     } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), "error");
+      notify(toErrorMessage(err), "error");
       return false;
     }
   }
@@ -610,7 +611,7 @@ export function useLibraryController() {
       openPlaylist(created);
       notify(t("smartPlaylists.created"), "success");
     } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), "error");
+      notify(toErrorMessage(err), "error");
     }
   }
 

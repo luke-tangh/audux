@@ -14,7 +14,7 @@ from app.models import (
     Transcript,
     TranscriptSegment,
 )
-from app.services import audio_service, media_paths
+from app.services import audio_media_service, media_paths
 
 
 class TestMediaPlaylistExportApi(ApiIntegrationTest):
@@ -31,7 +31,7 @@ class TestMediaPlaylistExportApi(ApiIntegrationTest):
             root_id=self.root.id,
         )
         self.cover_dir = self.root_path / "covers"
-        monkeypatch.setattr(audio_service, "COVERS_DIR", self.cover_dir)
+        monkeypatch.setattr(audio_media_service, "COVERS_DIR", self.cover_dir)
         monkeypatch.setattr(media_paths, "COVERS_DIR", self.cover_dir)
 
     def test_playback_file_and_missing_state_lifecycle(self):
@@ -54,7 +54,7 @@ class TestMediaPlaylistExportApi(ApiIntegrationTest):
             assert stored.last_position_seconds == 37.5
             assert stored.play_count == 1
             assert stored.last_played_at is not None
-            media = audio_service.get_audio_file_response(session, self.first.id)
+            media = audio_media_service.get_audio_file_response(session, self.first.id)
             assert media.path == str(self.library / "first.mp3")
             assert media.media_type == "audio/mpeg"
             assert (self.library / "first.mp3").read_bytes() == b"test-audio-content"
@@ -99,7 +99,7 @@ class TestMediaPlaylistExportApi(ApiIntegrationTest):
         assert cover_path.read_bytes() == b"png-cover-bytes"
 
         with Session(self.engine) as session:
-            downloaded = audio_service.get_audio_cover_response(session, self.first.id)
+            downloaded = audio_media_service.get_audio_cover_response(session, self.first.id)
             assert downloaded.path == str(cover_path)
             assert downloaded.media_type == "image/png"
 

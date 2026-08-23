@@ -1,7 +1,7 @@
 import json
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from tests.api_test_support import ApiIntegrationTest
 from app import tasks
@@ -124,6 +124,54 @@ class TestTaskApiLifecycle(ApiIntegrationTest):
             stored_audio = session.get(AudioItem, self.audio.id)
             assert stored_audio.transcript_status == 'cancel_requested'
             assert stored_audio.ai_status == 'pending'
+
+    def test_batch_task_admission_deduplicates_and_reports_missing_audio(self):
+        settings = {
+            "asr.provider": "external",
+            "asr.external.endpoint": "http://127.0.0.1:9999/v1",
+            "asr.external.model_name": "mock-asr",
+            "llm.endpoint": "http://127.0.0.1:9998/v1",
+            "llm.model_name": "mock-llm",
+        }
+        for key, value in settings.items():
+            assert self.put_setting(key, value).status_code == 200
+
+        transcribe = self.client.post(
+            "/audio-items/batch/transcribe",
+            headers=self.auth_headers(include_client=True),
+            json={"audio_ids": [self.audio.id, self.audio.id, 999_999]},
+        )
+        assert transcribe.status_code == 200, transcribe.text
+        transcribe_body = transcribe.json()
+        assert transcribe_body["created"] == 1
+        assert transcribe_body["skipped"] == 1
+        assert transcribe_body["errors"] == [
+            {"audio_id": 999_999, "error": "Audio not found"}
+        ]
+        assert len(transcribe_body["task_ids"]) == 1
+        assert transcribe_body["privacy_warning"] is None
+        assert transcribe_body["privacy_warning_code"] is None
+
+        analyze = self.client.post(
+            "/audio-items/batch/analyze",
+            headers=self.auth_headers(include_client=True),
+            json={"audio_ids": [self.audio.id]},
+        )
+        assert analyze.status_code == 200, analyze.text
+        assert analyze.json()["created"] == 1
+        assert analyze.json()["privacy_warning"] is None
+
+        with Session(self.engine) as session:
+            stored_audio = session.get(AudioItem, self.audio.id)
+            tasks_for_audio = session.exec(
+                select(AITask).where(AITask.audio_id == self.audio.id)
+            ).all()
+            assert stored_audio.transcript_status == "pending"
+            assert stored_audio.ai_status == "pending"
+            assert {task.task_type for task in tasks_for_audio} == {
+                "transcribe",
+                "analyze",
+            }
 
     def test_analyze_prompt_respects_independent_output_language(self):
         context = {

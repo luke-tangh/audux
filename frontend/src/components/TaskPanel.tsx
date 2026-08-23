@@ -5,9 +5,10 @@ import { Button, StatusPill } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
 import { useTranslation } from "react-i18next";
 import { useLocale } from "../i18n/LocaleProvider";
-import { localizedStoredError } from "../i18n/errors";
+import { localizedStoredError, toErrorMessage } from "../i18n/errors";
 import { formatDateTime } from "../i18n/format";
 import { usePolling } from "../hooks/usePolling";
+import { isActiveTaskStatus, isTerminalTaskStatus } from "../constants";
 
 type ToastType = "info" | "success" | "error";
 
@@ -15,10 +16,6 @@ type Props = {
   onTaskChanged?: () => void;
   notify?: (message: string, type?: ToastType) => void;
 };
-
-function terminalStatus(status: string): boolean {
-  return status === "done" || status === "failed" || status === "canceled";
-}
 
 export default function TaskPanel({ onTaskChanged, notify }: Props) {
   const dialog = useDialog();
@@ -38,7 +35,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
       for (const task of rows) {
         const previous = taskStatusRef.current[task.id];
 
-        if (previous && previous !== task.status && terminalStatus(task.status)) {
+        if (previous && previous !== task.status && isTerminalTaskStatus(task.status)) {
           if (task.status === "done") {
             notify?.(t("tasks.completed", { id: task.id, type: t(`tasks.types.${task.task_type}`, { defaultValue: task.task_type }) }), "success");
           }
@@ -95,7 +92,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
       } catch (err) {
         console.error(err);
         if (notifyOnError) {
-          notify?.(err instanceof Error ? err.message : String(err), "error");
+          notify?.(toErrorMessage(err), "error");
         }
       }
     }
@@ -108,7 +105,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
       await load();
       onTaskChanged?.();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -132,7 +129,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
       await load();
       onTaskChanged?.();
     } catch (err) {
-      notify?.(err instanceof Error ? err.message : String(err), "error");
+      notify?.(toErrorMessage(err), "error");
     }
   }
 
@@ -193,7 +190,7 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
                         </Button>
                       )}
 
-                      {(task.status === "pending" || task.status === "running") && (
+                      {isActiveTaskStatus(task.status) && (
                         <Button
                           type="button"
                           variant="text"
