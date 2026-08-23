@@ -5,8 +5,7 @@ import { displayAuthor, displayDescription, displayTitle, formatDuration } from 
 import { ActionMenu, Button, StatusPill, MaterialIcon } from "./ui";
 import { useTranslation } from "react-i18next";
 import { formatLanguageName } from "../i18n/format";
-
-const MAX_BATCH_SELECTION = 500;
+import { MAX_BATCH_SELECTION } from "../constants";
 
 type Props = {
   title: string;

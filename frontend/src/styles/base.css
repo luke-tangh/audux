@@ -100,8 +100,8 @@ summary:focus-visible {
 
 button:disabled {
   cursor: not-allowed;
-  color: rgba(230, 224, 233, 0.38);
-  background: rgba(230, 224, 233, 0.12);
+  color: var(--md-state-disabled-content);
+  background: var(--md-state-disabled-container);
   opacity: 1;
   transform: none;
 }
@@ -249,15 +249,10 @@ select option:checked {
 }
 
 select option:disabled {
-  color: rgba(230, 224, 233, 0.38);
+  color: var(--md-state-disabled-content);
 }
 
 /* Light theme global contrast adjustments: start */
-:root[data-theme="light"] button:disabled {
-  color: rgba(28, 27, 31, 0.38);
-  background: rgba(28, 27, 31, 0.12);
-}
-
 :root[data-theme="light"] select {
   color-scheme: light;
 }
@@ -274,7 +269,7 @@ select option:disabled {
 }
 
 :root[data-theme="light"] select option:disabled {
-  color: rgba(28, 27, 31, 0.38);
+  color: var(--md-state-disabled-content);
 }
 /* Light theme global contrast adjustments: end */
 

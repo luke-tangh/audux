@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 
 import { formatDateTime } from "../i18n/format";
 import { useStatistics } from "../hooks/useStatistics";
-import type { StatisticsOverview } from "../types";
 import { Button, MaterialIcon } from "./ui";
 
 type Props = {

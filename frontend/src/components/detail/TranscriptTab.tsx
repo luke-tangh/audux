@@ -65,6 +65,18 @@ export default function TranscriptTab({
   const [selectedChapterIds, setSelectedChapterIds] = useState<number[]>([]);
   const [managing, setManaging] = useState(false);
 
+  function resetDraftFromTranscript(value: Transcript) {
+    const texts = segmentTextMap(value);
+    setSegmentDrafts(texts);
+    setBaseSegmentTexts(texts);
+    setDraftSegments(value.segments);
+    setFullDraft(value.transcript.full_text);
+    setBaseFullText(value.transcript.full_text);
+    setBaseTranscriptId(value.transcript.id);
+    setBaseUpdatedAt(value.transcript.updated_at);
+    setHasConflict(false);
+  }
+
   useEffect(() => {
     if (!transcript) {
       setRevisions([]);
@@ -95,15 +107,7 @@ export default function TranscriptTab({
     }
 
     if (!editMode) {
-      const texts = segmentTextMap(transcript);
-      setSegmentDrafts(texts);
-      setBaseSegmentTexts(texts);
-      setDraftSegments(transcript.segments);
-      setFullDraft(transcript.transcript.full_text);
-      setBaseFullText(transcript.transcript.full_text);
-      setBaseTranscriptId(transcript.transcript.id);
-      setBaseUpdatedAt(transcript.transcript.updated_at);
-      setHasConflict(false);
+      resetDraftFromTranscript(transcript);
     }
   }, [
     transcript?.transcript.id,
@@ -116,30 +120,14 @@ export default function TranscriptTab({
   function beginEditing(mode: Exclude<EditMode, null>) {
     if (!transcript) return;
 
-    const texts = segmentTextMap(transcript);
-    setSegmentDrafts(texts);
-    setBaseSegmentTexts(texts);
-    setDraftSegments(transcript.segments);
-    setFullDraft(transcript.transcript.full_text);
-    setBaseFullText(transcript.transcript.full_text);
-    setBaseTranscriptId(transcript.transcript.id);
-    setBaseUpdatedAt(transcript.transcript.updated_at);
-    setHasConflict(false);
+    resetDraftFromTranscript(transcript);
     setEditMode(mode);
   }
 
   function loadLatestVersion() {
     if (!transcript) return;
 
-    const texts = segmentTextMap(transcript);
-    setSegmentDrafts(texts);
-    setBaseSegmentTexts(texts);
-    setDraftSegments(transcript.segments);
-    setFullDraft(transcript.transcript.full_text);
-    setBaseFullText(transcript.transcript.full_text);
-    setBaseTranscriptId(transcript.transcript.id);
-    setBaseUpdatedAt(transcript.transcript.updated_at);
-    setHasConflict(false);
+    resetDraftFromTranscript(transcript);
   }
 
   async function cancelEditing() {

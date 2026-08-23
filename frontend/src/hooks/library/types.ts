@@ -15,6 +15,6 @@ export type TranscriptFilter = "all" | "yes" | "no";
 export type MissingFilter = "all" | "available" | "missing" | "aiFailed";
 export type SortMode = AudioSortMode;
 
-export type AudioListParams = Parameters<typeof import("../../api").api.listAudioItems>[0];
-export type PlaylistListParams = Parameters<typeof import("../../api").api.listPlaylistItems>[1];
+export type AudioListParams = import("../../types").AudioListQuery;
+export type PlaylistListParams = import("../../types").PlaylistListQuery;
 import type { AudioSortMode } from "../../types";

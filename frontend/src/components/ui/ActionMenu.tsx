@@ -5,6 +5,7 @@ import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import Button, { type ButtonSize, type ButtonVariant } from "./Button";
 import MaterialIcon from "./MaterialIcon";
 import type { MaterialIconName } from "./MaterialIcon";
+import { useAnchoredPopover } from "../../hooks/useAnchoredPopover";
 
 export type ActionMenuItem = {
   id: string;
@@ -96,28 +97,20 @@ export default function ActionMenu({
     if (open) updateMenuPosition();
   }, [align, items.length, open]);
 
+  useAnchoredPopover({
+    open,
+    anchorRef: rootRef,
+    popoverRef: menuRef,
+    onDismiss: () => close(),
+    onReposition: updateMenuPosition
+  });
+
   useEffect(() => {
     if (!open) return;
 
     const firstIndex = enabledIndexes[0];
     if (firstIndex !== undefined) focusItem(firstIndex);
 
-    function handlePointerDown(event: PointerEvent) {
-      const target = event.target as Node;
-
-      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      close();
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown, true);
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
-    };
   }, [open]);
 
   function handleMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {

@@ -87,4 +87,25 @@ describe("useNavigationData", () => {
     expect(result.current.tags).toEqual([]);
     expect(result.current.playlists.map((playlist) => playlist.name)).toEqual(["Available"]);
   });
+
+  it("coalesces concurrent navigation loads", async () => {
+    let resolveTags: ((value: never[]) => void) | undefined;
+    apiMocks.listTags.mockReturnValue(new Promise<never[]>((resolve) => {
+      resolveTags = resolve;
+    }));
+    apiMocks.listPlaylists.mockResolvedValue([]);
+    const { result } = renderHook(() => useNavigationData());
+
+    let loads: Promise<unknown>[] = [];
+    act(() => {
+      loads = [result.current.loadNavigation(), result.current.loadNavigation()];
+    });
+    expect(apiMocks.listTags).toHaveBeenCalledTimes(1);
+    expect(apiMocks.listPlaylists).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveTags?.([]);
+      await Promise.all(loads);
+    });
+  });
 });

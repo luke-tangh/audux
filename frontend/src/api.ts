@@ -10,7 +10,7 @@ import type {
   AudioDeleteResult,
   AudioDetail,
   AudioItem,
-  AudioSortMode,
+  AudioListQuery,
   BatchTaskResult,
   BatchOrganizationPayload,
   BatchOrganizationResult,
@@ -37,6 +37,7 @@ import type {
   PortableArchiveRecord,
   Playlist,
   PlaylistDetail,
+  PlaylistListQuery,
   ScanTask,
   SafeRelinkCandidates,
   SafeRelinkPreview,
@@ -286,7 +287,7 @@ function appendAccessToken(url: string): string {
   return `${url}${url.includes("?") ? "&" : "?"}${tokenQuery}`;
 }
 
-async function request<T = any>(
+async function request<T = unknown>(
   path: string,
   options?: RequestInit,
   retryOnUnauthorized = true
@@ -335,6 +336,39 @@ async function request<T = any>(
   }
 
   return JSON.parse(text);
+}
+
+function audioListQueryString(params?: AudioListQuery): string {
+  const sp = new URLSearchParams();
+
+  if (params?.q) sp.set("q", params.q);
+  if (params?.tag) sp.set("tag", params.tag);
+  for (const tagId of params?.tag_ids || []) sp.append("tag_ids", String(tagId));
+  for (const tagId of params?.excluded_tag_ids || []) {
+    sp.append("excluded_tag_ids", String(tagId));
+  }
+  if (params?.tag_mode) sp.set("tag_mode", params.tag_mode);
+  if (params?.library_root_id !== undefined) {
+    sp.set("library_root_id", String(params.library_root_id));
+  }
+  if (params?.favorite !== undefined) sp.set("favorite", String(params.favorite));
+  if (params?.missing !== undefined) sp.set("missing", String(params.missing));
+  if (params?.has_transcript !== undefined) {
+    sp.set("has_transcript", String(params.has_transcript));
+  }
+  if (params?.missing_description !== undefined) {
+    sp.set("missing_description", String(params.missing_description));
+  }
+  if (params?.include_disabled_roots !== undefined) {
+    sp.set("include_disabled_roots", String(params.include_disabled_roots));
+  }
+  if (params?.ai_status) sp.set("ai_status", params.ai_status);
+  if (params?.transcript_status) sp.set("transcript_status", params.transcript_status);
+  if (params?.sort) sp.set("sort", params.sort);
+  if (params?.limit !== undefined) sp.set("limit", String(params.limit));
+  if (params?.offset !== undefined) sp.set("offset", String(params.offset));
+
+  return sp.toString();
 }
 
 export function isProbablyLocalEndpoint(endpoint: string): boolean {
@@ -552,54 +586,8 @@ export const api = {
       body: JSON.stringify({ candidate_path: candidatePath, ...confirmation })
     }),
 
-  listAudioItems: (params?: {
-    q?: string;
-    tag?: string;
-    tag_ids?: number[];
-    excluded_tag_ids?: number[];
-    tag_mode?: "and" | "or";
-    library_root_id?: number;
-    favorite?: boolean;
-    missing?: boolean;
-    has_transcript?: boolean;
-    missing_description?: boolean;
-    include_disabled_roots?: boolean;
-    ai_status?: string;
-    transcript_status?: string;
-    sort?: AudioSortMode;
-    limit?: number;
-    offset?: number;
-  }) => {
-    const sp = new URLSearchParams();
-
-    if (params?.q) sp.set("q", params.q);
-    if (params?.tag) sp.set("tag", params.tag);
-    for (const tagId of params?.tag_ids || []) sp.append("tag_ids", String(tagId));
-    for (const tagId of params?.excluded_tag_ids || []) {
-      sp.append("excluded_tag_ids", String(tagId));
-    }
-    if (params?.tag_mode) sp.set("tag_mode", params.tag_mode);
-    if (params?.library_root_id !== undefined) {
-      sp.set("library_root_id", String(params.library_root_id));
-    }
-    if (params?.favorite !== undefined) sp.set("favorite", String(params.favorite));
-    if (params?.missing !== undefined) sp.set("missing", String(params.missing));
-    if (params?.has_transcript !== undefined) {
-      sp.set("has_transcript", String(params.has_transcript));
-    }
-    if (params?.missing_description !== undefined) {
-      sp.set("missing_description", String(params.missing_description));
-    }
-    if (params?.include_disabled_roots !== undefined) {
-      sp.set("include_disabled_roots", String(params.include_disabled_roots));
-    }
-    if (params?.ai_status) sp.set("ai_status", params.ai_status);
-    if (params?.transcript_status) sp.set("transcript_status", params.transcript_status);
-    if (params?.sort) sp.set("sort", params.sort);
-    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
-    if (params?.offset !== undefined) sp.set("offset", String(params.offset));
-
-    const qs = sp.toString();
+  listAudioItems: (params?: AudioListQuery) => {
+    const qs = audioListQueryString(params);
     return request<PaginatedAudioItems>(`/audio-items${qs ? `?${qs}` : ""}`);
   },
 
@@ -772,51 +760,9 @@ export const api = {
 
   listPlaylistItems: (
     id: number,
-    params?: {
-      q?: string;
-      tag?: string;
-      tag_ids?: number[];
-      excluded_tag_ids?: number[];
-      tag_mode?: "and" | "or";
-      library_root_id?: number;
-      favorite?: boolean;
-      missing?: boolean;
-      has_transcript?: boolean;
-      missing_description?: boolean;
-      ai_status?: string;
-      transcript_status?: string;
-      sort?: AudioSortMode;
-      limit?: number;
-      offset?: number;
-    }
+    params?: PlaylistListQuery
   ) => {
-    const sp = new URLSearchParams();
-
-    if (params?.q) sp.set("q", params.q);
-    if (params?.tag) sp.set("tag", params.tag);
-    for (const tagId of params?.tag_ids || []) sp.append("tag_ids", String(tagId));
-    for (const tagId of params?.excluded_tag_ids || []) {
-      sp.append("excluded_tag_ids", String(tagId));
-    }
-    if (params?.tag_mode) sp.set("tag_mode", params.tag_mode);
-    if (params?.library_root_id !== undefined) {
-      sp.set("library_root_id", String(params.library_root_id));
-    }
-    if (params?.favorite !== undefined) sp.set("favorite", String(params.favorite));
-    if (params?.missing !== undefined) sp.set("missing", String(params.missing));
-    if (params?.has_transcript !== undefined) {
-      sp.set("has_transcript", String(params.has_transcript));
-    }
-    if (params?.missing_description !== undefined) {
-      sp.set("missing_description", String(params.missing_description));
-    }
-    if (params?.ai_status) sp.set("ai_status", params.ai_status);
-    if (params?.transcript_status) sp.set("transcript_status", params.transcript_status);
-    if (params?.sort) sp.set("sort", params.sort);
-    if (params?.limit !== undefined) sp.set("limit", String(params.limit));
-    if (params?.offset !== undefined) sp.set("offset", String(params.offset));
-
-    const qs = sp.toString();
+    const qs = audioListQueryString(params);
     return request<PaginatedAudioItems>(`/playlists/${id}/items${qs ? `?${qs}` : ""}`);
   },
 

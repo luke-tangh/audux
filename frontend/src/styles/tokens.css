@@ -116,6 +116,8 @@
   --md-state-error-hover: color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
   --md-state-error-focus: color-mix(in srgb, var(--md-sys-color-error) 18%, transparent);
   --md-state-scrim-subtle: color-mix(in srgb, var(--md-sys-color-scrim) 16%, transparent);
+  --md-state-disabled-content: color-mix(in srgb, var(--md-sys-color-on-surface) 38%, transparent);
+  --md-state-disabled-container: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, transparent);
 
   --app-sidebar-width: 248px;
   --app-inspector-width: 420px;

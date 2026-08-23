@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../api";
+import { usePolling } from "../hooks/usePolling";
 import { pickAudioFolder } from "../tauri";
 import type { ActivityItem, LibraryImportResult } from "../types";
 import { Button, MaterialIcon, TextField } from "./ui";
@@ -21,34 +22,27 @@ export default function OnboardingWizard({ open, onClose, onImported }: Props) {
   const [error, setError] = useState("");
   const previewRefreshed = useRef(false);
 
-  useEffect(() => {
-    if (!open || !result) return;
-    let active = true;
-    const update = async () => {
-      try {
-        const feed = await api.listActivities();
-        const next = feed.items.find((item) => item.id === `scan:${result.scan_task.id}`) || null;
-        if (!active) return;
-        setActivity(next);
-        if (
-          next &&
-          !previewRefreshed.current &&
-          (Number(next.current || 0) > 0 || next.status === "done")
-        ) {
-          previewRefreshed.current = true;
-          onImported();
-        }
-      } catch {
-        // The global activity center will continue polling if this lightweight preview fails.
+  usePolling({
+    enabled: open && Boolean(result),
+    intervalMs: 1000,
+    immediate: true,
+    task: async () => {
+      if (!result) return;
+
+      const feed = await api.listActivities();
+      const next =
+        feed.items.find((item) => item.id === `scan:${result.scan_task.id}`) || null;
+      setActivity(next);
+      if (
+        next &&
+        !previewRefreshed.current &&
+        (Number(next.current || 0) > 0 || next.status === "done")
+      ) {
+        previewRefreshed.current = true;
+        onImported();
       }
-    };
-    void update();
-    const timer = window.setInterval(() => void update(), 1000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [open, result?.scan_task.id]);
+    }
+  });
 
   if (!open) return null;
 

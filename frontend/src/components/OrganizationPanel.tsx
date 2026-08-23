@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../api";
@@ -23,6 +23,8 @@ import {
   TextField,
   TextareaField
 } from "./ui";
+import { usePolling } from "../hooks/usePolling";
+import { serializeAgentScope, useAgentScopeOptions } from "../hooks/useAgentScopeOptions";
 
 type Props = {
   selected: AudioItem | null;
@@ -48,10 +50,6 @@ const DEFAULT_OPTIONS: OrganizationRunOptions = {
   generate_chapters: true
 };
 
-function scopeValue(scope: AgentScope) {
-  return JSON.stringify(scope);
-}
-
 function objectValue(value: unknown, key: string): string {
   if (!value || typeof value !== "object") return "";
   const result = (value as Record<string, unknown>)[key];
@@ -76,48 +74,19 @@ export default function OrganizationPanel(props: Props) {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const scopeOptions = useMemo(() => {
-    const values = [{ value: scopeValue({ kind: "library" }), label: t("agent.scope.library") }];
-    if (props.selected) {
-      values.push({
-        value: scopeValue({ kind: "audio", audio_id: props.selected.id }),
-        label: t("agent.scope.audio", { title: props.selected.title_user || props.selected.title_original || props.selected.file_name })
-      });
-    }
-    if (props.selectedAudioIds.size) {
-      values.push({
-        value: scopeValue({ kind: "selection", audio_ids: [...props.selectedAudioIds].sort((a, b) => a - b) }),
-        label: t("agent.scope.selection", { count: props.selectedAudioIds.size })
-      });
-    }
-    if (props.selectedPlaylistId) {
-      const playlist = props.playlists.find((row) => row.id === props.selectedPlaylistId);
-      values.push({
-        value: scopeValue({ kind: "playlist", playlist_id: props.selectedPlaylistId }),
-        label: t("agent.scope.playlist", { name: playlist?.name || props.selectedPlaylistId })
-      });
-    }
-    if (props.activeSavedViewId) {
-      const view = props.savedViews.find((row) => row.id === props.activeSavedViewId);
-      values.push({
-        value: scopeValue({ kind: "saved_view", saved_view_id: props.activeSavedViewId }),
-        label: t("agent.scope.savedView", { name: view?.name || props.activeSavedViewId })
-      });
-    }
-    const tag = props.tags.find((row) => row.name === props.selectedTag);
-    if (tag) values.push({ value: scopeValue({ kind: "tag", tag_id: tag.id }), label: t("agent.scope.tag", { name: tag.name }) });
-    if (props.selectedLibraryRootId) {
-      const root = props.roots.find((row) => row.id === props.selectedLibraryRootId);
-      values.push({
-        value: scopeValue({ kind: "library_root", library_root_id: props.selectedLibraryRootId }),
-        label: t("agent.scope.root", { path: root?.path || props.selectedLibraryRootId })
-      });
-    }
-    if (!values.some((option) => option.value === scopeValue(scope))) {
-      values.push({ value: scopeValue(scope), label: t("agent.scope.current") });
-    }
-    return values;
-  }, [props, scope, t]);
+  const scopeOptions = useAgentScopeOptions({
+    scope,
+    selected: props.selected,
+    selectedAudioIds: props.selectedAudioIds,
+    selectedPlaylistId: props.selectedPlaylistId,
+    activeSavedViewId: props.activeSavedViewId,
+    selectedTag: props.selectedTag,
+    selectedLibraryRootId: props.selectedLibraryRootId,
+    playlists: props.playlists,
+    savedViews: props.savedViews,
+    tags: props.tags,
+    roots: props.roots
+  });
 
   async function loadRuns(preferredId?: number) {
     const rows = await api.listOrganizationRuns();
@@ -133,18 +102,20 @@ export default function OrganizationPanel(props: Props) {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (!active || TERMINAL.has(active.status) || active.status === "awaiting_review") return;
-    const timer = window.setInterval(() => {
-      api.getOrganizationRun(active.id)
-        .then((run) => {
-          setActive(run);
-          if (TERMINAL.has(run.status) || run.status === "awaiting_review") void loadRuns(run.id);
-        })
-        .catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"));
-    }, 1200);
-    return () => window.clearInterval(timer);
-  }, [active?.id, active?.status]);
+  usePolling({
+    enabled: Boolean(active && !TERMINAL.has(active.status) && active.status !== "awaiting_review"),
+    intervalMs: 1200,
+    task: async () => {
+      if (!active) return;
+      const run = await api.getOrganizationRun(active.id);
+      setActive(run);
+      if (TERMINAL.has(run.status) || run.status === "awaiting_review") {
+        await loadRuns(run.id);
+      }
+    },
+    onError: (error) =>
+      props.notify(error instanceof Error ? error.message : String(error), "error")
+  });
 
   async function createRun() {
     if (busy) return;
@@ -234,7 +205,7 @@ export default function OrganizationPanel(props: Props) {
           <aside className="organization-runs" aria-label={t("organization.runs") }>
             <SelectField
               label={t("organization.scope")}
-              value={scopeValue(scope)}
+              value={serializeAgentScope(scope)}
               options={scopeOptions}
               onValueChange={(value) => setScope(JSON.parse(value) as AgentScope)}
               disabled={busy}

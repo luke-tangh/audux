@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../api";
@@ -14,6 +14,8 @@ import type {
 } from "../types";
 import { formatDuration } from "../types";
 import { Button, IconButton, MaterialIcon, SelectField, TextField, TextareaField } from "./ui";
+import { usePolling } from "../hooks/usePolling";
+import { serializeAgentScope, useAgentScopeOptions } from "../hooks/useAgentScopeOptions";
 
 type Props = {
   selected: AudioItem | null;
@@ -32,10 +34,6 @@ type Props = {
 
 const TERMINAL_RUN_STATUSES = new Set(["done", "failed", "canceled"]);
 
-function scopeValue(scope: AgentScope) {
-  return JSON.stringify(scope);
-}
-
 export default function AgentPanel(props: Props) {
   const { t } = useTranslation();
   const [conversations, setConversations] = useState<AgentConversation[]>([]);
@@ -51,52 +49,20 @@ export default function AgentPanel(props: Props) {
   const [planAction, setPlanAction] = useState<"approve" | "reject" | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
 
-  const scopeOptions = useMemo(() => {
-    const values = [
-      { value: scopeValue({ kind: "library" }), label: t("agent.scope.library") }
-    ];
-    if (props.selected) {
-      values.push({
-        value: scopeValue({ kind: "audio", audio_id: props.selected.id }),
-        label: t("agent.scope.audio", { title: props.selected.title_user || props.selected.title_original || props.selected.file_name })
-      });
-    }
-    if (props.selectedAudioIds.size > 0) {
-      values.push({
-        value: scopeValue({ kind: "selection", audio_ids: [...props.selectedAudioIds].sort((a, b) => a - b) }),
-        label: t("agent.scope.selection", { count: props.selectedAudioIds.size })
-      });
-    }
-    if (props.selectedPlaylistId) {
-      const playlist = props.playlists.find((row) => row.id === props.selectedPlaylistId);
-      values.push({
-        value: scopeValue({ kind: "playlist", playlist_id: props.selectedPlaylistId }),
-        label: t("agent.scope.playlist", { name: playlist?.name || props.selectedPlaylistId })
-      });
-    }
-    if (props.activeSavedViewId) {
-      const view = props.savedViews.find((row) => row.id === props.activeSavedViewId);
-      values.push({
-        value: scopeValue({ kind: "saved_view", saved_view_id: props.activeSavedViewId }),
-        label: t("agent.scope.savedView", { name: view?.name || props.activeSavedViewId })
-      });
-    }
-    const tag = props.tags.find((row) => row.name === props.selectedTag);
-    if (tag) {
-      values.push({ value: scopeValue({ kind: "tag", tag_id: tag.id }), label: t("agent.scope.tag", { name: tag.name }) });
-    }
-    if (props.selectedLibraryRootId) {
-      const root = props.roots.find((row) => row.id === props.selectedLibraryRootId);
-      values.push({
-        value: scopeValue({ kind: "library_root", library_root_id: props.selectedLibraryRootId }),
-        label: t("agent.scope.root", { path: root?.path || props.selectedLibraryRootId })
-      });
-    }
-    if (!values.some((option) => option.value === scopeValue(scope))) {
-      values.push({ value: scopeValue(scope), label: active?.scope_label || t("agent.scope.current") });
-    }
-    return values;
-  }, [active?.scope_label, props, scope, t]);
+  const scopeOptions = useAgentScopeOptions({
+    scope,
+    selected: props.selected,
+    selectedAudioIds: props.selectedAudioIds,
+    selectedPlaylistId: props.selectedPlaylistId,
+    activeSavedViewId: props.activeSavedViewId,
+    selectedTag: props.selectedTag,
+    selectedLibraryRootId: props.selectedLibraryRootId,
+    playlists: props.playlists,
+    savedViews: props.savedViews,
+    tags: props.tags,
+    roots: props.roots,
+    currentLabel: active?.scope_label
+  });
 
   const runBusy = Boolean(
     activeRun && (
@@ -148,22 +114,22 @@ export default function AgentPanel(props: Props) {
     setEditingTitle(false);
   }, [active?.id]);
 
-  useEffect(() => {
-    if (!activeRun || TERMINAL_RUN_STATUSES.has(activeRun.status)) return;
-    const timer = window.setInterval(() => {
-      api.getAgentRun(activeRun.id)
-        .then(async (run) => {
-          setActiveRun(run);
-          if (TERMINAL_RUN_STATUSES.has(run.status)) {
-            await loadConversation(run.conversation_id);
-            await loadConversations(run.conversation_id);
-            setActiveRun(run);
-          }
-        })
-        .catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"));
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [activeRun?.id, activeRun?.status]);
+  usePolling({
+    enabled: Boolean(activeRun && !TERMINAL_RUN_STATUSES.has(activeRun.status)),
+    intervalMs: 1000,
+    task: async () => {
+      if (!activeRun) return;
+      const run = await api.getAgentRun(activeRun.id);
+      setActiveRun(run);
+      if (TERMINAL_RUN_STATUSES.has(run.status)) {
+        await loadConversation(run.conversation_id);
+        await loadConversations(run.conversation_id);
+        setActiveRun(run);
+      }
+    },
+    onError: (error) =>
+      props.notify(error instanceof Error ? error.message : String(error), "error")
+  });
 
   async function changeScope(value: string) {
     const next = JSON.parse(value) as AgentScope;
@@ -373,7 +339,7 @@ export default function AgentPanel(props: Props) {
                     <SelectField
                       hideLabel
                       label={t("agent.scopeLabel")}
-                      value={scopeValue(scope)}
+              value={serializeAgentScope(scope)}
                       options={scopeOptions}
                       onValueChange={(value) => void changeScope(value)}
                       disabled={runBusy}

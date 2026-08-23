@@ -158,6 +158,16 @@ export default function App() {
     handleAudioDeleted
   } = useLibraryController();
 
+  async function playReferencedAudio(audioId: number, seconds: number) {
+    const existing = playbackQueue.find((row) => row.id === audioId)
+      || audioItems.find((row) => row.id === audioId);
+    const item = existing || (await api.getAudioDetail(audioId)).audio;
+    const queue = playbackQueue.some((row) => row.id === audioId)
+      ? playbackQueue
+      : [item, ...playbackQueue];
+    await playAudioAt(item, seconds, queue);
+  }
+
   useEffect(() => {
     if (!selected) {
       setInspectorOpen(false);
@@ -408,15 +418,7 @@ export default function App() {
               tags={tags}
               roots={roots}
               notify={notify}
-              onPlayCitation={async (audioId, seconds) => {
-                const existing = playbackQueue.find((row) => row.id === audioId)
-                  || audioItems.find((row) => row.id === audioId);
-                const item = existing || (await api.getAudioDetail(audioId)).audio;
-                const queue = playbackQueue.some((row) => row.id === audioId)
-                  ? playbackQueue
-                  : [item, ...playbackQueue];
-                await playAudioAt(item, seconds, queue);
-              }}
+              onPlayCitation={playReferencedAudio}
             />
           </Suspense>
         ) : view === "organization" ? (
@@ -433,15 +435,7 @@ export default function App() {
               tags={tags}
               roots={roots}
               notify={notify}
-              onPlayEvidence={async (audioId, seconds) => {
-                const existing = playbackQueue.find((row) => row.id === audioId)
-                  || audioItems.find((row) => row.id === audioId);
-                const item = existing || (await api.getAudioDetail(audioId)).audio;
-                const queue = playbackQueue.some((row) => row.id === audioId)
-                  ? playbackQueue
-                  : [item, ...playbackQueue];
-                await playAudioAt(item, seconds, queue);
-              }}
+              onPlayEvidence={playReferencedAudio}
             />
           </Suspense>
         ) : (

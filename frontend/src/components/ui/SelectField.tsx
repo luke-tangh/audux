@@ -7,6 +7,7 @@ import type {
   SelectHTMLAttributes
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useAnchoredPopover } from "../../hooks/useAnchoredPopover";
 
 export type SelectFieldOption = {
   value: string;
@@ -421,31 +422,18 @@ export default function SelectField({
     }
   }, [open, safeActiveIndex]);
 
+  useAnchoredPopover({
+    open,
+    anchorRef: rootRef,
+    popoverRef: menuRef,
+    onDismiss: closeMenu,
+    onReposition: updateMenuPosition
+  });
+
   useEffect(() => {
     if (!open) return;
 
     updateMenuPosition();
-
-    function handlePointerDown(event: PointerEvent) {
-      const target = event.target as Node | null;
-
-      if (!target) return;
-
-      if (rootRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-
-      closeMenu();
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown, true);
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown, true);
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
-    };
   }, [open]);
 
   useEffect(() => {

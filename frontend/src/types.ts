@@ -17,6 +17,27 @@ export type AudioSortMode =
   | "duration_desc"
   | "play_count_desc";
 
+export type AudioListQuery = {
+  q?: string;
+  tag?: string;
+  tag_ids?: number[];
+  excluded_tag_ids?: number[];
+  tag_mode?: "and" | "or";
+  library_root_id?: number;
+  favorite?: boolean;
+  missing?: boolean;
+  has_transcript?: boolean;
+  missing_description?: boolean;
+  include_disabled_roots?: boolean;
+  ai_status?: string;
+  transcript_status?: string;
+  sort?: AudioSortMode;
+  limit?: number;
+  offset?: number;
+};
+
+export type PlaylistListQuery = Omit<AudioListQuery, "include_disabled_roots">;
+
 export type SavedViewMode =
   | "library"
   | "favorites"

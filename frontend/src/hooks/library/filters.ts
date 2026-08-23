@@ -34,6 +34,10 @@ export function isSmartView(view: ViewMode): boolean {
   );
 }
 
+export function isAudioListView(view: ViewMode): boolean {
+  return !["settings", "statistics", "agent", "organization"].includes(view);
+}
+
 export function uniqueAudioItems(items: AudioItem[]): AudioItem[] {
   const seen = new Set<number>();
   const result: AudioItem[] = [];

@@ -1,18 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import type { AudioItem, Playlist, SavedView, SavedViewQuery } from "../types";
+import type { AudioItem, Playlist, SavedView } from "../types";
 import { useDialog } from "../components/dialog/UnifiedDialog";
 import { useBackendReady } from "./useBackendReady";
 import { useToast } from "./useToast";
 import {
   buildAudioListParams as buildAudioListParamsForState,
   buildPlaylistListParams as buildPlaylistListParamsForState,
-  buildSavedViewQuery,
   describeSmartPlaylistRules,
+  isAudioListView,
   isBusyStatus,
   isSmartView,
-  listCopyForView,
-  savedViewQueriesEqual
+  listCopyForView
 } from "./library/filters";
 import { useBatchTasks } from "./library/useBatchTasks";
 import { useBatchOrganization } from "./library/useBatchOrganization";
@@ -20,6 +19,9 @@ import { useDebouncedValue } from "./library/useDebouncedValue";
 import { useNavigationData } from "./library/useNavigationData";
 import { usePlaybackQueue } from "./library/usePlaybackQueue";
 import { usePlaylistActions } from "./library/usePlaylistActions";
+import { useAudioSelection } from "./library/useAudioSelection";
+import { useSavedViewController } from "./library/useSavedViewController";
+import { usePolling } from "./usePolling";
 import { useTranslation } from "react-i18next";
 import { formatDateTime } from "../i18n/format";
 import type {
@@ -34,11 +36,6 @@ import type {
 export type { MissingFilter, TranscriptFilter, ViewMode } from "./library/types";
 
 const AUDIO_PAGE_LIMIT = 120;
-const MAX_BATCH_SELECTION = 500;
-
-function isSavableView(view: ViewMode): view is SavedViewQuery["view"] {
-  return view !== "playlist" && view !== "settings" && view !== "statistics" && view !== "agent" && view !== "organization";
-}
 
 export function useLibraryController() {
   const { t, i18n } = useTranslation();
@@ -52,10 +49,6 @@ export function useLibraryController() {
     import("../types").PaginatedAudioItems["facets"]
   >>({ tags: [], roots: [] });
   const [selected, setSelected] = useState<AudioItem | null>(null);
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedAudioIds, setSelectedAudioIds] = useState<Set<number>>(
-    () => new Set()
-  );
 
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q, 240);
@@ -65,7 +58,6 @@ export function useLibraryController() {
   const [tagMode, setTagMode] = useState<"and" | "or">("and");
   const [selectedLibraryRootId, setSelectedLibraryRootId] = useState<number | undefined>();
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<number | null>(null);
-  const [activeSavedViewId, setActiveSavedViewId] = useState<number | null>(null);
 
   const [hasTranscriptFilter, setHasTranscriptFilter] = useState<TranscriptFilter>("all");
   const [missingFilter, setMissingFilter] = useState<MissingFilter>("all");
@@ -87,11 +79,14 @@ export function useLibraryController() {
   const loadSeqRef = useRef(0);
   const hasLoadedListRef = useRef(false);
   const startupReadyRef = useRef(false);
+  const navigationLoadedRef = useRef(false);
+  const loadInFlightRef = useRef(false);
 
   const { ensureBackendReady, resetBackendReady } = useBackendReady();
   const dialog = useDialog();
   const { toasts, notify, closeToast } = useToast();
   const { tags, playlists, roots, savedViews, loadNavigation } = useNavigationData();
+  const selection = useAudioSelection({ items: audioItems, notify });
   const activePlaylist = playlists.find((playlist) => playlist.id === selectedPlaylistId);
   const isSmartPlaylist = activePlaylist?.kind === "smart";
   const manualPlaylists = playlists.filter((playlist) => playlist.kind !== "smart");
@@ -102,6 +97,39 @@ export function useLibraryController() {
     setExcludedTagIds([]);
     setTagMode("and");
   }
+
+  const savedViewController = useSavedViewController({
+    view,
+    setView,
+    q,
+    setQ,
+    selectedTag,
+    setSelectedTag,
+    includedTagIds,
+    setIncludedTagIds,
+    excludedTagIds,
+    setExcludedTagIds,
+    tagMode,
+    setTagMode,
+    selectedLibraryRootId,
+    setSelectedLibraryRootId,
+    setSelectedPlaylistId,
+    hasTranscriptFilter,
+    setHasTranscriptFilter,
+    missingFilter,
+    setMissingFilter,
+    sortMode,
+    setSortMode,
+    tags,
+    savedViews,
+    loadNavigation,
+    notify
+  });
+  const {
+    activeSavedView,
+    activeSavedViewId,
+    setActiveSavedViewId
+  } = savedViewController;
 
   function setTagFilterState(
     tagId: number,
@@ -155,7 +183,8 @@ export function useLibraryController() {
 
   async function load() {
     const loadSeq = ++loadSeqRef.current;
-    const isListView = view !== "settings" && view !== "statistics" && view !== "agent" && view !== "organization";
+    loadInFlightRef.current = true;
+    const isListView = isAudioListView(view);
 
     if (isListView) {
       if (hasLoadedListRef.current) {
@@ -175,12 +204,15 @@ export function useLibraryController() {
       startupReadyRef.current = true;
       setStartupState("ready");
       setStartupError("");
-      const navigation = await loadNavigation();
+      const navigation = navigationLoadedRef.current
+        ? { tags, playlists, roots, savedViews }
+        : await loadNavigation();
+      navigationLoadedRef.current = true;
 
       if (loadSeq !== loadSeqRef.current) return;
       setPlaybackQueueValidationToken((value) => value + 1);
 
-      if (view === "settings" || view === "statistics" || view === "agent" || view === "organization") {
+      if (!isListView) {
         hasLoadedListRef.current = false;
         setAudioItems([]);
         setPlaylistItemsRaw([]);
@@ -293,6 +325,7 @@ export function useLibraryController() {
       throw err;
     } finally {
       if (loadSeq === loadSeqRef.current) {
+        loadInFlightRef.current = false;
         setLoading(false);
         setRefreshing(false);
         setInitialized(true);
@@ -301,7 +334,7 @@ export function useLibraryController() {
   }
 
   async function loadMoreAudioItems() {
-    if (view === "settings" || view === "statistics" || view === "agent" || loadingMore || !audioHasMore) {
+    if (!isAudioListView(view) || loadingMore || !audioHasMore) {
       return;
     }
 
@@ -373,8 +406,7 @@ export function useLibraryController() {
 
   useEffect(() => {
     if (view === "agent") return;
-    setSelectionMode(false);
-    setSelectedAudioIds(new Set());
+    selection.reset();
   }, [
     view,
     debouncedQ,
@@ -398,23 +430,14 @@ export function useLibraryController() {
         (isBusyStatus(selected.ai_status) || isBusyStatus(selected.transcript_status))
     );
 
-  useEffect(() => {
-    if (view === "settings" || view === "agent") return;
-    if (!hasBusyVisibleTask) return;
-
-    const timer = window.setInterval(() => {
-      refresh();
-    }, 3000);
-
-    return () => window.clearInterval(timer);
-  }, [
-    view,
-    hasBusyVisibleTask,
-    selected?.id,
-    selected?.ai_status,
-    selected?.transcript_status,
-    audioItems.length
-  ]);
+  usePolling({
+    enabled: isAudioListView(view) && hasBusyVisibleTask,
+    intervalMs: 3000,
+    task: async () => {
+      if (loadInFlightRef.current) return;
+      await load();
+    }
+  });
 
   function clearFilters() {
     setQ("");
@@ -438,6 +461,7 @@ export function useLibraryController() {
 
   function retryStartup() {
     resetBackendReady();
+    navigationLoadedRef.current = false;
     startupReadyRef.current = false;
     setStartupState("starting");
     setStartupError("");
@@ -468,67 +492,11 @@ export function useLibraryController() {
     refresh
   });
 
-  function clearAudioSelection() {
-    setSelectedAudioIds(new Set());
-  }
-
-  function enterSelectionMode() {
-    setSelectionMode(true);
-  }
-
-  function exitSelectionMode() {
-    setSelectionMode(false);
-    clearAudioSelection();
-  }
-
-  function toggleAudioSelection(audioId: number) {
-    if (
-      !selectedAudioIds.has(audioId) &&
-      selectedAudioIds.size >= MAX_BATCH_SELECTION
-    ) {
-      notify(t("library.selection.maximum", { count: MAX_BATCH_SELECTION }), "info");
-      return;
-    }
-
-    setSelectedAudioIds((current) => {
-      const next = new Set(current);
-      if (next.has(audioId)) {
-        next.delete(audioId);
-      } else {
-        next.add(audioId);
-      }
-      return next;
-    });
-  }
-
-  function toggleSelectAllLoaded() {
-    const selectableItems = audioItems.slice(0, MAX_BATCH_SELECTION);
-    const allSelectableSelected =
-      selectableItems.length > 0 &&
-      selectableItems.every((item) => selectedAudioIds.has(item.id));
-
-    if (!allSelectableSelected && audioItems.length > MAX_BATCH_SELECTION) {
-      notify(t("library.selection.firstSelected", { count: MAX_BATCH_SELECTION }), "info");
-    }
-
-    setSelectedAudioIds((current) => {
-      const allLoadedSelected =
-        selectableItems.length > 0 &&
-        selectableItems.every((item) => current.has(item.id));
-      if (allLoadedSelected) {
-        return new Set();
-      }
-      return new Set(
-        selectableItems.map((item) => item.id)
-      );
-    });
-  }
-
   const batchOrganization = useBatchOrganization({
-    selectedAudioIds: Array.from(selectedAudioIds),
+    selectedAudioIds: Array.from(selection.selectedAudioIds),
     tags,
     playlists: manualPlaylists,
-    clearSelection: clearAudioSelection,
+    clearSelection: selection.clear,
     loadNavigation: async () => {
       await loadNavigation();
     },
@@ -550,12 +518,7 @@ export function useLibraryController() {
 
   function handleAudioDeleted(audioId: number) {
     playback.handleAudioDeleted(audioId);
-    setSelectedAudioIds((current) => {
-      if (!current.has(audioId)) return current;
-      const next = new Set(current);
-      next.delete(audioId);
-      return next;
-    });
+    selection.remove(audioId);
     refresh();
   }
 
@@ -566,31 +529,6 @@ export function useLibraryController() {
     t
   );
 
-  const activeSavedView = savedViews.find((row) => row.id === activeSavedViewId);
-
-  function currentSavedViewQuery(): SavedViewQuery | null {
-    if (!isSavableView(view)) return null;
-    const tagId = tags.find((tag) => tag.name === selectedTag)?.id;
-    return buildSavedViewQuery({
-      view,
-      q,
-      tagId,
-      tagIds: includedTagIds,
-      excludedTagIds,
-      tagMode,
-      libraryRootId: selectedLibraryRootId,
-      transcriptFilter: hasTranscriptFilter,
-      missingFilter,
-      sort: sortMode
-    });
-  }
-
-  const currentViewQuery = currentSavedViewQuery();
-  const savedViewDirty = Boolean(
-    activeSavedView?.query &&
-      currentViewQuery &&
-      !savedViewQueriesEqual(activeSavedView.query, currentViewQuery)
-  );
   const smartPlaylistSubtitle = isSmartPlaylist && activePlaylist
     ? t("smartPlaylists.subtitle", {
         count: audioTotal,
@@ -607,10 +545,6 @@ export function useLibraryController() {
   const listSubtitle = activeSavedView
     ? t("savedViews.appliedSubtitle")
     : smartPlaylistSubtitle || defaultListCopy.listSubtitle;
-
-  function deactivateSavedView() {
-    setActiveSavedViewId(null);
-  }
 
   function openPlaylist(playlist: Playlist) {
     setActiveSavedViewId(null);
@@ -680,165 +614,6 @@ export function useLibraryController() {
     }
   }
 
-  function applySavedView(savedView: SavedView) {
-    if (!savedView.query) {
-      setActiveSavedViewId(savedView.id);
-      notify(t("savedViews.definitionInvalid"), "error");
-      return;
-    }
-
-    const invalidTag = savedView.invalid_references.includes("tag");
-    const invalidRoot = savedView.invalid_references.includes("library_root");
-    setView(savedView.query.view);
-    setQ(savedView.query.q);
-    setSelectedTag(invalidTag ? undefined : savedView.tag_name || undefined);
-    setIncludedTagIds(invalidTag ? [] : savedView.query.tag_ids || []);
-    setExcludedTagIds(invalidTag ? [] : savedView.query.excluded_tag_ids || []);
-    setTagMode(savedView.query.tag_mode || "and");
-    setSelectedLibraryRootId(
-      invalidRoot ? undefined : savedView.query.library_root_id ?? undefined
-    );
-    setHasTranscriptFilter(savedView.query.transcript_filter);
-    setMissingFilter(savedView.query.missing_filter);
-    setSortMode(savedView.query.sort);
-    setSelectedPlaylistId(null);
-    setActiveSavedViewId(savedView.id);
-
-    if (savedView.invalid_references.length > 0) {
-      const conditions = savedView.invalid_references
-        .map((reference) =>
-          reference === "tag"
-            ? t("savedViews.tagCondition")
-            : t("savedViews.libraryRootCondition")
-        )
-        .join(t("savedViews.conditionSeparator"));
-      notify(t("savedViews.invalidReferences", { conditions }), "info");
-    }
-  }
-
-  async function saveCurrentView() {
-    const query = currentSavedViewQuery();
-    if (!query) {
-      notify(t("savedViews.unsupportedView"), "info");
-      return;
-    }
-    const name = await dialog.prompt({
-      title: t("savedViews.createTitle"),
-      message: t("savedViews.createMessage"),
-      inputLabel: t("savedViews.name"),
-      required: true,
-      confirmLabel: t("savedViews.createConfirm"),
-      cancelLabel: t("common.actions.cancel"),
-      validate: (value) => (value.trim() ? null : t("savedViews.nameRequired"))
-    });
-    if (name === null) return;
-    try {
-      const created = await api.createSavedView(name.trim(), query);
-      setActiveSavedViewId(created.id);
-      await loadNavigation();
-      notify(t("savedViews.created"), "success");
-    } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
-  async function updateActiveSavedView() {
-    const query = currentSavedViewQuery();
-    if (!activeSavedView || !query) return;
-    try {
-      await api.updateSavedView(activeSavedView.id, { query });
-      await loadNavigation();
-      notify(t("savedViews.updated"), "success");
-    } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
-  async function renameSavedView(savedView: SavedView) {
-    const name = await dialog.prompt({
-      title: t("savedViews.renameTitle"),
-      message: t("savedViews.renameMessage", { name: savedView.name }),
-      inputLabel: t("savedViews.name"),
-      defaultValue: savedView.name,
-      required: true,
-      confirmLabel: t("common.actions.save"),
-      cancelLabel: t("common.actions.cancel"),
-      validate: (value) => {
-        if (!value.trim()) return t("savedViews.nameRequired");
-        if (value.trim() === savedView.name) return t("savedViews.nameDifferent");
-        return null;
-      }
-    });
-    if (name === null) return;
-    try {
-      await api.updateSavedView(savedView.id, { name: name.trim() });
-      await loadNavigation();
-      notify(t("savedViews.renamed"), "success");
-    } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
-  async function copySavedView(savedView: SavedView) {
-    const name = await dialog.prompt({
-      title: t("savedViews.copyTitle"),
-      message: t("savedViews.copyMessage", { name: savedView.name }),
-      inputLabel: t("savedViews.name"),
-      defaultValue: t("savedViews.copyDefaultName", { name: savedView.name }),
-      required: true,
-      confirmLabel: t("savedViews.copyConfirm"),
-      cancelLabel: t("common.actions.cancel"),
-      validate: (value) => (value.trim() ? null : t("savedViews.nameRequired"))
-    });
-    if (name === null) return;
-    try {
-      const copied = await api.copySavedView(savedView.id, name.trim());
-      await loadNavigation();
-      setActiveSavedViewId(copied.id);
-      if (copied.query) applySavedView(copied);
-      notify(t("savedViews.copied"), "success");
-    } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
-  async function deleteSavedView(savedView: SavedView) {
-    const ok = await dialog.confirm({
-      title: t("savedViews.deleteTitle"),
-      message: t("savedViews.deleteMessage", { name: savedView.name }),
-      confirmLabel: t("common.actions.delete"),
-      cancelLabel: t("common.actions.cancel"),
-      tone: "danger",
-      destructive: true
-    });
-    if (!ok) return;
-    try {
-      await api.deleteSavedView(savedView.id);
-      if (activeSavedViewId === savedView.id) setActiveSavedViewId(null);
-      await loadNavigation();
-      notify(t("savedViews.deleted"), "success");
-    } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
-  async function moveSavedView(savedViewId: number, direction: -1 | 1) {
-    const currentIndex = savedViews.findIndex((row) => row.id === savedViewId);
-    const targetIndex = currentIndex + direction;
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= savedViews.length) return;
-    const reordered = [...savedViews];
-    [reordered[currentIndex], reordered[targetIndex]] = [
-      reordered[targetIndex],
-      reordered[currentIndex]
-    ];
-    try {
-      await api.reorderSavedViews(reordered.map((row) => row.id));
-      await loadNavigation();
-    } catch (err) {
-      notify(err instanceof Error ? err.message : String(err), "error");
-    }
-  }
-
   const hasActiveFilter =
     Boolean(q.trim()) ||
     Boolean(selectedTag) ||
@@ -861,8 +636,8 @@ export function useLibraryController() {
     facets,
     selected,
     setSelected,
-    selectionMode,
-    selectedAudioIds,
+    selectionMode: selection.selectionMode,
+    selectedAudioIds: selection.selectedAudioIds,
 
     playing: playback.playing,
     playbackQueue: playback.playbackQueue,
@@ -896,8 +671,8 @@ export function useLibraryController() {
     roots,
     savedViews,
     activeSavedViewId,
-    savedViewDirty,
-    canSaveView: isSavableView(view),
+    savedViewDirty: savedViewController.isDirty,
+    canSaveView: savedViewController.canSave,
     isSmartPlaylist,
 
     loading,
@@ -920,23 +695,23 @@ export function useLibraryController() {
     retryStartup,
     clearFilters,
     openSettings,
-    deactivateSavedView,
-    applySavedView,
+    deactivateSavedView: savedViewController.deactivate,
+    applySavedView: savedViewController.apply,
     openPlaylist,
     createPlaylist,
     createSmartPlaylist,
-    saveCurrentView,
-    updateActiveSavedView,
-    renameSavedView,
-    copySavedView,
-    deleteSavedView,
-    moveSavedView,
+    saveCurrentView: savedViewController.saveCurrent,
+    updateActiveSavedView: savedViewController.updateActive,
+    renameSavedView: savedViewController.rename,
+    copySavedView: savedViewController.copy,
+    deleteSavedView: savedViewController.remove,
+    moveSavedView: savedViewController.move,
     loadMoreAudioItems,
-    enterSelectionMode,
-    exitSelectionMode,
-    toggleAudioSelection,
-    toggleSelectAllLoaded,
-    clearAudioSelection,
+    enterSelectionMode: selection.enter,
+    exitSelectionMode: selection.exit,
+    toggleAudioSelection: selection.toggle,
+    toggleSelectAllLoaded: selection.toggleAllLoaded,
+    clearAudioSelection: selection.clear,
 
     playAudio: playback.playAudio,
     playAudioAt: playback.playAudioAt,

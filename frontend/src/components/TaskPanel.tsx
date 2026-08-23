@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "../api";
 import type { AITask } from "../types";
 import { Button, StatusPill } from "./ui";
@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useLocale } from "../i18n/LocaleProvider";
 import { localizedStoredError } from "../i18n/errors";
 import { formatDateTime } from "../i18n/format";
+import { usePolling } from "../hooks/usePolling";
 
 type ToastType = "info" | "success" | "error";
 
@@ -82,20 +83,23 @@ export default function TaskPanel({ onTaskChanged, notify }: Props) {
     }
   }
 
-  useEffect(() => {
-    load().catch((err) => {
-      console.error(err);
-      notify?.(err instanceof Error ? err.message : String(err), "error");
-    });
-
-    const timer = setInterval(() => {
-      load().catch((err) => {
+  const initialLoadRef = useRef(true);
+  usePolling({
+    intervalMs: 3000,
+    immediate: true,
+    task: async () => {
+      const notifyOnError = initialLoadRef.current;
+      initialLoadRef.current = false;
+      try {
+        await load();
+      } catch (err) {
         console.error(err);
-      });
-    }, 3000);
-
-    return () => clearInterval(timer);
-  }, []);
+        if (notifyOnError) {
+          notify?.(err instanceof Error ? err.message : String(err), "error");
+        }
+      }
+    }
+  });
 
   async function retry(task: AITask) {
     try {

@@ -6,6 +6,7 @@ import { api } from "../api";
 import type { ActivityFeed, ActivityItem } from "../types";
 import { localizedStoredError } from "../i18n/errors";
 import { Button, IconButton, MaterialIcon, StatusPill } from "./ui";
+import { usePolling } from "../hooks/usePolling";
 
 type Props = {
   onActivityChanged?: () => void;
@@ -119,11 +120,16 @@ export default function ActivityCenter({ onActivityChanged, notify }: Props) {
     }
   }
 
-  useEffect(() => {
-    void load(false);
-    const timer = window.setInterval(() => void load(true), 3000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const initialActivityLoadRef = useRef(true);
+  usePolling({
+    intervalMs: 3000,
+    immediate: true,
+    task: async () => {
+      const announce = !initialActivityLoadRef.current;
+      initialActivityLoadRef.current = false;
+      await load(announce);
+    }
+  });
 
   useEffect(() => {
     function keepInViewport() {

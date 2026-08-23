@@ -107,8 +107,8 @@
 
 .ui-button:disabled {
   cursor: not-allowed;
-  color: rgba(230, 224, 233, 0.38);
-  background: rgba(230, 224, 233, 0.12);
+  color: var(--md-state-disabled-content);
+  background: var(--md-state-disabled-container);
   border-color: transparent;
   box-shadow: none;
   transform: none;
@@ -732,12 +732,6 @@
 /* MD3 custom SelectField: end */
 
 /* Light theme component contrast adjustments: start */
-:root[data-theme="light"] .ui-button:disabled,
-:root[data-theme="light"] .ui-icon-button:disabled {
-  color: rgba(28, 27, 31, 0.38);
-  background: rgba(28, 27, 31, 0.12);
-}
-
 :root[data-theme="light"] .ui-select-field-option:hover,
 :root[data-theme="light"] .ui-select-field-option-active {
   background: var(--md-state-primary-hover);
