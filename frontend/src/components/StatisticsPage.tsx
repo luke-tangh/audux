@@ -57,6 +57,7 @@ export default function StatisticsPage({
 }: Props) {
   const { t, i18n } = useTranslation();
   const [days, setDays] = useState(30);
+  const [showDetails, setShowDetails] = useState(false);
   const { data, loading, error, refresh } = useStatistics(days);
   const number = new Intl.NumberFormat(i18n.resolvedLanguage);
   const compactNumber = new Intl.NumberFormat(i18n.resolvedLanguage, {
@@ -185,8 +186,20 @@ export default function StatisticsPage({
         ))}
       </div>
 
-      <div className="statistics-dashboard-grid">
-        <article className="statistics-card">
+      <div className="statistics-detail-toggle">
+        <Button
+          size="sm"
+          variant="text"
+          aria-expanded={showDetails}
+          onClick={() => setShowDetails((value) => !value)}
+        >
+          <MaterialIcon name={showDetails ? "expand_less" : "expand_more"} size={18} />
+          {t(showDetails ? "statistics.hideDetails" : "statistics.showDetails")}
+        </Button>
+      </div>
+
+      <div className={`statistics-dashboard-grid ${showDetails ? "show-secondary" : ""}`}>
+        <article className="statistics-card statistics-coverage-card">
           <div className="statistics-card-heading">
             <div><h2>{t("statistics.coverage.title")}</h2><p>{t("statistics.coverage.subtitle")}</p></div>
           </div>
@@ -205,7 +218,7 @@ export default function StatisticsPage({
           </div>
         </article>
 
-        <article className="statistics-card">
+        <article className="statistics-card statistics-pending-card">
           <div className="statistics-card-heading">
             <div><h2>{t("statistics.pending.title")}</h2><p>{t("statistics.pending.subtitle")}</p></div>
           </div>
@@ -223,17 +236,17 @@ export default function StatisticsPage({
           </div>
         </article>
 
-        <article className="statistics-card">
+        <article className="statistics-card statistics-secondary-card">
           <div className="statistics-card-heading"><div><h2>{t("statistics.formats.title")}</h2><p>{t("statistics.formats.description")}</p></div></div>
           <DistributionRows rows={formatRows} />
         </article>
 
-        <article className="statistics-card">
+        <article className="statistics-card statistics-secondary-card">
           <div className="statistics-card-heading"><div><h2>{t("statistics.duration.title")}</h2><p>{t("statistics.duration.description")}</p></div></div>
           <DistributionRows rows={durationRows} />
         </article>
 
-        <article className="statistics-card statistics-card-wide">
+        <article className="statistics-card statistics-card-wide statistics-secondary-card">
           <div className="statistics-card-heading"><div><h2>{t("statistics.ingest.title")}</h2><p>{t("statistics.ingest.description")}</p></div></div>
           {data.ingest_timeline.length ? (
             <div className="statistics-column-chart" role="img" aria-label={t("statistics.ingest.chartLabel")}>
@@ -248,7 +261,7 @@ export default function StatisticsPage({
           ) : <p className="statistics-empty-copy">{t("statistics.noData")}</p>}
         </article>
 
-        <article className="statistics-card statistics-card-wide">
+        <article className="statistics-card statistics-card-wide statistics-listening-card">
           <div className="statistics-card-heading statistics-listening-heading">
             <div><h2>{t("statistics.listening.title")}</h2><p>{t("statistics.listening.description")}</p></div>
             <div className="statistics-periods" role="group" aria-label={t("statistics.listening.periodLabel")}>
@@ -277,7 +290,7 @@ export default function StatisticsPage({
           ) : <p className="statistics-empty-copy">{t("statistics.listening.empty")}</p>}
         </article>
 
-        <article className="statistics-card">
+        <article className="statistics-card statistics-secondary-card">
           <div className="statistics-card-heading"><div><h2>{t("statistics.topAudio.title")}</h2><p>{t("statistics.topAudio.description")}</p></div></div>
           <ol className="statistics-ranking-list">
             {data.listening.top_audio.map((row) => (
@@ -290,7 +303,7 @@ export default function StatisticsPage({
           {!data.listening.top_audio.length && <p className="statistics-empty-copy">{t("statistics.listening.empty")}</p>}
         </article>
 
-        <article className="statistics-card">
+        <article className="statistics-card statistics-secondary-card">
           <div className="statistics-card-heading"><div><h2>{t("statistics.recent.title")}</h2><p>{t("statistics.recent.description")}</p></div></div>
           <ul className="statistics-recent-list">
             {data.listening.recent_events.map((row) => (
@@ -303,7 +316,7 @@ export default function StatisticsPage({
           {!data.listening.recent_events.length && <p className="statistics-empty-copy">{t("statistics.listening.empty")}</p>}
         </article>
 
-        <article className="statistics-card">
+        <article className="statistics-card statistics-secondary-card">
           <div className="statistics-card-heading"><div><h2>{t("statistics.roots.title")}</h2><p>{t("statistics.roots.description")}</p></div></div>
           <ul className="statistics-root-list">
             {data.roots.map((row) => (
@@ -317,7 +330,7 @@ export default function StatisticsPage({
           </ul>
         </article>
 
-        <article className="statistics-card">
+        <article className="statistics-card statistics-secondary-card">
           <div className="statistics-card-heading"><div><h2>{t("statistics.tags.title")}</h2><p>{t("statistics.tags.description")}</p></div></div>
           <div className="statistics-tag-cloud">
             {data.top_tags.map((row) => <span key={row.id}>#{row.name}<em>{row.item_count}</em></span>)}

@@ -147,15 +147,21 @@ test.describe("MD3 visual regression", () => {
     await expectTopbarControlsFit(topbar, "1280x800");
 
     await page.setViewportSize({ width: 1000, height: 800 });
+    const filterToggle = page.getByRole("button", { name: "筛选与排序（0）" });
+    await expect(filterToggle).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "按音频处理状态筛选" })).toBeHidden();
     await expect(topbar).toHaveScreenshot("topbar-medium.png");
+    await expect.poll(async () => (await topbar.boundingBox())?.height || 0).toBeLessThan(190);
+    await filterToggle.click();
     await expectTopbarControlsFit(topbar, "1000x800");
+    await filterToggle.click();
 
     await page.setViewportSize({ width: 760, height: 800 });
+    await expect(filterToggle).toBeVisible();
     await expect(topbar).toHaveScreenshot("topbar-compact.png");
-    await expectTopbarControlsFit(topbar, "760x800");
+    await expect.poll(async () => (await topbar.boundingBox())?.height || 0).toBeLessThan(190);
 
     await page.setViewportSize({ width: 540, height: 800 });
-    const filterToggle = page.getByRole("button", { name: "筛选与排序（0）" });
     await expect(filterToggle).toBeVisible();
     await expect(page.getByRole("combobox", { name: "按音频处理状态筛选" })).toBeHidden();
     await expect(topbar).toHaveScreenshot("topbar-mobile.png");
@@ -229,12 +235,15 @@ test.describe("MD3 visual regression", () => {
       fits: true,
       controlsMoveBelowMetadata: true
     });
+    await expect.poll(async () => (await player.boundingBox())?.height || 0).toBeLessThan(135);
 
     await page.setViewportSize({ width: 1000, height: 800 });
     await page.getByRole("button", { name: "打开播放速度控制" }).click();
     await expect(page.getByRole("dialog", { name: "播放速度" })).toBeVisible();
+    await expect(page.locator(".activity-center")).toHaveCSS("visibility", "hidden");
     await expect(page.locator("#root")).toHaveScreenshot("player-speed-medium.png");
     await page.keyboard.press("Escape");
+    await expect(page.locator(".activity-center")).toHaveCSS("visibility", "visible");
 
     await page.getByRole("button", { name: "打开音量控制" }).click();
     await expect(page.getByRole("dialog", { name: "音量" })).toBeVisible();
@@ -288,6 +297,15 @@ test.describe("MD3 visual regression", () => {
     });
     expect(scrollbarBounds.insetTop).toBeGreaterThanOrEqual(8);
     expect(scrollbarBounds.insetBottom).toBeGreaterThanOrEqual(8);
+
+    await page.getByRole("button", { name: "收起侧栏" }).click();
+    await expect(sidebar).toHaveClass(/navigation-rail/);
+    await expect.poll(async () => (await sidebar.boundingBox())?.width || 0).toBe(88);
+    await expect.poll(() => page.evaluate(() =>
+      window.localStorage.getItem("audux.sidebar.collapsed")
+    )).toBe("true");
+    await page.getByRole("button", { name: "展开侧栏" }).click();
+    await expect(sidebar).not.toHaveClass(/navigation-rail/);
 
     const settingsCenter = page.getByRole("button", { name: "设置中心" });
     const player = page.locator(".player-dock");

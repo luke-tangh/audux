@@ -1,6 +1,16 @@
 .activity-center {
   position: fixed;
   z-index: 90;
+  transition:
+    opacity var(--app-motion-transition),
+    visibility var(--app-motion-transition);
+}
+
+/* Player popovers own the lower-right interaction layer while open. */
+.app-shell:has(.player-option-popover, .queue-popover) .activity-center {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .activity-center-trigger {

@@ -31,6 +31,15 @@
   margin-left: auto;
 }
 
+.sidebar-rail-toggle {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.sidebar-collapse-icon {
+  transform: rotate(180deg);
+}
+
 .brand-orb {
   width: 48px;
   height: 48px;
@@ -76,7 +85,7 @@
   align-items: center;
   padding: 8px 12px;
   text-align: left;
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: var(--md-sys-shape-corner-large);
   color: var(--md-sys-color-on-surface-variant);
   background: transparent;
   box-shadow: none;
@@ -296,7 +305,7 @@
   gap: 8px;
   padding: 7px 12px;
   text-align: left;
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: var(--md-sys-shape-corner-medium);
   color: var(--md-sys-color-on-surface-variant);
   background: transparent;
   box-shadow: none;
@@ -315,6 +324,7 @@
   padding-inline: 12px;
   white-space: nowrap;
   border-color: var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
 }
 
 .tag-section .sidebar-pill:first-child {
@@ -350,7 +360,7 @@
 .playlist-row-copy em {
   overflow: hidden;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 11px;
+  font-size: 12px;
   font-style: normal;
   line-height: 1.25;
   white-space: nowrap;
@@ -436,8 +446,49 @@
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: var(--md-sys-shape-corner-large);
   color: var(--md-sys-color-on-surface-variant);
+}
+
+@media (min-width: 861px) {
+  .sidebar.navigation-rail .sidebar-scroll-content {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+
+  .sidebar.navigation-rail .brand {
+    flex-direction: column;
+    gap: 6px;
+    padding-inline: 0;
+  }
+
+  .sidebar.navigation-rail .brand-copy,
+  .sidebar.navigation-rail .sidebar-section,
+  .sidebar.navigation-rail .nav-card > span:last-child,
+  .sidebar.navigation-rail .settings-nav strong {
+    display: none;
+  }
+
+  .sidebar.navigation-rail .sidebar-rail-toggle {
+    margin-left: 0;
+  }
+
+  .sidebar.navigation-rail .sidebar-nav {
+    justify-items: center;
+  }
+
+  .sidebar.navigation-rail .nav-card {
+    width: 56px;
+    grid-template-columns: 40px;
+    justify-content: center;
+    padding-inline: 8px;
+  }
+
+  .sidebar.navigation-rail .settings-nav {
+    width: 56px;
+    justify-content: center;
+    padding-inline: 8px;
+  }
 }
 
 .settings-nav.active {

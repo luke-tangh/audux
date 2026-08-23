@@ -154,6 +154,9 @@ test.describe("statistics dashboard", () => {
       "3,721"
     ]);
     await expect(page.getByRole("heading", { name: "聆听历史" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "文件格式" })).toBeHidden();
+    await page.getByRole("button", { name: "显示更多统计" }).click();
+    await expect(page.getByRole("heading", { name: "文件格式" })).toBeVisible();
     await expect(page.getByText("关于本地优先软件的深度访谈")).toHaveCount(2);
 
     await page.getByRole("button", { name: "90 天" }).click();

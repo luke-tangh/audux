@@ -196,7 +196,7 @@
 .inspector-tabs button {
   min-height: 36px;
   padding: 0 10px;
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: var(--md-sys-shape-corner-medium);
   color: var(--md-sys-color-on-surface-variant);
   background: transparent;
   box-shadow: none;

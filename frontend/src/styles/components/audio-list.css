@@ -1,4 +1,6 @@
 .audio-list-panel {
+  container-name: audio-list;
+  container-type: inline-size;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -72,7 +74,7 @@
   align-items: center;
   padding: 9px 10px;
   border: 1px solid transparent;
-  border-radius: var(--md-sys-shape-corner-large);
+  border-radius: var(--md-sys-shape-corner-medium);
   transition:
     background var(--app-motion-transition),
     border-color var(--app-motion-transition),
@@ -305,7 +307,7 @@
 .processing-idle {
   padding-inline: 4px;
   color: var(--app-color-text-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .audio-row .status-pill.done {
@@ -327,7 +329,7 @@
   max-width: 100%;
   min-height: 23px;
   padding-inline: 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .mini-tag {
@@ -449,9 +451,83 @@
   min-height: 30px;
   padding: 0 10px 4px;
   color: var(--app-color-text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 760;
   letter-spacing: 0.04em;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .audio-row .row-more-menu {
+    opacity: 0;
+    transition: opacity var(--app-motion-transition);
+  }
+
+  .audio-row:hover .row-more-menu,
+  .audio-row:focus-within .row-more-menu,
+  .audio-row.selected .row-more-menu {
+    opacity: 1;
+  }
+}
+
+@container audio-list (max-width: 720px) {
+  .audio-row,
+  .density-comfortable .audio-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .audio-row.selection-mode,
+  .density-comfortable .audio-row.selection-mode {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .audio-row .row-status {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    margin-left: 62px;
+  }
+
+  .density-comfortable .audio-row .row-status {
+    margin-left: 74px;
+  }
+
+  .audio-row .row-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .audio-row.selection-mode .row-status {
+    grid-column: 2;
+    margin-left: 62px;
+  }
+
+  .audio-row.selection-mode .audio-row-primary {
+    grid-column: 2;
+  }
+
+  .audio-row.selection-mode .batch-row-checkbox {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .row-play-button.ui-button {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .row-play-button .ui-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .list-column-header {
+    display: none;
+  }
 }
 
 .density-comfortable .list-column-header {

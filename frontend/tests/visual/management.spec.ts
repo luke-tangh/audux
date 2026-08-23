@@ -959,6 +959,7 @@ test.describe("v0.5 management workflows", () => {
       expect(geometry.fitsViewport).toBe(true);
     }
 
+    await page.setViewportSize({ width: 1164, height: 727 });
     const listBoundsBefore = await page.locator(".audio-list-panel").boundingBox();
     await page.getByRole("listitem", { name: "音频：测试音频 1" }).click();
     const inspector = page.locator(".inspector-panel");
@@ -1374,7 +1375,12 @@ test.describe("v0.5 management workflows", () => {
   }) => {
     const state = createMockState();
     await mockManagementApi(page, state);
+    await page.setViewportSize({ width: 1000, height: 800 });
     await openSettings(page);
+    await expect.poll(() => page.locator(".settings-body-layout").evaluate(
+      (element) => getComputedStyle(element).gridTemplateColumns.split(" ").length
+    )).toBe(1);
+    await expect(page.locator(".settings-section-nav")).toHaveCSS("overflow-x", "auto");
     await page.getByRole("button", { name: "LLM", exact: true }).click();
     await page.getByRole("textbox", { name: "模型名称" }).fill("local-model");
     await expect(page.getByText("已自动保存")).toBeVisible();

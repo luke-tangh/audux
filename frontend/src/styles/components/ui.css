@@ -20,7 +20,7 @@
   gap: 8px;
   padding: 0 16px;
   border: 1px solid transparent;
-  border-radius: var(--md-sys-shape-corner-full);
+  border-radius: var(--md-sys-shape-corner-medium);
   font-size: 14px;
   font-weight: 760;
   line-height: 1;

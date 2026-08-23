@@ -31,6 +31,9 @@ export default function App() {
     typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
   );
   const [navigationOpen, setNavigationOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
+    typeof window !== "undefined" && window.localStorage.getItem("audux.sidebar.collapsed") === "true"
+  );
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const {
     enabled: activityCenterEnabled,
@@ -202,6 +205,10 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    window.localStorage.setItem("audux.sidebar.collapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
     if (initialized && roots.length === 0) setOnboardingOpen(true);
   }, [initialized, roots.length]);
 
@@ -289,6 +296,7 @@ export default function App() {
       <div
         className={[
           "main-shell",
+          sidebarCollapsed && !compactNavigation ? "navigation-rail" : "",
           view === "settings" || view === "statistics" || view === "agent" || view === "organization" ? "settings-mode" : "",
           view !== "settings" && !inspectorOpen ? "inspector-closed" : ""
         ]
@@ -307,6 +315,8 @@ export default function App() {
 
         <Sidebar
           compactNavigation={compactNavigation}
+          collapsed={sidebarCollapsed && !compactNavigation}
+          onCollapsedChange={setSidebarCollapsed}
           navigationOpen={navigationOpen}
           onCloseNavigation={() => closeNavigation(true)}
           onBeforeNavigate={prepareWorkspaceNavigation}

@@ -17,6 +17,10 @@
   padding: 12px 12px 8px;
 }
 
+.main-shell.navigation-rail {
+  --app-sidebar-width: 88px;
+}
+
 .main-shell.settings-mode {
   grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
 }
@@ -68,6 +72,7 @@
 
 .top-command-bar,
 .audio-list-panel {
+  border-color: transparent;
   border-radius: var(--md-sys-shape-corner-large);
   box-shadow: none;
 }

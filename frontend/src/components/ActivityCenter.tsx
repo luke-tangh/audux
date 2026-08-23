@@ -18,6 +18,7 @@ const POSITION_STORAGE_KEY = "audux.activity-center.position.v1";
 const TRIGGER_SIZE = 40;
 const VIEWPORT_MARGIN = 12;
 const DEFAULT_TOP = 72;
+const PLAYER_CLEARANCE = 12;
 
 type Position = { x: number; y: number };
 type DragState = {
@@ -30,9 +31,25 @@ type DragState = {
 
 function clampPosition(position: Position): Position {
   if (typeof window === "undefined") return position;
+  const playerTop = document.querySelector<HTMLElement>(".player-dock")
+    ?.getBoundingClientRect().top;
+  const bottomLimit = playerTop && playerTop > 0
+    ? playerTop - TRIGGER_SIZE - PLAYER_CLEARANCE
+    : window.innerHeight - TRIGGER_SIZE - VIEWPORT_MARGIN;
   return {
     x: Math.min(Math.max(position.x, VIEWPORT_MARGIN), Math.max(VIEWPORT_MARGIN, window.innerWidth - TRIGGER_SIZE - VIEWPORT_MARGIN)),
-    y: Math.min(Math.max(position.y, VIEWPORT_MARGIN), Math.max(VIEWPORT_MARGIN, window.innerHeight - TRIGGER_SIZE - VIEWPORT_MARGIN))
+    y: Math.min(Math.max(position.y, VIEWPORT_MARGIN), Math.max(VIEWPORT_MARGIN, bottomLimit))
+  };
+}
+
+function dockPosition(position: Position): Position {
+  const clamped = clampPosition(position);
+  if (typeof window === "undefined") return clamped;
+  return {
+    ...clamped,
+    x: clamped.x + TRIGGER_SIZE / 2 < window.innerWidth / 2
+      ? VIEWPORT_MARGIN
+      : Math.max(VIEWPORT_MARGIN, window.innerWidth - TRIGGER_SIZE - VIEWPORT_MARGIN)
   };
 }
 
@@ -46,7 +63,7 @@ function storedPosition(): Position {
   try {
     const saved = JSON.parse(window.localStorage.getItem(POSITION_STORAGE_KEY) || "null") as Partial<Position> | null;
     if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
-      return clampPosition({ x: saved.x as number, y: saved.y as number });
+      return dockPosition({ x: saved.x as number, y: saved.y as number });
     }
   } catch {
     // A missing or unavailable preference should never hide the global control.
@@ -110,12 +127,25 @@ export default function ActivityCenter({ onActivityChanged, notify }: Props) {
 
   useEffect(() => {
     function keepInViewport() {
-      const next = clampPosition(positionRef.current);
+      const next = dockPosition(positionRef.current);
       positionRef.current = next;
       setPosition(next);
     }
     window.addEventListener("resize", keepInViewport);
     return () => window.removeEventListener("resize", keepInViewport);
+  }, []);
+
+  useEffect(() => {
+    const player = document.querySelector<HTMLElement>(".player-dock");
+    if (!player || typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(() => {
+      const next = dockPosition(positionRef.current);
+      positionRef.current = next;
+      setPosition(next);
+    });
+    observer.observe(player);
+    return () => observer.disconnect();
   }, []);
 
   function startDrag(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -150,9 +180,12 @@ export default function ActivityCenter({ onActivityChanged, notify }: Props) {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     if (drag.moved) {
+      const next = dockPosition(positionRef.current);
+      positionRef.current = next;
+      setPosition(next);
       suppressClickRef.current = true;
       try {
-        window.localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(positionRef.current));
+        window.localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(next));
       } catch {
         // Dragging remains useful even if preferences cannot be persisted.
       }

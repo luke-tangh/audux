@@ -32,9 +32,12 @@ const savedView: SavedView = {
 
 describe("saved views in the sidebar", () => {
   it("keeps only primary shortcuts and orders tags, playlists, then saved views", () => {
+    const onCollapsedChange = vi.fn();
     const { container } = render(
       <LocaleProvider>
         <Sidebar
+          collapsed={false}
+          onCollapsedChange={onCollapsedChange}
           view="library"
           setView={vi.fn()}
           tags={[{ id: 3, name: "工作", source: "user", created_at: "2026-08-10T00:00:00Z" }]}
@@ -85,6 +88,9 @@ describe("saved views in the sidebar", () => {
     const allTags = screen.getByRole("button", { name: /全部标签|All tags/ });
     expect(allTags).toHaveAttribute("aria-pressed", "false");
     expect(allTags).not.toHaveClass("active");
+
+    fireEvent.click(screen.getByRole("button", { name: /收起侧栏|Collapse sidebar/ }));
+    expect(onCollapsedChange).toHaveBeenCalledWith(true);
   });
 
   it("applies and exposes explicit management actions for the active view", () => {

@@ -105,6 +105,14 @@ export async function mockPlayerBar(page: Page) {
       return;
     }
 
+    if (url.pathname === "/settings") {
+      await route.fulfill({
+        json: [{ key: "ui.activity_center.enabled", value: "true" }],
+        headers
+      });
+      return;
+    }
+
     if (url.pathname === "/audio-items/playback-queue/resolve") {
       const requestedIds = (parseBody(request).audio_ids as number[]) || [];
       const items = requestedIds

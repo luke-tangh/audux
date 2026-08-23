@@ -1,6 +1,6 @@
 @media (max-width: 1280px) {
   :root {
-    --app-sidebar-width: 244px;
+    --app-sidebar-width: 232px;
     --app-inspector-width: 388px;
   }
 
@@ -14,10 +14,54 @@
   }
 }
 
+/* Keep the library itself readable before docking the inspector. */
+@media (max-width: 1240px) and (min-width: 861px) {
+  .main-shell:not(.settings-mode) {
+    grid-template-columns: var(--app-sidebar-width) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .main-shell:not(.settings-mode) > .sidebar {
+    grid-row: 1;
+  }
+
+  .main-shell:not(.settings-mode) > .workspace {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .main-shell:not(.settings-mode) > .inspector-panel {
+    display: flex;
+    position: absolute;
+    inset: 8px 8px 8px auto;
+    z-index: 40;
+    width: clamp(360px, 34vw, 420px);
+    min-height: 0;
+    box-shadow: var(--md-sys-elevation-4);
+  }
+
+  .main-shell:not(.settings-mode) > .inspector-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 39;
+    display: block;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 34%, transparent);
+  }
+
+  .main-shell:not(.settings-mode) > .inspector-scrim:hover,
+  .main-shell:not(.settings-mode) > .inspector-scrim:active {
+    transform: none;
+    background: color-mix(in srgb, var(--md-sys-color-scrim) 34%, transparent);
+  }
+}
+
 @media (max-width: 1080px) {
   :root {
     --app-player-height: 102px;
-    --app-sidebar-width: 224px;
+    --app-sidebar-width: 216px;
   }
 
   .main-shell {
@@ -397,17 +441,53 @@
   .player-dock:not(.empty) {
     grid-template-columns: minmax(0, 1fr) minmax(184px, auto);
     grid-template-rows: auto auto;
-    min-height: 148px;
+    gap: 4px 6px;
+    min-height: 118px;
+    padding-block: 4px calc(4px + env(safe-area-inset-bottom));
   }
 
   .player-dock:not(.empty) .player-center {
     grid-column: 1 / -1;
     grid-row: 2;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
   }
 
   .player-dock:not(.empty) .player-options {
     grid-column: 2;
     grid-row: 1;
+  }
+
+  .player-dock:not(.empty) .player-controls {
+    gap: 5px;
+  }
+
+  .player-dock:not(.empty) .player-progress {
+    grid-template-columns: 40px minmax(0, 1fr) 48px;
+  }
+}
+
+@media (max-width: 520px) {
+  .player-dock:not(.empty) {
+    min-height: 136px;
+  }
+
+  .player-dock:not(.empty) .player-center {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+
+  .player-speed-toggle {
+    width: 52px;
+    min-width: 52px;
+    padding-inline: 6px;
+  }
+
+  .queue-control {
+    flex-basis: 64px;
+    width: 64px;
+    min-width: 64px;
   }
 }
 

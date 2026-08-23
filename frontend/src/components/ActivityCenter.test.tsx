@@ -85,10 +85,11 @@ describe("ActivityCenter", () => {
 
     expect(screen.queryByRole("complementary", { name: /任务与活动|tasks and activity/i })).not.toBeInTheDocument();
     expect(JSON.parse(window.localStorage.getItem("audux.activity-center.position.v1") || "null")).toEqual({
-      x: expect.any(Number),
+      x: 12,
       y: 230
     });
     expect(root?.style.top).toBe("230px");
+    expect(root?.style.left).toBe("12px");
 
     fireEvent.click(trigger);
     expect(screen.getByRole("complementary", { name: /任务与活动|tasks and activity/i })).toBeInTheDocument();

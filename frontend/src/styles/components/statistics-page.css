@@ -61,11 +61,21 @@
   margin-bottom: 12px;
 }
 
+.statistics-detail-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 8px;
+}
+
+.statistics-dashboard-grid:not(.show-secondary) .statistics-secondary-card {
+  display: none;
+}
+
 .statistics-kpi,
 .statistics-card {
   min-width: 0;
   background: var(--md-sys-color-surface-container-low);
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: 1px solid transparent;
   border-radius: var(--md-sys-shape-corner-large);
 }
 
@@ -113,6 +123,18 @@
 
 .statistics-card-wide {
   grid-column: 1 / -1;
+}
+
+.statistics-pending-card {
+  order: -3;
+}
+
+.statistics-coverage-card {
+  order: -2;
+}
+
+.statistics-listening-card {
+  order: -1;
 }
 
 .statistics-card-heading {
@@ -257,7 +279,7 @@
   min-width: 42px;
   height: 100%;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .statistics-column-value {

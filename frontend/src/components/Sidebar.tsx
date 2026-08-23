@@ -19,6 +19,8 @@ type ViewMode =
 
 type Props = {
   compactNavigation?: boolean;
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
   navigationOpen?: boolean;
   onCloseNavigation?: () => void;
   onBeforeNavigate?: () => Promise<boolean>;
@@ -156,7 +158,7 @@ export default function Sidebar(props: Props) {
   return (
     <aside
       id="app-navigation"
-      className={`sidebar ${props.navigationOpen ? "navigation-open" : ""}`.trim()}
+      className={`sidebar ${props.navigationOpen ? "navigation-open" : ""} ${props.collapsed ? "navigation-rail" : ""}`.trim()}
       aria-hidden={props.compactNavigation && !props.navigationOpen ? true : undefined}
       inert={props.compactNavigation && !props.navigationOpen ? true : undefined}
     >
@@ -170,6 +172,21 @@ export default function Sidebar(props: Props) {
           <h2>Audux</h2>
           <p>{t("navigation.brandSubtitle")}</p>
         </div>
+
+        {!props.compactNavigation && (
+          <IconButton
+            size="sm"
+            className="sidebar-rail-toggle"
+            label={t(props.collapsed ? "navigation.expandSidebar" : "navigation.collapseSidebar")}
+            onClick={() => props.onCollapsedChange?.(!props.collapsed)}
+          >
+            <MaterialIcon
+              className={props.collapsed ? "" : "sidebar-collapse-icon"}
+              name="chevron_right"
+              size={19}
+            />
+          </IconButton>
+        )}
 
         <IconButton
           size="sm"
