@@ -9,13 +9,13 @@ from sqlmodel import Session, select
 from ..logger import LOG_FILE, get_logger, read_log_file_redacted, read_log_tail
 from ..models import AudioItem, AudioTag, Tag
 from ..search import rebuild_audio_search_index, search_audio_ids
-from .common import (
-    ServiceError,
-    _apply_enabled_roots_filter,
-    _attachment_headers,
-    _audio_rows_with_tags_dicts,
-    _tags_by_audio_id,
+from .audio_query import (
+    apply_enabled_roots_filter,
+    audio_rows_with_tags_dicts,
+    tags_by_audio_id,
 )
+from .download_utils import attachment_headers
+from .errors import ServiceError
 
 
 logger = get_logger(__name__)
@@ -31,14 +31,14 @@ def search_audio(
         return []
 
     stmt = select(AudioItem).where(AudioItem.id.in_(ids))
-    stmt = _apply_enabled_roots_filter(
+    stmt = apply_enabled_roots_filter(
         stmt,
         session,
         include_disabled_roots=include_disabled_roots,
     )
 
     rows = session.exec(stmt).all()
-    row_dicts = _audio_rows_with_tags_dicts(session, rows, search_query=q)
+    row_dicts = audio_rows_with_tags_dicts(session, rows, search_query=q)
     row_by_id = {row["id"]: row for row in row_dicts}
 
     return [row_by_id[i] for i in ids if i in row_by_id]
@@ -49,7 +49,7 @@ def export_metadata_response(
     format: str = "json",
 ):
     items = session.exec(select(AudioItem).order_by(AudioItem.updated_at.desc())).all()
-    tags_by_audio_id = _tags_by_audio_id(
+    tags_by_id = tags_by_audio_id(
         session,
         [int(audio.id) for audio in items if audio.id is not None],
     )
@@ -76,7 +76,7 @@ def export_metadata_response(
         )
 
         for audio in items:
-            tags = tags_by_audio_id.get(int(audio.id), []) if audio.id is not None else []
+            tags = tags_by_id.get(int(audio.id), []) if audio.id is not None else []
 
             writer.writerow(
                 [
@@ -98,7 +98,7 @@ def export_metadata_response(
         return PlainTextResponse(
             buf.getvalue(),
             media_type="text/csv; charset=utf-8",
-            headers=_attachment_headers("audio_library_metadata.csv"),
+            headers=attachment_headers("audio_library_metadata.csv"),
         )
 
     data = [
@@ -106,7 +106,7 @@ def export_metadata_response(
             **audio.model_dump(),
             "tags": [
                 tag.model_dump()
-                for tag in (tags_by_audio_id.get(int(audio.id), []) if audio.id is not None else [])
+                for tag in (tags_by_id.get(int(audio.id), []) if audio.id is not None else [])
             ],
         }
         for audio in items
@@ -115,7 +115,7 @@ def export_metadata_response(
     return Response(
         json.dumps(data, ensure_ascii=False, indent=2),
         media_type="application/json",
-        headers=_attachment_headers("audio_library_metadata.json"),
+        headers=attachment_headers("audio_library_metadata.json"),
     )
 
 
@@ -175,5 +175,5 @@ def get_app_log_file_response():
     return PlainTextResponse(
         read_log_file_redacted(),
         media_type="text/plain; charset=utf-8",
-        headers=_attachment_headers("app.log"),
+        headers=attachment_headers("app.log"),
     )

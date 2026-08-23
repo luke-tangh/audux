@@ -20,7 +20,7 @@ from ..models import (
     TranscriptSegment,
     now_iso,
 )
-from ..scanner import (
+from ..media_probe import (
     HASH_CHUNK_SIZE,
     SAMPLED_HASH_PREFIX,
     SUPPORTED_EXTS,
@@ -29,7 +29,7 @@ from ..scanner import (
 )
 from ..search import rebuild_audio_search_index
 from ..time_utils import utc_timestamp_iso
-from .common import ServiceError
+from .errors import ServiceError
 
 
 logger = get_logger(__name__)

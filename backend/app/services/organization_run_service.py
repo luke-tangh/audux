@@ -23,7 +23,7 @@ from ..models import (
 )
 from ..schemas import AgentScope, OrganizationRunApply, OrganizationRunCreate
 from ..search import rebuild_audio_search_index
-from .common import ServiceError
+from .errors import ServiceError
 from .retrieval_service import resolve_scope, scope_payload
 from .transcript_service import (
     _current_transcript,

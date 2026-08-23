@@ -13,7 +13,6 @@ from ..schemas import (
     SmartPlaylistCreate,
 )
 from ..services import playlist_service
-from .utils import service_call
 
 
 router = APIRouter()
@@ -37,8 +36,7 @@ def create_smart_playlist(
     payload: SmartPlaylistCreate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        playlist_service.create_smart_playlist,
+    return playlist_service.create_smart_playlist(
         session,
         payload.saved_view_id,
         payload.name,
@@ -52,8 +50,7 @@ def update_playlist(
     payload: PlaylistUpdate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        playlist_service.update_playlist,
+    return playlist_service.update_playlist(
         session,
         playlist_id,
         payload.name,
@@ -65,7 +62,7 @@ def delete_playlist(
     playlist_id: int,
     session: Session = Depends(get_session),
 ):
-    return service_call(playlist_service.delete_playlist, session, playlist_id)
+    return playlist_service.delete_playlist(session, playlist_id)
 
 
 @router.get("/playlists/{playlist_id}")
@@ -74,8 +71,7 @@ def get_playlist(
     include_disabled_roots: bool = False,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        playlist_service.get_playlist,
+    return playlist_service.get_playlist(
         session,
         playlist_id,
         include_disabled_roots,
@@ -103,8 +99,7 @@ def list_playlist_audio_items(
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        playlist_service.list_playlist_audio_items,
+    return playlist_service.list_playlist_audio_items(
         session=session,
         playlist_id=playlist_id,
         q=q,
@@ -132,8 +127,7 @@ def add_audio_to_playlist(
     payload: PlaylistItemAdd,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        playlist_service.add_audio_to_playlist,
+    return playlist_service.add_audio_to_playlist(
         session,
         playlist_id,
         payload.audio_id,
@@ -146,8 +140,7 @@ def reorder_playlist_items(
     payload: PlaylistItemsReorder,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        playlist_service.reorder_playlist_items,
+    return playlist_service.reorder_playlist_items(
         session,
         playlist_id,
         payload.item_ids,
@@ -160,8 +153,7 @@ def remove_playlist_item(
     item_id: int,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        playlist_service.remove_playlist_item,
+    return playlist_service.remove_playlist_item(
         session,
         playlist_id,
         item_id,
@@ -175,8 +167,7 @@ def export_playlist(
     include_disabled_roots: bool = False,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        playlist_service.export_playlist_response,
+    return playlist_service.export_playlist_response(
         session,
         playlist_id,
         format,

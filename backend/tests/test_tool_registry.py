@@ -2,7 +2,7 @@ import pytest
 from pydantic import BaseModel
 
 from app.providers import LLMCapabilities
-from app.services.common import ServiceError
+from app.services.errors import ServiceError
 from app.tool_registry import RegisteredTool, ToolContext, ToolRegistry
 
 

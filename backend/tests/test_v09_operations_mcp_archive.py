@@ -24,7 +24,7 @@ from app.models import (
     Tag,
 )
 from app.services import agent_operation_service, archive_service
-from app.services.common import ServiceError
+from app.services.errors import ServiceError
 from app.providers import LLMCapabilities
 from tests.api_test_support import ApiIntegrationTest
 

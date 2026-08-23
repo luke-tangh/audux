@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 
 from ..models import LibraryRoot, SavedView, Tag, now_iso
 from ..schemas import SavedViewQuery
-from .common import ServiceError
+from .errors import ServiceError
 
 
 def _normalize_name(name: str) -> str:

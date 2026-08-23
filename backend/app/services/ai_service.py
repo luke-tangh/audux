@@ -25,8 +25,9 @@ from ..local_security import (
 from ..logger import get_logger
 from ..models import AITask, AudioItem, Setting, now_iso
 from ..schemas import LLMModelDiscoveryConfig
-from ..tasks import get_active_task
-from .common import BUSY_AUDIO_TASK_STATUSES, ServiceError, _is_unique_constraint_error
+from ..task_repository import get_active_task
+from .errors import ServiceError
+from .task_state import BUSY_AUDIO_TASK_STATUSES, is_unique_constraint_error
 from .whisper_component_service import is_whisper_companion_available
 
 
@@ -102,7 +103,7 @@ def enqueue_analyze(session: Session, audio_id: int) -> dict:
     except IntegrityError as e:
         session.rollback()
 
-        if _is_unique_constraint_error(e):
+        if is_unique_constraint_error(e):
             raise ServiceError(
                 409,
                 "Analyze task is already pending, running or canceling",
@@ -278,7 +279,7 @@ def retry_ai_task(session: Session, task_id: int) -> AITask:
     except IntegrityError as e:
         session.rollback()
 
-        if _is_unique_constraint_error(e):
+        if is_unique_constraint_error(e):
             raise ServiceError(409, "Another task is already active") from e
 
         raise

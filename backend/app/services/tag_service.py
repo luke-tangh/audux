@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 from ..logger import get_logger
 from ..models import AudioItem, AudioTag, Tag, now_iso
 from ..search import rebuild_audio_search_index
-from .common import ServiceError
+from .errors import ServiceError
 
 
 logger = get_logger(__name__)

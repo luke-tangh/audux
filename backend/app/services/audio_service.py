@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi.responses import FileResponse
-from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from sqlalchemy import case, func
@@ -18,63 +17,50 @@ from ..local_security import ensure_asr_endpoint_allowed, ensure_llm_endpoint_al
 from ..logger import get_logger
 from ..models import (
     AITask,
-    AgentCitation,
     AudioItem,
     AudioTag,
     LibraryRoot,
-    OrganizationAuditEvent,
-    OrganizationProposal,
-    OrganizationRunTarget,
     PlaybackEvent,
-    PlaylistItem,
     Setting,
     Tag,
     Transcript,
-    TranscriptChapter,
-    TranscriptIssue,
-    TranscriptSegment,
     now_iso,
 )
-from ..scanner import (
+from ..media_probe import (
     SUPPORTED_EXTS,
-    SUPPORTED_HASH_STRATEGIES,
     calculate_file_fingerprint,
     extract_embedded_cover,
+    get_scan_hash_strategy,
     read_audio_metadata,
 )
 from ..search import rebuild_audio_search_index, search_audio_ids_with_meta
-from ..tasks import get_active_task
+from ..task_repository import get_active_task
 from ..time_utils import utc_timestamp_iso
-from .common import (
+from .audio_deletion_service import delete_audio_item
+from .audio_query import (
+    audio_rows_with_tags_dicts,
+    audio_sort_clauses,
+    build_audio_items_stmt,
+    tags_for_audio,
+)
+from .errors import ServiceError
+from .media_paths import (
     AUDIO_MIME_TYPES,
-    BUSY_AUDIO_TASK_STATUSES,
     IMAGE_EXTS,
-    ServiceError,
-    _audio_rows_with_tags_dicts,
-    _audio_sort_clauses,
-    _build_audio_items_stmt,
-    _cover_media_type,
-    _delete_managed_cover_file,
-    _find_library_root_id_for_path,
-    _is_unique_constraint_error,
-    _mark_audio_missing_if_unavailable_no_commit,
-    _parse_task_output_payload,
-    _tags_for_audio,
+    cover_media_type,
+    delete_managed_cover_file,
+    find_library_root_id_for_path,
+    mark_audio_missing_if_unavailable_no_commit,
+)
+from .task_state import (
+    BUSY_AUDIO_TASK_STATUSES,
+    is_unique_constraint_error,
+    parse_task_output_payload,
 )
 from .whisper_component_service import is_whisper_companion_available
 
 
 logger = get_logger(__name__)
-
-
-def _get_file_hash_strategy(session: Session) -> str:
-    row = session.get(Setting, "scanner.hash_strategy")
-    value = (row.value if row else "sampled").strip().lower()
-
-    if value not in SUPPORTED_HASH_STRATEGIES:
-        return "sampled"
-
-    return value
 
 
 def _calculate_audio_item_file_hash(
@@ -85,7 +71,7 @@ def _calculate_audio_item_file_hash(
     try:
         return calculate_file_fingerprint(
             file_path,
-            strategy=_get_file_hash_strategy(session),
+            strategy=get_scan_hash_strategy(session),
             file_size=file_size,
         )
     except Exception as e:
@@ -114,7 +100,7 @@ def list_audio_items(
 ) -> dict:
     search_result = search_audio_ids_with_meta(session, q) if q else None
 
-    base_stmt = _build_audio_items_stmt(
+    base_stmt = build_audio_items_stmt(
         session=session,
         q=q,
         search_ids=search_result.ids if search_result else None,
@@ -152,7 +138,7 @@ def list_audio_items(
         rank_by_id = {audio_id: index for index, audio_id in enumerate(search_result.ids)}
         sort_clauses = (case(rank_by_id, value=AudioItem.id), AudioItem.id.asc())
     else:
-        sort_clauses = _audio_sort_clauses(sort) or (
+        sort_clauses = audio_sort_clauses(sort) or (
             AudioItem.updated_at.desc(),
             AudioItem.id.asc(),
         )
@@ -176,7 +162,7 @@ def list_audio_items(
     ).all()
 
     return {
-        "items": _audio_rows_with_tags_dicts(session, rows, search_query=q),
+        "items": audio_rows_with_tags_dicts(session, rows, search_query=q),
         "total": int(total or 0),
         "limit": limit,
         "offset": offset,
@@ -240,7 +226,7 @@ def resolve_playback_queue(session: Session, audio_ids: list[int]) -> dict:
                 continue
 
         was_missing = item.is_missing
-        if not _mark_audio_missing_if_unavailable_no_commit(session, item):
+        if not mark_audio_missing_if_unavailable_no_commit(session, item):
             skipped.append({"audio_id": audio_id, "reason": "missing"})
             availability_changed = availability_changed or not was_missing
             continue
@@ -254,7 +240,7 @@ def resolve_playback_queue(session: Session, audio_ids: list[int]) -> dict:
             session.refresh(item)
 
     return {
-        "items": _audio_rows_with_tags_dicts(session, resolved),
+        "items": audio_rows_with_tags_dicts(session, resolved),
         "skipped": skipped,
     }
 
@@ -309,7 +295,7 @@ def batch_transcribe(session: Session, audio_ids: list[int]) -> dict:
                     skipped.append(audio_id)
                     continue
 
-                if not _mark_audio_missing_if_unavailable_no_commit(session, audio):
+                if not mark_audio_missing_if_unavailable_no_commit(session, audio):
                     errors.append({"audio_id": audio_id, "error": "Audio file missing"})
                     continue
 
@@ -331,7 +317,7 @@ def batch_transcribe(session: Session, audio_ids: list[int]) -> dict:
                     created_task_ids.append(int(task.id))
 
         except IntegrityError as e:
-            if _is_unique_constraint_error(e):
+            if is_unique_constraint_error(e):
                 skipped.append(audio_id)
                 continue
 
@@ -405,7 +391,7 @@ def batch_analyze(session: Session, audio_ids: list[int]) -> dict:
                     created_task_ids.append(int(task.id))
 
         except IntegrityError as e:
-            if _is_unique_constraint_error(e):
+            if is_unique_constraint_error(e):
                 skipped.append(audio_id)
                 continue
 
@@ -430,7 +416,7 @@ def get_audio_item(session: Session, audio_id: int) -> dict:
     if not item:
         raise ServiceError(404, "Audio item not found")
 
-    tags = _tags_for_audio(session, audio_id)
+    tags = tags_for_audio(session, audio_id)
 
     return {
         "audio": item,
@@ -455,161 +441,6 @@ def update_audio_item(session: Session, audio_id: int, data: dict) -> AudioItem:
     return item
 
 
-def delete_audio_item(
-    session: Session,
-    audio_id: int,
-    delete_file: bool = False,
-) -> dict:
-    item = session.get(AudioItem, audio_id)
-    if not item:
-        raise ServiceError(404, "Audio item not found")
-
-    active_task = session.exec(
-        select(AITask)
-        .where(AITask.audio_id == audio_id)
-        .where(AITask.status.in_(list(BUSY_AUDIO_TASK_STATUSES)))
-    ).first()
-    if active_task:
-        raise ServiceError(
-            409,
-            "Audio cannot be deleted while a task is active",
-            code="audio.task_active_delete",
-        )
-
-    organization_reference = (
-        session.exec(
-            select(OrganizationRunTarget.id).where(
-                OrganizationRunTarget.audio_id == audio_id
-            )
-        ).first()
-        or session.exec(
-            select(OrganizationProposal.id).where(
-                OrganizationProposal.audio_id == audio_id
-            )
-        ).first()
-        or session.exec(
-            select(OrganizationAuditEvent.id).where(
-                OrganizationAuditEvent.audio_id == audio_id
-            )
-        ).first()
-    )
-    if organization_reference is not None:
-        raise ServiceError(
-            409,
-            "Audio is referenced by an organization run",
-            code="organization.audio_referenced",
-        )
-
-    audio_path = Path(item.file_path)
-    if delete_file:
-        if _find_library_root_id_for_path(session, audio_path) is None:
-            raise ServiceError(
-                400,
-                "Audio file path must be within a configured library root",
-            )
-
-    cover_path = item.cover_path
-
-    for link in session.exec(select(AudioTag).where(AudioTag.audio_id == audio_id)).all():
-        session.delete(link)
-
-    for pi in session.exec(select(PlaylistItem).where(PlaylistItem.audio_id == audio_id)).all():
-        session.delete(pi)
-
-    for task in session.exec(select(AITask).where(AITask.audio_id == audio_id)).all():
-        session.delete(task)
-
-    for event in session.exec(
-        select(PlaybackEvent).where(PlaybackEvent.audio_id == audio_id)
-    ).all():
-        session.delete(event)
-
-    for citation in session.exec(
-        select(AgentCitation).where(AgentCitation.audio_id == audio_id)
-    ).all():
-        session.delete(citation)
-
-    transcripts = session.exec(
-        select(Transcript).where(Transcript.audio_id == audio_id)
-    ).all()
-    transcript_ids = [int(row.id) for row in transcripts if row.id is not None]
-
-    if transcript_ids:
-        for issue in session.exec(
-            select(TranscriptIssue).where(
-                TranscriptIssue.transcript_id.in_(transcript_ids)
-            )
-        ).all():
-            session.delete(issue)
-        for chapter in session.exec(
-            select(TranscriptChapter).where(
-                TranscriptChapter.transcript_id.in_(transcript_ids)
-            )
-        ).all():
-            session.delete(chapter)
-        for segment in session.exec(
-            select(TranscriptSegment).where(
-                TranscriptSegment.transcript_id.in_(transcript_ids)
-            )
-        ).all():
-            session.delete(segment)
-
-        session.flush()
-        for transcript in transcripts:
-            transcript.parent_revision_id = None
-            session.add(transcript)
-        session.flush()
-        for transcript in transcripts:
-            session.delete(transcript)
-
-    session.execute(
-        text("DELETE FROM search_index WHERE audio_id = :audio_id"),
-        {"audio_id": audio_id},
-    )
-    session.execute(
-        text("DELETE FROM segment_search_index WHERE audio_id = :audio_id"),
-        {"audio_id": audio_id},
-    )
-
-    # These models do not declare ORM relationships, so SQLAlchemy cannot infer
-    # the child-before-parent delete order from an in-memory relationship graph.
-    try:
-        session.flush()
-        session.delete(item)
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-
-    # Filesystem changes cannot participate in the SQLite transaction. Perform
-    # them only after the database deletion succeeds so a failed commit never
-    # destroys user data while leaving the database entry behind.
-    if cover_path:
-        _delete_managed_cover_file(cover_path)
-
-    file_deleted = False
-    file_delete_error = None
-    if delete_file and audio_path.exists():
-        try:
-            audio_path.unlink()
-            file_deleted = True
-        except OSError as error:
-            file_delete_error = "audio.delete_file_failed"
-            logger.warning(
-                "Audio entry deleted but source file cleanup failed id=%s path=%s",
-                audio_id,
-                audio_path,
-                exc_info=error,
-            )
-
-    logger.info("Audio item deleted id=%s delete_file=%s", audio_id, delete_file)
-    return {
-        "ok": True,
-        "file_deleted": file_deleted,
-        "cleanup_error": file_delete_error,
-    }
-
-
 def relocate_audio_item(
     session: Session,
     audio_id: int,
@@ -627,7 +458,7 @@ def relocate_audio_item(
     if new_path.suffix.lower() not in SUPPORTED_EXTS:
         raise ServiceError(400, "Unsupported audio format")
 
-    library_root_id = _find_library_root_id_for_path(session, new_path)
+    library_root_id = find_library_root_id_for_path(session, new_path)
     if library_root_id is None:
         raise ServiceError(
             400,
@@ -662,7 +493,7 @@ def relocate_audio_item(
 
     if item.cover_source != "user":
         if item.cover_source == "embedded":
-            _delete_managed_cover_file(item.cover_path)
+            delete_managed_cover_file(item.cover_path)
         item.cover_path = None
         item.cover_source = None
         cover = extract_embedded_cover(new_path, item.id)
@@ -797,7 +628,7 @@ def get_audio_cover_response(session: Session, audio_id: int) -> FileResponse:
     if not path.exists():
         raise ServiceError(404, "Cover file missing")
 
-    return FileResponse(str(path), media_type=_cover_media_type(path))
+    return FileResponse(str(path), media_type=cover_media_type(path))
 
 
 def upload_audio_cover_data(
@@ -858,7 +689,7 @@ def delete_audio_cover(session: Session, audio_id: int) -> AudioItem:
         raise ServiceError(404, "Audio item not found")
 
     if item.cover_path:
-        _delete_managed_cover_file(item.cover_path)
+        delete_managed_cover_file(item.cover_path)
 
     item.cover_path = None
     item.cover_source = None
@@ -887,7 +718,7 @@ def get_audio_ai_suggestions(session: Session, audio_id: int) -> dict:
     ).all()
 
     for task in tasks:
-        payload = _parse_task_output_payload(task.output_payload)
+        payload = parse_task_output_payload(task.output_payload)
 
         tags = payload.get("tags", [])
         if not isinstance(tags, list):

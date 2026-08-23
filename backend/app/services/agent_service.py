@@ -21,7 +21,7 @@ from ..models import (
     now_iso,
 )
 from ..schemas import AgentConversationCreate, AgentConversationUpdate, AgentRunCreate, AgentScope
-from .common import ServiceError
+from .errors import ServiceError
 from .retrieval_service import resolve_scope, scope_payload
 from . import agent_operation_service
 

@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from .providers import LLMCapabilities
 from .models import AudioItem, AudioTag, Playlist, PlaylistItem, Tag, Transcript
 from .schemas import AgentScope, AudioUpdate, SavedViewQuery
-from .services.common import ServiceError
+from .services.errors import ServiceError
 from .services.retrieval_service import search_segments
 from .services.retrieval_service import resolve_scope
 from .services.transcript_service import get_transcript

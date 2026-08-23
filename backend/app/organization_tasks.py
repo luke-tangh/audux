@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 
-from sqlalchemy import text
 from sqlmodel import Session, select
 
 from . import db
@@ -15,14 +14,13 @@ from .models import (
     AudioItem,
     OrganizationRun,
     OrganizationRunTarget,
-    Setting,
     Tag,
     Transcript,
     TranscriptIssue,
     TranscriptSegment,
     now_iso,
 )
-from .services.common import ServiceError, error_code_for_detail
+from .services.errors import ServiceError, error_code_for_detail
 from .services.organization_run_service import (
     _load_json,
     _refresh_counts,
@@ -31,6 +29,8 @@ from .services.organization_run_service import (
 )
 from .services.transcript_service import enqueue_transcribe
 from .services.transcript_validation_service import reconcile_validation_issues
+from .settings_reader import get_setting as _setting
+from .task_runtime import claim_next_pending
 
 
 logger = get_logger(__name__)
@@ -38,34 +38,13 @@ _worker_started = False
 
 
 def claim_next_pending_run(session: Session) -> OrganizationRun | None:
-    run_id = session.exec(
-        select(OrganizationRun.id)
-        .where(OrganizationRun.status == "pending")
-        .order_by(OrganizationRun.created_at)
-    ).first()
-    if run_id is None:
-        return None
-    timestamp = now_iso()
-    result = session.execute(
-        text(
-            "UPDATE organization_runs SET status='running', started_at=COALESCE(started_at, :timestamp), "
-            "updated_at=:timestamp WHERE id=:run_id AND status='pending'"
-        ),
-        {"run_id": run_id, "timestamp": timestamp},
-    )
-    session.commit()
-    return session.get(OrganizationRun, run_id) if result.rowcount == 1 else None
+    return claim_next_pending(session, OrganizationRun, preserve_started_at=True)
 
 
 def _is_canceled(run_id: int) -> bool:
     with Session(db.engine) as session:
         row = session.get(OrganizationRun, run_id)
         return row is None or row.status == "cancel_requested"
-
-
-def _setting(session: Session, key: str, default: str = "") -> str:
-    row = session.get(Setting, key)
-    return row.value if row else default
 
 
 def _finish(run_id: int, status: str, error: Exception | None = None) -> None:

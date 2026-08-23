@@ -4,17 +4,22 @@ import asyncio
 import json
 import re
 
-from sqlalchemy import text
 from sqlmodel import Session, select
 
 from . import db
 from .ai_client import call_openai_compatible_chat, get_ai_message_content, probe_openai_compatible_capabilities
 from .local_security import ensure_llm_endpoint_allowed
 from .logger import get_logger
-from .models import AgentCitation, AgentConversation, AgentMessage, AgentRun, AgentRunStep, AgentToolCall, Setting, now_iso
+from .models import AgentCitation, AgentConversation, AgentMessage, AgentRun, AgentRunStep, AgentToolCall, now_iso
 from .providers import LLMCapabilities
-from .services.common import ServiceError, error_code_for_detail
+from .services.errors import ServiceError, error_code_for_detail
 from .services.agent_operation_service import create_plan_from_proposals
+from .settings_reader import (
+    get_setting as _setting,
+    get_setting_float as _setting_float,
+    get_setting_int as _setting_int,
+)
+from .task_runtime import claim_next_pending
 from .tool_registry import DEFAULT_TOOL_REGISTRY, ToolContext
 
 
@@ -22,36 +27,8 @@ logger = get_logger(__name__)
 _agent_worker_started = False
 
 
-def _setting(session: Session, key: str, default: str = "") -> str:
-    row = session.get(Setting, key)
-    return row.value if row else default
-
-
-def _setting_int(session: Session, key: str, default: int) -> int:
-    try:
-        return int(_setting(session, key, str(default)))
-    except ValueError:
-        return default
-
-
-def _setting_float(session: Session, key: str, default: float) -> float:
-    try:
-        return float(_setting(session, key, str(default)))
-    except ValueError:
-        return default
-
-
 def claim_next_pending_agent_run(session: Session) -> AgentRun | None:
-    run_id = session.exec(select(AgentRun.id).where(AgentRun.status == "pending").order_by(AgentRun.created_at)).first()
-    if run_id is None:
-        return None
-    timestamp = now_iso()
-    result = session.execute(
-        text("UPDATE agent_runs SET status='running', started_at=:timestamp, updated_at=:timestamp WHERE id=:run_id AND status='pending'"),
-        {"run_id": run_id, "timestamp": timestamp},
-    )
-    session.commit()
-    return session.get(AgentRun, run_id) if result.rowcount == 1 else None
+    return claim_next_pending(session, AgentRun)
 
 
 def _run_canceled(run_id: int) -> bool:

@@ -28,7 +28,7 @@ from ..db import COMPONENTS_DIR, MODELS_DIR
 from ..models import AITask
 from ..time_utils import utc_now_iso
 from ..version import APP_VERSION
-from .common import ServiceError
+from .errors import ServiceError
 
 
 WHISPER_COMPONENT_ENV = "AUDUX_WHISPER_COMPANION"

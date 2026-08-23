@@ -1,44 +1,20 @@
-import json
-import mimetypes
-import re
-from pathlib import Path
 from typing import Optional
-from urllib.parse import quote
 
 from sqlalchemy import and_, func, or_
 from sqlmodel import Session, select
 
-from ..db import COVERS_DIR
 from ..models import (
     AudioItem,
     AudioTag,
     LibraryRoot,
-    ScanTask,
     Tag,
     Transcript,
     TranscriptSegment,
-    now_iso,
 )
 from ..search import rebuild_audio_search_index, search_audio_ids
 
 
-AUDIO_MIME_TYPES = {
-    ".mp3": "audio/mpeg",
-    ".m4a": "audio/mp4",
-    ".flac": "audio/flac",
-    ".wav": "audio/wav",
-    ".ogg": "audio/ogg",
-}
-
-IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
-
-BUSY_AUDIO_TASK_STATUSES = {"pending", "running", "cancel_requested"}
-ACTIVE_SCAN_TASK_STATUSES = {"pending", "running", "cancel_requested"}
-
-SAFE_DOWNLOAD_NAME_PATTERN = re.compile(r'[\r\n\\/"<>|:*?]+')
-
-
-def _audio_sort_clauses(sort: str):
+def audio_sort_clauses(sort: str):
     """Return deterministic ordering clauses shared by library and playlist pages."""
     title = func.lower(
         func.coalesce(
@@ -76,104 +52,7 @@ def _audio_sort_clauses(sort: str):
     return (*clauses, AudioItem.id.asc())
 
 
-ERROR_CODE_BY_DETAIL = {
-    "Audio not found": "audio.not_found",
-    "Audio item not found": "audio.not_found",
-    "Audio file missing": "audio.file_missing",
-    "Audio file path must be within a configured library root": "audio.outside_library",
-    "Invalid audio file path": "audio.invalid_path",
-    "Unsupported audio format": "audio.unsupported_format",
-    "Another audio item already uses this file path": "audio.path_in_use",
-    "Cover not found": "cover.not_found",
-    "Cover file missing": "cover.file_missing",
-    "Unsupported image format": "cover.unsupported_format",
-    "Empty cover file": "cover.empty",
-    "Cover file is too large": "cover.too_large",
-    "Transcript not found": "transcript.not_found",
-    "Transcribe task is already pending, running or canceling": "transcript.task_active",
-    "Transcript cannot be edited while transcription is active": "transcript.edit_active",
-    "Transcript has changed since it was loaded; reload before saving": "transcript.conflict",
-    "Transcript text is required": "transcript.text_required",
-    "Transcript has no timeline segments to edit": "transcript.no_segments",
-    "Transcript segment IDs must be unique": "transcript.duplicate_segments",
-    "Transcript segment text is required": "transcript.segment_text_required",
-    "Failed to create transcript": "transcript.create_failed",
-    "Playlist name is required": "playlist.name_required",
-    "Playlist not found": "playlist.not_found",
-    "Playlist item not found": "playlist.item_not_found",
-    "Duplicate playlist item ids": "playlist.duplicate_items",
-    "item_ids must exactly match current playlist items": "playlist.items_mismatch",
-    "Smart playlist membership is rule-driven": "playlist.rule_driven",
-    "Smart playlist definition is invalid": "playlist.definition_invalid",
-    "Tag not found": "tag.not_found",
-    "Tag name is required": "tag.name_required",
-    "Tag name already exists": "tag.name_exists",
-    "Tag is still used by audio items": "tag.in_use",
-    "Source and target tags must be different": "tag.same_source_target",
-    "Source tag not found": "tag.source_not_found",
-    "Target tag not found": "tag.target_not_found",
-    "Audio tag relation not found": "tag.relation_not_found",
-    "At least one tag name is required": "tag.at_least_one",
-    "Invalid directory": "library.invalid_directory",
-    "Library root already exists": "library.root_exists",
-    "Library root not found": "library.root_not_found",
-    "Cancel or finish the active scan task before removing this library root": "library.scan_active_remove",
-    "Scan task is already pending or running for this library root": "library.scan_active",
-    "Scan task not found": "library.scan_not_found",
-    "Scan task cannot be canceled": "library.scan_cannot_cancel",
-    "Analyze task is already pending, running or canceling": "ai.task_active",
-    "LLM endpoint or model_name is not configured": "ai.not_configured",
-    "endpoint and model_name are required": "ai.endpoint_model_required",
-    "Task not found": "task.not_found",
-    "Only failed/canceled task can be retried": "task.cannot_retry",
-    "Another task is already active": "task.active",
-    "Task cannot be canceled": "task.cannot_cancel",
-    "Whisper component is not installed. Install it from Settings > ASR.": "asr.component_missing",
-    "Whisper component installation is already running": "asr.install_active",
-    "Whisper component installation is not running": "asr.install_inactive",
-    "Cancel the Whisper component installation first": "asr.cancel_install_first",
-    "Whisper component is in use by an active task": "asr.component_in_use",
-    "Log file not found": "logs.not_found",
-    "is_favorite is required": "batch.favorite_required",
-    "Unsupported batch organization action": "batch.unsupported_action",
-}
-
-
-def error_code_for_detail(detail: str) -> str:
-    if detail.startswith("Transcript segment ") and detail.endswith(" not found"):
-        return "transcript.segment_not_found"
-    if detail.startswith("Failed to delete file:"):
-        return "audio.delete_file_failed"
-    if detail.startswith("Tags not found:"):
-        return "tag.not_found"
-    if detail.startswith("Unsupported Whisper component platform:"):
-        return "asr.unsupported_platform"
-    return ERROR_CODE_BY_DETAIL.get(detail, "common.request_failed")
-
-
-class ServiceError(Exception):
-    def __init__(
-        self,
-        status_code: int,
-        detail: str,
-        code: str | None = None,
-        params: dict | None = None,
-    ):
-        super().__init__(detail)
-        self.status_code = status_code
-        self.detail = detail
-        self.code = code or error_code_for_detail(detail)
-        self.params = params or {}
-
-    def structured_detail(self) -> dict:
-        return {
-            "code": self.code,
-            "params": self.params,
-            "fallback": self.detail,
-        }
-
-
-def _apply_enabled_roots_filter(
+def apply_enabled_roots_filter(
     stmt,
     session: Session,
     include_disabled_roots: bool = False,
@@ -196,151 +75,7 @@ def _apply_enabled_roots_filter(
     )
 
 
-def _find_library_root_id_for_path(session: Session, file_path: Path) -> Optional[int]:
-    resolved_file = file_path.expanduser().resolve()
-    roots = session.exec(select(LibraryRoot)).all()
-
-    best_root_id: Optional[int] = None
-    best_len = -1
-
-    for root in roots:
-        if root.id is None:
-            continue
-
-        try:
-            root_path = Path(root.path).expanduser().resolve()
-            resolved_file.relative_to(root_path)
-
-            root_len = len(str(root_path))
-            if root_len > best_len:
-                best_root_id = root.id
-                best_len = root_len
-        except Exception:
-            continue
-
-    return best_root_id
-
-
-def _mark_audio_missing_if_unavailable(session: Session, audio: AudioItem) -> bool:
-    path = Path(audio.file_path)
-
-    if path.exists() and path.is_file():
-        if audio.is_missing:
-            audio.is_missing = False
-            audio.updated_at = now_iso()
-            session.add(audio)
-            session.commit()
-            session.refresh(audio)
-
-        return True
-
-    if not audio.is_missing:
-        audio.is_missing = True
-        audio.updated_at = now_iso()
-        session.add(audio)
-        session.commit()
-        session.refresh(audio)
-
-    return False
-
-
-def _mark_audio_missing_if_unavailable_no_commit(
-    session: Session,
-    audio: AudioItem,
-) -> bool:
-    path = Path(audio.file_path)
-
-    if path.exists() and path.is_file():
-        if audio.is_missing:
-            audio.is_missing = False
-            audio.updated_at = now_iso()
-            session.add(audio)
-
-        return True
-
-    if not audio.is_missing:
-        audio.is_missing = True
-        audio.updated_at = now_iso()
-        session.add(audio)
-
-    return False
-
-
-def _parse_task_output_payload(value: Optional[str]) -> dict:
-    if not value:
-        return {}
-
-    try:
-        parsed = json.loads(value)
-        if isinstance(parsed, dict):
-            return parsed
-    except Exception:
-        pass
-
-    return {}
-
-
-def _is_unique_constraint_error(error) -> bool:
-    message = str(getattr(error, "orig", error)).lower()
-    return (
-        "unique constraint failed" in message
-        or "ux_ai_tasks_active" in message
-        or "ux_scan_tasks_active_root" in message
-    )
-
-
-def _get_active_scan_task(
-    session: Session,
-    root_id: int,
-) -> Optional[ScanTask]:
-    return session.exec(
-        select(ScanTask)
-        .where(ScanTask.root_id == root_id)
-        .where(ScanTask.status.in_(list(ACTIVE_SCAN_TASK_STATUSES)))
-        .order_by(ScanTask.created_at)
-    ).first()
-
-
-def _safe_download_name(name: str) -> str:
-    safe = SAFE_DOWNLOAD_NAME_PATTERN.sub("_", name).strip()
-    return (safe or "download")[:180]
-
-
-def _attachment_headers(filename: str) -> dict:
-    filename = _safe_download_name(filename)
-    return {
-        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
-    }
-
-
-def _srt_time(seconds: float) -> str:
-    total_ms = max(0, int(round(seconds * 1000)))
-    ms = total_ms % 1000
-    total = total_ms // 1000
-    s = total % 60
-    m = (total // 60) % 60
-    h = total // 3600
-    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-
-def _cover_media_type(path: Path) -> str:
-    guessed = mimetypes.guess_type(str(path))[0]
-    return guessed or "image/jpeg"
-
-
-def _delete_managed_cover_file(path_value: Optional[str]):
-    if not path_value:
-        return
-
-    try:
-        cover_path = Path(path_value)
-        if cover_path.exists() and cover_path.parent.resolve() == COVERS_DIR.resolve():
-            cover_path.unlink()
-    except Exception:
-        pass
-
-
-def _tags_for_audio(session: Session, audio_id: int) -> list[Tag]:
+def tags_for_audio(session: Session, audio_id: int) -> list[Tag]:
     return session.exec(
         select(Tag)
         .join(AudioTag, AudioTag.tag_id == Tag.id)
@@ -349,7 +84,7 @@ def _tags_for_audio(session: Session, audio_id: int) -> list[Tag]:
     ).all()
 
 
-def _tags_by_audio_id(session: Session, audio_ids: list[int]) -> dict[int, list[Tag]]:
+def tags_by_audio_id(session: Session, audio_ids: list[int]) -> dict[int, list[Tag]]:
     if not audio_ids:
         return {}
 
@@ -643,7 +378,7 @@ def _search_hits_for_audio(
         tokens,
     )
 
-    tag_rows = tags if tags is not None else _tags_for_audio(session, audio.id)
+    tag_rows = tags if tags is not None else tags_for_audio(session, audio.id)
     tag_text = " ".join(tag.name for tag in tag_rows)
     _add_search_hit(hits, "tags", "标签", tag_text, tokens)
 
@@ -714,7 +449,7 @@ def _search_hits_for_audio(
     return hits[:6]
 
 
-def _audio_with_tags_dict(
+def audio_with_tags_dict(
     session: Session,
     audio: AudioItem,
     search_query: Optional[str] = None,
@@ -726,7 +461,7 @@ def _audio_with_tags_dict(
             "search_hits": [],
         }
 
-    tags = _tags_for_audio(session, audio.id)
+    tags = tags_for_audio(session, audio.id)
 
     return {
         **audio.model_dump(),
@@ -737,13 +472,13 @@ def _audio_with_tags_dict(
     }
 
 
-def _audio_rows_with_tags_dicts(
+def audio_rows_with_tags_dicts(
     session: Session,
     rows: list[AudioItem],
     search_query: Optional[str] = None,
 ) -> list[dict]:
     audio_ids = [int(audio.id) for audio in rows if audio.id is not None]
-    tags_by_id = _tags_by_audio_id(session, audio_ids)
+    tags_by_id = tags_by_audio_id(session, audio_ids)
 
     transcript_by_audio_id: dict[int, Transcript] = {}
     segments_by_transcript_id: dict[int, list[TranscriptSegment]] = {}
@@ -786,7 +521,7 @@ def _audio_rows_with_tags_dicts(
     return result
 
 
-def _build_audio_items_stmt(
+def build_audio_items_stmt(
     session: Session,
     q: Optional[str] = None,
     search_ids: Optional[list[int]] = None,
@@ -805,7 +540,7 @@ def _build_audio_items_stmt(
 ):
     stmt = select(AudioItem)
 
-    stmt = _apply_enabled_roots_filter(
+    stmt = apply_enabled_roots_filter(
         stmt,
         session,
         include_disabled_roots=include_disabled_roots,

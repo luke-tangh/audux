@@ -14,7 +14,7 @@ from app.models import (
     Transcript,
     TranscriptSegment,
 )
-from app.services import audio_service, common
+from app.services import audio_service, media_paths
 
 
 class TestMediaPlaylistExportApi(ApiIntegrationTest):
@@ -32,7 +32,7 @@ class TestMediaPlaylistExportApi(ApiIntegrationTest):
         )
         self.cover_dir = self.root_path / "covers"
         monkeypatch.setattr(audio_service, "COVERS_DIR", self.cover_dir)
-        monkeypatch.setattr(common, "COVERS_DIR", self.cover_dir)
+        monkeypatch.setattr(media_paths, "COVERS_DIR", self.cover_dir)
 
     def test_playback_file_and_missing_state_lifecycle(self):
         headers = self.auth_headers(include_client=True)

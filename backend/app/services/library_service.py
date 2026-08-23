@@ -7,7 +7,8 @@ from sqlmodel import Session, select
 from ..logger import get_logger
 from ..models import AudioItem, LibraryRoot, ScanTask, now_iso
 from ..scanner import scan_library_root
-from .common import ServiceError, _get_active_scan_task, _is_unique_constraint_error
+from .errors import ServiceError
+from .task_state import get_active_scan_task, is_unique_constraint_error
 
 
 logger = get_logger(__name__)
@@ -62,7 +63,7 @@ def delete_library_root(session: Session, root_id: int) -> dict:
     if not root:
         raise ServiceError(404, "Library root not found")
 
-    active_task = _get_active_scan_task(session, root_id)
+    active_task = get_active_scan_task(session, root_id)
     if active_task:
         raise ServiceError(
             409,
@@ -106,7 +107,7 @@ def create_scan_task(session: Session, root_id: int) -> ScanTask:
     if not root:
         raise ServiceError(404, "Library root not found")
 
-    active_task = _get_active_scan_task(session, root_id)
+    active_task = get_active_scan_task(session, root_id)
     if active_task:
         raise ServiceError(
             409,
@@ -122,7 +123,7 @@ def create_scan_task(session: Session, root_id: int) -> ScanTask:
     except IntegrityError as e:
         session.rollback()
 
-        if _is_unique_constraint_error(e):
+        if is_unique_constraint_error(e):
             raise ServiceError(
                 409,
                 "Scan task is already pending or running for this library root",
@@ -139,7 +140,7 @@ def scan_root_sync(session: Session, root_id: int) -> dict:
     if not root:
         raise ServiceError(404, "Library root not found")
 
-    active_task = _get_active_scan_task(session, root_id)
+    active_task = get_active_scan_task(session, root_id)
     if active_task:
         raise ServiceError(
             409,

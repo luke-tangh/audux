@@ -6,7 +6,6 @@ from sqlmodel import Session
 from ..db import get_session
 from ..schemas import SettingUpdate, SettingsSectionUpdate
 from ..services import settings_service
-from .utils import service_call
 
 
 router = APIRouter()
@@ -28,8 +27,7 @@ def update_settings_section(
     payload: SettingsSectionUpdate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        settings_service.update_settings_section,
+    return settings_service.update_settings_section(
         session,
         section,
         payload.values,

@@ -17,7 +17,8 @@ from ..models import (
 )
 from ..schemas import AgentScope
 from ..search import _build_safe_fts5_query, _escape_like_query
-from .common import ServiceError, _build_audio_items_stmt
+from .audio_query import build_audio_items_stmt
+from .errors import ServiceError
 from .saved_view_service import audio_query_kwargs, decode_saved_view_query
 
 
@@ -49,7 +50,7 @@ def _ids_from_stmt(session: Session, stmt) -> frozenset[int]:
 def _query_scope_ids(session: Session, query) -> frozenset[int]:
     kwargs = audio_query_kwargs(session, query)
     kwargs.pop("sort", None)
-    stmt = _build_audio_items_stmt(session=session, **kwargs)
+    stmt = build_audio_items_stmt(session=session, **kwargs)
     return _ids_from_stmt(session, stmt)
 
 
@@ -57,7 +58,7 @@ def resolve_scope(session: Session, scope: AgentScope) -> ResolvedScope:
     if scope.kind == "library":
         return ResolvedScope(
             scope=scope,
-            audio_ids=_ids_from_stmt(session, _build_audio_items_stmt(session=session)),
+            audio_ids=_ids_from_stmt(session, build_audio_items_stmt(session=session)),
             label="整个资料库",
         )
 
@@ -80,7 +81,7 @@ def resolve_scope(session: Session, scope: AgentScope) -> ResolvedScope:
             raise ServiceError(404, "Tag not found", "agent.scope_not_found")
         ids = _ids_from_stmt(
             session,
-            _build_audio_items_stmt(session=session, tag_ids=[int(tag.id)]),
+            build_audio_items_stmt(session=session, tag_ids=[int(tag.id)]),
         )
         return ResolvedScope(scope, ids, f"标签：{tag.name}")
 
@@ -90,7 +91,7 @@ def resolve_scope(session: Session, scope: AgentScope) -> ResolvedScope:
             raise ServiceError(404, "Library root not found", "agent.scope_not_found")
         ids = _ids_from_stmt(
             session,
-            _build_audio_items_stmt(session=session, library_root_id=int(root.id)),
+            build_audio_items_stmt(session=session, library_root_id=int(root.id)),
         )
         return ResolvedScope(scope, ids, f"目录：{root.path}")
 
@@ -113,7 +114,7 @@ def resolve_scope(session: Session, scope: AgentScope) -> ResolvedScope:
                 raise ServiceError(409, "Playlist definition is invalid", "agent.scope_invalid", {"reason": error or "invalid definition"})
             ids = _query_scope_ids(session, query)
         else:
-            stmt = _build_audio_items_stmt(session=session)
+            stmt = build_audio_items_stmt(session=session)
             if stmt is None:
                 ids = frozenset()
             else:

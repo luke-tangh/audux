@@ -10,7 +10,6 @@ from ..schemas import (
     SafeRelinkPreviewRequest,
 )
 from ..services import health_service
-from .utils import service_call
 
 
 router = APIRouter()
@@ -52,7 +51,7 @@ def list_library_health_tasks(
 def create_library_health_check(
     session: Session = Depends(get_session),
 ):
-    task = service_call(health_service.create_health_task, session)
+    task = health_service.create_health_task(session)
     return _schedule_task(session, task)
 
 
@@ -61,8 +60,7 @@ def confirm_duplicate_hashes(
     payload: DuplicateHashConfirmRequest,
     session: Session = Depends(get_session),
 ):
-    task = service_call(
-        health_service.create_health_task,
+    task = health_service.create_health_task(
         session,
         "duplicate_hash",
         payload.audio_ids,
@@ -75,7 +73,7 @@ def cancel_library_health_task(
     task_id: int,
     session: Session = Depends(get_session),
 ):
-    return service_call(health_service.cancel_health_task, session, task_id)
+    return health_service.cancel_health_task(session, task_id)
 
 
 @router.post("/library-health/tasks/{task_id}/retry")
@@ -83,7 +81,7 @@ def retry_library_health_task(
     task_id: int,
     session: Session = Depends(get_session),
 ):
-    task = service_call(health_service.retry_health_task, session, task_id)
+    task = health_service.retry_health_task(session, task_id)
     return _schedule_task(session, task)
 
 
@@ -93,8 +91,7 @@ def find_relink_candidates(
     limit: int = Query(default=20, ge=1, le=50),
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        health_service.find_relink_candidates,
+    return health_service.find_relink_candidates(
         session,
         audio_id,
         limit,
@@ -107,8 +104,7 @@ def preview_safe_relink(
     payload: SafeRelinkPreviewRequest,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        health_service.preview_safe_relink,
+    return health_service.preview_safe_relink(
         session,
         audio_id,
         payload.candidate_path,
@@ -121,8 +117,7 @@ def commit_safe_relink(
     payload: SafeRelinkCommitRequest,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        health_service.commit_safe_relink,
+    return health_service.commit_safe_relink(
         session,
         audio_id,
         payload.candidate_path,

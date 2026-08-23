@@ -26,16 +26,14 @@ from ..models import (
     now_iso,
 )
 from ..search import rebuild_audio_search_index
-from ..tasks import get_active_task
-from .common import (
-    BUSY_AUDIO_TASK_STATUSES,
-    ServiceError,
-    _attachment_headers,
-    _find_library_root_id_for_path,
-    _is_unique_constraint_error,
-    _mark_audio_missing_if_unavailable,
-    _srt_time,
+from ..task_repository import get_active_task
+from .download_utils import attachment_headers, srt_time
+from .errors import ServiceError
+from .media_paths import (
+    find_library_root_id_for_path,
+    mark_audio_missing_if_unavailable,
 )
+from .task_state import BUSY_AUDIO_TASK_STATUSES, is_unique_constraint_error
 from .transcript_validation_service import reconcile_validation_issues, store_validation_issues
 from .whisper_component_service import is_whisper_companion_available
 
@@ -161,9 +159,9 @@ def enqueue_transcribe(session: Session, audio_id: int):
         session, audio_id, "transcribe"
     ):
         raise ServiceError(409, "Transcribe task is already pending, running or canceling")
-    if not _mark_audio_missing_if_unavailable(session, audio):
+    if not mark_audio_missing_if_unavailable(session, audio):
         raise ServiceError(400, "Audio file missing")
-    if _find_library_root_id_for_path(session, Path(audio.file_path)) is None:
+    if find_library_root_id_for_path(session, Path(audio.file_path)) is None:
         raise ServiceError(400, "Audio file path must be within a configured library root")
 
     try:
@@ -199,7 +197,7 @@ def enqueue_transcribe(session: Session, audio_id: int):
         session.commit()
     except IntegrityError as error:
         session.rollback()
-        if _is_unique_constraint_error(error):
+        if is_unique_constraint_error(error):
             raise ServiceError(
                 409,
                 "Transcribe task is already pending, running or canceling",
@@ -257,23 +255,23 @@ def export_transcript_response(
         return Response(
             json.dumps(data, ensure_ascii=False, indent=2, default=str),
             media_type="application/json",
-            headers=_attachment_headers(f"{base_name}.transcript.json"),
+            headers=attachment_headers(f"{base_name}.transcript.json"),
         )
     if format == "srt":
         blocks = [
-            f"{index}\n{_srt_time(segment.start_seconds)} --> "
-            f"{_srt_time(segment.end_seconds)}\n{segment.text}\n"
+            f"{index}\n{srt_time(segment.start_seconds)} --> "
+            f"{srt_time(segment.end_seconds)}\n{segment.text}\n"
             for index, segment in enumerate(segments, start=1)
         ]
         return PlainTextResponse(
             "\n".join(blocks),
             media_type="application/x-subrip",
-            headers=_attachment_headers(f"{base_name}.srt"),
+            headers=attachment_headers(f"{base_name}.srt"),
         )
     return PlainTextResponse(
         transcript.full_text,
         media_type="text/plain; charset=utf-8",
-        headers=_attachment_headers(f"{base_name}.txt"),
+        headers=attachment_headers(f"{base_name}.txt"),
     )
 
 

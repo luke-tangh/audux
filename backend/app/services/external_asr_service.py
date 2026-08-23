@@ -16,7 +16,7 @@ from ..asr_config import (
     ASR_TIMESTAMP_PREFERRED,
     ASR_TIMESTAMP_REQUIRED,
 )
-from .common import ServiceError
+from .errors import ServiceError
 from .silero_vad_service import (
     SileroVadCanceled,
     SileroVadError,

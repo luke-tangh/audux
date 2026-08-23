@@ -9,7 +9,6 @@ from ..schemas import (
     SavedViewUpdate,
 )
 from ..services import saved_view_service
-from .utils import service_call
 
 
 router = APIRouter(prefix="/saved-views")
@@ -25,8 +24,7 @@ def create_saved_view(
     payload: SavedViewCreate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        saved_view_service.create_saved_view,
+    return saved_view_service.create_saved_view(
         session,
         payload.name,
         payload.query,
@@ -38,8 +36,7 @@ def reorder_saved_views(
     payload: SavedViewsReorder,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        saved_view_service.reorder_saved_views,
+    return saved_view_service.reorder_saved_views(
         session,
         payload.view_ids,
     )
@@ -51,8 +48,7 @@ def update_saved_view(
     payload: SavedViewUpdate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        saved_view_service.update_saved_view,
+    return saved_view_service.update_saved_view(
         session,
         view_id,
         name=payload.name,
@@ -66,8 +62,7 @@ def copy_saved_view(
     payload: SavedViewCopy,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        saved_view_service.copy_saved_view,
+    return saved_view_service.copy_saved_view(
         session,
         view_id,
         payload.name,
@@ -79,4 +74,4 @@ def delete_saved_view(
     view_id: int,
     session: Session = Depends(get_session),
 ):
-    return service_call(saved_view_service.delete_saved_view, session, view_id)
+    return saved_view_service.delete_saved_view(session, view_id)

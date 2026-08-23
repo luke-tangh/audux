@@ -16,7 +16,7 @@ from app.models import (
     Transcript,
     TranscriptSegment,
 )
-from app.scanner import calculate_sampled_file_hash
+from app.media_probe import calculate_sampled_file_hash
 from app.services import health_service
 from tests.api_test_support import ApiIntegrationTest
 

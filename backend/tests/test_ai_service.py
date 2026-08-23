@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services import ai_service
-from app.services.common import ServiceError
+from app.services.errors import ServiceError
 
 
 def test_discovers_llm_models_with_unsaved_endpoint_config(

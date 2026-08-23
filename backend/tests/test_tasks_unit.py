@@ -2,10 +2,10 @@ import pytest
 from sqlmodel import Session, select
 
 from tests.api_test_support import ApiIntegrationTest
-from app import tasks
+from app import task_handlers, tasks
 from app.asr_config import build_asr_task_payload
 from app.models import AITask, AudioItem, Setting, Transcript, TranscriptSegment
-from app.services.common import ServiceError
+from app.services.errors import ServiceError
 
 
 @pytest.fixture
@@ -190,7 +190,7 @@ class TestTaskStateTransitions(ApiIntegrationTest):
             }
 
         monkeypatch.setattr(
-            tasks,
+            task_handlers,
             "transcribe_external_audio_chunked",
             fake_chunked_transcription,
         )
@@ -274,7 +274,7 @@ class TestTaskStateTransitions(ApiIntegrationTest):
             }
 
         monkeypatch.setattr(
-            tasks,
+            task_handlers,
             "transcribe_external_audio",
             fake_external_transcription,
         )
@@ -344,7 +344,7 @@ class TestTaskStateTransitions(ApiIntegrationTest):
             }
 
         monkeypatch.setattr(
-            tasks,
+            task_handlers,
             "transcribe_external_audio",
             fake_external_transcription,
         )

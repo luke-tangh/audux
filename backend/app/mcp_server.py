@@ -11,7 +11,7 @@ from . import db
 from .providers import LLMCapabilities
 from .models import McpAuditEvent
 from .schemas import AgentScope
-from .services.common import ServiceError
+from .services.errors import ServiceError
 from .services.retrieval_service import resolve_scope
 from .tool_registry import DEFAULT_TOOL_REGISTRY, ToolContext
 from .version import APP_VERSION

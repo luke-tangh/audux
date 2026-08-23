@@ -5,7 +5,7 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, Session, create_engine
 
 from app.models import Setting
-from app.services.common import ServiceError
+from app.services.errors import ServiceError
 from app.services.settings_service import update_settings_section
 
 

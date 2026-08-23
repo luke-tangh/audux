@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.services import external_asr_service
-from app.services.common import ServiceError
+from app.services.errors import ServiceError
 from app.services.external_asr_service import (
     AudioChunk,
     CUT_KIND_HARD,

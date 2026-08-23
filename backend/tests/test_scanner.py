@@ -3,16 +3,15 @@ from pathlib import Path
 
 import pytest
 
-from app import scanner
-from app.scanner import (
+from app import media_probe, scanner
+from app.media_probe import (
     SAMPLED_HASH_PREFIX,
-    _iter_audio_candidates,
-    _path_points_to_available_file,
-    _same_audio_path,
     calculate_file_fingerprint,
     calculate_file_hash,
     calculate_sampled_file_hash,
 )
+from app.scan_reconciler import _path_points_to_available_file, _same_audio_path
+from app.scanner import _iter_audio_candidates
 
 
 class TestScannerHashing:
@@ -110,8 +109,8 @@ class TestScannerMetadataAndCovers:
                 "COMM": "Summary",
             }
 
-        monkeypatch.setattr(scanner, "MutagenFile", lambda path: Audio())
-        metadata = scanner.read_audio_metadata(tmp_path / "episode.mp3")
+        monkeypatch.setattr(media_probe, "MutagenFile", lambda path: Audio())
+        metadata = media_probe.read_audio_metadata(tmp_path / "episode.mp3")
 
         assert metadata == {
             "title_original": "Episode title",
@@ -132,8 +131,8 @@ class TestScannerMetadataAndCovers:
         def fail(path: str):
             raise ValueError(f"invalid media: {path}")
 
-        monkeypatch.setattr(scanner, "MutagenFile", fail)
-        metadata = scanner.read_audio_metadata(tmp_path / "broken.mp3")
+        monkeypatch.setattr(media_probe, "MutagenFile", fail)
+        metadata = media_probe.read_audio_metadata(tmp_path / "broken.mp3")
 
         assert set(metadata.values()) == {None}
 
@@ -154,10 +153,10 @@ class TestScannerMetadataAndCovers:
         class Audio:
             tags = {"APIC:front": Picture()}
 
-        monkeypatch.setattr(scanner, "COVERS_DIR", cover_dir)
-        monkeypatch.setattr(scanner, "MutagenFile", lambda path: Audio())
+        monkeypatch.setattr(media_probe, "COVERS_DIR", cover_dir)
+        monkeypatch.setattr(media_probe, "MutagenFile", lambda path: Audio())
 
-        extracted = scanner.extract_embedded_cover(tmp_path / "audio.mp3", 7)
+        extracted = media_probe.extract_embedded_cover(tmp_path / "audio.mp3", 7)
         expected_path = cover_dir / "audio_7.png"
         assert extracted == {
             "cover_path": str(expected_path),
@@ -171,9 +170,9 @@ class TestScannerMetadataAndCovers:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        monkeypatch.setattr(scanner, "COVERS_DIR", tmp_path / "covers")
-        monkeypatch.setattr(scanner, "MAX_COVER_BYTES", 4)
+        monkeypatch.setattr(media_probe, "COVERS_DIR", tmp_path / "covers")
+        monkeypatch.setattr(media_probe, "MAX_COVER_BYTES", 4)
 
-        assert scanner._save_cover_bytes(1, b"", "image/jpeg") is None
-        assert scanner._save_cover_bytes(1, b"12345", "image/jpeg") is None
+        assert media_probe.save_cover_bytes(1, b"", "image/jpeg") is None
+        assert media_probe.save_cover_bytes(1, b"12345", "image/jpeg") is None
         assert not (tmp_path / "covers").exists()

@@ -16,6 +16,7 @@ from .services.backup_service import initialize_database_with_pending_restore
 from .services.health_service import recover_interrupted_health_tasks
 from .services.agent_service import recover_interrupted_agent_runs
 from .services.organization_run_service import recover_interrupted_runs
+from .services.errors import ServiceError
 from .local_security import (
     ALLOW_ALL_CORS,
     LOCAL_ORIGIN_REGEX,
@@ -72,6 +73,14 @@ app = FastAPI(
     version=APP_VERSION,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(ServiceError)
+async def service_error_handler(_: Request, error: ServiceError):
+    return JSONResponse(
+        status_code=error.status_code,
+        content={"detail": error.structured_detail()},
+    )
 
 app.add_middleware(
     CORSMiddleware,

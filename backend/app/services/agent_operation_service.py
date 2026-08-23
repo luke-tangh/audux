@@ -25,7 +25,9 @@ from ..models import (
 )
 from ..schemas import AudioUpdate, SavedViewQuery
 from ..search import rebuild_audio_search_index
-from .common import BUSY_AUDIO_TASK_STATUSES, ServiceError, _build_audio_items_stmt
+from .audio_query import build_audio_items_stmt
+from .errors import ServiceError
+from .task_state import BUSY_AUDIO_TASK_STATUSES
 from .saved_view_service import audio_query_kwargs, encode_saved_view_query
 from .whisper_component_service import is_whisper_companion_available
 
@@ -132,7 +134,7 @@ def _saved_view_item(
 ) -> dict[str, Any]:
     name = " ".join(str(arguments["name"]).split())
     query = SavedViewQuery.model_validate(arguments["query"])
-    library_statement = _build_audio_items_stmt(session=session)
+    library_statement = build_audio_items_stmt(session=session)
     library_ids = set(
         int(value)
         for value in (
@@ -149,7 +151,7 @@ def _saved_view_item(
         )
     query_kwargs = audio_query_kwargs(session, query)
     query_kwargs.pop("sort", None)
-    statement = _build_audio_items_stmt(session=session, **query_kwargs)
+    statement = build_audio_items_stmt(session=session, **query_kwargs)
     resolved_ids = set(
         int(value)
         for value in (

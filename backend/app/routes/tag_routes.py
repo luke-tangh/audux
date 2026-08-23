@@ -4,7 +4,6 @@ from sqlmodel import Session
 from ..db import get_session
 from ..schemas import TagMergeRequest, TagUpdate, TagsAddRequest
 from ..services import tag_service
-from .utils import service_call
 
 
 router = APIRouter()
@@ -21,7 +20,7 @@ def update_tag(
     payload: TagUpdate,
     session: Session = Depends(get_session),
 ):
-    return service_call(tag_service.update_tag, session, tag_id, payload.name)
+    return tag_service.update_tag(session, tag_id, payload.name)
 
 
 @router.delete("/tags/{tag_id}")
@@ -30,7 +29,7 @@ def delete_tag(
     force: bool = False,
     session: Session = Depends(get_session),
 ):
-    return service_call(tag_service.delete_tag, session, tag_id, force)
+    return tag_service.delete_tag(session, tag_id, force)
 
 
 @router.post("/tags/{tag_id}/merge")
@@ -39,8 +38,7 @@ def merge_tag(
     payload: TagMergeRequest,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        tag_service.merge_tag,
+    return tag_service.merge_tag(
         session,
         tag_id,
         payload.target_tag_id,
@@ -53,8 +51,7 @@ def add_tags_to_audio(
     payload: TagsAddRequest,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        tag_service.add_tags_to_audio,
+    return tag_service.add_tags_to_audio(
         session,
         audio_id,
         payload.tags,
@@ -68,4 +65,4 @@ def remove_audio_tag(
     tag_id: int,
     session: Session = Depends(get_session),
 ):
-    return service_call(tag_service.remove_audio_tag, session, audio_id, tag_id)
+    return tag_service.remove_audio_tag(session, audio_id, tag_id)

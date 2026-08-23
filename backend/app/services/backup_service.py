@@ -17,7 +17,7 @@ from .. import db
 from ..models import AITask, AgentRun, LibraryHealthTask, OrganizationRun, ScanTask
 from ..time_utils import utc_now_iso, utc_timestamp_iso
 from ..version import APP_VERSION
-from .common import ServiceError
+from .errors import ServiceError
 
 
 logger = logging.getLogger(__name__)

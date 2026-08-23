@@ -51,7 +51,8 @@ from ..models import (
 )
 from ..time_utils import utc_now_iso
 from ..version import APP_VERSION
-from .common import ServiceError, _attachment_headers
+from .download_utils import attachment_headers
+from .errors import ServiceError
 from ..search import rebuild_audio_search_index
 
 
@@ -183,7 +184,7 @@ def archive_response(archive_id: str):
     path = _safe_path(ARCHIVES_DIR, archive_id, ".audux.zip")
     if not path.is_file() or path.is_symlink():
         raise ServiceError(404, "Archive not found", "archive.not_found")
-    return FileResponse(path, media_type="application/zip", headers=_attachment_headers(path.name))
+    return FileResponse(path, media_type="application/zip", headers=attachment_headers(path.name))
 
 
 def _read_archive(data: bytes) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -388,4 +389,4 @@ def diagnostic_response(bundle_id: str):
     path = _safe_path(ARCHIVES_DIR, bundle_id, ".zip")
     if not path.is_file() or path.is_symlink():
         raise ServiceError(404, "Diagnostic bundle not found", "diagnostic.not_found")
-    return FileResponse(path, media_type="application/zip", headers=_attachment_headers(path.name))
+    return FileResponse(path, media_type="application/zip", headers=attachment_headers(path.name))

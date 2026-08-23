@@ -12,7 +12,6 @@ from ..schemas import (
     TranscriptUpdate,
 )
 from ..services import transcript_service
-from .utils import service_call
 
 
 router = APIRouter()
@@ -20,18 +19,17 @@ router = APIRouter()
 
 @router.post("/audio-items/{audio_id}/transcribe")
 def enqueue_transcribe(audio_id: int, session: Session = Depends(get_session)):
-    return service_call(transcript_service.enqueue_transcribe, session, audio_id)
+    return transcript_service.enqueue_transcribe(session, audio_id)
 
 
 @router.get("/audio-items/{audio_id}/transcript")
 def get_transcript(audio_id: int, session: Session = Depends(get_session)):
-    return service_call(transcript_service.get_transcript, session, audio_id)
+    return transcript_service.get_transcript(session, audio_id)
 
 
 @router.get("/audio-items/{audio_id}/transcript/revisions")
 def list_transcript_revisions(audio_id: int, session: Session = Depends(get_session)):
-    return service_call(
-        transcript_service.list_transcript_revisions,
+    return transcript_service.list_transcript_revisions(
         session,
         audio_id,
     )
@@ -43,8 +41,7 @@ def get_transcript_revision(
     revision_id: int,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        transcript_service.get_transcript_revision,
+    return transcript_service.get_transcript_revision(
         session,
         audio_id,
         revision_id,
@@ -57,8 +54,7 @@ def export_transcript(
     format: str = "txt",
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        transcript_service.export_transcript_response,
+    return transcript_service.export_transcript_response(
         session,
         audio_id,
         format,
@@ -71,7 +67,7 @@ def save_transcript(
     payload: TranscriptCreate,
     session: Session = Depends(get_session),
 ):
-    return service_call(transcript_service.save_transcript, session, audio_id, payload)
+    return transcript_service.save_transcript(session, audio_id, payload)
 
 
 @router.patch("/audio-items/{audio_id}/transcript")
@@ -80,8 +76,7 @@ def update_transcript(
     payload: TranscriptUpdate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        transcript_service.update_transcript,
+    return transcript_service.update_transcript(
         session,
         audio_id,
         payload.full_text,
@@ -95,8 +90,7 @@ def update_transcript_segments(
     payload: TranscriptSegmentsUpdate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        transcript_service.update_transcript_segments,
+    return transcript_service.update_transcript_segments(
         session,
         audio_id,
         payload.segments,
@@ -106,18 +100,17 @@ def update_transcript_segments(
 
 @router.delete("/audio-items/{audio_id}/transcript")
 def delete_transcript(audio_id: int, session: Session = Depends(get_session)):
-    return service_call(transcript_service.delete_transcript, session, audio_id)
+    return transcript_service.delete_transcript(session, audio_id)
 
 
 @router.post("/audio-items/{audio_id}/transcript/validate")
 def revalidate_transcript(audio_id: int, session: Session = Depends(get_session)):
-    return service_call(transcript_service.revalidate_transcript, session, audio_id)
+    return transcript_service.revalidate_transcript(session, audio_id)
 
 
 @router.get("/audio-items/{audio_id}/transcript/diagnostics")
 def transcript_diagnostics(audio_id: int, session: Session = Depends(get_session)):
-    return service_call(
-        transcript_service.transcript_diagnostic_summary,
+    return transcript_service.transcript_diagnostic_summary(
         session,
         audio_id,
     )
@@ -130,8 +123,7 @@ def update_transcript_issue(
     payload: TranscriptIssueUpdate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        transcript_service.update_transcript_issue,
+    return transcript_service.update_transcript_issue(
         session,
         audio_id,
         issue_id,
@@ -145,8 +137,7 @@ def create_transcript_chapter(
     payload: TranscriptChapterCreate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        transcript_service.create_chapter,
+    return transcript_service.create_chapter(
         session,
         audio_id,
         payload,
@@ -159,8 +150,7 @@ def merge_transcript_chapters(
     payload: TranscriptChapterMerge,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        transcript_service.merge_chapters,
+    return transcript_service.merge_chapters(
         session,
         audio_id,
         payload,
@@ -174,8 +164,7 @@ def update_transcript_chapter(
     payload: TranscriptChapterUpdate,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        transcript_service.update_chapter,
+    return transcript_service.update_chapter(
         session,
         audio_id,
         chapter_id,
@@ -189,8 +178,7 @@ def delete_transcript_chapter(
     chapter_id: int,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        transcript_service.delete_chapter,
+    return transcript_service.delete_chapter(
         session,
         audio_id,
         chapter_id,

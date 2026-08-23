@@ -9,7 +9,7 @@ from ..asr_config import (
 )
 from ..local_security import _asr_privacy_warning, _llm_privacy_warning
 from ..models import Setting, now_iso
-from .common import ServiceError
+from .errors import ServiceError
 
 
 ASR_SETTING_KEYS = frozenset(

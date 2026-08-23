@@ -8,7 +8,6 @@ from ..schemas import (
     OrganizationRunCreate,
 )
 from ..services import organization_run_service
-from .utils import service_call
 
 
 router = APIRouter()
@@ -27,22 +26,22 @@ def create_organization_run(
     payload: OrganizationRunCreate,
     session: Session = Depends(get_session),
 ):
-    return service_call(organization_run_service.create_run, session, payload)
+    return organization_run_service.create_run(session, payload)
 
 
 @router.get("/organization-runs/{run_id}")
 def get_organization_run(run_id: int, session: Session = Depends(get_session)):
-    return service_call(organization_run_service.get_run, session, run_id)
+    return organization_run_service.get_run(session, run_id)
 
 
 @router.post("/organization-runs/{run_id}/cancel")
 def cancel_organization_run(run_id: int, session: Session = Depends(get_session)):
-    return service_call(organization_run_service.cancel_run, session, run_id)
+    return organization_run_service.cancel_run(session, run_id)
 
 
 @router.post("/organization-runs/{run_id}/retry")
 def retry_organization_run(run_id: int, session: Session = Depends(get_session)):
-    return service_call(organization_run_service.retry_run, session, run_id)
+    return organization_run_service.retry_run(session, run_id)
 
 
 @router.patch("/organization-proposals/{proposal_id}")
@@ -51,8 +50,7 @@ def decide_organization_proposal(
     payload: OrganizationProposalDecision,
     session: Session = Depends(get_session),
 ):
-    return service_call(
-        organization_run_service.decide_proposal,
+    return organization_run_service.decide_proposal(
         session,
         proposal_id,
         payload,
@@ -65,4 +63,4 @@ def apply_organization_run(
     payload: OrganizationRunApply,
     session: Session = Depends(get_session),
 ):
-    return service_call(organization_run_service.apply_run, session, run_id, payload)
+    return organization_run_service.apply_run(session, run_id, payload)

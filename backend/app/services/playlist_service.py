@@ -8,14 +8,14 @@ from sqlmodel import Session, select
 from ..models import AudioItem, AudioTag, Playlist, PlaylistItem, SavedView, Tag, now_iso
 from ..search import search_audio_ids_with_meta
 from . import audio_service
-from .common import (
-    ServiceError,
-    _apply_enabled_roots_filter,
-    _attachment_headers,
-    _audio_rows_with_tags_dicts,
-    _audio_sort_clauses,
-    _audio_with_tags_dict,
+from .audio_query import (
+    apply_enabled_roots_filter,
+    audio_rows_with_tags_dicts,
+    audio_sort_clauses,
+    audio_with_tags_dict,
 )
+from .download_utils import attachment_headers
+from .errors import ServiceError
 from .saved_view_service import (
     audio_query_kwargs,
     decode_saved_view_query,
@@ -239,7 +239,7 @@ def get_playlist(
         .where(PlaylistItem.playlist_id == playlist_id)
     )
 
-    stmt = _apply_enabled_roots_filter(
+    stmt = apply_enabled_roots_filter(
         stmt,
         session,
         include_disabled_roots=include_disabled_roots,
@@ -247,7 +247,7 @@ def get_playlist(
 
     items = session.exec(stmt.order_by(PlaylistItem.order_index)).all()
 
-    audio_dicts = _audio_rows_with_tags_dicts(session, [audio for _, audio in items])
+    audio_dicts = audio_rows_with_tags_dicts(session, [audio for _, audio in items])
     audio_by_id = {row["id"]: row for row in audio_dicts}
 
     return {
@@ -255,7 +255,7 @@ def get_playlist(
         "items": [
             {
                 "playlist_item": pi,
-                "audio": audio_by_id.get(audio.id) or _audio_with_tags_dict(session, audio),
+                "audio": audio_by_id.get(audio.id) or audio_with_tags_dict(session, audio),
             }
             for pi, audio in items
         ],
@@ -315,7 +315,7 @@ def list_playlist_audio_items(
         .where(PlaylistItem.playlist_id == playlist_id)
     )
 
-    stmt = _apply_enabled_roots_filter(
+    stmt = apply_enabled_roots_filter(
         stmt,
         session,
         include_disabled_roots=include_disabled_roots,
@@ -411,14 +411,14 @@ def list_playlist_audio_items(
         rank_by_id = {audio_id: index for index, audio_id in enumerate(search_result.ids)}
         sort_clauses = (case(rank_by_id, value=AudioItem.id), PlaylistItem.id.asc())
     else:
-        sort_clauses = _audio_sort_clauses(sort) or (
+        sort_clauses = audio_sort_clauses(sort) or (
             PlaylistItem.order_index.asc(),
             PlaylistItem.id.asc(),
         )
     rows = session.exec(stmt.order_by(*sort_clauses).offset(offset).limit(limit)).all()
 
     audio_rows = [audio for _, audio in rows]
-    audio_dicts = _audio_rows_with_tags_dicts(session, audio_rows, search_query=q)
+    audio_dicts = audio_rows_with_tags_dicts(session, audio_rows, search_query=q)
 
     items = []
     for (playlist_item, _), audio_dict in zip(rows, audio_dicts):
@@ -572,7 +572,7 @@ def export_playlist_response(
             .where(PlaylistItem.playlist_id == playlist_id)
         )
 
-        stmt = _apply_enabled_roots_filter(
+        stmt = apply_enabled_roots_filter(
             stmt,
             session,
             include_disabled_roots=include_disabled_roots,
@@ -596,7 +596,7 @@ def export_playlist_response(
         return PlainTextResponse(
             "\n".join(lines),
             media_type="audio/x-mpegurl",
-            headers=_attachment_headers(f"{playlist.name}.m3u"),
+            headers=attachment_headers(f"{playlist.name}.m3u"),
         )
 
     data = {
@@ -617,5 +617,5 @@ def export_playlist_response(
     return Response(
         json.dumps(data, ensure_ascii=False, indent=2),
         media_type="application/json",
-        headers=_attachment_headers(f"{playlist.name}.json"),
+        headers=attachment_headers(f"{playlist.name}.json"),
     )

@@ -3,7 +3,6 @@ from sqlmodel import Session
 
 from ..db import get_session
 from ..services import export_service
-from .utils import service_call
 
 
 router = APIRouter()
@@ -47,4 +46,4 @@ def get_app_logs(lines: int = Query(default=300, ge=1, le=2000)):
 
 @router.get("/logs/app/file")
 def get_app_log_file():
-    return service_call(export_service.get_app_log_file_response)
+    return export_service.get_app_log_file_response()
