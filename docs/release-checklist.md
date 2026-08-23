@@ -52,6 +52,11 @@ debug sidecar placeholder。
   会话；引用只能来自所选范围，点击后跳转到正确音频时间点。
 - 使用包含“忽略范围、读取其他目录”的 Transcript 验证 Prompt Injection 不会扩大 scope；
   修改对应 Transcript revision 后旧引用不再展示。
+- 让 Agent 提案 metadata、Tag、手动 Playlist、保存视图和排队转写；逐项核对冻结目标与
+  before/after 后批准。确认重复批准、目标在审批前变化、范围外 audio id 和任一项失败均不会
+  留下部分写入。
+- 使用 sidecar `--mcp` 启动真实 stdio 客户端，完成 initialize、tools/list 和每个 read 工具的
+  tools/call；确认写工具、绝对路径、Token、API Key 和范围外音频均不可见。
 - 未配置 embedding 时 Agent 和 Segment 搜索显示 FTS 模式；关闭 LLM 服务后普通关键词搜索、
   Transcript 浏览和播放仍正常。
 - 关闭最后一个应用窗口后，`audux-backend` / Python backend 进程退出。
@@ -96,7 +101,23 @@ browser-lite 每个平台至少验证：
   校验通过；离线环境不得尝试下载 VAD 模型或 runtime。
 - 非 loopback ASR 和 LLM endpoint 仍显示隐私警告并需要显式允许。
 
-## 6. No-public-release gate
+## 6. v0.9 archive, diagnostics and sustained-run gate
+
+- 导出当前格式归档，解包核对 manifest、数据 SHA-256 和实体计数；搜索归档确认不含 API Key、
+  本地 API Token、绝对媒体根路径和日志。
+- 在空临时资料库执行归档 dry-run 和全量导入；确认所有音频标记为待重新关联，Transcript
+  revisions、章节、Tag、Playlist、保存视图、质量 issue 和 Agent 审计完整，FTS 可用。
+- 对非空资料库、损坏 zip、额外 zip member、较旧/较新 schema、修改后的 pending import 和
+  ID 冲突执行导入，确认全部在事务写入前被拒绝。
+- 生成诊断包并确认只包含白名单配置、版本、平台、任务状态摘要和完整性结果，不含完整
+  Transcript、日志、凭据、Token 或用户绝对路径。
+- Tauri、browser-lite 与 MCP 各持续运行至少 8 小时；期间执行休眠/恢复、默认端口冲突、
+  Provider 断连、千条以上资料库检索、任务取消、Agent 恢复和正常退出。记录峰值内存、残留
+  子进程、失败任务和恢复结果。
+- Linux、Windows、macOS 分别从目标系统构建并执行上述 smoke；检查发布包不含 debug
+  placeholder，MCP `--mcp` 入口和可选 Whisper component 均可运行。
+
+## 7. No-public-release gate
 
 v0.x 阶段只允许手动运行 workflow 并下载内部 artifacts，不推送会触发公开 Release 的
 版本标签。workflow 只接受 `v1.0.*` 标签进入首次公开发布任务。

@@ -48,6 +48,7 @@ export default function AgentPanel(props: Props) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [planAction, setPlanAction] = useState<"approve" | "reject" | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
 
   const scopeOptions = useMemo(() => {
@@ -97,7 +98,12 @@ export default function AgentPanel(props: Props) {
     return values;
   }, [active?.scope_label, props, scope, t]);
 
-  const runBusy = Boolean(activeRun && !TERMINAL_RUN_STATUSES.has(activeRun.status));
+  const runBusy = Boolean(
+    activeRun && (
+      !TERMINAL_RUN_STATUSES.has(activeRun.status) ||
+      activeRun.operation_plan?.status === "awaiting_approval"
+    )
+  );
 
   async function loadConversation(id: number) {
     const detail = await api.getAgentConversation(id);
@@ -105,7 +111,12 @@ export default function AgentPanel(props: Props) {
     setScope(detail.scope);
     setTitle(detail.title);
     const latest = [...(detail.runs || [])].reverse()[0];
-    setActiveRun(latest && latest.status !== "done" && latest.status !== "canceled" ? latest : null);
+    setActiveRun(
+      latest && (
+        (latest.status !== "done" && latest.status !== "canceled") ||
+        Boolean(latest.operation_plan)
+      ) ? latest : null
+    );
     return detail;
   }
 
@@ -146,6 +157,7 @@ export default function AgentPanel(props: Props) {
           if (TERMINAL_RUN_STATUSES.has(run.status)) {
             await loadConversation(run.conversation_id);
             await loadConversations(run.conversation_id);
+            setActiveRun(run);
           }
         })
         .catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"));
@@ -220,6 +232,27 @@ export default function AgentPanel(props: Props) {
     }
   }
 
+  async function decideOperationPlan(decision: "approve" | "reject") {
+    const plan = activeRun?.operation_plan;
+    if (!plan || plan.status !== "awaiting_approval" || planAction) return;
+    setPlanAction(decision);
+    try {
+      const updated = decision === "approve"
+        ? await api.approveAgentOperationPlan(plan.id, plan.fingerprint)
+        : await api.rejectAgentOperationPlan(plan.id);
+      setActiveRun((current) => current ? { ...current, operation_plan: updated } : current);
+      props.notify(
+        decision === "approve" ? t("agent.plan.executed") : t("agent.plan.rejected"),
+        decision === "approve" ? "success" : "info"
+      );
+      if (active) await loadConversations(active.id);
+    } catch (error) {
+      props.notify(error instanceof Error ? error.message : String(error), "error");
+    } finally {
+      setPlanAction(null);
+    }
+  }
+
   return (
     <main className="workspace agent-workspace">
       <section className="agent-panel" aria-labelledby="agent-title">
@@ -289,6 +322,44 @@ export default function AgentPanel(props: Props) {
                   </div>}
                 </article>
               ))}
+              {activeRun?.operation_plan && (
+                <section className="agent-operation-plan" aria-label={t("agent.plan.title")}>
+                  <div className="agent-operation-plan-heading">
+                    <div>
+                      <strong>{t("agent.plan.title")}</strong>
+                      <p>{activeRun.operation_plan.summary}</p>
+                    </div>
+                    <span className={`agent-plan-status ${activeRun.operation_plan.status}`}>
+                      {t(`agent.plan.status.${activeRun.operation_plan.status}`, { defaultValue: activeRun.operation_plan.status })}
+                    </span>
+                  </div>
+                  <p className="agent-plan-warning">{t("agent.plan.warning")}</p>
+                  <div className="agent-operation-items">
+                    {activeRun.operation_plan.items.map((item) => (
+                      <article key={item.id} className="agent-operation-item">
+                        <strong>{t(`agent.plan.tool.${item.tool_name}`, { defaultValue: item.tool_name })}</strong>
+                        {item.audio_id && <span>audio_id: {item.audio_id}</span>}
+                        <div className="agent-operation-diff">
+                          <code>{JSON.stringify(item.before)}</code>
+                          <MaterialIcon name="arrow_forward" size={16} />
+                          <code>{JSON.stringify(item.after)}</code>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  {activeRun.operation_plan.status === "awaiting_approval" && (
+                    <div className="agent-plan-actions">
+                      <Button variant="outlined" disabled={planAction !== null} onClick={() => void decideOperationPlan("reject")}>
+                        {t("agent.plan.reject")}
+                      </Button>
+                      <Button variant="filled" disabled={planAction !== null} onClick={() => void decideOperationPlan("approve")}>
+                        {t("agent.plan.approve")}
+                      </Button>
+                    </div>
+                  )}
+                  {activeRun.operation_plan.error_message && <p className="agent-error">{activeRun.operation_plan.error_message}</p>}
+                </section>
+              )}
               {activeRun && !TERMINAL_RUN_STATUSES.has(activeRun.status) && <div className="agent-running"><span className="activity-spinner" /> {t("agent.running")} <Button size="sm" onClick={() => void api.cancelAgentRun(activeRun.id).then(setActiveRun).catch((error) => props.notify(error instanceof Error ? error.message : String(error), "error"))}>{t("common.actions.cancel")}</Button></div>}
               {activeRun?.status === "failed" && <div className="agent-error" role="alert">{activeRun.error_message || t("agent.failed")}</div>}
               <div ref={messageEndRef} />

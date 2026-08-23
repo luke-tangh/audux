@@ -117,6 +117,34 @@ export type AgentMessage = {
   citations: AgentCitation[];
 };
 
+export type AgentOperationItem = {
+  id: number;
+  plan_id: number;
+  item_index: number;
+  tool_name: "update_metadata" | "accept_tags" | "add_to_playlist" | "create_saved_view" | "queue_transcription" | string;
+  audio_id?: number | null;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  status: "pending" | "done" | "failed" | string;
+  error_message?: string | null;
+};
+
+export type AgentOperationPlan = {
+  id: number;
+  run_id: number;
+  status: "awaiting_approval" | "executing" | "done" | "failed" | "rejected" | "canceled" | string;
+  failure_policy: "atomic";
+  target_audio_ids: number[];
+  fingerprint: string;
+  summary: string;
+  error_message?: string | null;
+  approved_at?: string | null;
+  executed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  items: AgentOperationItem[];
+};
+
 export type AgentRun = {
   id: number;
   conversation_id: number;
@@ -132,6 +160,7 @@ export type AgentRun = {
   finished_at?: string | null;
   updated_at: string;
   message?: AgentMessage | null;
+  operation_plan?: AgentOperationPlan | null;
 };
 
 export type AgentConversation = {
@@ -789,6 +818,39 @@ export type DatabaseRestoreResult = {
 export type DatabaseRestoreStatus = {
   pending: PendingDatabaseRestore | null;
   last_result: DatabaseRestoreResult | null;
+};
+
+export type PortableArchiveRecord = {
+  id: string;
+  file_name: string;
+  size_bytes: number;
+  manifest: {
+    format: "audux-archive";
+    format_version: number;
+    app_version: string;
+    schema_version: number;
+    created_at: string;
+    counts: Record<string, number>;
+  };
+};
+
+export type ArchiveImportDryRun = {
+  archive_id: string;
+  fingerprint: string;
+  compatible: boolean;
+  schema_version: number;
+  counts: Record<string, number>;
+  missing_audio: number;
+  id_conflicts: Record<string, number>;
+  merge_strategy: "empty_library_only";
+  can_import: boolean;
+  blockers: string[];
+};
+
+export type DiagnosticBundleRecord = {
+  id: string;
+  file_name: string;
+  size_bytes: number;
 };
 
 export type AISuggestions = {

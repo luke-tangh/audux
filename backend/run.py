@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+import sys
 
 import uvicorn
 
@@ -26,6 +27,11 @@ def _api_port_from_env() -> int:
 
 
 def main():
+    if "--mcp" in sys.argv[1:]:
+        from app.mcp_server import serve_stdio
+
+        serve_stdio()
+        return
     uvicorn.run(
         "app.main:app",
         host="127.0.0.1",

@@ -16,6 +16,8 @@ vi.mock("../api", () => ({
     createAgentRun: vi.fn(),
     getAgentRun: vi.fn(),
     cancelAgentRun: vi.fn(),
+    approveAgentOperationPlan: vi.fn(),
+    rejectAgentOperationPlan: vi.fn(),
     agentConversationExportUrl: vi.fn((id: number) => `http://test/agent/${id}`)
   }
 }));
@@ -115,5 +117,50 @@ describe("AgentPanel", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /C1.*记忆访谈/ }));
     expect(onPlayCitation).toHaveBeenCalledWith(3, 42);
+  });
+
+  it("shows the exact frozen operation diff before one-time approval", async () => {
+    const plan = {
+      id: 21,
+      run_id: 9,
+      status: "awaiting_approval" as const,
+      failure_policy: "atomic" as const,
+      target_audio_ids: [3],
+      fingerprint: "a".repeat(64),
+      summary: "1 项低风险资料库变更，涉及 1 条音频",
+      created_at: "2026-08-20T00:00:01Z",
+      updated_at: "2026-08-20T00:00:01Z",
+      items: [{
+        id: 22,
+        plan_id: 21,
+        item_index: 0,
+        tool_name: "update_metadata",
+        audio_id: 3,
+        before: { title_user: null },
+        after: { title_user: "新标题" },
+        status: "pending"
+      }]
+    };
+    const run = {
+      id: 9,
+      conversation_id: 7,
+      user_message_id: 8,
+      status: "done" as const,
+      scope: { kind: "library" as const },
+      retrieval_mode: "fts",
+      created_at: "2026-08-20T00:00:00Z",
+      updated_at: "2026-08-20T00:00:01Z",
+      operation_plan: plan
+    };
+    vi.mocked(api.listAgentConversations).mockResolvedValue([{ ...conversation, runs: [run] }]);
+    vi.mocked(api.getAgentConversation).mockResolvedValue({ ...conversation, runs: [run] });
+    vi.mocked(api.approveAgentOperationPlan).mockResolvedValue({ ...plan, status: "done" });
+    renderPanel();
+
+    expect(await screen.findByText(/新标题/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /批准并执行|Approve and execute/ }));
+    await waitFor(() => {
+      expect(api.approveAgentOperationPlan).toHaveBeenCalledWith(21, "a".repeat(64));
+    });
   });
 });

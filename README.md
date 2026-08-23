@@ -40,6 +40,13 @@ Audux 是一个本地优先的私人音频知识库应用，支持扫描本地�
   - 勘误、Tag、描述和章节建议绑定当前 Transcript revision、Segment 证据和精确 diff
   - 支持逐项接受、编辑后接受、拒绝、跳过和播放证据；按类别应用，不能一键绕过预览
   - 应用使用 revision 冲突检查和事务写入，旧提案自动失效，正式变更保留审计记录
+- 受控操作 Agent：
+  - 低风险 metadata、Tag、手动 Playlist、保存视图和转写排队操作先生成冻结计划
+  - 桌面端展示逐项 before/after；一次性批准后以原子事务执行，拒绝范围扩大和审批重放
+- 外部只读 MCP：backend sidecar 使用 `--mcp` 启动 stdio Server，复用应用内 Tool Registry，
+  只暴露范围受限的 list/search/get/statistics 工具和稳定 citation id
+- 可移植归档与诊断：当前 schema 归档强制 dry-run 后事务导入；诊断包使用配置白名单，归档
+  和诊断均排除凭据、本地 API Token、绝对路径与禁止字段
 - 搜索：
   - SQLite FTS5
   - 标题、作者、描述、标签和 transcript 加权相关性排序，不截断为固定的前 200 条

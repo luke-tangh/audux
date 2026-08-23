@@ -1506,6 +1506,7 @@ export default function SettingsPanel({
             onRenameTag={renameTag}
             onMergeTag={mergeTag}
             onDeleteTag={deleteTag}
+            notify={notify}
           />
         )}
 

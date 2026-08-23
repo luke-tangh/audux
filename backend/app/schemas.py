@@ -306,6 +306,15 @@ class AgentRunCreate(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
 
 
+class AgentOperationApproval(BaseModel):
+    fingerprint: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+
+
+class ArchiveImportExecute(BaseModel):
+    archive_id: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9._-]+$")
+    fingerprint: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+
+
 class OrganizationRunOptions(BaseModel):
     transcribe_missing: bool = False
     generate_corrections: bool = True

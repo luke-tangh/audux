@@ -75,6 +75,10 @@ class TestDatabaseSchema:
                 "agent_run_steps",
                 "agent_tool_calls",
                 "agent_citations",
+                "agent_operation_plans",
+                "agent_operation_items",
+                "agent_operation_audit_events",
+                "mcp_audit_events",
             }.issubset(tables)
 
             indexes = {
@@ -101,6 +105,8 @@ class TestDatabaseSchema:
                 "ux_transcript_chapters_revision_index",
                 "ux_agent_runs_active_conversation",
                 "ux_agent_run_steps_index",
+                "ux_agent_operation_plan_run",
+                "ux_agent_operation_item_index",
             }.issubset(indexes)
 
     def test_unmarked_database_is_rejected_without_changes(self):

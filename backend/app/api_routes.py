@@ -17,6 +17,7 @@ from .routes.transcript_routes import router as transcript_router
 from .routes.retrieval_routes import router as retrieval_router
 from .routes.agent_routes import router as agent_router
 from .routes.organization_run_routes import router as organization_run_router
+from .routes.archive_routes import router as archive_router
 
 
 router = APIRouter()
@@ -38,3 +39,4 @@ router.include_router(settings_router)
 router.include_router(statistics_router)
 router.include_router(export_router)
 router.include_router(backup_router)
+router.include_router(archive_router)

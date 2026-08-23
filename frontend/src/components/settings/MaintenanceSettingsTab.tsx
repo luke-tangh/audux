@@ -1,9 +1,10 @@
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../../api";
 import { formatDateTime } from "../../i18n/format";
 import { useLocale } from "../../i18n/LocaleProvider";
-import type { DatabaseBackup, DatabaseRestoreStatus, Tag } from "../../types";
+import type { ArchiveImportDryRun, DatabaseBackup, DatabaseRestoreStatus, Tag } from "../../types";
 import { Button, PanelCard, StatusPill } from "../ui";
 import { formatFileSize } from "./settingsUtils";
 
@@ -24,6 +25,7 @@ type MaintenanceSettingsTabProps = {
   onRenameTag: (tag: Tag) => void;
   onMergeTag: (tag: Tag) => void;
   onDeleteTag: (tag: Tag) => void;
+  notify?: (message: string, tone?: "info" | "success" | "error") => void;
 };
 
 export default function MaintenanceSettingsTab({
@@ -42,12 +44,68 @@ export default function MaintenanceSettingsTab({
   onLoadTags,
   onRenameTag,
   onMergeTag,
-  onDeleteTag
+  onDeleteTag,
+  notify
 }: MaintenanceSettingsTabProps) {
   const { t } = useTranslation();
   const { resolvedLanguage } = useLocale();
   const pendingRestore = databaseRestoreStatus?.pending;
   const lastRestore = databaseRestoreStatus?.last_result;
+  const [archiveAction, setArchiveAction] = useState<string | null>(null);
+  const [importReport, setImportReport] = useState<ArchiveImportDryRun | null>(null);
+  const archiveInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function createArchive() {
+    setArchiveAction("export");
+    try {
+      const record = await api.createPortableArchive();
+      window.open(api.portableArchiveUrl(record.id), "_blank");
+      notify?.(t("settings.archive.created"), "success");
+    } catch (error) {
+      notify?.(error instanceof Error ? error.message : String(error), "error");
+    } finally {
+      setArchiveAction(null);
+    }
+  }
+
+  async function dryRunImport(file: File) {
+    setArchiveAction("dry-run");
+    setImportReport(null);
+    try {
+      setImportReport(await api.dryRunPortableArchiveImport(file));
+    } catch (error) {
+      notify?.(error instanceof Error ? error.message : String(error), "error");
+    } finally {
+      setArchiveAction(null);
+    }
+  }
+
+  async function executeImport() {
+    if (!importReport?.can_import) return;
+    setArchiveAction("import");
+    try {
+      const result = await api.executePortableArchiveImport(importReport.archive_id, importReport.fingerprint);
+      setImportReport(null);
+      notify?.(t("settings.archive.imported", { count: result.missing_audio }), "success");
+    } catch (error) {
+      notify?.(error instanceof Error ? error.message : String(error), "error");
+    } finally {
+      setArchiveAction(null);
+    }
+  }
+
+  async function createDiagnostics() {
+    setArchiveAction("diagnostic");
+    try {
+      const record = await api.createDiagnosticBundle();
+      window.open(api.diagnosticBundleUrl(record.id), "_blank");
+      notify?.(t("settings.diagnostic.created"), "success");
+    } catch (error) {
+      notify?.(error instanceof Error ? error.message : String(error), "error");
+    } finally {
+      setArchiveAction(null);
+    }
+  }
 
   return (
     <div className="settings-grid-layout">
@@ -159,6 +217,53 @@ export default function MaintenanceSettingsTab({
             </article>
           ))}
         </div>
+      </PanelCard>
+
+      <PanelCard title={t("settings.archive.title")} className="settings-card-wide">
+        <p className="muted">{t("settings.archive.description")}</p>
+        <div className="section-actions">
+          <Button variant="filled" disabled={archiveAction !== null} onClick={() => void createArchive()}>
+            {t("settings.archive.export")}
+          </Button>
+          <Button
+            variant="outlined"
+            disabled={archiveAction !== null}
+            onClick={() => archiveInputRef.current?.click()}
+          >
+            {t("settings.archive.dryRun")}
+          </Button>
+          <input
+            ref={archiveInputRef}
+            type="file"
+            accept=".zip,.audux.zip,application/zip"
+            hidden
+            disabled={archiveAction !== null}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              if (file) void dryRunImport(file);
+              event.currentTarget.value = "";
+            }}
+          />
+          <Button variant="outlined" disabled={archiveAction !== null} onClick={() => void createDiagnostics()}>
+            {t("settings.diagnostic.create")}
+          </Button>
+        </div>
+        {importReport && (
+          <div className="backup-restore-banner" role="status">
+            <div>
+              <strong>{t("settings.archive.reportTitle")}</strong>
+              <p>{t("settings.archive.report", {
+                schema: importReport.schema_version,
+                missing: importReport.missing_audio,
+                strategy: importReport.merge_strategy
+              })}</p>
+              {importReport.blockers.length > 0 && <p className="backup-row-error">{importReport.blockers.join("; ")}</p>}
+            </div>
+            <Button variant="tonal" disabled={!importReport.can_import || archiveAction !== null} onClick={() => void executeImport()}>
+              {t("settings.archive.execute")}
+            </Button>
+          </div>
+        )}
       </PanelCard>
 
       <PanelCard title={t("settings.maintenance.exportIndex")}>

@@ -1,8 +1,10 @@
 import type {
   ActivityFeed,
   AgentConversation,
+  AgentOperationPlan,
   AgentRun,
   AgentScope,
+  ArchiveImportDryRun,
   AISuggestions,
   AITask,
   AudioDeleteResult,
@@ -15,6 +17,7 @@ import type {
   DatabaseBackup,
   DatabaseRestorePreflight,
   DatabaseRestoreStatus,
+  DiagnosticBundleRecord,
   ExternalAsrPreprocessingStatus,
   LibraryRoot,
   LibraryImportResult,
@@ -31,6 +34,7 @@ import type {
   PaginatedAudioItems,
   PlaybackQueueResolution,
   PlaybackEvent,
+  PortableArchiveRecord,
   Playlist,
   PlaylistDetail,
   ScanTask,
@@ -407,6 +411,17 @@ export const api = {
 
   cancelAgentRun: (id: number) =>
     request<AgentRun>(`/agent/runs/${id}/cancel`, { method: "POST" }),
+
+  approveAgentOperationPlan: (id: number, fingerprint: string) =>
+    request<AgentOperationPlan>(`/agent/operation-plans/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ fingerprint })
+    }),
+
+  rejectAgentOperationPlan: (id: number) =>
+    request<AgentOperationPlan>(`/agent/operation-plans/${id}/reject`, {
+      method: "POST"
+    }),
 
   listOrganizationRuns: () => request<OrganizationRun[]>("/organization-runs"),
 
@@ -1063,6 +1078,36 @@ export const api = {
     request<{ ok: boolean; deleted: number }>("/maintenance/cleanup-tags", {
       method: "POST"
     }),
+
+  createPortableArchive: () =>
+    request<PortableArchiveRecord>("/maintenance/archives", { method: "POST" }),
+
+  portableArchiveUrl: (id: string) =>
+    appendAccessToken(`${API_BASE}/maintenance/archives/${encodeURIComponent(id)}/file`),
+
+  dryRunPortableArchiveImport: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request<ArchiveImportDryRun>("/maintenance/archives/import/dry-run", {
+      method: "POST",
+      body
+    });
+  },
+
+  executePortableArchiveImport: (archiveId: string, fingerprint: string) =>
+    request<{ ok: boolean; missing_audio: number; counts: Record<string, number> }>(
+      "/maintenance/archives/import",
+      {
+        method: "POST",
+        body: JSON.stringify({ archive_id: archiveId, fingerprint })
+      }
+    ),
+
+  createDiagnosticBundle: () =>
+    request<DiagnosticBundleRecord>("/maintenance/diagnostics", { method: "POST" }),
+
+  diagnosticBundleUrl: (id: string) =>
+    appendAccessToken(`${API_BASE}/maintenance/diagnostics/${encodeURIComponent(id)}/file`),
 
   listDatabaseBackups: () =>
     request<DatabaseBackup[]>("/maintenance/database-backups"),

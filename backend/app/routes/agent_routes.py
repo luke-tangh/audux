@@ -5,8 +5,8 @@ from fastapi.responses import Response
 from sqlmodel import Session
 
 from ..db import get_session
-from ..schemas import AgentConversationCreate, AgentConversationUpdate, AgentRunCreate
-from ..services import agent_service
+from ..schemas import AgentConversationCreate, AgentConversationUpdate, AgentOperationApproval, AgentRunCreate
+from ..services import agent_operation_service, agent_service
 from .utils import service_call
 
 
@@ -61,3 +61,27 @@ def get_run(run_id: int, session: Session = Depends(get_session)):
 @router.post("/agent/runs/{run_id}/cancel")
 def cancel_run(run_id: int, session: Session = Depends(get_session)):
     return service_call(agent_service.cancel_run, session, run_id)
+
+
+@router.get("/agent/operation-plans/{plan_id}")
+def get_operation_plan(plan_id: int, session: Session = Depends(get_session)):
+    return service_call(agent_operation_service.get_plan, session, plan_id)
+
+
+@router.post("/agent/operation-plans/{plan_id}/approve")
+def approve_operation_plan(
+    plan_id: int,
+    payload: AgentOperationApproval,
+    session: Session = Depends(get_session),
+):
+    return service_call(
+        agent_operation_service.approve_and_execute,
+        session,
+        plan_id,
+        payload.fingerprint,
+    )
+
+
+@router.post("/agent/operation-plans/{plan_id}/reject")
+def reject_operation_plan(plan_id: int, session: Session = Depends(get_session)):
+    return service_call(agent_operation_service.reject_plan, session, plan_id)

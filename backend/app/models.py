@@ -360,6 +360,63 @@ class AgentCitation(SQLModel, table=True):
     created_at: str = Field(default_factory=now_iso)
 
 
+class AgentOperationPlan(SQLModel, table=True):
+    """Frozen low-risk write plan that requires a one-time desktop approval."""
+
+    __tablename__ = "agent_operation_plans"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="agent_runs.id", index=True)
+    status: str = Field(default="awaiting_approval", index=True)
+    failure_policy: str = "atomic"
+    target_audio_ids_json: str
+    fingerprint: str
+    summary: str
+    error_message: Optional[str] = None
+    approved_at: Optional[str] = None
+    executed_at: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class AgentOperationItem(SQLModel, table=True):
+    __tablename__ = "agent_operation_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    plan_id: int = Field(foreign_key="agent_operation_plans.id", index=True)
+    item_index: int
+    tool_name: str = Field(index=True)
+    audio_id: Optional[int] = Field(default=None, index=True)
+    before_json: str
+    after_json: str
+    status: str = Field(default="pending", index=True)
+    error_message: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class AgentOperationAuditEvent(SQLModel, table=True):
+    __tablename__ = "agent_operation_audit_events"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    plan_id: int = Field(foreign_key="agent_operation_plans.id", index=True)
+    event_type: str = Field(index=True)
+    detail_json: str
+    created_at: str = Field(default_factory=now_iso)
+
+
+class McpAuditEvent(SQLModel, table=True):
+    __tablename__ = "mcp_audit_events"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tool_name: str = Field(index=True)
+    status: str = Field(index=True)
+    arguments_json: str
+    scope_audio_count: int
+    error_code: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+
+
 class OrganizationRun(SQLModel, table=True):
     """A frozen, auditable v0.8 organization workflow."""
 

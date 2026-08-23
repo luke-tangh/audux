@@ -9,6 +9,9 @@ from ..models import (
     AgentCitation,
     AgentConversation,
     AgentMessage,
+    AgentOperationAuditEvent,
+    AgentOperationItem,
+    AgentOperationPlan,
     AgentRun,
     AgentRunStep,
     AgentToolCall,
@@ -20,6 +23,7 @@ from ..models import (
 from ..schemas import AgentConversationCreate, AgentConversationUpdate, AgentRunCreate, AgentScope
 from .common import ServiceError
 from .retrieval_service import resolve_scope, scope_payload
+from . import agent_operation_service
 
 
 ACTIVE_RUN_STATUSES = {"pending", "running", "cancel_requested"}
@@ -73,7 +77,14 @@ def _serialize_conversation(session: Session, row: AgentConversation, *, include
             .where(AgentRun.conversation_id == row.id)
             .order_by(AgentRun.created_at, AgentRun.id)
         ).all()
-        payload["runs"] = [_serialize_run(run) for run in runs]
+        payload["runs"] = [
+            {
+                **_serialize_run(run),
+                "operation_plan": agent_operation_service.get_plan_for_run(session, int(run.id)),
+            }
+            for run in runs
+            if run.id is not None
+        ]
     return payload
 
 
@@ -170,8 +181,14 @@ def update_conversation(session: Session, conversation_id: int, payload: AgentCo
         .where(AgentRun.conversation_id == conversation_id)
         .where(AgentRun.status.in_(ACTIVE_RUN_STATUSES))
     ).first()
+    pending_plan = session.exec(
+        select(AgentOperationPlan.id)
+        .join(AgentRun, AgentRun.id == AgentOperationPlan.run_id)
+        .where(AgentRun.conversation_id == conversation_id)
+        .where(AgentOperationPlan.status == "awaiting_approval")
+    ).first()
     if payload.scope is not None:
-        if active:
+        if active or pending_plan is not None:
             raise ServiceError(409, "Cannot change scope while an Agent run is active", "agent.run_active")
         resolve_scope(session, payload.scope)
         row.scope_json = _json(scope_payload(payload.scope))
@@ -189,6 +206,18 @@ def update_conversation(session: Session, conversation_id: int, payload: AgentCo
 
 def create_run(session: Session, conversation_id: int, payload: AgentRunCreate) -> dict:
     conversation = _conversation(session, conversation_id)
+    pending_plan = session.exec(
+        select(AgentOperationPlan.id)
+        .join(AgentRun, AgentRun.id == AgentOperationPlan.run_id)
+        .where(AgentRun.conversation_id == conversation_id)
+        .where(AgentOperationPlan.status == "awaiting_approval")
+    ).first()
+    if pending_plan is not None:
+        raise ServiceError(
+            409,
+            "Approve or reject the pending operation plan before starting another run",
+            "agent.operation_plan_pending",
+        )
     scope = _scope_from_json(conversation.scope_json)
     resolved = resolve_scope(session, scope)
     content = payload.content.strip()
@@ -232,6 +261,7 @@ def get_run(session: Session, run_id: int) -> dict:
         "steps": [{**row.model_dump(exclude={"detail_json"}), "detail": json.loads(row.detail_json) if row.detail_json else None} for row in steps],
         "tool_calls": [{**row.model_dump(exclude={"arguments_json", "output_json"}), "arguments": json.loads(row.arguments_json), "output": json.loads(row.output_json) if row.output_json else None} for row in calls],
         "message": _serialize_message(session, assistant) if assistant else None,
+        "operation_plan": agent_operation_service.get_plan_for_run(session, run_id),
     }
 
 
@@ -263,6 +293,16 @@ def delete_conversation(session: Session, conversation_id: int) -> dict:
         for row in session.exec(select(AgentCitation).where(AgentCitation.message_id.in_(message_ids))).all():
             session.delete(row)
     if run_ids:
+        plans = session.exec(select(AgentOperationPlan).where(AgentOperationPlan.run_id.in_(run_ids))).all()
+        plan_ids = [int(row.id) for row in plans if row.id is not None]
+        if plan_ids:
+            for row in session.exec(select(AgentOperationAuditEvent).where(AgentOperationAuditEvent.plan_id.in_(plan_ids))).all():
+                session.delete(row)
+            for row in session.exec(select(AgentOperationItem).where(AgentOperationItem.plan_id.in_(plan_ids))).all():
+                session.delete(row)
+            session.flush()
+            for row in plans:
+                session.delete(row)
         for row in session.exec(select(AgentToolCall).where(AgentToolCall.run_id.in_(run_ids))).all():
             session.delete(row)
         for row in session.exec(select(AgentRunStep).where(AgentRunStep.run_id.in_(run_ids))).all():
@@ -280,7 +320,18 @@ def delete_conversation(session: Session, conversation_id: int) -> dict:
 
 
 def export_conversation(session: Session, conversation_id: int) -> dict:
-    return get_conversation(session, conversation_id)
+    conversation = get_conversation(session, conversation_id)
+    exported_runs = []
+    for run in conversation.get("runs", []):
+        detail = get_run(session, int(run["id"]))
+        for call in detail["tool_calls"]:
+            # Tool outputs may contain transcript text. The visible call and its
+            # status are sufficient for a portable session audit.
+            call.pop("output", None)
+        exported_runs.append(detail)
+    conversation["runs"] = exported_runs
+    conversation["export_schema_version"] = 1
+    return conversation
 
 
 def recover_interrupted_agent_runs(bind) -> int:
