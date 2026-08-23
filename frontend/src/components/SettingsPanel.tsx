@@ -16,8 +16,7 @@ import type {
   WhisperComponentStatus
 } from "../types";
 import { pickAudioFolder, restartApplication } from "../tauri";
-import TaskPanel from "./TaskPanel";
-import { PanelCard, MaterialIcon } from "./ui";
+import { MaterialIcon } from "./ui";
 import { useDialog } from "./dialog/UnifiedDialog";
 import { useTheme } from "../theme";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -31,6 +30,7 @@ import LlmSettingsTab from "./settings/LlmSettingsTab";
 import LogsSettingsTab from "./settings/LogsSettingsTab";
 import MaintenanceSettingsTab from "./settings/MaintenanceSettingsTab";
 import SettingsHeader from "./settings/SettingsHeader";
+import TasksSettingsTab from "./settings/TasksSettingsTab";
 import { type SettingsTab, type ToastType } from "./settings/types";
 import type { MaterialIconName } from "./ui/MaterialIcon";
 import {
@@ -42,6 +42,8 @@ import {
 type Props = {
   refresh: () => void;
   notify?: (message: string, type?: ToastType) => void;
+  activityCenterEnabled: boolean;
+  onActivityCenterEnabledChange: (enabled: boolean) => Promise<void>;
   onBeforeLeaveChange?: (handler: (() => Promise<boolean>) | null) => void;
   onDirtyChange?: (dirty: boolean) => void;
 };
@@ -65,6 +67,8 @@ function validHttpEndpoint(value: string): boolean {
 export default function SettingsPanel({
   refresh,
   notify,
+  activityCenterEnabled,
+  onActivityCenterEnabledChange,
   onBeforeLeaveChange,
   onDirtyChange
 }: Props) {
@@ -1476,9 +1480,12 @@ export default function SettingsPanel({
         )}
 
         {activeTab === "tasks" && (
-          <PanelCard>
-            <TaskPanel onTaskChanged={refresh} notify={notify} />
-          </PanelCard>
+          <TasksSettingsTab
+            activityCenterEnabled={activityCenterEnabled}
+            onActivityCenterEnabledChange={onActivityCenterEnabledChange}
+            onTaskChanged={refresh}
+            notify={notify}
+          />
         )}
 
         {activeTab === "maintenance" && (

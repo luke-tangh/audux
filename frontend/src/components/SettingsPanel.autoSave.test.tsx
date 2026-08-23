@@ -39,6 +39,8 @@ function renderPanel(
         <DialogProvider>
           <SettingsPanel
             refresh={vi.fn()}
+            activityCenterEnabled={false}
+            onActivityCenterEnabledChange={vi.fn().mockResolvedValue(undefined)}
             onBeforeLeaveChange={onBeforeLeaveChange}
             onDirtyChange={onDirtyChange}
           />

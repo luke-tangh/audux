@@ -16,6 +16,7 @@ import OnboardingWizard from "./components/OnboardingWizard";
 import StartupScreen from "./components/StartupScreen";
 import { useDialog } from "./components/dialog/UnifiedDialog";
 import { IconButton, MaterialIcon } from "./components/ui";
+import { useActivityCenterPreference } from "./hooks/useActivityCenterPreference";
 import { useLibraryController } from "./hooks/useLibraryController";
 import { api } from "./api";
 
@@ -31,6 +32,10 @@ export default function App() {
   );
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const {
+    enabled: activityCenterEnabled,
+    updateEnabled: updateActivityCenterEnabled
+  } = useActivityCenterPreference();
   const {
     view,
     setView,
@@ -340,6 +345,8 @@ export default function App() {
             <SettingsPanel
               refresh={refresh}
               notify={notify}
+              activityCenterEnabled={activityCenterEnabled}
+              onActivityCenterEnabledChange={updateActivityCenterEnabled}
               onBeforeLeaveChange={handleSettingsBeforeLeaveChange}
               onDirtyChange={setSettingsDirty}
             />
@@ -549,7 +556,9 @@ export default function App() {
         onPositionSaved={handlePlaybackPositionSaved}
       />
 
-      <ActivityCenter onActivityChanged={refresh} notify={notify} />
+      {activityCenterEnabled && (
+        <ActivityCenter onActivityChanged={refresh} notify={notify} />
+      )}
 
       <OnboardingWizard
         open={onboardingOpen}
