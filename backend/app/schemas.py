@@ -306,6 +306,32 @@ class AgentRunCreate(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
 
 
+class OrganizationRunOptions(BaseModel):
+    transcribe_missing: bool = False
+    generate_corrections: bool = True
+    generate_tags: bool = True
+    generate_description: bool = True
+    generate_chapters: bool = True
+
+
+class OrganizationRunCreate(BaseModel):
+    scope: AgentScope = Field(default_factory=AgentScope)
+    options: OrganizationRunOptions = Field(default_factory=OrganizationRunOptions)
+
+
+class OrganizationProposalDecision(BaseModel):
+    decision: Literal["accepted", "rejected", "skipped"]
+    edited_value: Optional[Any] = None
+    note: Optional[str] = Field(default=None, max_length=500)
+
+
+class OrganizationRunApply(BaseModel):
+    categories: List[Literal["correction", "tag", "description", "chapter"]] = Field(
+        default_factory=lambda: ["correction", "tag", "description", "chapter"],
+        min_length=1,
+    )
+
+
 
 BatchOrganizationAction = Literal[
     "add_tags",

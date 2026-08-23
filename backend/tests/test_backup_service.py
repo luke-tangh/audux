@@ -16,6 +16,7 @@ from app.models import (
     AudioTag,
     LibraryHealthTask,
     LibraryRoot,
+    OrganizationRun,
     Playlist,
     PlaylistItem,
     ScanTask,
@@ -212,12 +213,20 @@ class TestDatabaseBackupService:
                     allowed_audio_ids_json="[]",
                 )
             )
+            session.add(
+                OrganizationRun(
+                    status="awaiting_review",
+                    scope_json='{"kind":"library"}',
+                    options_json="{}",
+                )
+            )
             session.commit()
             blocked = backup_service.restore_preflight(session, backup["id"])
             assert blocked["ok"] is False
             assert blocked["active_ai_tasks"] == 1
             assert blocked["active_health_tasks"] == 1
             assert blocked["active_agent_runs"] == 1
+            assert blocked["active_organization_runs"] == 1
 
             task = session.exec(select(AITask)).one()
             task.status = "done"
@@ -228,6 +237,9 @@ class TestDatabaseBackupService:
             agent_run = session.exec(select(AgentRun)).one()
             agent_run.status = "done"
             session.add(agent_run)
+            organization_run = session.exec(select(OrganizationRun)).one()
+            organization_run.status = "done"
+            session.add(organization_run)
             session.commit()
             pending = backup_service.schedule_database_restore(session, backup["id"])
 

@@ -4,6 +4,7 @@ export type ViewMode =
   | "playlist"
   | "statistics"
   | "agent"
+  | "organization"
   | "settings"
   | "missingDescription"
   | "transcribed"

@@ -10,6 +10,7 @@ type ViewMode =
   | "playlist"
   | "statistics"
   | "agent"
+  | "organization"
   | "settings"
   | "missingDescription"
   | "transcribed"
@@ -113,7 +114,7 @@ export default function Sidebar(props: Props) {
 
   function openView(view: ViewMode) {
     void navigate(() => {
-      if (view === "agent") {
+      if (view === "agent" || view === "organization") {
         props.setView(view);
         return;
       }
@@ -142,6 +143,7 @@ export default function Sidebar(props: Props) {
   const settingsActive = props.view === "settings";
   const statisticsActive = props.view === "statistics";
   const agentActive = props.view === "agent";
+  const organizationActive = props.view === "organization";
   const collapsedTags = props.tags.slice(0, 8);
   const selectedTagOutsidePreview = props.tags.find(
     (tag) => tag.name === props.selectedTag && !collapsedTags.some((row) => row.id === tag.id)
@@ -236,6 +238,19 @@ export default function Sidebar(props: Props) {
           <span>
             <strong>{t("navigation.agent")}</strong>
             <em>{t("navigation.agentSubtitle")}</em>
+          </span>
+        </Button>
+
+        <Button preserveChildren
+          type="button"
+          className={navClass(organizationActive)}
+          aria-current={organizationActive ? "page" : undefined}
+          onClick={() => openView("organization")}
+        >
+          <span className="nav-symbol"><MaterialIcon name="task_alt" size={22} /></span>
+          <span>
+            <strong>{t("navigation.organization")}</strong>
+            <em>{t("navigation.organizationSubtitle")}</em>
           </span>
         </Button>
 

@@ -9,6 +9,7 @@ import PlayerBar from "./components/PlayerBar";
 import SettingsPanel from "./components/SettingsPanel";
 import StatisticsPage from "./components/StatisticsPage";
 import AgentPanel from "./components/AgentPanel";
+import OrganizationPanel from "./components/OrganizationPanel";
 import ToastStack from "./components/ToastStack";
 import ActivityCenter from "./components/ActivityCenter";
 import OnboardingWizard from "./components/OnboardingWizard";
@@ -283,7 +284,7 @@ export default function App() {
       <div
         className={[
           "main-shell",
-          view === "settings" || view === "statistics" || view === "agent" ? "settings-mode" : "",
+          view === "settings" || view === "statistics" || view === "agent" || view === "organization" ? "settings-mode" : "",
           view !== "settings" && !inspectorOpen ? "inspector-closed" : ""
         ]
           .filter(Boolean)
@@ -380,6 +381,29 @@ export default function App() {
             roots={roots}
             notify={notify}
             onPlayCitation={async (audioId, seconds) => {
+              const existing = playbackQueue.find((row) => row.id === audioId)
+                || audioItems.find((row) => row.id === audioId);
+              const item = existing || (await api.getAudioDetail(audioId)).audio;
+              const queue = playbackQueue.some((row) => row.id === audioId)
+                ? playbackQueue
+                : [item, ...playbackQueue];
+              await playAudioAt(item, seconds, queue);
+            }}
+          />
+        ) : view === "organization" ? (
+          <OrganizationPanel
+            selected={selected}
+            selectedAudioIds={selectedAudioIds}
+            selectedPlaylistId={selectedPlaylistId}
+            activeSavedViewId={activeSavedViewId}
+            selectedTag={selectedTag}
+            selectedLibraryRootId={selectedLibraryRootId}
+            playlists={playlists}
+            savedViews={savedViews}
+            tags={tags}
+            roots={roots}
+            notify={notify}
+            onPlayEvidence={async (audioId, seconds) => {
               const existing = playbackQueue.find((row) => row.id === audioId)
                 || audioItems.find((row) => row.id === audioId);
               const item = existing || (await api.getAudioDetail(audioId)).audio;

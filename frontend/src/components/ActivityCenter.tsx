@@ -13,7 +13,7 @@ type Props = {
 };
 
 const EMPTY_FEED: ActivityFeed = { items: [], active_count: 0, failed_count: 0 };
-const TERMINAL = new Set(["done", "failed", "canceled", "interrupted", "installed"]);
+const TERMINAL = new Set(["done", "partial", "failed", "canceled", "interrupted", "installed"]);
 const POSITION_STORAGE_KEY = "audux.activity-center.position.v1";
 const TRIGGER_SIZE = 40;
 const VIEWPORT_MARGIN = 12;
@@ -196,6 +196,10 @@ export default function ActivityCenter({ onActivityChanged, notify }: Props) {
         await (action === "cancel"
           ? api.cancelWhisperComponentInstall()
           : api.installWhisperComponent());
+      } else if (item.source === "organization" && item.source_id) {
+        await (action === "cancel"
+          ? api.cancelOrganizationRun(item.source_id)
+          : api.retryOrganizationRun(item.source_id));
       }
       notify?.(
         action === "cancel" ? t("activities.cancelRequested") : t("activities.retryRequested"),

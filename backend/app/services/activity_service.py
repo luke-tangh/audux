@@ -1,10 +1,24 @@
 from sqlmodel import Session, select
 
-from ..models import AITask, AudioItem, LibraryHealthTask, LibraryRoot, ScanTask
+from ..models import (
+    AITask,
+    AudioItem,
+    LibraryHealthTask,
+    LibraryRoot,
+    OrganizationRun,
+    ScanTask,
+)
 from .whisper_component_service import get_whisper_component_status
 
 
-ACTIVE_STATUSES = {"pending", "running", "cancel_requested", "downloading", "installing"}
+ACTIVE_STATUSES = {
+    "pending",
+    "running",
+    "awaiting_review",
+    "cancel_requested",
+    "downloading",
+    "installing",
+}
 FAILED_STATUSES = {"failed", "canceled", "interrupted"}
 
 
@@ -25,6 +39,9 @@ def list_activities(session: Session, limit: int = 40) -> dict:
         select(LibraryHealthTask)
         .order_by(LibraryHealthTask.updated_at.desc())
         .limit(limit)
+    ).all()
+    organization_runs = session.exec(
+        select(OrganizationRun).order_by(OrganizationRun.updated_at.desc()).limit(limit)
     ).all()
 
     audio_ids = {task.audio_id for task in ai_tasks}
@@ -112,6 +129,32 @@ def list_activities(session: Session, limit: int = 40) -> dict:
             "updated_at": task.updated_at,
             "can_cancel": task.status in {"pending", "running"},
             "can_retry": task.status in {"failed", "canceled", "interrupted"},
+        })
+
+    for run in organization_runs:
+        items.append({
+            "id": f"organization:{run.id}",
+            "source": "organization",
+            "source_id": run.id,
+            "kind": "organization_run",
+            "status": run.status,
+            "title": f"Organization run #{run.id}",
+            "detail": {
+                "stage": run.current_stage,
+                "failed": run.failed_count,
+                "pending_review": run.pending_review_count,
+                "remote_characters": run.remote_characters,
+            },
+            "current": run.processed_count,
+            "total": run.target_count,
+            "progress": _progress(run.processed_count, run.target_count),
+            "error_message": run.error_message,
+            "error_code": run.error_code,
+            "error_params": None,
+            "created_at": run.created_at,
+            "updated_at": run.updated_at,
+            "can_cancel": run.status in {"pending", "running", "awaiting_review"},
+            "can_retry": run.status in {"failed", "canceled", "interrupted"},
         })
 
     component = get_whisper_component_status()

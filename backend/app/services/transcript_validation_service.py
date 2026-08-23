@@ -2,7 +2,7 @@ import json
 import re
 from dataclasses import dataclass
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from ..models import AudioItem, Transcript, TranscriptIssue, TranscriptSegment, now_iso
 
@@ -212,3 +212,65 @@ def store_validation_issues(
         rows.append(row)
     session.flush()
     return rows
+
+
+def reconcile_validation_issues(
+    session: Session,
+    transcript: Transcript,
+    segments: list[TranscriptSegment],
+    audio: AudioItem,
+) -> dict:
+    """Re-run deterministic validation and reconcile open findings in place."""
+    if transcript.id is None:
+        raise ValueError("Transcript must be persisted before validation")
+    timestamp = now_iso()
+    findings = validate_transcript(transcript, segments, audio)
+    existing = list(
+        session.exec(
+            select(TranscriptIssue).where(TranscriptIssue.transcript_id == transcript.id)
+        ).all()
+    )
+    open_by_key = {
+        (row.code, row.segment_id): row for row in existing if row.status == "open"
+    }
+    finding_by_key = {(finding.code, finding.segment_id): finding for finding in findings}
+    closed: list[int] = []
+    still_open: list[int] = []
+    created: list[int] = []
+
+    for key, row in open_by_key.items():
+        if key in finding_by_key:
+            still_open.append(int(row.id))
+            finding_by_key.pop(key)
+            continue
+        row.status = "resolved"
+        row.closed_reason = "validation_passed"
+        row.updated_at = timestamp
+        session.add(row)
+        closed.append(int(row.id))
+
+    for finding in finding_by_key.values():
+        row = TranscriptIssue(
+            audio_id=int(audio.id),
+            transcript_id=int(transcript.id),
+            segment_id=finding.segment_id,
+            code=finding.code,
+            severity=finding.severity,
+            evidence_json=json.dumps(
+                finding.evidence,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        session.add(row)
+        session.flush()
+        created.append(int(row.id))
+
+    return {
+        "closed_issue_ids": closed,
+        "still_open_issue_ids": still_open,
+        "new_issue_ids": created,
+    }

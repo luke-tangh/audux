@@ -358,3 +358,102 @@ class AgentCitation(SQLModel, table=True):
     quote: str
     label: str
     created_at: str = Field(default_factory=now_iso)
+
+
+class OrganizationRun(SQLModel, table=True):
+    """A frozen, auditable v0.8 organization workflow."""
+
+    __tablename__ = "organization_runs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    status: str = Field(default="pending", index=True)
+    current_stage: str = Field(default="preflight", index=True)
+    scope_json: str
+    options_json: str
+    target_count: int = 0
+    processed_count: int = 0
+    failed_count: int = 0
+    pending_review_count: int = 0
+    remote_characters: int = 0
+    error_message: Optional[str] = None
+    error_code: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class OrganizationRunTarget(SQLModel, table=True):
+    __tablename__ = "organization_run_targets"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="organization_runs.id", index=True)
+    audio_id: int = Field(foreign_key="audio_items.id", index=True)
+    source_transcript_id: Optional[int] = Field(
+        default=None,
+        foreign_key="transcripts.id",
+    )
+    status: str = Field(default="pending", index=True)
+    error_message: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class OrganizationRunStep(SQLModel, table=True):
+    __tablename__ = "organization_run_steps"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="organization_runs.id", index=True)
+    stage: str
+    step_index: int
+    status: str = Field(default="pending", index=True)
+    processed_count: int = 0
+    failed_count: int = 0
+    detail_json: Optional[str] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class OrganizationProposal(SQLModel, table=True):
+    __tablename__ = "organization_proposals"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="organization_runs.id", index=True)
+    audio_id: int = Field(foreign_key="audio_items.id", index=True)
+    source_transcript_id: Optional[int] = Field(
+        default=None,
+        foreign_key="transcripts.id",
+    )
+    source_segment_id: Optional[int] = Field(
+        default=None,
+        foreign_key="transcript_segments.id",
+    )
+    kind: str = Field(index=True)
+    status: str = Field(default="pending", index=True)
+    dedupe_key: str
+    original_value_json: str
+    proposed_value_json: str
+    evidence_json: str
+    rationale: Optional[str] = None
+    confidence: str = "unknown"
+    decision_note: Optional[str] = None
+    decided_at: Optional[str] = None
+    applied_at: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    updated_at: str = Field(default_factory=now_iso)
+
+
+class OrganizationAuditEvent(SQLModel, table=True):
+    __tablename__ = "organization_audit_events"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="organization_runs.id", index=True)
+    proposal_id: Optional[int] = Field(
+        default=None,
+        foreign_key="organization_proposals.id",
+    )
+    audio_id: Optional[int] = Field(default=None, foreign_key="audio_items.id")
+    event_type: str = Field(index=True)
+    detail_json: str
+    created_at: str = Field(default_factory=now_iso)

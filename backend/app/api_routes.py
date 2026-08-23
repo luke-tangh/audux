@@ -16,6 +16,7 @@ from .routes.tag_routes import router as tag_router
 from .routes.transcript_routes import router as transcript_router
 from .routes.retrieval_routes import router as retrieval_router
 from .routes.agent_routes import router as agent_router
+from .routes.organization_run_routes import router as organization_run_router
 
 
 router = APIRouter()
@@ -30,6 +31,7 @@ router.include_router(saved_view_router)
 router.include_router(transcript_router)
 router.include_router(retrieval_router)
 router.include_router(agent_router)
+router.include_router(organization_run_router)
 router.include_router(ai_router)
 router.include_router(asr_router)
 router.include_router(settings_router)

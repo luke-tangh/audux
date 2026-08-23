@@ -23,6 +23,10 @@ import type {
   LLMModelDiscoveryPayload,
   LLMModelDiscoveryResult,
   LLMTestResult,
+  OrganizationProposal,
+  OrganizationProposalKind,
+  OrganizationRun,
+  OrganizationRunOptions,
   PaginatedAudioItems,
   PlaybackQueueResolution,
   PlaybackEvent,
@@ -402,6 +406,41 @@ export const api = {
 
   cancelAgentRun: (id: number) =>
     request<AgentRun>(`/agent/runs/${id}/cancel`, { method: "POST" }),
+
+  listOrganizationRuns: () => request<OrganizationRun[]>("/organization-runs"),
+
+  createOrganizationRun: (
+    scope: AgentScope,
+    options: OrganizationRunOptions
+  ) => request<OrganizationRun>("/organization-runs", {
+    method: "POST",
+    body: JSON.stringify({ scope, options })
+  }),
+
+  getOrganizationRun: (id: number) =>
+    request<OrganizationRun>(`/organization-runs/${id}`),
+
+  cancelOrganizationRun: (id: number) =>
+    request<OrganizationRun>(`/organization-runs/${id}/cancel`, { method: "POST" }),
+
+  retryOrganizationRun: (id: number) =>
+    request<OrganizationRun>(`/organization-runs/${id}/retry`, { method: "POST" }),
+
+  decideOrganizationProposal: (
+    id: number,
+    decision: "accepted" | "rejected" | "skipped",
+    editedValue?: unknown,
+    note?: string
+  ) => request<OrganizationProposal>(`/organization-proposals/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ decision, edited_value: editedValue, note })
+  }),
+
+  applyOrganizationRun: (id: number, categories: OrganizationProposalKind[]) =>
+    request<OrganizationRun>(`/organization-runs/${id}/apply`, {
+      method: "POST",
+      body: JSON.stringify({ categories })
+    }),
 
   agentConversationExportUrl: (id: number) =>
     appendAccessToken(`${API_BASE}/agent/conversations/${id}/export`),

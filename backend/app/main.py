@@ -10,10 +10,12 @@ from .db import engine
 from .scanner import recover_interrupted_scan_tasks
 from .tasks import start_worker_once
 from .agent_tasks import start_agent_worker_once
+from .organization_tasks import start_worker_once as start_organization_worker_once
 from .version import APP_VERSION
 from .services.backup_service import initialize_database_with_pending_restore
 from .services.health_service import recover_interrupted_health_tasks
 from .services.agent_service import recover_interrupted_agent_runs
+from .services.organization_run_service import recover_interrupted_runs
 from .local_security import (
     ALLOW_ALL_CORS,
     LOCAL_ORIGIN_REGEX,
@@ -53,8 +55,14 @@ async def lifespan(_: FastAPI):
     except Exception:
         logger.exception("Failed to recover interrupted Agent runs")
 
+    try:
+        recover_interrupted_runs(engine)
+    except Exception:
+        logger.exception("Failed to recover interrupted organization runs")
+
     start_worker_once()
     start_agent_worker_once()
+    start_organization_worker_once()
     logger.info("Audux backend started")
     yield
 

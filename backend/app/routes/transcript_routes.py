@@ -114,6 +114,15 @@ def revalidate_transcript(audio_id: int, session: Session = Depends(get_session)
     return service_call(transcript_service.revalidate_transcript, session, audio_id)
 
 
+@router.get("/audio-items/{audio_id}/transcript/diagnostics")
+def transcript_diagnostics(audio_id: int, session: Session = Depends(get_session)):
+    return service_call(
+        transcript_service.transcript_diagnostic_summary,
+        session,
+        audio_id,
+    )
+
+
 @router.patch("/audio-items/{audio_id}/transcript/issues/{issue_id}")
 def update_transcript_issue(
     audio_id: int,

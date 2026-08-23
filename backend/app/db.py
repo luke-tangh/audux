@@ -10,7 +10,7 @@ from .time_utils import utc_now_iso
 
 
 logger = logging.getLogger(__name__)
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 
 APP_DATA_DIR = Path.home() / ".audux"
 APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -325,6 +325,26 @@ def create_current_schema_objects():
         """
         CREATE INDEX IF NOT EXISTS ix_agent_conversations_updated
         ON agent_conversations(updated_at DESC);
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_organization_run_targets_audio
+        ON organization_run_targets(run_id, audio_id);
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_organization_run_steps_stage
+        ON organization_run_steps(run_id, stage);
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_organization_proposals_dedupe
+        ON organization_proposals(run_id, dedupe_key);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_organization_proposals_review
+        ON organization_proposals(run_id, status, kind);
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_organization_runs_updated
+        ON organization_runs(updated_at DESC);
         """,
     ]
 

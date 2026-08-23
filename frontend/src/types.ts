@@ -146,6 +146,95 @@ export type AgentConversation = {
   runs?: AgentRun[];
 };
 
+export type OrganizationRunOptions = {
+  transcribe_missing: boolean;
+  generate_corrections: boolean;
+  generate_tags: boolean;
+  generate_description: boolean;
+  generate_chapters: boolean;
+};
+
+export type OrganizationRunStep = {
+  id: number;
+  run_id: number;
+  stage: "preflight" | "transcribe" | "validate" | "review" | "enrich" | "apply" | "reindex" | "verify";
+  step_index: number;
+  status: string;
+  processed_count: number;
+  failed_count: number;
+  detail?: Record<string, unknown> | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  updated_at: string;
+};
+
+export type OrganizationProposalKind = "correction" | "tag" | "description" | "chapter";
+
+export type OrganizationProposal = {
+  id: number;
+  run_id: number;
+  audio_id: number;
+  source_transcript_id?: number | null;
+  source_segment_id?: number | null;
+  kind: OrganizationProposalKind;
+  status: "pending" | "accepted" | "rejected" | "skipped" | "stale" | "applied" | string;
+  original_value: unknown;
+  proposed_value: unknown;
+  evidence: Array<{
+    segment_id?: number;
+    start_seconds?: number;
+    end_seconds?: number;
+    quote?: string;
+  }>;
+  diff: Array<{ op: string; before: string; after: string }>;
+  rationale?: string | null;
+  confidence: "high" | "medium" | "low" | "unknown" | string;
+  decision_note?: string | null;
+  decided_at?: string | null;
+  applied_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OrganizationRun = {
+  id: number;
+  status: "pending" | "running" | "awaiting_review" | "done" | "partial" | "failed" | "canceled" | "interrupted" | string;
+  current_stage: string;
+  scope: AgentScope;
+  options: OrganizationRunOptions;
+  target_count: number;
+  processed_count: number;
+  failed_count: number;
+  pending_review_count: number;
+  remote_characters: number;
+  error_message?: string | null;
+  error_code?: string | null;
+  created_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  updated_at: string;
+  steps?: OrganizationRunStep[];
+  targets?: Array<{
+    id: number;
+    audio_id: number;
+    source_transcript_id?: number | null;
+    status: string;
+    error_message?: string | null;
+    title: string;
+  }>;
+  proposals?: OrganizationProposal[];
+  proposal_counts?: Record<string, number>;
+  audit_events?: Array<{
+    id: number;
+    run_id: number;
+    proposal_id?: number | null;
+    audio_id?: number | null;
+    event_type: string;
+    detail?: Record<string, unknown> | null;
+    created_at: string;
+  }>;
+};
+
 export type AudioItem = {
   id: number;
   file_path: string;
@@ -223,7 +312,7 @@ export type LibraryImportResult = {
 
 export type ActivityItem = {
   id: string;
-  source: "ai" | "scan" | "health" | "component";
+  source: "ai" | "scan" | "health" | "component" | "organization";
   source_id: number | null;
   target_id?: number;
   kind: string;
@@ -442,6 +531,11 @@ export type Transcript = {
   issues?: TranscriptIssue[];
   cleared_segments?: number;
   updated_segments?: number;
+  validation_report?: {
+    closed_issue_ids: number[];
+    still_open_issue_ids: number[];
+    new_issue_ids: number[];
+  };
 };
 
 export type AITask = {
@@ -665,6 +759,7 @@ export type DatabaseRestorePreflight = {
   active_scan_tasks: number;
   active_health_tasks: number;
   active_agent_runs: number;
+  active_organization_runs: number;
   required_bytes: number;
   free_bytes: number;
   restart_required: boolean;

@@ -1053,7 +1053,9 @@ export default function SettingsPanel({
             return t("settings.backup.blocker.activeTasks", {
               aiTasks: preflight.active_ai_tasks,
               scanTasks: preflight.active_scan_tasks,
-              healthTasks: preflight.active_health_tasks
+              healthTasks: preflight.active_health_tasks,
+              agentRuns: preflight.active_agent_runs,
+              organizationRuns: preflight.active_organization_runs
             });
           }
           if (blocker.code === "backup.insufficient_space") {
@@ -1079,7 +1081,9 @@ export default function SettingsPanel({
           name: backup.name,
           aiTasks: preflight.active_ai_tasks,
           scanTasks: preflight.active_scan_tasks,
-          healthTasks: preflight.active_health_tasks
+          healthTasks: preflight.active_health_tasks,
+          agentRuns: preflight.active_agent_runs,
+          organizationRuns: preflight.active_organization_runs
         }),
         details: t("settings.backup.restoreDetails"),
         confirmLabel: t("settings.backup.restoreConfirm"),

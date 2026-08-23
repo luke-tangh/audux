@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 
 from .. import db
-from ..models import AITask, AgentRun, LibraryHealthTask, ScanTask
+from ..models import AITask, AgentRun, LibraryHealthTask, OrganizationRun, ScanTask
 from ..time_utils import utc_now_iso, utc_timestamp_iso
 from ..version import APP_VERSION
 from .common import ServiceError
@@ -347,7 +347,7 @@ def delete_database_backup(snapshot_id: str) -> dict[str, Any]:
         return {"ok": True, "id": snapshot_id}
 
 
-def _active_task_counts(session: Session) -> tuple[int, int, int, int]:
+def _active_task_counts(session: Session) -> tuple[int, int, int, int, int]:
     ai_count = len(
         session.exec(select(AITask.id).where(AITask.status.in_(ACTIVE_STATUSES))).all()
     )
@@ -368,7 +368,14 @@ def _active_task_counts(session: Session) -> tuple[int, int, int, int]:
             select(AgentRun.id).where(AgentRun.status.in_(ACTIVE_STATUSES))
         ).all()
     )
-    return ai_count, scan_count, health_count, agent_count
+    organization_count = len(
+        session.exec(
+            select(OrganizationRun.id).where(
+                OrganizationRun.status.in_(ACTIVE_STATUSES | {"awaiting_review"})
+            )
+        ).all()
+    )
+    return ai_count, scan_count, health_count, agent_count, organization_count
 
 
 def restore_preflight(session: Session, snapshot_id: str) -> dict[str, Any]:
@@ -389,6 +396,7 @@ def restore_preflight(session: Session, snapshot_id: str) -> dict[str, Any]:
         active_scan_tasks,
         active_health_tasks,
         active_agent_runs,
+        active_organization_runs,
     ) = _active_task_counts(session)
 
     blockers: list[dict[str, Any]] = []
@@ -406,16 +414,23 @@ def restore_preflight(session: Session, snapshot_id: str) -> dict[str, Any]:
                 "message": backup["compatibility_error"] or "Backup is incompatible",
             }
         )
-    if active_ai_tasks or active_scan_tasks or active_health_tasks or active_agent_runs:
+    if (
+        active_ai_tasks
+        or active_scan_tasks
+        or active_health_tasks
+        or active_agent_runs
+        or active_organization_runs
+    ):
         blockers.append(
             {
                 "code": "backup.active_tasks",
-                "message": "Finish or cancel active AI, ASR, Agent, scan and library health tasks before restoring",
+                "message": "Finish or cancel active AI, ASR, Agent, organization, scan and library health tasks before restoring",
                 "params": {
                     "ai_tasks": active_ai_tasks,
                     "scan_tasks": active_scan_tasks,
                     "health_tasks": active_health_tasks,
                     "agent_runs": active_agent_runs,
+                    "organization_runs": active_organization_runs,
                 },
             }
         )
@@ -443,6 +458,7 @@ def restore_preflight(session: Session, snapshot_id: str) -> dict[str, Any]:
         "active_scan_tasks": active_scan_tasks,
         "active_health_tasks": active_health_tasks,
         "active_agent_runs": active_agent_runs,
+        "active_organization_runs": active_organization_runs,
         "required_bytes": required_bytes,
         "free_bytes": free_bytes,
         "restart_required": True,

@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from ..logger import get_logger
@@ -140,6 +141,21 @@ def add_tags_to_audio(
     tags: list[str],
     source: str = "user",
 ) -> list[Tag]:
+    result = add_tags_to_audio_no_commit(session, audio_id, tags, source)
+    rebuild_audio_search_index(session, audio_id, commit=False)
+    session.commit()
+    for tag in result:
+        session.refresh(tag)
+    return result
+
+
+def add_tags_to_audio_no_commit(
+    session: Session,
+    audio_id: int,
+    tags: list[str],
+    source: str = "user",
+) -> list[Tag]:
+    """Attach normalized tags without committing, for larger atomic workflows."""
     item = session.get(AudioItem, audio_id)
     if not item:
         raise ServiceError(404, "Audio item not found")
@@ -151,12 +167,13 @@ def add_tags_to_audio(
         if not name:
             continue
 
-        tag = session.exec(select(Tag).where(Tag.name == name)).first()
+        tag = session.exec(
+            select(Tag).where(func.lower(Tag.name) == name.lower())
+        ).first()
         if not tag:
             tag = Tag(name=name, source=source)
             session.add(tag)
-            session.commit()
-            session.refresh(tag)
+            session.flush()
 
         exists = session.exec(
             select(AudioTag).where(
@@ -173,12 +190,7 @@ def add_tags_to_audio(
 
     item.updated_at = now_iso()
     session.add(item)
-    session.commit()
-    rebuild_audio_search_index(session, audio_id)
-
-    for tag in result:
-        session.refresh(tag)
-
+    session.flush()
     return result
 
 

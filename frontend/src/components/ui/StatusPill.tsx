@@ -8,7 +8,15 @@ const STATUS_KEYS: Record<string, string> = {
   done: "common.status.done",
   failed: "common.status.failed",
   canceled: "common.status.canceled",
-  cancel_requested: "common.status.cancelRequested"
+  cancel_requested: "common.status.cancelRequested",
+  awaiting_review: "common.status.awaitingReview",
+  partial: "common.status.partial",
+  interrupted: "common.status.interrupted",
+  accepted: "common.status.accepted",
+  rejected: "common.status.rejected",
+  skipped: "common.status.skipped",
+  stale: "common.status.stale",
+  applied: "common.status.applied"
 };
 
 export function statusClass(value?: string): string {

@@ -23,6 +23,7 @@
 @import "./components/settings-panel.css";
 @import "./components/statistics-page.css";
 @import "./components/agent-panel.css";
+@import "./components/organization-panel.css";
 @import "./components/task-panel.css";
 @import "./components/player-bar.css";
 @import "./components/toast.css";

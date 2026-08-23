@@ -17,6 +17,7 @@ from ..models import (
     AgentCitation,
     AITask,
     AudioItem,
+    OrganizationProposal,
     Transcript,
     TranscriptChapter,
     TranscriptIssue,
@@ -34,7 +35,7 @@ from .common import (
     _mark_audio_missing_if_unavailable,
     _srt_time,
 )
-from .transcript_validation_service import store_validation_issues
+from .transcript_validation_service import reconcile_validation_issues, store_validation_issues
 from .whisper_component_service import is_whisper_companion_available
 
 
@@ -310,6 +311,14 @@ def create_transcript_revision(
 
     timestamp = now_iso()
     if current:
+        for proposal in session.exec(
+            select(OrganizationProposal)
+            .where(OrganizationProposal.source_transcript_id == current.id)
+            .where(OrganizationProposal.status.in_(["pending", "accepted"]))
+        ).all():
+            proposal.status = "stale"
+            proposal.updated_at = timestamp
+            session.add(proposal)
         current.is_current = False
         current.updated_at = timestamp
         session.add(current)
@@ -521,18 +530,38 @@ def revalidate_transcript(session: Session, audio_id: int) -> dict:
     revision = _current_transcript(session, audio_id)
     if not audio or not revision:
         raise ServiceError(404, "Transcript not found")
-    if revision.id != payload.expected_revision_id:
-        raise ServiceError(409, "Transcript revision changed before chapter creation")
-    existing = _revision_issues(session, int(revision.id))
-    if not existing:
-        store_validation_issues(
-            session,
-            revision,
-            _revision_segments(session, int(revision.id)),
-            audio,
-        )
-        session.commit()
-    return _revision_payload(session, revision)
+    report = reconcile_validation_issues(
+        session,
+        revision,
+        _revision_segments(session, int(revision.id)),
+        audio,
+    )
+    session.commit()
+    return {**_revision_payload(session, revision), "validation_report": report}
+
+
+def transcript_diagnostic_summary(session: Session, audio_id: int) -> dict:
+    audio = session.get(AudioItem, audio_id)
+    revision = _current_transcript(session, audio_id)
+    if not audio or not revision:
+        raise ServiceError(404, "Transcript not found")
+    issues = _revision_issues(session, int(revision.id))
+    return {
+        "schema_version": 1,
+        "audio_id": audio_id,
+        "revision": {
+            "id": revision.id,
+            "revision_number": revision.revision_number,
+            "source_type": revision.source_type,
+            "provider_name": revision.provider_name,
+            "model_name": revision.model_name,
+            "language": revision.language,
+            "text_characters": len(revision.full_text),
+            "segment_count": len(_revision_segments(session, int(revision.id))),
+            "quality_metrics": _parsed_json(revision.quality_metrics_json),
+        },
+        "issues": [_issue_payload(issue) for issue in issues],
+    }
 
 
 def update_transcript_issue(
@@ -585,6 +614,8 @@ def create_chapter(session: Session, audio_id: int, payload) -> TranscriptChapte
     revision = _current_transcript(session, audio_id)
     if not audio or not revision:
         raise ServiceError(404, "Transcript not found")
+    if revision.id != payload.expected_revision_id:
+        raise ServiceError(409, "Transcript revision changed before chapter creation")
     _validate_chapter_bounds(audio, payload.start_seconds, payload.end_seconds)
     chapter = TranscriptChapter(
         transcript_id=int(revision.id),
