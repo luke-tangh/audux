@@ -1,0 +1,94 @@
+# 数据与安全
+
+Audux 将数据库和应用生成内容视为用户数据。自动化测试必须使用临时目录，不能指向真实的
+`~/.audux/`。
+
+## 数据目录
+
+默认数据目录结构：
+
+```text
+~/.audux/
+├── database.sqlite
+├── covers/
+├── logs/
+├── exports/
+├── backups/
+├── components/
+├── models/
+└── local_api_token
+```
+
+- `database.sqlite` 保存资料库记录、设置、Transcript、任务与审计状态。
+- `covers/`、`logs/`、`exports/` 和 `backups/` 分别存放应用生成的封面、日志、导出和快照。
+- `components/` 保存按版本和平台安装的可选 Whisper companion。
+- `models/` 保存按需下载的本地模型权重。
+- `local_api_token` 是后端自动生成的随机 Token，不得记录、提交或复制到测试夹具。
+
+原始音频仍位于用户选择的媒体库目录，不会复制进 `~/.audux/`，也不会被 Audux 修改。
+
+## 预发布 schema 策略
+
+`0.9.0-beta.1` 使用数据库 schema v6。v1.0 发布前只接受当前构建的 schema：检测到旧版、
+新版或没有有效 marker 的数据库时，应用拒绝启动且不修改原文件；预发布构建之间不执行
+自动迁移。
+
+验证新构建前，请保留匹配旧构建的可恢复副本，并使用独立测试数据目录。不要把“无法打开
+旧 schema”误认为可以删除或重建用户数据库。
+
+## 数据库快照与恢复
+
+“设置 → 维护 → 数据库备份与恢复”支持创建、命名、校验和删除受管快照。恢复前会检查：
+
+- SQLite 完整性和当前 schema；
+- 可用磁盘空间；
+- 是否存在会被切断的活动任务或待审批整理 Run。
+
+提交恢复时会先创建当前数据库的安全快照。Tauri 会重启并切换数据库；browser-lite 会
+保留恢复请求并提示手动重启。目标数据库初始化失败时会自动换回安全快照。
+
+数据库快照不包含原始音频、模型缓存或导出文件。做完整灾难恢复备份时，应另外备份整个
+`~/.audux/` 和原始媒体目录。
+
+## 可移植归档与诊断包
+
+v0.9 当前格式归档带版本 manifest 和 SHA-256，覆盖 metadata、Tag、Playlist、保存视图、
+Transcript revision、章节、质量 issue 与必要的 Agent 审计。导入必须先 dry-run，只接受
+当前 schema，并且只向空资料库执行事务导入；音频记录导入后标为缺失，等待安全重新关联。
+
+归档不包含音频文件、凭据、本地 API Token 或绝对媒体根路径。诊断包采用字段白名单，只含
+版本、平台、白名单配置、任务状态摘要和完整性结果，不包含完整 Transcript、日志、凭据、
+Token 或用户绝对路径。
+
+## 本地 API
+
+独立开发后端默认只监听 `127.0.0.1:8765`；Tauri 与 browser-lite 使用动态回环端口。
+安全机制包括：
+
+1. CORS 默认只允许 localhost 和 Tauri origin。
+2. `POST`、`PUT`、`PATCH`、`DELETE` 要求 `X-Audux-Client: audux`。
+3. 除 `/health`、`/auth/token` 和 API docs 外，请求需要 `X-Audux-Token`。
+4. `<audio>`、`<img>` 和下载等无法附加 Header 的请求使用 `?access_token=<token>`。
+
+前端在 [`frontend/src/api.ts`](../frontend/src/api.ts) 中统一获取和附加 Token。手动调试：
+
+```bash
+curl http://127.0.0.1:8765/auth/token \
+  -H "X-Audux-Client: audux"
+
+curl http://127.0.0.1:8765/library-roots \
+  -H "X-Audux-Token: <token>"
+```
+
+修改数据的请求还必须带 `X-Audux-Client: audux`。开发环境可临时设置
+`AUDUX_ALLOW_ALL_CORS=1`，但不得用于日常运行或发布构建，也不能通过削弱 Token、Origin、
+CSP 或客户端 Header 来解决开发问题。
+
+## Provider 与 Agent 边界
+
+- 远程 ASR 会收到完整音频或切片，远程 LLM 会收到相关 metadata 与 Transcript。
+- 非回环 endpoint 默认拒绝，必须在设置中明确允许。
+- Agent scope 由后端解析并冻结，不由 Prompt 自律；Transcript 与模型输出都视为不可信输入。
+- MCP 只读，内置写操作仅限低风险服务边界，并要求精确计划、一次性批准和事务执行。
+- Agent 不可删除文件、恢复数据库、修改 Provider，也不可访问任意路径、网络、Shell、日志
+  或凭据。

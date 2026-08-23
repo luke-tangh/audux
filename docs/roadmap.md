@@ -1,6 +1,7 @@
 # Audux 功能路线图
 
-> 更新于 2026-08-20。v0.x 版本号只表示内部 Beta 规划顺序，不是公开发布日期承诺；
+> 更新于 2026-08-23。当前内部候选为 `0.9.0-beta.1`（schema v6）。v0.x 版本号只表示
+> 内部 Beta 规划顺序，不是公开发布日期承诺；
 > 每个阶段只有达到退出条件后才进入下一阶段。
 
 ## 当前判断
@@ -416,13 +417,13 @@ v1.0 是质量和兼容门槛，不再堆叠新的大型 Agent 能力。发布�
 - 更丰富的本地 Tag taxonomy、同义词和用户可维护术语表。
 - Agent 生成可导出的学习提纲、节目笔记和跨音频主题报告。
 
-## 建议立即启动的工作
+## 当前优先事项
 
-1. 将整理 run 串联为可恢复的 `preflight -> transcribe -> validate -> review -> enrich -> apply`
-   流程，并冻结每次 run 的目标 ID 清单。
-2. 为 Transcript 勘误、Tag、描述和章节建议建立 proposal 与精确 diff，所有正式写入保留
-   人工审批和新 revision。
-3. 复用 v0.7 scope resolver、Segment 检索和 Tool Registry，新增提案权限但不向模型开放
-   任意路径或直接写数据库能力。
-4. 持续执行三平台内部 Beta checklist，以及 R1 真实规模“创建—修改—恢复—校验”演练；
-   Agent 开发不能替代现有发布与恢复验证。
+1. 在 Linux、Windows 和 macOS 目标系统完成 v0.9 Tauri、browser-lite、MCP 与 Whisper
+   companion 的 clean-install、长期运行、休眠恢复、端口冲突和正常退出验收。
+2. 对归档 dry-run / 导入、数据库快照回滚、诊断包脱敏和受控 Agent 审批执行独立安全复核，
+   固化可重复的验收记录。
+3. 定义 v1.0 后的 schema 迁移与兼容策略、支持平台和 Provider / MCP 协议承诺；在这些公开
+   承诺确定前继续保持 v0.x 不自动迁移。
+4. 持续运行固定检索、引用、勘误和 Tag 评测，记录质量与资源回归；候选增强项不应抢占
+   v1.0 稳定性门槛。
