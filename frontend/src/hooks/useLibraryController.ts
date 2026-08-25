@@ -82,6 +82,8 @@ export function useLibraryController() {
   const startupReadyRef = useRef(false);
   const navigationLoadedRef = useRef(false);
   const loadInFlightRef = useRef(false);
+  const loadMoreInFlightRef = useRef(false);
+  const loadMoreSeqRef = useRef(0);
 
   const { ensureBackendReady, resetBackendReady } = useBackendReady();
   const dialog = useDialog();
@@ -184,7 +186,10 @@ export function useLibraryController() {
 
   async function load() {
     const loadSeq = ++loadSeqRef.current;
+    loadMoreSeqRef.current += 1;
+    loadMoreInFlightRef.current = false;
     loadInFlightRef.current = true;
+    setLoadingMore(false);
     const isListView = isAudioListView(view);
 
     if (isListView) {
@@ -231,6 +236,8 @@ export function useLibraryController() {
       let nextSearchLimited = false;
       let nextSearchLimit: number | null = null;
       let nextFacets = { tags: [], roots: [] } as typeof facets;
+      let nextPlaylistItemsRaw: AudioItem[] = [];
+      let nextSmartPlaylistRefreshedAt: string | null = null;
 
       if (view === "playlist") {
         if (!selectedPlaylistId) {
@@ -255,19 +262,16 @@ export function useLibraryController() {
         });
 
         if (navigationPlaylist?.kind === "smart") {
-          setPlaylistItemsRaw([]);
-          setSmartPlaylistRefreshedAt(page.refreshed_at ?? null);
+          nextSmartPlaylistRefreshedAt = page.refreshed_at ?? null;
         } else {
           const detail = await api.getPlaylist(selectedPlaylistId, {
             include_disabled_roots: true
           });
-          const rawItems: AudioItem[] = detail.items.map((row) => ({
+          nextPlaylistItemsRaw = detail.items.map((row) => ({
             ...row.audio,
             playlist_item_id: row.playlist_item.id,
             playlist_order_index: row.playlist_item.order_index
           }));
-          setPlaylistItemsRaw(rawItems);
-          setSmartPlaylistRefreshedAt(null);
         }
 
         items = page.items;
@@ -277,9 +281,6 @@ export function useLibraryController() {
         nextSearchLimit = page.search_limit ?? null;
         nextFacets = page.facets || nextFacets;
       } else {
-        setPlaylistItemsRaw([]);
-        setSmartPlaylistRefreshedAt(null);
-
         const page = await api.listAudioItems({
           ...currentAudioListParams(),
           limit: AUDIO_PAGE_LIMIT,
@@ -296,6 +297,8 @@ export function useLibraryController() {
 
       if (loadSeq !== loadSeqRef.current) return;
 
+      setPlaylistItemsRaw(nextPlaylistItemsRaw);
+      setSmartPlaylistRefreshedAt(nextSmartPlaylistRefreshedAt);
       setAudioItems(items);
       setAudioTotal(total);
       setAudioHasMore(hasMore);
@@ -335,7 +338,7 @@ export function useLibraryController() {
   }
 
   async function loadMoreAudioItems() {
-    if (!isAudioListView(view) || loadingMore || !audioHasMore) {
+    if (!isAudioListView(view) || loadMoreInFlightRef.current || !audioHasMore) {
       return;
     }
 
@@ -343,6 +346,9 @@ export function useLibraryController() {
       return;
     }
 
+    const loadSeq = loadSeqRef.current;
+    const loadMoreSeq = ++loadMoreSeqRef.current;
+    loadMoreInFlightRef.current = true;
     setLoadingMore(true);
 
     try {
@@ -354,6 +360,11 @@ export function useLibraryController() {
           limit: AUDIO_PAGE_LIMIT,
           offset: audioItems.length
         });
+
+        if (
+          loadSeq !== loadSeqRef.current ||
+          loadMoreSeq !== loadMoreSeqRef.current
+        ) return;
 
         setAudioItems((rows) => [...rows, ...page.items]);
         setAudioTotal(page.total);
@@ -371,6 +382,11 @@ export function useLibraryController() {
           offset: audioItems.length
         });
 
+        if (
+          loadSeq !== loadSeqRef.current ||
+          loadMoreSeq !== loadMoreSeqRef.current
+        ) return;
+
         setAudioItems((rows) => [...rows, ...page.items]);
         setAudioTotal(page.total);
         setAudioHasMore(page.has_more);
@@ -379,9 +395,16 @@ export function useLibraryController() {
         if (page.facets) setFacets(page.facets);
       }
     } catch (err) {
+      if (
+        loadSeq !== loadSeqRef.current ||
+        loadMoreSeq !== loadMoreSeqRef.current
+      ) return;
       notify(toErrorMessage(err), "error");
     } finally {
-      setLoadingMore(false);
+      if (loadMoreSeq === loadMoreSeqRef.current) {
+        loadMoreInFlightRef.current = false;
+        setLoadingMore(false);
+      }
     }
   }
 

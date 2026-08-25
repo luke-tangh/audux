@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toErrorMessage } from "../i18n/errors";
 
@@ -74,6 +74,8 @@ export default function OrganizationPanel(props: Props) {
   const [drafts, setDrafts] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const runRequestSeqRef = useRef(0);
+  const activeRunIdRef = useRef<number | null>(null);
 
   const scopeOptions = useAgentScopeOptions({
     scope,
@@ -89,11 +91,26 @@ export default function OrganizationPanel(props: Props) {
     roots: props.roots
   });
 
+  async function selectRun(id: number, requestSeq?: number) {
+    const seq = requestSeq ?? ++runRequestSeqRef.current;
+    if (requestSeq === undefined) activeRunIdRef.current = id;
+    const run = await api.getOrganizationRun(id);
+    if (
+      seq !== runRequestSeqRef.current ||
+      activeRunIdRef.current !== id
+    ) return null;
+    setActive(run);
+    return run;
+  }
+
   async function loadRuns(preferredId?: number) {
+    const seq = ++runRequestSeqRef.current;
     const rows = await api.listOrganizationRuns();
+    if (seq !== runRequestSeqRef.current) return;
     setRuns(rows);
-    const runId = preferredId ?? active?.id ?? rows[0]?.id;
-    if (runId) setActive(await api.getOrganizationRun(runId));
+    const runId = preferredId ?? activeRunIdRef.current ?? active?.id ?? rows[0]?.id;
+    activeRunIdRef.current = runId ?? null;
+    if (runId) await selectRun(runId, seq);
     else setActive(null);
   }
 
@@ -112,7 +129,13 @@ export default function OrganizationPanel(props: Props) {
     intervalMs: 1200,
     task: async () => {
       if (!active) return;
-      const run = await api.getOrganizationRun(active.id);
+      const expectedRunId = active.id;
+      const expectedSeq = runRequestSeqRef.current;
+      const run = await api.getOrganizationRun(expectedRunId);
+      if (
+        expectedSeq !== runRequestSeqRef.current ||
+        activeRunIdRef.current !== expectedRunId
+      ) return;
       setActive(run);
       if (
         TERMINAL_ORGANIZATION_STATUSES.has(run.status) ||
@@ -127,10 +150,11 @@ export default function OrganizationPanel(props: Props) {
 
   async function createRun() {
     if (busy) return;
+    const expectedSeq = runRequestSeqRef.current;
     setBusy(true);
     try {
       const run = await api.createOrganizationRun(scope, options);
-      setActive(run);
+      if (expectedSeq !== runRequestSeqRef.current) return;
       await loadRuns(run.id);
       props.notify(t("organization.created"), "success");
     } catch (error) {
@@ -151,10 +175,12 @@ export default function OrganizationPanel(props: Props) {
   }
 
   async function decide(proposal: OrganizationProposal, decision: "accepted" | "rejected" | "skipped") {
+    const runId = proposal.run_id;
     setBusy(true);
     try {
       await api.decideOrganizationProposal(proposal.id, decision, decision === "accepted" ? editedValue(proposal) : undefined);
-      setActive(await api.getOrganizationRun(proposal.run_id));
+      if (activeRunIdRef.current !== runId) return;
+      await selectRun(runId);
     } catch (error) {
       props.notify(toErrorMessage(error), "error");
     } finally {
@@ -164,10 +190,11 @@ export default function OrganizationPanel(props: Props) {
 
   async function applyCategory(kind: OrganizationProposalKind) {
     if (!active) return;
+    const runId = active.id;
     setBusy(true);
     try {
-      const run = await api.applyOrganizationRun(active.id, [kind]);
-      setActive(run);
+      const run = await api.applyOrganizationRun(runId, [kind]);
+      if (activeRunIdRef.current !== runId) return;
       await loadRuns(run.id);
       props.notify(t("organization.applied"), "success");
     } catch (error) {
@@ -179,12 +206,13 @@ export default function OrganizationPanel(props: Props) {
 
   async function runAction(action: "cancel" | "retry") {
     if (!active) return;
+    const runId = active.id;
     setBusy(true);
     try {
       const run = action === "cancel"
-        ? await api.cancelOrganizationRun(active.id)
-        : await api.retryOrganizationRun(active.id);
-      setActive(await api.getOrganizationRun(run.id));
+        ? await api.cancelOrganizationRun(runId)
+        : await api.retryOrganizationRun(runId);
+      if (activeRunIdRef.current !== runId) return;
       await loadRuns(run.id);
     } catch (error) {
       props.notify(toErrorMessage(error), "error");
@@ -236,7 +264,7 @@ export default function OrganizationPanel(props: Props) {
               {loading && <p className="muted">{t("activities.loading")}</p>}
               {!loading && runs.length === 0 && <p className="muted">{t("organization.emptyRuns")}</p>}
               {runs.map((run) => (
-                <Button preserveChildren key={run.id} className={active?.id === run.id ? "organization-run active" : "organization-run"} onClick={() => void api.getOrganizationRun(run.id).then(setActive)}>
+                <Button preserveChildren key={run.id} className={active?.id === run.id ? "organization-run active" : "organization-run"} onClick={() => void selectRun(run.id).catch((error) => props.notify(toErrorMessage(error), "error"))}>
                   <span><strong>#{run.id}</strong><em>{run.current_stage}</em></span>
                   <StatusPill value={run.status} />
                 </Button>

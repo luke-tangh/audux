@@ -5,8 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { AudioItem } from "../../types";
 import { Button, MaterialIcon } from "../ui";
 import QueuePopover from "./QueuePopover";
-
-const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5, 2] as const;
+import { PLAYBACK_RATES } from "./playerPreferences";
 
 type OpenOption = "speed" | "volume" | null;
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
@@ -64,6 +64,14 @@ const run: OrganizationRun = {
   }]
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 const props = {
   selected: { id: 7, file_path: "/library/a.mp3", file_name: "a.mp3", title_original: "A", transcript_status: "done", ai_status: "none", play_count: 0, last_position_seconds: 0, is_favorite: false, is_missing: false, created_at: "", updated_at: "" },
   selectedAudioIds: new Set<number>(),
@@ -120,5 +128,36 @@ describe("OrganizationPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Audx/ }));
     expect(props.onPlayEvidence).toHaveBeenCalledWith(7, 2);
+  });
+
+  it("keeps the last selected run when responses arrive out of order", async () => {
+    const second = { ...run, id: 9 };
+    vi.mocked(api.listOrganizationRuns).mockResolvedValue([run, second]);
+    vi.mocked(api.getOrganizationRun).mockResolvedValue(run);
+    renderPanel();
+
+    await screen.findByText(/整理 Run #8|Organization run #8/);
+    const firstButton = screen.getByRole("button", { name: /#8/ });
+    const secondButton = screen.getByRole("button", { name: /#9/ });
+    const pendingSecond = deferred<OrganizationRun>();
+    vi.mocked(api.getOrganizationRun).mockReset();
+    vi.mocked(api.getOrganizationRun)
+      .mockImplementationOnce(() => pendingSecond.promise)
+      .mockResolvedValueOnce(run);
+
+    fireEvent.click(secondButton);
+    fireEvent.click(firstButton);
+    await waitFor(() => expect(screen.getByRole("heading", {
+      name: /整理 Run #8|Organization run #8/
+    })).toBeInTheDocument());
+
+    await act(async () => {
+      pendingSecond.resolve(second);
+      await pendingSecond.promise;
+    });
+
+    expect(screen.getByRole("heading", {
+      name: /整理 Run #8|Organization run #8/
+    })).toBeInTheDocument();
   });
 });

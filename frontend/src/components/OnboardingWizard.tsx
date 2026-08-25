@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api } from "../api";
@@ -21,6 +22,60 @@ export default function OnboardingWizard({ open, onClose, onImported }: Props) {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
   const previewRefreshed = useRef(false);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const overlay = overlayRef.current;
+    const siblings = overlay?.parentElement
+      ? Array.from(overlay.parentElement.children).filter(
+          (element): element is HTMLElement => element instanceof HTMLElement && element !== overlay
+        )
+      : [];
+    const siblingState = siblings.map((element) => ({
+      element,
+      inert: element.hasAttribute("inert"),
+      ariaHidden: element.getAttribute("aria-hidden")
+    }));
+
+    for (const sibling of siblings) {
+      sibling.setAttribute("inert", "");
+      sibling.setAttribute("aria-hidden", "true");
+    }
+
+    const timer = window.setTimeout(() => {
+      const target = dialogRef.current?.querySelector<HTMLElement>(
+        'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      (target || dialogRef.current)?.focus();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      for (const { element, inert, ariaHidden } of siblingState) {
+        if (!inert) element.removeAttribute("inert");
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+      }
+      const restoreTarget = restoreFocusRef.current;
+      restoreFocusRef.current = null;
+      if (restoreTarget?.isConnected) restoreTarget.focus();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !result) return;
+    const timer = window.setTimeout(() => {
+      dialogRef.current?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [open, result]);
 
   usePolling({
     enabled: open && Boolean(result),
@@ -72,9 +127,46 @@ export default function OnboardingWizard({ open, onClose, onImported }: Props) {
     : null;
   const finished = activity?.status === "done";
 
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   return (
-    <div className="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
-      <section className="onboarding-card">
+    <div
+      ref={overlayRef}
+      className="onboarding-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboarding-title"
+      onKeyDown={handleKeyDown}
+    >
+      <section ref={dialogRef} className="onboarding-card" tabIndex={-1}>
         <div className="onboarding-mark" aria-hidden="true"><MaterialIcon name="library_music" size={34} /></div>
         <div className="onboarding-copy">
           <span className="eyebrow">{t("onboarding.eyebrow")}</span>

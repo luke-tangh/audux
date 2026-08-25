@@ -3,6 +3,11 @@ import { api } from "../../api";
 import type { AudioItem } from "../../types";
 import { useDialog } from "../dialog/UnifiedDialog";
 import { useTranslation } from "react-i18next";
+import {
+  readStoredPlaybackRate,
+  readStoredVolume,
+  writePlayerPreference
+} from "./playerPreferences";
 
 type UsePlayerControllerParams = {
   audio: AudioItem | null;
@@ -51,8 +56,8 @@ export function usePlayerController({
   const endedAudioIdRef = useRef<number | null>(null);
   const playbackTrackerRef = useRef<PlaybackTracker | null>(null);
 
-  const [rate, setRate] = useState(Number(localStorage.getItem("playbackRate") || "1"));
-  const [volume, setVolume] = useState(Number(localStorage.getItem("volume") || "1"));
+  const [rate, setRate] = useState(() => readStoredPlaybackRate(window.localStorage));
+  const [volume, setVolume] = useState(() => readStoredVolume(window.localStorage));
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -271,14 +276,14 @@ export function usePlayerController({
     const el = audioRef.current;
     if (el) el.playbackRate = rate;
 
-    localStorage.setItem("playbackRate", String(rate));
+    writePlayerPreference(window.localStorage, "playbackRate", rate);
   }, [rate]);
 
   useEffect(() => {
     const el = audioRef.current;
     if (el) el.volume = volume;
 
-    localStorage.setItem("volume", String(volume));
+    writePlayerPreference(window.localStorage, "volume", volume);
   }, [volume]);
 
   useEffect(() => {

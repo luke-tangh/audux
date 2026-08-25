@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../api";
@@ -33,6 +33,14 @@ const conversation: AgentConversation = {
   messages: [],
   runs: []
 };
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
 
 function renderPanel(onPlayCitation = vi.fn().mockResolvedValue(undefined)) {
   render(
@@ -162,5 +170,32 @@ describe("AgentPanel", () => {
     await waitFor(() => {
       expect(api.approveAgentOperationPlan).toHaveBeenCalledWith(21, "a".repeat(64));
     });
+  });
+
+  it("keeps the last selected conversation when responses arrive out of order", async () => {
+    const second = { ...conversation, id: 8, title: "第二会话" };
+    vi.mocked(api.listAgentConversations).mockResolvedValue([conversation, second]);
+    vi.mocked(api.getAgentConversation).mockResolvedValue(conversation);
+    renderPanel();
+
+    const firstButton = await screen.findByRole("button", { name: /新会话/ });
+    const secondButton = screen.getByRole("button", { name: /第二会话/ });
+    const pendingSecond = deferred<AgentConversation>();
+    vi.mocked(api.getAgentConversation).mockReset();
+    vi.mocked(api.getAgentConversation)
+      .mockImplementationOnce(() => pendingSecond.promise)
+      .mockResolvedValueOnce(conversation);
+
+    fireEvent.click(secondButton);
+    fireEvent.click(firstButton);
+    await waitFor(() => expect(firstButton).toHaveAttribute("aria-current", "page"));
+
+    await act(async () => {
+      pendingSecond.resolve(second);
+      await pendingSecond.promise;
+    });
+
+    expect(firstButton).toHaveAttribute("aria-current", "page");
+    expect(secondButton).not.toHaveAttribute("aria-current");
   });
 });

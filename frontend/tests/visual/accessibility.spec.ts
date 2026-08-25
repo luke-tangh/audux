@@ -33,7 +33,10 @@ const MOCK_AUDIO_ITEMS = [
   }
 ];
 
-async function mockLibraryApi(page: import("@playwright/test").Page) {
+async function mockLibraryApi(
+  page: import("@playwright/test").Page,
+  { hasLibraryRoot = true }: { hasLibraryRoot?: boolean } = {}
+) {
   await page.route("http://127.0.0.1:8765/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -116,13 +119,13 @@ async function mockLibraryApi(page: import("@playwright/test").Page) {
 
     if (url.pathname === "/library-roots") {
       await route.fulfill({
-        json: [{
+        json: hasLibraryRoot ? [{
           id: 1,
           path: "/library",
           is_enabled: true,
           created_at: "2026-07-30T00:00:00Z",
           updated_at: "2026-07-30T00:00:00Z"
-        }],
+        }] : [],
         headers
       });
       return;
@@ -195,6 +198,30 @@ async function mockLibraryApi(page: import("@playwright/test").Page) {
 }
 
 test.describe("MD3 accessibility behavior", () => {
+  test("keeps keyboard focus inside onboarding and makes the workspace inert", async ({
+    page
+  }) => {
+    await mockLibraryApi(page, { hasLibraryRoot: false });
+    await page.goto("/");
+
+    const dialog = page.getByRole("dialog", {
+      name: /选择一个音频文件夹|Choose an audio folder/
+    });
+    await expect(dialog).toBeVisible();
+    const folder = page.getByRole("textbox", { name: /音频文件夹|Audio folder/ });
+    await expect(folder).toBeFocused();
+    await expect(page.locator(".main-shell")).toHaveAttribute("inert", "");
+
+    await folder.press("Shift+Tab");
+    await expect(page.getByRole("button", { name: /稍后再说|Not now/ })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(folder).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(page.locator(".main-shell")).not.toHaveAttribute("inert", "");
+  });
+
   test("keeps collapsed sidebar navigation accessible by name", async ({ page }) => {
     await mockLibraryApi(page);
     await page.goto("/");

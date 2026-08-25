@@ -49,6 +49,11 @@ export default function AgentPanel(props: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [planAction, setPlanAction] = useState<"approve" | "reject" | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const conversationRequestSeqRef = useRef(0);
+  const activeConversationIdRef = useRef<number | null>(null);
+  const activeRunRef = useRef(activeRun);
+
+  activeRunRef.current = activeRun;
 
   const scopeOptions = useAgentScopeOptions({
     scope,
@@ -72,9 +77,9 @@ export default function AgentPanel(props: Props) {
     )
   );
 
-  async function loadConversation(id: number) {
-    const detail = await api.getAgentConversation(id);
+  function applyConversation(detail: AgentConversation) {
     setActive(detail);
+    activeConversationIdRef.current = detail.id;
     setScope(detail.scope);
     setTitle(detail.title);
     const latest = [...(detail.runs || [])].reverse()[0];
@@ -84,14 +89,28 @@ export default function AgentPanel(props: Props) {
         Boolean(latest.operation_plan)
       ) ? latest : null
     );
+  }
+
+  async function loadConversation(id: number, requestSeq?: number) {
+    const seq = requestSeq ?? ++conversationRequestSeqRef.current;
+    if (requestSeq === undefined) activeConversationIdRef.current = id;
+    const detail = await api.getAgentConversation(id);
+    if (
+      seq !== conversationRequestSeqRef.current ||
+      activeConversationIdRef.current !== id
+    ) return null;
+    applyConversation(detail);
     return detail;
   }
 
   async function loadConversations(preferredId?: number | null) {
+    const seq = ++conversationRequestSeqRef.current;
     const rows = await api.listAgentConversations();
+    if (seq !== conversationRequestSeqRef.current) return;
     setConversations(rows);
     const id = preferredId === null ? rows[0]?.id : preferredId ?? active?.id ?? rows[0]?.id;
-    if (id) await loadConversation(id);
+    activeConversationIdRef.current = id ?? null;
+    if (id) await loadConversation(id, seq);
     else {
       setActive(null);
       setActiveRun(null);
@@ -120,12 +139,21 @@ export default function AgentPanel(props: Props) {
     intervalMs: 1000,
     task: async () => {
       if (!activeRun) return;
-      const run = await api.getAgentRun(activeRun.id);
+      const expectedRunId = activeRun.id;
+      const expectedConversationId = activeRun.conversation_id;
+      const expectedSeq = conversationRequestSeqRef.current;
+      const run = await api.getAgentRun(expectedRunId);
+      if (
+        expectedSeq !== conversationRequestSeqRef.current ||
+        activeRunRef.current?.id !== expectedRunId ||
+        activeConversationIdRef.current !== expectedConversationId
+      ) return;
       setActiveRun(run);
       if (TERMINAL_TASK_STATUSES.has(run.status)) {
-        await loadConversation(run.conversation_id);
         await loadConversations(run.conversation_id);
-        setActiveRun(run);
+        if (activeConversationIdRef.current === run.conversation_id) {
+          setActiveRun(run);
+        }
       }
     },
     onError: (error) =>
@@ -138,10 +166,12 @@ export default function AgentPanel(props: Props) {
       setScope(next);
       return;
     }
+    const conversationId = active.id;
     try {
-      const updated = await api.updateAgentConversation(active.id, { scope: next });
+      const updated = await api.updateAgentConversation(conversationId, { scope: next });
+      if (activeConversationIdRef.current !== conversationId) return;
       setScope(updated.scope);
-      setActive((current) => current ? { ...current, ...updated } : current);
+      setActive((current) => current?.id === conversationId ? { ...current, ...updated } : current);
       await loadConversations(updated.id);
     } catch (error) {
       props.notify(toErrorMessage(error), "error");
@@ -151,15 +181,22 @@ export default function AgentPanel(props: Props) {
   async function send() {
     const content = question.trim();
     if (!content || sending || runBusy) return;
+    const expectedSeq = conversationRequestSeqRef.current;
     setSending(true);
     try {
       let conversation = active;
       if (!conversation) {
         conversation = await api.createAgentConversation({ scope });
+        if (expectedSeq !== conversationRequestSeqRef.current) return;
+        activeConversationIdRef.current = conversation.id;
         setActive(conversation);
         setTitle(conversation.title);
       }
       const run = await api.createAgentRun(conversation.id, content);
+      if (
+        expectedSeq !== conversationRequestSeqRef.current ||
+        activeConversationIdRef.current !== conversation.id
+      ) return;
       setQuestion("");
       setActiveRun(run);
       await loadConversation(conversation.id);
@@ -173,10 +210,12 @@ export default function AgentPanel(props: Props) {
 
   async function saveTitle() {
     if (!active || !title.trim()) return;
+    const conversationId = active.id;
     try {
-      await api.updateAgentConversation(active.id, { title: title.trim() });
+      await api.updateAgentConversation(conversationId, { title: title.trim() });
+      if (activeConversationIdRef.current !== conversationId) return;
       setEditingTitle(false);
-      await loadConversations(active.id);
+      await loadConversations(conversationId);
     } catch (error) {
       props.notify(toErrorMessage(error), "error");
     }
@@ -188,8 +227,12 @@ export default function AgentPanel(props: Props) {
       setConfirmDelete(true);
       return;
     }
+    const conversationId = active.id;
     try {
-      await api.deleteAgentConversation(active.id);
+      await api.deleteAgentConversation(conversationId);
+      if (activeConversationIdRef.current !== conversationId) return;
+      conversationRequestSeqRef.current += 1;
+      activeConversationIdRef.current = null;
       setActive(null);
       setActiveRun(null);
       setConfirmDelete(false);
@@ -203,16 +246,18 @@ export default function AgentPanel(props: Props) {
     const plan = activeRun?.operation_plan;
     if (!plan || plan.status !== "awaiting_approval" || planAction) return;
     setPlanAction(decision);
+    const conversationId = active?.id ?? null;
     try {
       const updated = decision === "approve"
         ? await api.approveAgentOperationPlan(plan.id, plan.fingerprint)
         : await api.rejectAgentOperationPlan(plan.id);
+      if (activeConversationIdRef.current !== conversationId) return;
       setActiveRun((current) => current ? { ...current, operation_plan: updated } : current);
       props.notify(
         decision === "approve" ? t("agent.plan.executed") : t("agent.plan.rejected"),
         decision === "approve" ? "success" : "info"
       );
-      if (active) await loadConversations(active.id);
+      if (conversationId) await loadConversations(conversationId);
     } catch (error) {
       props.notify(toErrorMessage(error), "error");
     } finally {
@@ -230,6 +275,8 @@ export default function AgentPanel(props: Props) {
             <p>{t("agent.subtitle")}</p>
           </div>
           <Button variant="tonal" leadingIcon={<MaterialIcon name="add_comment" size={18} />} onClick={() => {
+            conversationRequestSeqRef.current += 1;
+            activeConversationIdRef.current = null;
             setActive(null);
             setActiveRun(null);
             setScope({ kind: "library" });
@@ -248,7 +295,9 @@ export default function AgentPanel(props: Props) {
                 key={conversation.id}
                 className={active?.id === conversation.id ? "agent-conversation active" : "agent-conversation"}
                 aria-current={active?.id === conversation.id ? "page" : undefined}
-                onClick={() => void loadConversation(conversation.id)}
+                onClick={() => void loadConversation(conversation.id).catch(
+                  (error) => props.notify(toErrorMessage(error), "error")
+                )}
               >
                 <strong>{conversation.title}</strong>
                 <span>{conversation.scope_label}</span>
