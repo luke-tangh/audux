@@ -6,3 +6,4 @@ src-tauri/.cargo
 src-tauri/binaries
 src-tauri/target
 src-tauri/gen
+src-tauri/tauri.release.conf.json

@@ -1,3 +1,20 @@
+import packageMetadata from "../package.json";
+import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
+
+let pendingApplicationUpdate: Update | null = null;
+
+export type ApplicationUpdateInfo = {
+  currentVersion: string;
+  version: string;
+  date?: string;
+  body?: string;
+};
+
+export type ApplicationUpdateProgress = {
+  downloadedBytes: number;
+  totalBytes: number | null;
+};
+
 async function invokeCommand<T>(command: string): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<T>(command);
@@ -9,6 +26,60 @@ export function resolveTauriBackendBaseUrl(): Promise<string> {
 
 export async function isTauriRuntime(): Promise<boolean> {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export async function getCurrentApplicationVersion(): Promise<string> {
+  if (!(await isTauriRuntime())) return packageMetadata.version;
+  const { getVersion } = await import("@tauri-apps/api/app");
+  return getVersion();
+}
+
+export async function isApplicationUpdaterConfigured(): Promise<boolean> {
+  if (!(await isTauriRuntime())) return false;
+  return invokeCommand<boolean>("application_updater_configured");
+}
+
+export async function checkApplicationUpdate(): Promise<ApplicationUpdateInfo | null> {
+  if (!(await isTauriRuntime())) return null;
+  if (pendingApplicationUpdate) {
+    await pendingApplicationUpdate.close();
+    pendingApplicationUpdate = null;
+  }
+  const { check } = await import("@tauri-apps/plugin-updater");
+  const update = await check({ timeout: 30_000 });
+  pendingApplicationUpdate = update;
+  if (!update) return null;
+  return {
+    currentVersion: update.currentVersion,
+    version: update.version,
+    date: update.date,
+    body: update.body
+  };
+}
+
+export async function downloadApplicationUpdate(
+  onProgress: (progress: ApplicationUpdateProgress) => void
+): Promise<void> {
+  if (!pendingApplicationUpdate) throw new Error("No application update is ready to download");
+  let downloadedBytes = 0;
+  let totalBytes: number | null = null;
+  await pendingApplicationUpdate.download((event: DownloadEvent) => {
+    if (event.event === "Started") {
+      totalBytes = event.data.contentLength ?? null;
+      downloadedBytes = 0;
+    } else if (event.event === "Progress") {
+      downloadedBytes += event.data.chunkLength;
+    }
+    onProgress({ downloadedBytes, totalBytes });
+  }, { timeout: 10 * 60_000 });
+}
+
+export async function installApplicationUpdate(): Promise<void> {
+  if (!pendingApplicationUpdate) throw new Error("No downloaded application update is ready to install");
+  const update = pendingApplicationUpdate;
+  await update.install();
+  pendingApplicationUpdate = null;
+  await invokeCommand("restart_application");
 }
 
 export async function pickAudioFolder(): Promise<string | null> {

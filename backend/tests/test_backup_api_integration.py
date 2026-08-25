@@ -104,3 +104,24 @@ class TestBackupApiIntegration(ApiIntegrationTest):
         )
         assert response.status_code == 403
         assert response.json()["detail"]["code"] == "security.missing_client"
+
+    def test_prepare_application_update_creates_safety_snapshot(self):
+        response = self.client.post(
+            "/maintenance/application-update/prepare",
+            headers=self.auth_headers(include_client=True),
+            json={"target_version": "1.0.1"},
+        )
+        assert response.status_code == 200, response.text
+        prepared = response.json()
+        assert prepared["ok"] is True
+        assert prepared["target_version"] == "1.0.1"
+        assert prepared["backup"]["kind"] == "pre_update"
+        assert prepared["backup"]["integrity_status"] == "valid"
+
+    def test_prepare_application_update_validates_version(self):
+        response = self.client.post(
+            "/maintenance/application-update/prepare",
+            headers=self.auth_headers(include_client=True),
+            json={"target_version": "not a version"},
+        )
+        assert response.status_code == 422

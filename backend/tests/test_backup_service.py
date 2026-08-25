@@ -254,6 +254,38 @@ class TestDatabaseBackupService:
         assert not backup_service.PENDING_RESTORE_PATH.exists()
         assert (self.backups_dir / pending["safety_snapshot_id"]).is_file()
 
+    def test_application_update_requires_idle_tasks_and_creates_verified_snapshot(self):
+        self.set_value("before-update")
+        with Session(self.engine) as session:
+            session.add(AITask(audio_id=999, task_type="analyze", status="running"))
+            session.commit()
+            with pytest.raises(
+                backup_service.ServiceError,
+                match="Finish or cancel active work",
+            ) as raised:
+                backup_service.prepare_application_update(session, "1.0.1")
+            assert raised.value.code == "update.active_tasks"
+
+            task = session.exec(select(AITask)).one()
+            task.status = "done"
+            session.add(task)
+            session.commit()
+            prepared = backup_service.prepare_application_update(session, "1.0.1")
+
+        assert prepared["ok"] is True
+        assert prepared["target_version"] == "1.0.1"
+        assert prepared["backup"]["kind"] == "pre_update"
+        assert prepared["backup"]["integrity_status"] == "valid"
+        snapshot_path = self.backups_dir / prepared["backup"]["id"]
+        snapshot_engine = create_engine(f"sqlite:///{snapshot_path}")
+        try:
+            with Session(snapshot_engine) as snapshot_session:
+                value = snapshot_session.get(Setting, "test.value")
+                assert value is not None
+                assert value.value == "before-update"
+        finally:
+            snapshot_engine.dispose()
+
     def test_restart_applies_restore_and_keeps_pre_restore_safety_snapshot(self):
         self.set_value("snapshot")
         self.seed_library_data()

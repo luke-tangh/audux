@@ -27,7 +27,9 @@ jobs:
           - name: windows-x64
             os: windows-latest
           - name: macos-x64
-            os: macos-latest
+            os: macos-15-intel
+          - name: macos-arm64
+            os: macos-15
 
     steps:
       - name: Checkout
@@ -87,9 +89,31 @@ jobs:
         with:
           workspaces: frontend/src-tauri -> target
 
-      - name: Build Tauri app
+      - name: Build unsigned Tauri app for internal validation
+        if: github.event_name == 'workflow_dispatch'
         working-directory: frontend
         run: npm run tauri:build
+
+      - name: Prepare signed updater configuration
+        if: github.event_name == 'push'
+        working-directory: frontend
+        env:
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+        run: node scripts/prepare-updater-config.mjs
+
+      - name: Build signed Tauri app and updater artifacts
+        if: github.event_name == 'push'
+        working-directory: frontend
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri:build -- --config src-tauri/tauri.release.conf.json
+
+      - name: Normalize updater artifact names
+        if: github.event_name == 'push'
+        working-directory: frontend
+        shell: bash
+        run: node scripts/normalize-updater-artifacts.mjs "${{ matrix.name }}" "${GITHUB_REF_NAME#v}"
 
       - name: Install Whisper companion dependencies
         run: uv sync --locked --extra asr --group build
@@ -110,6 +134,8 @@ jobs:
             frontend/src-tauri/target/release/bundle/**/*.msi
             frontend/src-tauri/target/release/bundle/**/*.exe
             frontend/src-tauri/target/release/bundle/**/*.dmg
+            frontend/src-tauri/target/release/bundle/**/*.sig
+            frontend/src-tauri/target/release/bundle/**/*.app.tar.gz
             backend/dist/browser-lite/audux-lite-*.zip
             backend/dist/whisper-components/audux-whisper-*.zip
           if-no-files-found: error
@@ -139,6 +165,17 @@ jobs:
             --output release-artifacts/whisper-components.json \
             --version "${GITHUB_REF_NAME#v}"
 
+      - name: Build signed application update manifest
+        shell: bash
+        run: |
+          python backend/build_update_manifest.py \
+            --input release-artifacts \
+            --output release-artifacts/latest.json \
+            --version "${GITHUB_REF_NAME#v}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --notes "Audux ${GITHUB_REF_NAME#v} signed application update"
+
       - name: List release files
         shell: bash
         run: |
@@ -154,6 +191,9 @@ jobs:
             release-artifacts/**/*.msi
             release-artifacts/**/*.exe
             release-artifacts/**/*.dmg
+            release-artifacts/**/*.sig
+            release-artifacts/**/*.app.tar.gz
             release-artifacts/**/audux-lite-*.zip
             release-artifacts/**/audux-whisper-*.zip
             release-artifacts/whisper-components.json
+            release-artifacts/latest.json

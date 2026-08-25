@@ -1,5 +1,6 @@
 import type {
   ArchiveImportDryRun,
+  ApplicationUpdatePreparation,
   DatabaseBackup,
   DatabaseRestorePreflight,
   DatabaseRestoreStatus,
@@ -79,6 +80,11 @@ export function createSettingsApi(context: ApiContext) {
       request<DatabaseBackup>("/maintenance/database-backups", {
         method: "POST",
         body: JSON.stringify({ name: name || null })
+      }),
+    prepareApplicationUpdate: (targetVersion: string) =>
+      request<ApplicationUpdatePreparation>("/maintenance/application-update/prepare", {
+        method: "POST",
+        body: JSON.stringify({ target_version: targetVersion })
       }),
     validateDatabaseBackup: (snapshotId: string) => request<DatabaseBackup>(
       `/maintenance/database-backups/${encodeURIComponent(snapshotId)}/validate`,

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from ..db import get_session
-from ..schemas import DatabaseBackupCreate
+from ..schemas import ApplicationUpdatePrepare, DatabaseBackupCreate
 from ..services import backup_service
 
 
@@ -22,6 +22,17 @@ def create_database_backup(
     return backup_service.create_database_backup(
         session,
         payload.name,
+    )
+
+
+@router.post("/application-update/prepare")
+def prepare_application_update(
+    payload: ApplicationUpdatePrepare,
+    session: Session = Depends(get_session),
+):
+    return backup_service.prepare_application_update(
+        session,
+        payload.target_version,
     )
 
 

@@ -170,6 +170,14 @@ class DatabaseBackupCreate(BaseModel):
     name: Optional[str] = Field(default=None, max_length=80)
 
 
+class ApplicationUpdatePrepare(BaseModel):
+    target_version: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$",
+    )
+
+
 SavedViewBaseMode = Literal[
     "library",
     "favorites",

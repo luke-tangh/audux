@@ -1,16 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const tauriMocks = vi.hoisted(() => ({
-  invoke: vi.fn()
+  invoke: vi.fn(),
+  getVersion: vi.fn(),
+  check: vi.fn()
 }));
 
 vi.mock("@tauri-apps/api/core", () => tauriMocks);
+vi.mock("@tauri-apps/api/app", () => ({ getVersion: tauriMocks.getVersion }));
+vi.mock("@tauri-apps/plugin-updater", () => ({ check: tauriMocks.check }));
 
-import { isTauriRuntime, pickAudioFile, pickAudioFolder, restartApplication } from "./tauri";
+import {
+  checkApplicationUpdate,
+  downloadApplicationUpdate,
+  getCurrentApplicationVersion,
+  installApplicationUpdate,
+  isApplicationUpdaterConfigured,
+  isTauriRuntime,
+  pickAudioFile,
+  pickAudioFolder,
+  restartApplication
+} from "./tauri";
 
 describe("Tauri command wrappers", () => {
   beforeEach(() => {
     tauriMocks.invoke.mockReset();
+    tauriMocks.getVersion.mockReset();
+    tauriMocks.check.mockReset();
     delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
   });
 
@@ -22,6 +38,15 @@ describe("Tauri command wrappers", () => {
     await expect(isTauriRuntime()).resolves.toBe(false);
     (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
     await expect(isTauriRuntime()).resolves.toBe(true);
+  });
+
+  it("reports whether the native updater has release configuration", async () => {
+    await expect(isApplicationUpdaterConfigured()).resolves.toBe(false);
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    tauriMocks.invoke.mockResolvedValue(true);
+
+    await expect(isApplicationUpdaterConfigured()).resolves.toBe(true);
+    expect(tauriMocks.invoke).toHaveBeenCalledWith("application_updater_configured");
   });
 
   it("returns native dialog selections", async () => {
@@ -51,6 +76,46 @@ describe("Tauri command wrappers", () => {
     (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
     tauriMocks.invoke.mockResolvedValue(undefined);
     await expect(restartApplication()).resolves.toBe(true);
+    expect(tauriMocks.invoke).toHaveBeenCalledWith("restart_application");
+  });
+
+  it("checks, downloads, installs, and restarts a signed application update", async () => {
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    const download = vi.fn(async (onEvent: (event: unknown) => void) => {
+      onEvent({ event: "Started", data: { contentLength: 100 } });
+      onEvent({ event: "Progress", data: { chunkLength: 40 } });
+      onEvent({ event: "Progress", data: { chunkLength: 60 } });
+      onEvent({ event: "Finished" });
+    });
+    const install = vi.fn().mockResolvedValue(undefined);
+    const close = vi.fn().mockResolvedValue(undefined);
+    tauriMocks.check.mockResolvedValue({
+      currentVersion: "1.0.0",
+      version: "1.0.1",
+      date: "2026-08-24T00:00:00Z",
+      body: "安全更新",
+      download,
+      install,
+      close
+    });
+    tauriMocks.getVersion.mockResolvedValue("1.0.0");
+    tauriMocks.invoke.mockResolvedValue(undefined);
+
+    await expect(getCurrentApplicationVersion()).resolves.toBe("1.0.0");
+    await expect(checkApplicationUpdate()).resolves.toEqual({
+      currentVersion: "1.0.0",
+      version: "1.0.1",
+      date: "2026-08-24T00:00:00Z",
+      body: "安全更新"
+    });
+    const progress = vi.fn();
+    await downloadApplicationUpdate(progress);
+    expect(progress).toHaveBeenLastCalledWith({
+      downloadedBytes: 100,
+      totalBytes: 100
+    });
+    await installApplicationUpdate();
+    expect(install).toHaveBeenCalledTimes(1);
     expect(tauriMocks.invoke).toHaveBeenCalledWith("restart_application");
   });
 });

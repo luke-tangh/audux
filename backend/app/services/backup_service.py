@@ -132,6 +132,8 @@ def _normalize_name(name: str | None, fallback: str) -> str:
 def _snapshot_kind(snapshot_id: str) -> str:
     if ".pre-restore-" in snapshot_id:
         return "pre_restore"
+    if ".pre-update-" in snapshot_id:
+        return "pre_update"
     return "manual"
 
 
@@ -309,6 +311,79 @@ def create_database_backup(session: Session, name: str | None = None) -> dict[st
         name=_normalize_name(name, "手动备份"),
         kind="manual",
     )
+
+
+def prepare_application_update(
+    session: Session,
+    target_version: str,
+) -> dict[str, Any]:
+    """Create a verified restore point immediately before installing an update."""
+    target_version = target_version.strip()
+    with RESTORE_STATE_LOCK:
+        (
+            active_ai_tasks,
+            active_scan_tasks,
+            active_health_tasks,
+            active_agent_runs,
+            active_organization_runs,
+        ) = _active_task_counts(session)
+        active_total = sum(
+            (
+                active_ai_tasks,
+                active_scan_tasks,
+                active_health_tasks,
+                active_agent_runs,
+                active_organization_runs,
+            )
+        )
+        if active_total:
+            raise ServiceError(
+                409,
+                "Finish or cancel active work before updating the application",
+                code="update.active_tasks",
+                params={
+                    "count": active_total,
+                    "ai_tasks": active_ai_tasks,
+                    "scan_tasks": active_scan_tasks,
+                    "health_tasks": active_health_tasks,
+                    "agent_runs": active_agent_runs,
+                    "organization_runs": active_organization_runs,
+                },
+            )
+        if PENDING_RESTORE_PATH.exists():
+            raise ServiceError(
+                409,
+                "Apply or cancel the pending database restore before updating",
+                code="update.restore_pending",
+            )
+
+        source_path = _database_path_for_session(session)
+        current_size = source_path.stat().st_size if source_path.exists() else 0
+        BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+        free_bytes = shutil.disk_usage(BACKUPS_DIR).free
+        required_bytes = current_size + MIN_RESTORE_FREE_SPACE
+        if free_bytes < required_bytes:
+            raise ServiceError(
+                409,
+                "Not enough free disk space for an update safety snapshot",
+                code="update.insufficient_space",
+                params={
+                    "required_bytes": required_bytes,
+                    "free_bytes": free_bytes,
+                },
+            )
+
+        backup = _create_snapshot_from_path(
+            source_path,
+            name=f"升级到 {target_version} 前自动安全快照",
+            kind="pre_update",
+        )
+        return {
+            "ok": True,
+            "current_version": APP_VERSION,
+            "target_version": target_version,
+            "backup": backup,
+        }
 
 
 def validate_database_backup(snapshot_id: str) -> dict[str, Any]:

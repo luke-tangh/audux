@@ -18,6 +18,7 @@ import LogsSettingsTab from "./settings/LogsSettingsTab";
 import MaintenanceSettingsTab from "./settings/MaintenanceSettingsTab";
 import SettingsHeader from "./settings/SettingsHeader";
 import TasksSettingsTab from "./settings/TasksSettingsTab";
+import UpdatesSettingsTab from "./settings/UpdatesSettingsTab";
 import { type SettingsTab, type ToastType } from "./settings/types";
 import type { MaterialIconName } from "./ui/MaterialIcon";
 import {
@@ -154,6 +155,7 @@ export default function SettingsPanel({
       id: "system",
       label: t("settings.groups.system"),
       items: [
+        { id: "updates", icon: "download" },
         { id: "maintenance", icon: "build" },
         { id: "logs", icon: "description" }
       ]
@@ -335,6 +337,8 @@ export default function SettingsPanel({
             notify={notify}
           />
         )}
+
+        {activeTab === "updates" && <UpdatesSettingsTab />}
 
         {activeTab === "maintenance" && (
           <MaintenanceSettingsTab

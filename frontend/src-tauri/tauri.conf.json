@@ -25,6 +25,12 @@
       "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*; media-src 'self' http://127.0.0.1:* http://localhost:* blob:; img-src 'self' asset: http://127.0.0.1:* http://localhost:* data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [],
+      "pubkey": ""
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

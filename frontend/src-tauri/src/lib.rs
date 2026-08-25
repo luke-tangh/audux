@@ -67,6 +67,26 @@ fn choose_backend_port() -> u16 {
     choose_backend_port_for(requested_backend_port())
 }
 
+fn updater_config_is_ready(config: Option<&serde_json::Value>) -> bool {
+    let Some(config) = config else {
+        return false;
+    };
+    let has_pubkey = config
+        .get("pubkey")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|value| !value.trim().is_empty());
+    let has_endpoint = config
+        .get("endpoints")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|values| !values.is_empty());
+    has_pubkey && has_endpoint
+}
+
+#[tauri::command]
+fn application_updater_configured(app: tauri::AppHandle) -> bool {
+    updater_config_is_ready(app.config().plugins.0.get("updater"))
+}
+
 #[cfg(debug_assertions)]
 fn terminate_std_child(child: &mut Child) -> io::Result<()> {
     if child.try_wait()?.is_some() {
@@ -379,7 +399,8 @@ pub fn run() {
         .manage(backend_config)
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_process::init());
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build());
 
     #[cfg(debug_assertions)]
     let builder = builder.manage(BackendProcess(Mutex::new(None)));
@@ -392,6 +413,7 @@ pub fn run() {
             pick_audio_folder,
             pick_audio_file,
             backend_base_url,
+            application_updater_configured,
             restart_application,
             open_app_data_directory,
             open_logs_directory
@@ -422,11 +444,30 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{choose_backend_port_for, terminate_std_child, BACKEND_API_HOST};
+    use super::{
+        choose_backend_port_for, terminate_std_child, updater_config_is_ready, BACKEND_API_HOST,
+    };
     use std::net::TcpListener;
     use std::process::{Command, Stdio};
     use std::thread;
     use std::time::Duration;
+
+    #[test]
+    fn base_updater_config_is_deserializable() {
+        let tauri_config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let updater_config = tauri_config
+            .pointer("/plugins/updater")
+            .cloned()
+            .expect("base updater config must exist");
+
+        let updater: tauri_plugin_updater::Config = serde_json::from_value(updater_config).unwrap();
+        assert!(updater.endpoints.is_empty());
+        assert!(updater.pubkey.is_empty());
+        assert!(!updater_config_is_ready(
+            tauri_config.pointer("/plugins/updater")
+        ));
+    }
 
     #[test]
     fn backend_port_conflict_uses_an_available_fallback() {

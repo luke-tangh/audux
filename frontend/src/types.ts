@@ -801,6 +801,13 @@ export type DatabaseBackup = {
   compatibility_error: string | null;
 };
 
+export type ApplicationUpdatePreparation = {
+  ok: boolean;
+  current_version: string;
+  target_version: string;
+  backup: DatabaseBackup;
+};
+
 export type DatabaseRestoreBlocker = {
   code: string;
   message: string;

@@ -35,12 +35,13 @@ cargo check --locked
 
 ## 2. 构建演练
 
-在 GitHub Actions 中手动运行 `Internal Builds and v1 Release` workflow。确认三个构建
+在 GitHub Actions 中手动运行 `Internal Builds and v1 Release` workflow。确认四个构建
 任务成功并下载：
 
 - Linux x64 bundle
 - Windows x64 NSIS (`.exe`) bundle
 - macOS 13+ x64 bundle
+- macOS 13+ Apple Silicon bundle
 - 三个平台的 `audux-lite-<target>.zip`
 - 三个平台的 `audux-whisper-<target>.zip` 和 descriptor
 
@@ -67,6 +68,10 @@ debug sidecar placeholder。
   Transcript 浏览和播放仍正常。
 - 关闭最后一个应用窗口后，`audux-backend` / Python backend 进程退出。
 - 再次启动后媒体库、播放位置、标签、playlist 和设置仍存在。
+- 在“设置 → 更新”检查当前版本；用高于当前版本的签名测试清单完成下载。确认活动任务会阻止
+  安装，空闲时先生成 `pre_update` 安全快照，再安装、重启并保留原始音频与资料库状态。
+- 修改 updater artifact、签名或 `latest.json` 后确认客户端拒绝安装；确认失败时不会创建
+  不完整数据库副本，也不会停止当前 backend。
 - 卸载应用不会静默删除 `~/.audux` 用户数据。
 
 browser-lite 每个平台至少验证：

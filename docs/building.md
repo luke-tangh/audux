@@ -113,3 +113,39 @@ Python、npm、Cargo、Tauri 和 backend 版本也必须一致。v0.x 不创建�
    归档和进程退出检查完成。
 
 `cargo check`、前端 build 或单独 sidecar 成功都不能替代目标 OS 上的完整 Tauri bundle 验证。
+
+## 可安装版本与签名更新
+
+首次公开发布仍从 `v1.0.*` 标签开始。标签构建会发布以下可直接安装的文件：
+
+- Linux x64：AppImage、DEB 和 RPM；
+- Windows x64：NSIS 安装程序；
+- macOS 13+：Intel x64 与 Apple Silicon arm64 的 DMG；
+- 三个平台的 browser-lite 与可选 Whisper companion。
+
+桌面端的“设置 → 更新”只读取 GitHub Release 中的 `latest.json`。正式构建使用 Tauri v2
+更新签名：安装包签名验证失败时不会进入更新前备份或安装阶段。首次发布前生成并妥善保管
+一对 updater 密钥：
+
+```bash
+cd frontend
+npx tauri signer generate -w /安全位置/audux-updater.key
+```
+
+将私钥内容、私钥密码和公钥内容分别配置为 GitHub Actions secrets：
+
+- `TAURI_SIGNING_PRIVATE_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+- `TAURI_UPDATER_PUBLIC_KEY`
+
+私钥不可提交到仓库或放入 `.env`。丢失私钥后，已安装版本将无法验证后续更新；发布前应将
+它纳入加密离线备份。普通 `workflow_dispatch` 和本地 `npm run tauri:build` 不生成 updater
+产物，也不需要这些密钥。只有匹配版本号的公开标签构建会：
+
+1. 生成临时 release 配置并嵌入公钥与 HTTPS 更新地址；
+2. 生成各平台 updater artifact 和 `.sig`；
+3. 汇总成同时包含 Linux x64、Windows x64、macOS x64/arm64 的 `latest.json`；
+4. 将普通安装包、updater artifact、签名和清单上传到同一个 GitHub Release。
+
+Updater 签名只验证更新来源，不能替代 Windows Authenticode 或 Apple Developer ID / notarization。
+公开发布前仍须按目标平台配置系统安装包签名，并在干净机器上验证下载、首次安装和升级。
