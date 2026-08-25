@@ -108,16 +108,20 @@ class TestLocalApiSecurity(ApiIntegrationTest):
 
         token_path.unlink()
 
-        chmod_calls = []
+        restricted_paths = []
 
-        def record_chmod(path: Path, mode: int):
-            chmod_calls.append((path, mode))
+        def record_restriction(path: Path):
+            restricted_paths.append(path)
 
-        monkeypatch.setattr(local_security.os, "chmod", record_chmod)
+        monkeypatch.setattr(
+            local_security,
+            "restrict_private_file",
+            record_restriction,
+        )
         replacement_token = local_security._get_or_create_local_api_token()
 
         assert replacement_token
-        assert chmod_calls == [(token_path, 0o600)]
+        assert restricted_paths == [token_path]
 
         with Session(self.engine) as session:
             assert session.get(Setting, 'local_api_token') is None

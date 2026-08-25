@@ -73,6 +73,18 @@ class TestScannerHashing:
 
         assert names == {"a.mp3", "b.M4A", "c.FlAc"}
 
+    def test_iter_audio_candidates_reports_incomplete_enumeration(self):
+        class BrokenRoot:
+            def rglob(self, pattern: str):
+                assert pattern == "*"
+                yield self.root / "audio.mp3"
+                raise OSError("directory became unavailable")
+
+            root = self.root
+
+        with pytest.raises(scanner.ScanEnumerationError, match="enumerate"):
+            list(_iter_audio_candidates(BrokenRoot()))
+
     def test_path_points_to_available_file(self):
         file_path = self.write_file("audio.mp3", b"1")
         missing_path = self.root / "missing.mp3"

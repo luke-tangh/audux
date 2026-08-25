@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 
 from sqlmodel import Session, select
@@ -35,6 +36,7 @@ from .task_runtime import claim_next_pending
 
 logger = get_logger(__name__)
 _worker_started = False
+_worker_task: asyncio.Task[None] | None = None
 
 
 def claim_next_pending_run(session: Session) -> OrganizationRun | None:
@@ -483,9 +485,22 @@ async def worker_loop() -> None:
             _finish(run_id, "failed", error)
 
 
-def start_worker_once() -> None:
-    global _worker_started
-    if _worker_started:
-        return
+def start_worker_once() -> asyncio.Task[None]:
+    global _worker_started, _worker_task
+    if _worker_task is not None and not _worker_task.done():
+        return _worker_task
     _worker_started = True
-    asyncio.create_task(worker_loop())
+    _worker_task = asyncio.create_task(worker_loop())
+    return _worker_task
+
+
+async def stop_worker() -> None:
+    global _worker_started, _worker_task
+    task = _worker_task
+    _worker_task = None
+    _worker_started = False
+    if task is None:
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task

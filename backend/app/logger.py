@@ -4,7 +4,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
-from .db import LOGS_DIR
+from .db import LOGS_DIR, restrict_private_file
 
 LOG_FILE = LOGS_DIR / "app.log"
 
@@ -132,6 +132,7 @@ def setup_logging():
 
     root.addHandler(file_handler)
     root.addHandler(stream_handler)
+    restrict_private_file(LOG_FILE)
 
 
 def get_logger(name: str):

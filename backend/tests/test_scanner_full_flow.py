@@ -96,6 +96,22 @@ class TestScannerFullFlow(ApiIntegrationTest):
 
         assert outside.read_bytes() == b"outside-audio"
 
+    def test_incomplete_scan_does_not_mark_existing_items_missing(self, monkeypatch):
+        audio_path = self.library / "existing.mp3"
+        audio_path.write_bytes(b"audio")
+        assert self.scan()["imported"] == 1
+
+        def fail_enumeration(root_path: Path):
+            raise scanner.ScanEnumerationError("incomplete scan")
+            yield root_path
+
+        monkeypatch.setattr(scanner, "_iter_audio_candidates", fail_enumeration)
+        with pytest.raises(scanner.ScanEnumerationError, match="incomplete"):
+            self.scan()
+
+        with Session(self.engine) as session:
+            assert session.exec(select(AudioItem)).one().is_missing is False
+
     def test_precanceled_scan_finishes_without_enumerating_files(self, monkeypatch):
         (self.library / "pending.mp3").write_bytes(b"audio")
         with Session(self.engine) as session:

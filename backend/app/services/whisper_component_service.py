@@ -423,6 +423,22 @@ def remove_whisper_component(session: Session) -> dict:
     return get_whisper_component_status()
 
 
+async def _stop_companion_process(
+    process: asyncio.subprocess.Process,
+    communication: asyncio.Task[tuple[bytes, bytes]],
+) -> None:
+    if process.returncode is None:
+        with contextlib.suppress(ProcessLookupError):
+            process.terminate()
+    try:
+        await asyncio.wait_for(asyncio.shield(communication), timeout=5)
+    except asyncio.TimeoutError:
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
+        with contextlib.suppress(asyncio.CancelledError):
+            await communication
+
+
 async def transcribe_with_whisper_companion(
     *,
     file_path: str,
@@ -461,23 +477,16 @@ async def transcribe_with_whisper_companion(
         process.communicate(json.dumps(request, ensure_ascii=False).encode("utf-8"))
     )
 
-    canceled = False
-    while not communication.done():
-        await asyncio.wait({communication}, timeout=0.5)
-        if not communication.done() and is_canceled():
-            canceled = True
-            with contextlib.suppress(ProcessLookupError):
-                process.terminate()
-            try:
-                await asyncio.wait_for(communication, timeout=5)
-            except asyncio.TimeoutError:
-                with contextlib.suppress(ProcessLookupError):
-                    process.kill()
-                await communication
+    try:
+        while not communication.done():
+            await asyncio.wait({communication}, timeout=0.5)
+            if not communication.done() and is_canceled():
+                raise WhisperCompanionCanceled()
 
-    stdout, stderr = await communication
-    if canceled:
-        raise WhisperCompanionCanceled()
+        stdout, stderr = await communication
+    finally:
+        if process.returncode is None or not communication.done():
+            await _stop_companion_process(process, communication)
 
     try:
         response = json.loads(stdout.decode("utf-8"))

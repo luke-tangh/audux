@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -8,9 +9,12 @@ from .api_routes import router as api_router
 from .logger import setup_logging, get_logger
 from .db import engine
 from .scanner import recover_interrupted_scan_tasks
-from .tasks import start_worker_once
-from .agent_tasks import start_agent_worker_once
-from .organization_tasks import start_worker_once as start_organization_worker_once
+from .tasks import start_worker_once, stop_worker
+from .agent_tasks import start_agent_worker_once, stop_agent_worker
+from .organization_tasks import (
+    start_worker_once as start_organization_worker_once,
+    stop_worker as stop_organization_worker,
+)
 from .version import APP_VERSION
 from .services.backup_service import initialize_database_with_pending_restore
 from .services.health_service import recover_interrupted_health_tasks
@@ -65,7 +69,22 @@ async def lifespan(_: FastAPI):
     start_agent_worker_once()
     start_organization_worker_once()
     logger.info("Audux backend started")
-    yield
+    try:
+        yield
+    finally:
+        results = await asyncio.gather(
+            stop_organization_worker(),
+            stop_agent_worker(),
+            stop_worker(),
+            return_exceptions=True,
+        )
+        for result in results:
+            if isinstance(result, BaseException):
+                logger.error(
+                    "Failed to stop backend worker cleanly",
+                    exc_info=(type(result), result, result.__traceback__),
+                )
+        logger.info("Audux backend stopped")
 
 
 app = FastAPI(

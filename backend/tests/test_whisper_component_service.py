@@ -168,6 +168,29 @@ class _FakeProcess:
         return self.stdout, self.stderr
 
 
+class _HangingProcess:
+    def __init__(self):
+        self.returncode = None
+        self.terminated = False
+        self.killed = False
+        self.finished = asyncio.Event()
+
+    async def communicate(self, request: bytes):
+        assert json.loads(request)["action"] == "transcribe"
+        await self.finished.wait()
+        return b"", b""
+
+    def terminate(self):
+        self.terminated = True
+        self.returncode = -15
+        self.finished.set()
+
+    def kill(self):
+        self.killed = True
+        self.returncode = -9
+        self.finished.set()
+
+
 def _transcribe():
     return service.transcribe_with_whisper_companion(
         file_path="/library/audio.mp3",
@@ -219,3 +242,25 @@ def test_transcribe_requires_an_available_companion(monkeypatch):
 
     with pytest.raises(RuntimeError, match="not installed"):
         asyncio.run(_transcribe())
+
+
+def test_transcribe_cancellation_terminates_companion(monkeypatch, tmp_path):
+    process = _HangingProcess()
+
+    async def create_process(*args, **kwargs):
+        return process
+
+    async def cancel_transcription():
+        task = asyncio.create_task(_transcribe())
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    monkeypatch.setattr(service, "resolve_whisper_companion_command", lambda: ["companion"])
+    monkeypatch.setattr(service, "WHISPER_MODEL_CACHE_DIR", tmp_path / "models")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_process)
+
+    asyncio.run(cancel_transcription())
+    assert process.terminated is True
+    assert process.killed is False

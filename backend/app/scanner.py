@@ -19,6 +19,10 @@ INTERRUPTED_SCAN_STATUSES = {"pending", "running", "cancel_requested"}
 SCAN_PROGRESS_INTERVAL = 25
 
 
+class ScanEnumerationError(RuntimeError):
+    pass
+
+
 def _update_scan_task(session: Session, task_id: Optional[int], **kwargs):
     if not task_id:
         return
@@ -70,9 +74,17 @@ def _iter_audio_candidates(root_path: Path):
                     yield p
             except Exception as e:
                 logger.warning("Failed to inspect scan candidate %s: %s", p, e)
+                raise ScanEnumerationError(
+                    f"Failed to inspect library entry: {p}"
+                ) from e
 
     except Exception as e:
+        if isinstance(e, ScanEnumerationError):
+            raise
         logger.warning("Failed to enumerate library root %s: %s", root_path, e)
+        raise ScanEnumerationError(
+            f"Failed to enumerate library root: {root_path}"
+        ) from e
 
 
 def scan_library_root(session: Session, root_id: int, scan_task_id: Optional[int] = None) -> dict:

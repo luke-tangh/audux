@@ -173,6 +173,18 @@ class TestTaskApiLifecycle(ApiIntegrationTest):
                 "analyze",
             }
 
+    @pytest.mark.parametrize(
+        "audio_ids",
+        [[], [0], list(range(1, 502))],
+    )
+    def test_batch_task_admission_rejects_invalid_request_sizes(self, audio_ids):
+        response = self.client.post(
+            "/audio-items/batch/transcribe",
+            headers=self.auth_headers(include_client=True),
+            json={"audio_ids": audio_ids},
+        )
+        assert response.status_code == 422
+
     def test_analyze_prompt_respects_independent_output_language(self):
         context = {
             "title": "Example",

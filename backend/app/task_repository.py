@@ -255,9 +255,13 @@ def finalize_canceled_task(session: Session, task_id: int):
     task.finished_at = task.finished_at or now_iso()
     task.updated_at = now_iso()
     session.add(task)
+    _set_audio_task_status_no_commit(
+        session,
+        task.audio_id,
+        task.task_type,
+        "canceled",
+    )
     session.commit()
-
-    set_audio_task_status(session, task.audio_id, task.task_type, "canceled")
 
 
 def claim_next_pending_task(session: Session) -> AITask | None:

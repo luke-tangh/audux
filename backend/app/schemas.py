@@ -1,4 +1,4 @@
-from typing import Any, List, Literal, Optional
+from typing import Annotated, Any, List, Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -33,16 +33,16 @@ class AudioUpdate(BaseModel):
 
 
 class PlaybackPositionUpdate(BaseModel):
-    last_position_seconds: float
+    last_position_seconds: float = Field(ge=0, allow_inf_nan=False)
 
 
 class PlaybackEventCreate(BaseModel):
-    start_position_seconds: float = Field(default=0, ge=0)
+    start_position_seconds: float = Field(default=0, ge=0, allow_inf_nan=False)
 
 
 class PlaybackEventUpdate(BaseModel):
-    listened_seconds: float = Field(ge=0)
-    end_position_seconds: float = Field(ge=0)
+    listened_seconds: float = Field(ge=0, allow_inf_nan=False)
+    end_position_seconds: float = Field(ge=0, allow_inf_nan=False)
     completed: bool = False
     finish: bool = False
     end_reason: Optional[Literal["paused", "ended", "track_change", "closed"]] = None
@@ -101,9 +101,9 @@ class PlaylistItemsReorder(BaseModel):
 
 
 class TranscriptSegmentCreate(BaseModel):
-    segment_index: int
-    start_seconds: float
-    end_seconds: float
+    segment_index: int = Field(ge=0)
+    start_seconds: float = Field(allow_inf_nan=False)
+    end_seconds: float = Field(allow_inf_nan=False)
     text: str
 
 
@@ -116,7 +116,19 @@ class TranscriptCreate(BaseModel):
     task_config_summary: Optional[dict] = None
     glossary_version: Optional[str] = None
     quality_metrics: Optional[dict] = None
-    segments: List[TranscriptSegmentCreate] = Field(default_factory=list)
+    segments: List[TranscriptSegmentCreate] = Field(
+        default_factory=list,
+        max_length=10_000,
+    )
+
+    @model_validator(mode="after")
+    def validate_segment_indexes(self):
+        indexes = [segment.segment_index for segment in self.segments]
+        if indexes != list(range(len(indexes))):
+            raise ValueError(
+                "segment indexes must be unique, ordered, and start at zero"
+            )
+        return self
 
 
 class TranscriptUpdate(BaseModel):
@@ -137,14 +149,22 @@ class TranscriptSegmentsUpdate(BaseModel):
 class TranscriptChapterCreate(BaseModel):
     expected_revision_id: int = Field(gt=0)
     title: str = Field(min_length=1, max_length=200)
-    start_seconds: float = Field(ge=0)
-    end_seconds: float = Field(gt=0)
+    start_seconds: float = Field(ge=0, allow_inf_nan=False)
+    end_seconds: float = Field(gt=0, allow_inf_nan=False)
 
 
 class TranscriptChapterUpdate(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    start_seconds: Optional[float] = Field(default=None, ge=0)
-    end_seconds: Optional[float] = Field(default=None, gt=0)
+    start_seconds: Optional[float] = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+    )
+    end_seconds: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+    )
 
 
 class TranscriptChapterMerge(BaseModel):
@@ -237,9 +257,14 @@ class LLMConfig(BaseModel):
     endpoint: str
     model_name: str
     api_key: Optional[str] = None
-    timeout: int = 60
-    max_tokens: Optional[int] = 800
-    temperature: Optional[float] = 0.2
+    timeout: int = Field(default=60, ge=1, le=3600)
+    max_tokens: Optional[int] = Field(default=800, gt=0)
+    temperature: Optional[float] = Field(
+        default=0.2,
+        ge=0,
+        le=2,
+        allow_inf_nan=False,
+    )
 
 
 class LLMModelDiscoveryConfig(BaseModel):
@@ -249,7 +274,10 @@ class LLMModelDiscoveryConfig(BaseModel):
 
 
 class BatchAudioRequest(BaseModel):
-    audio_ids: List[int]
+    audio_ids: List[Annotated[int, Field(gt=0)]] = Field(
+        min_length=1,
+        max_length=500,
+    )
 
 
 AgentScopeKind = Literal[

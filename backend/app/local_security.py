@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from fastapi import HTTPException, Request
 from sqlmodel import Session
 
-from .db import APP_DATA_DIR
+from .db import APP_DATA_DIR, restrict_private_file
 from .logger import get_logger
 from .models import Setting
 
@@ -74,6 +74,7 @@ def _get_or_create_local_api_token() -> str:
         if AUDUX_TOKEN_FILE.exists():
             token = AUDUX_TOKEN_FILE.read_text(encoding="utf-8").strip()
             if token:
+                restrict_private_file(AUDUX_TOKEN_FILE)
                 return token
     except Exception:
         logger.exception("Failed to read local API token")
@@ -82,10 +83,7 @@ def _get_or_create_local_api_token() -> str:
 
     try:
         AUDUX_TOKEN_FILE.write_text(token, encoding="utf-8")
-        try:
-            os.chmod(AUDUX_TOKEN_FILE, 0o600)
-        except Exception:
-            pass
+        restrict_private_file(AUDUX_TOKEN_FILE)
     except Exception:
         logger.exception("Failed to write local API token")
 

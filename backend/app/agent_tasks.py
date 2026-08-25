@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import re
 
@@ -25,6 +26,7 @@ from .tool_registry import DEFAULT_TOOL_REGISTRY, ToolContext
 
 logger = get_logger(__name__)
 _agent_worker_started = False
+_agent_worker_task: asyncio.Task[None] | None = None
 
 
 def claim_next_pending_agent_run(session: Session) -> AgentRun | None:
@@ -321,9 +323,22 @@ async def agent_worker_loop() -> None:
             _mark_terminal(run_id, "failed", error)
 
 
-def start_agent_worker_once() -> None:
-    global _agent_worker_started
-    if _agent_worker_started:
-        return
+def start_agent_worker_once() -> asyncio.Task[None]:
+    global _agent_worker_started, _agent_worker_task
+    if _agent_worker_task is not None and not _agent_worker_task.done():
+        return _agent_worker_task
     _agent_worker_started = True
-    asyncio.create_task(agent_worker_loop())
+    _agent_worker_task = asyncio.create_task(agent_worker_loop())
+    return _agent_worker_task
+
+
+async def stop_agent_worker() -> None:
+    global _agent_worker_started, _agent_worker_task
+    task = _agent_worker_task
+    _agent_worker_task = None
+    _agent_worker_started = False
+    if task is None:
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task

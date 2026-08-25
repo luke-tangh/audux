@@ -80,6 +80,55 @@ class TestTranscriptRevisionApi(ApiIntegrationTest):
             "完整替换内容"
         ]
 
+    @pytest.mark.parametrize(
+        "segments",
+        [
+            [
+                {
+                    "segment_index": 1,
+                    "start_seconds": 0,
+                    "end_seconds": 1,
+                    "text": "wrong index",
+                }
+            ],
+            [
+                {
+                    "segment_index": 0,
+                    "start_seconds": 0,
+                    "end_seconds": 1,
+                    "text": "first",
+                },
+                {
+                    "segment_index": 0,
+                    "start_seconds": 1,
+                    "end_seconds": 2,
+                    "text": "duplicate index",
+                },
+            ],
+            [
+                {
+                    "segment_index": 0,
+                    "start_seconds": "NaN",
+                    "end_seconds": 1,
+                    "text": "not finite",
+                }
+            ],
+        ],
+    )
+    def test_transcript_create_rejects_invalid_timeline(self, segments):
+        response = self.client.post(
+            f"/audio-items/{self.audio.id}/transcript",
+            headers=self.auth_headers(include_client=True),
+            json={"full_text": "invalid", "segments": segments},
+        )
+        assert response.status_code == 422
+
+        current = self.client.get(
+            f"/audio-items/{self.audio.id}/transcript",
+            headers=self.auth_headers(),
+        ).json()
+        assert current["transcript"]["id"] == self.before["transcript"]["id"]
+
     def test_segment_revision_preserves_timeline_and_updates_exports_and_search(self):
         middle = self.before["segments"][1]
         response = self.client.request(

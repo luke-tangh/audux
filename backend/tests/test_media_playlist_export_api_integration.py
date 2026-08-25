@@ -70,6 +70,25 @@ class TestMediaPlaylistExportApi(ApiIntegrationTest):
         with Session(self.engine) as session:
             assert session.get(AudioItem, self.first.id).is_missing is True
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"last_position_seconds": -1},
+            {"last_position_seconds": "NaN"},
+            {"last_position_seconds": "Infinity"},
+        ],
+    )
+    def test_playback_position_rejects_invalid_numbers(self, payload):
+        response = self.client.post(
+            f"/audio-items/{self.first.id}/playback-position",
+            headers=self.auth_headers(include_client=True),
+            json=payload,
+        )
+        assert response.status_code == 422
+
+        with Session(self.engine) as session:
+            assert session.get(AudioItem, self.first.id).last_position_seconds == 0
+
     def test_cover_upload_download_validation_and_delete(self):
         headers = self.auth_headers(include_client=True)
         unsupported = self.client.post(

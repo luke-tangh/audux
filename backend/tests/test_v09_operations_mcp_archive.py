@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import os
 import subprocess
@@ -298,3 +299,50 @@ class TestV09OperationsMcpArchive(ApiIntegrationTest):
                 assert str(self.root_path) not in imported.file_path
         finally:
             empty_engine.dispose()
+
+    def test_archive_dry_run_rejects_invalid_table_rows(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ):
+        archive_dir = tmp_path / "archives"
+        import_dir = tmp_path / "imports"
+        monkeypatch.setattr(archive_service, "ARCHIVES_DIR", archive_dir)
+        monkeypatch.setattr(archive_service, "IMPORTS_DIR", import_dir)
+
+        with Session(self.engine) as session:
+            archive = archive_service.create_archive(session)
+        source = archive_dir / archive["file_name"]
+        with zipfile.ZipFile(source) as bundle:
+            manifest = json.loads(bundle.read("manifest.json"))
+            payload = json.loads(bundle.read("data.json"))
+
+        payload["tables"]["tags"].append({"id": 1})
+        data = json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        manifest["counts"]["tags"] = 1
+        manifest["data_sha256"] = hashlib.sha256(data).hexdigest()
+        invalid = tmp_path / "invalid.audux.zip"
+        with zipfile.ZipFile(invalid, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            bundle.writestr(
+                "manifest.json",
+                json.dumps(
+                    manifest,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode("utf-8"),
+            )
+            bundle.writestr("data.json", data)
+
+        response = self.client.post(
+            "/maintenance/archives/import/dry-run",
+            headers=self.auth_headers(include_client=True),
+            files={"file": ("invalid.audux.zip", invalid.read_bytes(), "application/zip")},
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"]["code"] == "archive.invalid"

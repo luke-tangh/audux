@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from fastapi.responses import FileResponse
-from sqlmodel import Session, select
+from pydantic import ValidationError
+from sqlalchemy import event
+from sqlmodel import SQLModel, Session, create_engine, select
 
 from .. import db
 from ..models import (
@@ -91,6 +93,11 @@ TABLE_MODELS = [
     OrganizationAuditEvent,
 ]
 MODEL_BY_TABLE = {model.__tablename__: model for model in TABLE_MODELS}
+EXPECTED_ARCHIVE_TABLES = {
+    "library_roots",
+    "audio_items",
+    *MODEL_BY_TABLE.keys(),
+}
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -136,7 +143,8 @@ def _export_payload(session: Session) -> dict[str, Any]:
         row.update({"library_root_id": root_id, "relative_locator": locator, "cover_path": None})
         tables["audio_items"].append(row)
     for model in TABLE_MODELS:
-        rows = session.exec(select(model)).all()
+        primary_key_columns = tuple(model.__table__.primary_key.columns)
+        rows = session.exec(select(model).order_by(*primary_key_columns)).all()
         values = []
         for row in rows:
             value = row.model_dump()
@@ -213,6 +221,7 @@ def _read_archive(data: bytes) -> tuple[dict[str, Any], dict[str, Any]]:
         or not isinstance(payload.get("tables"), dict)
     ):
         raise ServiceError(409, "Archive format or schema is incompatible", "archive.incompatible")
+    _validate_archive_payload(manifest, payload)
     return manifest, payload
 
 
@@ -289,6 +298,107 @@ def _normalize_import_row(table: str, row: dict[str, Any], archive_id: str) -> d
     return value
 
 
+def _normalized_import_tables(
+    tables: dict[str, Any],
+    archive_id: str,
+) -> dict[str, list[dict[str, Any]]]:
+    if set(tables) != EXPECTED_ARCHIVE_TABLES:
+        raise ValueError("archive table set does not match the current schema")
+
+    normalized: dict[str, list[dict[str, Any]]] = {}
+    for table in sorted(EXPECTED_ARCHIVE_TABLES):
+        rows = tables.get(table)
+        if not isinstance(rows, list):
+            raise ValueError(f"archive table {table} must be an array")
+        model = (
+            LibraryRoot
+            if table == "library_roots"
+            else AudioItem
+            if table == "audio_items"
+            else MODEL_BY_TABLE[table]
+        )
+        normalized_rows: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError(f"archive table {table} contains a non-object row")
+            if table == "library_roots":
+                allowed = {"id", "label", "is_enabled", "created_at", "updated_at"}
+            elif table == "audio_items":
+                allowed = (set(AudioItem.model_fields) - {"file_path"}) | {
+                    "relative_locator"
+                }
+            else:
+                allowed = set(model.model_fields)
+            if set(row) - allowed:
+                raise ValueError(f"archive table {table} contains unknown fields")
+
+            value = _normalize_import_row(table, row, archive_id)
+            validated = model.model_validate(value, strict=True)
+            validated_value = validated.model_dump()
+            for column in model.__table__.primary_key.columns:
+                if validated_value.get(column.name) is None:
+                    raise ValueError(
+                        f"archive table {table} contains a missing primary key"
+                    )
+            normalized_rows.append(validated_value)
+        normalized[table] = normalized_rows
+    return normalized
+
+
+def _insert_normalized_tables(
+    session: Session,
+    tables: dict[str, list[dict[str, Any]]],
+) -> None:
+    for row in tables["library_roots"]:
+        session.add(LibraryRoot(**row))
+    for row in tables["audio_items"]:
+        session.add(AudioItem(**row))
+    session.flush()
+    for model in TABLE_MODELS:
+        for row in tables[model.__tablename__]:
+            session.add(model(**row))
+        session.flush()
+
+
+def _validate_archive_payload(
+    manifest: dict[str, Any],
+    payload: dict[str, Any],
+) -> None:
+    try:
+        tables = payload["tables"]
+        normalized = _normalized_import_tables(tables, "validation")
+        actual_counts = {name: len(rows) for name, rows in tables.items()}
+        if manifest.get("counts") != actual_counts:
+            raise ValueError("archive manifest counts do not match table data")
+        if manifest.get("credentials_included") is not False:
+            raise ValueError("archive must not contain credentials")
+        if manifest.get("audio_files_included") is not False:
+            raise ValueError("archive must not contain audio files")
+
+        validation_engine = create_engine("sqlite:///:memory:")
+
+        @event.listens_for(validation_engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+        try:
+            SQLModel.metadata.create_all(validation_engine)
+            db.create_current_schema_objects(validation_engine)
+            with Session(validation_engine) as validation_session:
+                _insert_normalized_tables(validation_session, normalized)
+                validation_session.commit()
+        finally:
+            validation_engine.dispose()
+    except ServiceError:
+        raise
+    except (KeyError, TypeError, ValueError, ValidationError, sqlite3.Error) as error:
+        raise ServiceError(400, "Archive table data is invalid", "archive.invalid") from error
+    except Exception as error:
+        raise ServiceError(400, "Archive table relationships are invalid", "archive.invalid") from error
+
+
 def execute_import(session: Session, archive_id: str, fingerprint: str) -> dict[str, Any]:
     path = _safe_path(IMPORTS_DIR, archive_id, ".audux.zip")
     if not path.is_file() or path.is_symlink():
@@ -301,16 +411,8 @@ def execute_import(session: Session, archive_id: str, fingerprint: str) -> dict[
     if _has_importable_data(session) or _id_conflicts(session, tables):
         raise ServiceError(409, "Archive import requires an empty current library", "archive.import_conflict")
     try:
-        root_rows = tables.get("library_roots", [])
-        for row in root_rows:
-            session.add(LibraryRoot(**_normalize_import_row("library_roots", row, archive_id)))
-        for row in tables.get("audio_items", []):
-            session.add(AudioItem(**_normalize_import_row("audio_items", row, archive_id)))
-        session.flush()
-        for model in TABLE_MODELS:
-            for row in tables.get(model.__tablename__, []):
-                session.add(model(**_normalize_import_row(model.__tablename__, row, archive_id)))
-            session.flush()
+        normalized = _normalized_import_tables(tables, archive_id)
+        _insert_normalized_tables(session, normalized)
         for audio_id in session.exec(select(AudioItem.id)).all():
             rebuild_audio_search_index(session, int(audio_id), commit=False)
         session.commit()

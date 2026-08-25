@@ -1,4 +1,5 @@
 import logging
+import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -12,26 +13,45 @@ from .time_utils import utc_now_iso
 logger = logging.getLogger(__name__)
 CURRENT_SCHEMA_VERSION = 6
 
+
+def _ensure_private_directory(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if os.name != "nt":
+        try:
+            path.chmod(0o700)
+        except OSError:
+            logger.warning("Could not restrict directory permissions: %s", path)
+
+
+def restrict_private_file(path: Path) -> None:
+    if os.name == "nt" or not path.exists():
+        return
+    try:
+        path.chmod(0o600)
+    except OSError:
+        logger.warning("Could not restrict file permissions: %s", path)
+
+
 APP_DATA_DIR = Path.home() / ".audux"
-APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+_ensure_private_directory(APP_DATA_DIR)
 
 COVERS_DIR = APP_DATA_DIR / "covers"
-COVERS_DIR.mkdir(parents=True, exist_ok=True)
+_ensure_private_directory(COVERS_DIR)
 
 LOGS_DIR = APP_DATA_DIR / "logs"
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
+_ensure_private_directory(LOGS_DIR)
 
 EXPORTS_DIR = APP_DATA_DIR / "exports"
-EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+_ensure_private_directory(EXPORTS_DIR)
 
 BACKUPS_DIR = APP_DATA_DIR / "backups"
-BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+_ensure_private_directory(BACKUPS_DIR)
 
 COMPONENTS_DIR = APP_DATA_DIR / "components"
-COMPONENTS_DIR.mkdir(parents=True, exist_ok=True)
+_ensure_private_directory(COMPONENTS_DIR)
 
 MODELS_DIR = APP_DATA_DIR / "models"
-MODELS_DIR.mkdir(parents=True, exist_ok=True)
+_ensure_private_directory(MODELS_DIR)
 
 DB_PATH = APP_DATA_DIR / "database.sqlite"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -72,6 +92,12 @@ def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
     _write_current_schema_marker()
     create_current_schema_objects()
+    for path in (
+        DB_PATH,
+        DB_PATH.with_name(DB_PATH.name + "-wal"),
+        DB_PATH.with_name(DB_PATH.name + "-shm"),
+    ):
+        restrict_private_file(path)
 
 
 def _database_schema_version(path: Path) -> int | None:
@@ -150,8 +176,9 @@ def _verified_sqlite_backup(source_path: Path, destination_path: Path):
         raise
 
 
-def create_fts_tables():
-    with engine.begin() as conn:
+def create_fts_tables(bind=None):
+    target = bind or engine
+    with target.begin() as conn:
         conn.execute(
             text(
                 """
@@ -215,9 +242,10 @@ def _write_current_schema_marker():
         )
 
 
-def create_current_schema_objects():
+def create_current_schema_objects(bind=None):
     """Create objects that SQLModel cannot express for a fresh current schema."""
-    create_fts_tables()
+    target = bind or engine
+    create_fts_tables(target)
 
     statements = [
         """
@@ -356,6 +384,6 @@ def create_current_schema_objects():
         """,
     ]
 
-    with engine.begin() as conn:
+    with target.begin() as conn:
         for statement in statements:
             conn.execute(text(statement))

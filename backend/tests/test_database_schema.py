@@ -1,4 +1,5 @@
 import sqlite3
+import stat
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -108,6 +109,23 @@ class TestDatabaseSchema:
                 "ux_agent_operation_plan_run",
                 "ux_agent_operation_item_index",
             }.issubset(indexes)
+
+        if db.os.name != "nt":
+            assert stat.S_IMODE(self.db_path.stat().st_mode) == 0o600
+
+    @pytest.mark.skipif(db.os.name == "nt", reason="POSIX permission bits")
+    def test_private_paths_tighten_existing_permissions(self, tmp_path: Path):
+        private_dir = tmp_path / "private"
+        private_dir.mkdir(mode=0o755)
+        private_dir.chmod(0o755)
+        db._ensure_private_directory(private_dir)
+        assert stat.S_IMODE(private_dir.stat().st_mode) == 0o700
+
+        private_file = private_dir / "secret"
+        private_file.write_text("secret", encoding="utf-8")
+        private_file.chmod(0o644)
+        db.restrict_private_file(private_file)
+        assert stat.S_IMODE(private_file.stat().st_mode) == 0o600
 
     def test_unmarked_database_is_rejected_without_changes(self):
         with sqlite3.connect(self.db_path) as connection:

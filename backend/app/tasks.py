@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 
 from sqlmodel import Session
@@ -29,6 +30,7 @@ from .task_repository import (
 logger = get_logger(__name__)
 engine = db.engine
 _task_runner_started = False
+_worker_task: asyncio.Task[None] | None = None
 
 
 def _mark_task_done(task_id: int):
@@ -134,11 +136,11 @@ async def worker_loop():
             _mark_task_failed_or_canceled_after_exception(snapshot.id, e)
 
 
-def start_worker_once():
-    global _task_runner_started
+def start_worker_once() -> asyncio.Task[None]:
+    global _task_runner_started, _worker_task
 
-    if _task_runner_started:
-        return
+    if _worker_task is not None and not _worker_task.done():
+        return _worker_task
 
     try:
         recover_interrupted_tasks()
@@ -146,4 +148,17 @@ def start_worker_once():
         logger.exception("Failed to recover interrupted AI/ASR tasks")
 
     _task_runner_started = True
-    asyncio.create_task(worker_loop())
+    _worker_task = asyncio.create_task(worker_loop())
+    return _worker_task
+
+
+async def stop_worker() -> None:
+    global _task_runner_started, _worker_task
+    task = _worker_task
+    _worker_task = None
+    _task_runner_started = False
+    if task is None:
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task

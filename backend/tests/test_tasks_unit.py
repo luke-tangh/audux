@@ -2,6 +2,7 @@ import pytest
 from sqlmodel import Session, select
 
 from tests.api_test_support import ApiIntegrationTest
+from app import main as main_module
 from app import task_handlers, tasks
 from app.asr_config import build_asr_task_payload
 from app.models import AITask, AudioItem, Setting, Transcript, TranscriptSegment
@@ -115,6 +116,108 @@ class TestTaskStateTransitions(ApiIntegrationTest):
             assert canceled.status == "canceled"
             assert canceled.error_message is None
             assert audio.ai_status == "canceled"
+
+    def test_finalize_cancel_updates_task_and_audio_in_one_commit(self, monkeypatch):
+        with Session(self.engine) as session:
+            task = tasks.create_task(session, self.audio.id, "analyze")
+            task.status = "cancel_requested"
+            session.add(task)
+            session.commit()
+            commit_count = 0
+            original_commit = session.commit
+
+            def tracked_commit():
+                nonlocal commit_count
+                commit_count += 1
+                original_commit()
+
+            monkeypatch.setattr(session, "commit", tracked_commit)
+            tasks.finalize_canceled_task(session, int(task.id))
+
+            assert commit_count == 1
+            assert session.get(AITask, task.id).status == "canceled"
+            assert session.get(AudioItem, self.audio.id).ai_status == "canceled"
+
+    @pytest.mark.anyio
+    async def test_worker_can_be_stopped_and_restarted(self, monkeypatch):
+        monkeypatch.setattr(tasks, "recover_interrupted_tasks", lambda: 0)
+        first = tasks.start_worker_once()
+        assert tasks.start_worker_once() is first
+
+        await tasks.stop_worker()
+        assert first.cancelled()
+
+        second = tasks.start_worker_once()
+        assert second is not first
+        await tasks.stop_worker()
+
+    @pytest.mark.anyio
+    async def test_application_lifespan_stops_all_workers(self, monkeypatch):
+        events: list[str] = []
+
+        for name in (
+            "initialize_database_with_pending_restore",
+            "_get_or_create_local_api_token",
+            "recover_interrupted_scan_tasks",
+        ):
+            monkeypatch.setattr(main_module, name, lambda: None)
+        monkeypatch.setattr(
+            main_module,
+            "recover_interrupted_health_tasks",
+            lambda bind: None,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "recover_interrupted_agent_runs",
+            lambda bind: None,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "recover_interrupted_runs",
+            lambda bind: None,
+        )
+        monkeypatch.setattr(
+            main_module,
+            "start_worker_once",
+            lambda: events.append("start-task"),
+        )
+        monkeypatch.setattr(
+            main_module,
+            "start_agent_worker_once",
+            lambda: events.append("start-agent"),
+        )
+        monkeypatch.setattr(
+            main_module,
+            "start_organization_worker_once",
+            lambda: events.append("start-organization"),
+        )
+
+        def stop(name: str):
+            async def run():
+                events.append(name)
+
+            return run
+
+        monkeypatch.setattr(main_module, "stop_worker", stop("stop-task"))
+        monkeypatch.setattr(
+            main_module,
+            "stop_agent_worker",
+            stop("stop-agent"),
+        )
+        monkeypatch.setattr(
+            main_module,
+            "stop_organization_worker",
+            stop("stop-organization"),
+        )
+
+        async with main_module.lifespan(main_module.app):
+            assert events == ["start-task", "start-agent", "start-organization"]
+
+        assert set(events[3:]) == {
+            "stop-task",
+            "stop-agent",
+            "stop-organization",
+        }
 
     def test_numeric_settings_fall_back_for_missing_empty_and_invalid_values(self):
         with Session(self.engine) as session:
