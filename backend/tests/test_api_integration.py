@@ -219,7 +219,7 @@ class TestLibraryRootPathRestrictions(ApiIntegrationTest):
         assert response.status_code == 400
         assert response.json()['detail']['code'] == 'audio.outside_library'
 
-    def test_delete_file_revalidates_library_boundary_and_cleans_up_after_commit(self):
+    def test_audio_deletion_never_deletes_the_source_file(self):
         library = self.root_path / "library"
         root = self.add_library_root(library)
         inside = library / "inside.mp3"
@@ -231,27 +231,10 @@ class TestLibraryRootPathRestrictions(ApiIntegrationTest):
             headers=self.auth_headers(include_client=True),
         )
         assert deleted.status_code == 200, deleted.text
-        assert deleted.json() == {
-            "ok": True,
-            "file_deleted": True,
-            "cleanup_error": None,
-        }
-        assert not inside.exists()
+        assert deleted.json() == {"ok": True}
+        assert inside.exists()
         with Session(self.engine) as session:
             assert session.get(AudioItem, audio.id) is None
-
-        outside = self.root_path / "outside.mp3"
-        detached = self.add_audio(outside, root_id=None)
-        rejected = self.client.request(
-            "DELETE",
-            f"/audio-items/{detached.id}?delete_file=true",
-            headers=self.auth_headers(include_client=True),
-        )
-        assert rejected.status_code == 400, rejected.text
-        assert rejected.json()["detail"]["code"] == "audio.outside_library"
-        assert outside.is_file()
-        with Session(self.engine) as session:
-            assert session.get(AudioItem, detached.id) is not None
 
         busy_path = library / "busy.mp3"
         busy = self.add_audio(busy_path, root_id=root.id)

@@ -17,7 +17,6 @@ from ..schemas import (
 )
 from ..response_schemas import (
     AISuggestionsResponse,
-    AudioDeleteResponse,
     AudioDetailResponse,
     AudioItemResponse,
     BatchOrganizationResponse,
@@ -136,13 +135,12 @@ def update_audio_item(
     )
 
 
-@router.delete("/audio-items/{audio_id}", response_model=AudioDeleteResponse)
+@router.delete("/audio-items/{audio_id}", response_model=OkResponse)
 def delete_audio_item(
     audio_id: int,
-    delete_file: bool = False,
     session: Session = Depends(get_session),
 ):
-    return audio_service.delete_audio_item(session, audio_id, delete_file)
+    return audio_service.delete_audio_item(session, audio_id)
 
 
 @router.post("/audio-items/{audio_id}/relocate", response_model=AudioItemResponse)

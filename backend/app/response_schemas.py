@@ -130,11 +130,6 @@ class OkResponse(ResponseModel):
     ok: bool
 
 
-class AudioDeleteResponse(OkResponse):
-    file_deleted: bool
-    cleanup_error: str | None = None
-
-
 class BatchTaskResponse(ResponseModel):
     created: int
     skipped: int

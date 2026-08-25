@@ -190,15 +190,22 @@ class TestV09OperationsMcpArchive(ApiIntegrationTest):
         blocked = self.add_audio(self.root_path / "library" / "blocked.mp3", root_id=root.id)
         with Session(self.engine) as session:
             server = AuduxMcpServer(session, frozenset({int(allowed.id)}))
-            initialized = server.dispatch({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}})
-            assert initialized["result"]["serverInfo"]["name"] == "audux"
-            listed = server.dispatch({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+            metadata = {
+                "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                "io.modelcontextprotocol/clientInfo": {"name": "audux-test", "version": "1"},
+                "io.modelcontextprotocol/clientCapabilities": {},
+            }
+            discovered = server.dispatch({"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": metadata}})
+            assert discovered["result"]["supportedVersions"][0] == "2026-07-28"
+            assert discovered["result"]["resultType"] == "complete"
+            assert discovered["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"] == "audux"
+            listed = server.dispatch({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {"_meta": metadata}})
             names = {row["name"] for row in listed["result"]["tools"]}
             assert {"list_audio", "search_scope", "get_audio_details", "get_transcript", "get_playlist", "scope_statistics"}.issubset(names)
             assert not any(name.startswith("propose_") for name in names)
-            denied = server.dispatch({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "get_audio_details", "arguments": {"audio_id": blocked.id}}})
+            denied = server.dispatch({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "get_audio_details", "arguments": {"audio_id": blocked.id}, "_meta": metadata}})
             assert denied["result"]["isError"] is True
-            allowed_call = server.dispatch({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "get_audio_details", "arguments": {"audio_id": allowed.id}}})
+            allowed_call = server.dispatch({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "get_audio_details", "arguments": {"audio_id": allowed.id}, "_meta": metadata}})
             output = allowed_call["result"]["structuredContent"]
             assert output["audio_id"] == allowed.id
             assert "file_path" not in output
@@ -208,14 +215,59 @@ class TestV09OperationsMcpArchive(ApiIntegrationTest):
                 ("get_audio_details", "done"),
             ]
 
+    def test_mcp_validates_modern_metadata_and_keeps_legacy_stdio_compatibility(self):
+        with Session(self.engine) as session:
+            modern_server = AuduxMcpServer(session, frozenset())
+            missing_metadata = modern_server.dispatch(
+                {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+            )
+            assert missing_metadata["error"]["code"] == -32602
+
+            unsupported = modern_server.dispatch(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/list",
+                    "params": {
+                        "_meta": {
+                            "io.modelcontextprotocol/protocolVersion": "1900-01-01",
+                            "io.modelcontextprotocol/clientCapabilities": {},
+                        }
+                    },
+                }
+            )
+            assert unsupported["error"] == {
+                "code": -32022,
+                "message": "Unsupported protocol version",
+                "data": {
+                    "supported": ["2026-07-28", "2025-11-25", "2025-06-18", "2024-11-05"],
+                    "requested": "1900-01-01",
+                },
+            }
+
+            legacy_server = AuduxMcpServer(session, frozenset())
+            initialized = legacy_server.dispatch(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "initialize",
+                    "params": {"protocolVersion": "2025-06-18"},
+                }
+            )
+            assert initialized["result"]["protocolVersion"] == "2025-06-18"
+            legacy_list = legacy_server.dispatch(
+                {"jsonrpc": "2.0", "id": 4, "method": "tools/list", "params": {}}
+            )
+            assert "resultType" not in legacy_list["result"]
+            assert legacy_list["result"]["tools"]
+
     def test_real_stdio_mcp_seam(self, tmp_path: Path):
         repository_root = Path(__file__).resolve().parents[2]
         requests = "\n".join(
             [
-                json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}}),
-                json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}),
-                json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
-                json.dumps({"jsonrpc": "2.0", "id": 3, "method": "ping", "params": {}}),
+                json.dumps({"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": {"name": "audux-test", "version": "1"}, "io.modelcontextprotocol/clientCapabilities": {}}}}),
+                json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": {"name": "audux-test", "version": "1"}, "io.modelcontextprotocol/clientCapabilities": {}}}}),
+                json.dumps({"jsonrpc": "2.0", "id": 3, "method": "ping", "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientInfo": {"name": "audux-test", "version": "1"}, "io.modelcontextprotocol/clientCapabilities": {}}}}),
             ]
         ) + "\n"
         environment = dict(os.environ)
@@ -232,7 +284,8 @@ class TestV09OperationsMcpArchive(ApiIntegrationTest):
         )
         responses = [json.loads(line) for line in completed.stdout.splitlines()]
         assert [row["id"] for row in responses] == [1, 2, 3]
-        assert responses[0]["result"]["serverInfo"]["name"] == "audux"
+        assert responses[0]["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"] == "audux"
+        assert responses[0]["result"]["supportedVersions"][0] == "2026-07-28"
         assert not any(tool["name"].startswith("propose_") for tool in responses[1]["result"]["tools"])
         assert completed.stderr == ""
 

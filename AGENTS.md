@@ -63,8 +63,10 @@ system`. Set `UV_CACHE_DIR=/tmp/audux-uv-cache` for `uv sync` and
 cache error is not a reason to skip tests.
 
 Use `uv sync --locked --extra asr` when ASR/faster-whisper behavior must be
-tested. Use `uv sync --locked --extra asr --group build` for a full release
-sidecar. These environments are substantially heavier than the base dependencies.
+tested. Use `uv sync --locked --extra asr --group build` before building the
+separate Whisper companion. An embedded-ASR main sidecar additionally requires
+`AUDUX_BUILD_WITH_ASR=1`; normal release builds keep the main sidecar lightweight.
+These environments are substantially heavier than the base dependencies.
 
 Linux Tauri development also requires WebKitGTK 4.1, AppIndicator, librsvg,
 patchelf, and a native Rust toolchain. Install `fonts-noto-cjk` when validating
@@ -213,8 +215,8 @@ AUDUX_BUILD_WITH_ASR=0 npm run build:backend
 - Keep frontend Vitest tests colocated as `*.test.ts` or `*.test.tsx`. Prefer
   Vitest for API/auth, pure helpers, hooks, storage, and deterministic component
   behavior.
-- Frontend CI runs V8 coverage with minimum global thresholds of 10% statements,
-  8% branches, 10% functions, and 10% lines. Treat these as a ratcheting floor;
+- Frontend CI runs V8 coverage with minimum global thresholds of 40% statements,
+  41% branches, 39% functions, and 41% lines. Treat these as a ratcheting floor;
   review coverage in changed modules rather than optimizing only the global
   number.
 - Use Playwright under `frontend/tests/visual/` for browser workflows, keyboard

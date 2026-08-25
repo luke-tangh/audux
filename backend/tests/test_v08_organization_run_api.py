@@ -97,7 +97,7 @@ class TestV08OrganizationRunApi(ApiIntegrationTest):
 
         audio_response = self.client.request(
             "DELETE",
-            f"/audio-items/{self.audio.id}?delete_file=true",
+            f"/audio-items/{self.audio.id}",
             headers=self.auth_headers(include_client=True),
         )
         assert audio_response.status_code == 409, audio_response.text

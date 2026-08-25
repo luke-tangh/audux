@@ -1,10 +1,15 @@
-# Audux PRD
+# Audux PRD（v0.6 历史归档）
+
+> 本文件冻结记录 v0.6 规划时的需求、数据模型和阶段判断，不再代表当前实现或 API 契约。
+> 当前 `0.9.0-beta.1` 的产品边界以 [`docs/roadmap.md`](docs/roadmap.md)、
+> [`docs/data-and-security.md`](docs/data-and-security.md) 和当前代码/测试为准。不要依据本文的
+> 旧 SQL 草案修改 schema；当前 schema 为 v6。
 
 | 项目 | 内容 |
 |---|---|
 | 产品名称 | Audux |
 | 产品类型 | 本地桌面音频播放器 / 音频知识库 |
-| 文档版本 | v0.6 |
+| 文档版本 | v0.6（历史归档） |
 | 目标版本 | v0.6 Agent-ready 可信内容基础，发布版本待定 |
 | 当前实现阶段 | 已完成 MVP+ 基础能力，暂停 Beta 发布并进入功能改善阶段 |
 | 运行形态 | Tauri 桌面应用 + 本地 FastAPI 后端 |
@@ -1797,10 +1802,10 @@ PATCH /audio-items/{audio_id}
 ### 删除音频条目
 
 ```http
-DELETE /audio-items/{audio_id}?delete_file=false
+DELETE /audio-items/{audio_id}
 ```
 
-默认只删除数据库条目，不删除本地文件。
+只从数据库移除条目，不提供删除原始音频文件的参数或 API。
 
 ---
 
@@ -2594,12 +2599,7 @@ AUDUX_ALLOW_ALL_CORS=1
 
 ## 12.5 删除数据
 
-删除音频条目时必须区分：
-
-- 从数据库移除
-- 删除本地音频文件
-
-默认只从数据库移除。
+删除音频条目只允许从数据库移除。Audux 不提供删除本地原始音频文件的能力。
 
 ---
 

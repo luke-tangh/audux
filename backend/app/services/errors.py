@@ -64,8 +64,6 @@ ERROR_CODE_BY_DETAIL = {
 def error_code_for_detail(detail: str) -> str:
     if detail.startswith("Transcript segment ") and detail.endswith(" not found"):
         return "transcript.segment_not_found"
-    if detail.startswith("Failed to delete file:"):
-        return "audio.delete_file_failed"
     if detail.startswith("Tags not found:"):
         return "tag.not_found"
     if detail.startswith("Unsupported Whisper component platform:"):

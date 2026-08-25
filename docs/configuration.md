@@ -157,3 +157,10 @@ AUDUX_MCP_AUDIO_IDS=1,2 audux-backend-<target-triple> --mcp
 
 stdio 专用于 JSON-RPC，MCP 不暴露写工具、API Key、本地 API Token、日志、绝对路径或
 范围外音频。EOF 会触发进程退出。
+
+服务端原生实现 MCP `2026-07-28`。现代客户端应在每个请求的 `params._meta` 中携带
+`io.modelcontextprotocol/protocolVersion` 和
+`io.modelcontextprotocol/clientCapabilities`，可先调用 `server/discover`，再调用
+`tools/list` 和 `tools/call`；不再需要 `initialize` / `notifications/initialized`。
+为现有 stdio 集成保留 `2025-11-25`、`2025-06-18` 和 `2024-11-05` 的 initialize 回退，
+但新集成不应依赖旧生命周期。

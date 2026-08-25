@@ -62,8 +62,10 @@ debug sidecar placeholder。
 - 让 Agent 提案 metadata、Tag、手动 Playlist、保存视图和排队转写；逐项核对冻结目标与
   before/after 后批准。确认重复批准、目标在审批前变化、范围外 audio id 和任一项失败均不会
   留下部分写入。
-- 使用 sidecar `--mcp` 启动真实 stdio 客户端，完成 initialize、tools/list 和每个 read 工具的
-  tools/call；确认写工具、绝对路径、Token、API Key 和范围外音频均不可见。
+- 使用 sidecar `--mcp` 启动真实 stdio 客户端，按 MCP `2026-07-28` 完成
+  server/discover、tools/list 和每个 read 工具的 tools/call；确认每个请求都带逐请求 `_meta`，
+  写工具、绝对路径、Token、API Key 和范围外音频均不可见。另用一个旧客户端验证 initialize
+  回退不会扩大能力。
 - 未配置 embedding 时 Agent 和 Segment 搜索显示 FTS 模式；关闭 LLM 服务后普通关键词搜索、
   Transcript 浏览和播放仍正常。
 - 关闭最后一个应用窗口后，`audux-backend` / Python backend 进程退出。
@@ -73,6 +75,9 @@ debug sidecar placeholder。
 - 修改 updater artifact、签名或 `latest.json` 后确认客户端拒绝安装；确认失败时不会创建
   不完整数据库副本，也不会停止当前 backend。
 - 卸载应用不会静默删除 `~/.audux` 用户数据。
+- 当前暂不做 Windows Authenticode 或 Apple Developer ID / notarization；确认安装包和发布
+  说明明确提示未做操作系统级签名，并验证用户经过系统警告后仍能完成安装。Tauri updater
+  artifact 的签名验证仍必须通过。
 
 browser-lite 每个平台至少验证：
 

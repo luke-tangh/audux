@@ -22,6 +22,10 @@ curl http://127.0.0.1:8765/library-roots \
 `POST`、`PUT`、`PATCH` 和 `DELETE` 还要求 `X-Audux-Client: audux`。Tauri 后端端口可能
 不是 `8765`；不要用固定端口调试 Tauri 请求，应查看实际 backend base URL。
 
+如果启动日志报告 `Failed to initialize local API token`，后端会安全地停止，而不是使用
+一次性 Token 继续运行。检查 `~/.audux/` 是否可写、`local_api_token` 是否可读且能设置为
+仅当前用户可访问；不要删除整个数据目录或重置数据库。
+
 ## 后端未启动
 
 从仓库根目录运行：

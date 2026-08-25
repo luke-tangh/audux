@@ -145,7 +145,7 @@ v0.6–v0.8 默认不依赖 LangGraph、Pydantic AI、Temporal 等运行时。�
 | [WhisperX](https://github.com/m-bain/whisperX) | 词级对齐、VAD 和说话人分离，可用于疑点片段复核原型 | GPU / 模型体积、语言覆盖和对齐误差使其不适合作为默认必装验证器 |
 | [LangGraph interrupts](https://docs.langchain.com/oss/python/langgraph/interrupts) | checkpoint、暂停审批和恢复的状态机模式 | 不在只读 Agent 尚未验证前引入完整图运行时 |
 | [Pydantic AI tools](https://pydantic.dev/docs/ai/tools-toolsets/tools/) | 类型化工具、动态 toolset 和审批模式 | 不让框架 Agent 直接拥有数据库或文件系统能力 |
-| [MCP tools specification](https://modelcontextprotocol.io/specification/2025-06-18/server/tools) | 工具发现、结构化调用和结果协议 | MCP 是传输适配层，不是权限边界或内部业务实现 |
+| [MCP 2026-07-28 tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) | 无状态工具发现、结构化调用、结果类型和缓存提示 | MCP 是传输适配层，不是权限边界或内部业务实现 |
 
 ## 阶段总览
 

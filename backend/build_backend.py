@@ -122,8 +122,10 @@ def build_pyinstaller_command(name: str, include_asr: bool) -> list[str]:
             raise RuntimeError(
                 "AUDUX_BUILD_WITH_ASR is enabled, but faster-whisper "
                 "is not installed.\n\n"
-                "For full release build:\n"
-                "  uv sync --locked --extra asr --group build\n\n"
+                "For an embedded-ASR sidecar:\n"
+                "  uv sync --locked --extra asr --group build\n"
+                "  AUDUX_BUILD_WITH_ASR=1 uv run --locked --extra asr "
+                "--group build python backend/build_backend.py\n\n"
                 "For a lite build without embedded faster-whisper:\n"
                 "  AUDUX_BUILD_WITH_ASR=0 "
                 "uv run --locked --group build python backend/build_backend.py"

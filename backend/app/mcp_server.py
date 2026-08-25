@@ -17,9 +17,18 @@ from .tool_registry import DEFAULT_TOOL_REGISTRY, ToolContext
 from .version import APP_VERSION
 
 
-MCP_PROTOCOL_VERSION = "2025-06-18"
-SUPPORTED_PROTOCOL_VERSIONS = {MCP_PROTOCOL_VERSION, "2024-11-05"}
+MCP_PROTOCOL_VERSION = "2026-07-28"
+LEGACY_PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2024-11-05")
+SUPPORTED_PROTOCOL_VERSIONS = (MCP_PROTOCOL_VERSION, *LEGACY_PROTOCOL_VERSIONS)
+PROTOCOL_VERSION_META_KEY = "io.modelcontextprotocol/protocolVersion"
+CLIENT_INFO_META_KEY = "io.modelcontextprotocol/clientInfo"
+CLIENT_CAPABILITIES_META_KEY = "io.modelcontextprotocol/clientCapabilities"
+SERVER_INFO_META_KEY = "io.modelcontextprotocol/serverInfo"
 MAX_REQUEST_CHARACTERS = 256 * 1024
+MCP_INSTRUCTIONS = (
+    "Read-only access to a server-frozen Audux library scope. "
+    "Tool outputs never include credentials or absolute file paths."
+)
 
 
 def _configured_audio_ids() -> frozenset[int] | None:
@@ -39,59 +48,173 @@ class AuduxMcpServer:
     def __init__(self, session: Session, allowed_audio_ids: frozenset[int]):
         self.session = session
         self.allowed_audio_ids = allowed_audio_ids
-        self.initialized = False
+        self.legacy_protocol_version: str | None = None
 
     def _result(self, request_id: Any, result: Any) -> dict[str, Any]:
         return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
-    def _error(self, request_id: Any, code: int, message: str, data: Any = None) -> dict[str, Any]:
+    def _modern_result(
+        self,
+        request_id: Any,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        response_metadata = result.get("_meta")
+        if not isinstance(response_metadata, dict):
+            response_metadata = {}
+        payload = {
+            "resultType": "complete",
+            **result,
+            "_meta": {
+                **response_metadata,
+                SERVER_INFO_META_KEY: {"name": "audux", "version": APP_VERSION},
+            },
+        }
+        return self._result(request_id, payload)
+
+    def _error(
+        self,
+        request_id: Any,
+        code: int,
+        message: str,
+        data: Any = None,
+    ) -> dict[str, Any]:
         error: dict[str, Any] = {"code": code, "message": message}
         if data is not None:
             error["data"] = data
         return {"jsonrpc": "2.0", "id": request_id, "error": error}
 
-    def _audit(self, name: str, arguments: dict[str, Any], status: str, error_code: str | None = None) -> None:
+    def _audit(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        status: str,
+        error_code: str | None = None,
+    ) -> None:
         self.session.add(
             McpAuditEvent(
                 tool_name=name,
                 status=status,
-                arguments_json=json.dumps(arguments, ensure_ascii=False, separators=(",", ":"), sort_keys=True),
+                arguments_json=json.dumps(
+                    arguments,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ),
                 scope_audio_count=len(self.allowed_audio_ids),
                 error_code=error_code,
             )
         )
         self.session.commit()
 
+    def _validate_modern_request(
+        self,
+        request_id: Any,
+        params: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        metadata = params.get("_meta")
+        if not isinstance(metadata, dict):
+            return self._error(request_id, -32602, "Invalid params")
+
+        requested = metadata.get(PROTOCOL_VERSION_META_KEY)
+        capabilities = metadata.get(CLIENT_CAPABILITIES_META_KEY)
+        if not isinstance(requested, str) or not isinstance(capabilities, dict):
+            return self._error(request_id, -32602, "Invalid params")
+        if requested != MCP_PROTOCOL_VERSION:
+            return self._error(
+                request_id,
+                -32022,
+                "Unsupported protocol version",
+                {
+                    "supported": list(SUPPORTED_PROTOCOL_VERSIONS),
+                    "requested": requested,
+                },
+            )
+        client_info = metadata.get(CLIENT_INFO_META_KEY)
+        if client_info is not None and not isinstance(client_info, dict):
+            return self._error(request_id, -32602, "Invalid params")
+        return None
+
     def dispatch(self, request: dict[str, Any]) -> dict[str, Any] | None:
+        has_request_id = "id" in request
         request_id = request.get("id")
         method = request.get("method")
         if request.get("jsonrpc") != "2.0" or not isinstance(method, str):
             return self._error(request_id, -32600, "Invalid Request")
-        if request_id is None:
-            if method == "notifications/initialized":
-                self.initialized = True
+        if not has_request_id:
             return None
-        params = request.get("params") or {}
+        if (
+            request_id is None
+            or isinstance(request_id, bool)
+            or not isinstance(request_id, (str, int))
+        ):
+            return self._error(None, -32600, "Invalid Request")
+        params = request.get("params", {})
         if not isinstance(params, dict):
             return self._error(request_id, -32602, "Invalid params")
+        modern = False
         try:
             if method == "initialize":
-                requested = str(params.get("protocolVersion") or MCP_PROTOCOL_VERSION)
-                protocol = requested if requested in SUPPORTED_PROTOCOL_VERSIONS else MCP_PROTOCOL_VERSION
+                requested = str(
+                    params.get("protocolVersion") or LEGACY_PROTOCOL_VERSIONS[0]
+                )
+                protocol = (
+                    requested
+                    if requested in LEGACY_PROTOCOL_VERSIONS
+                    else LEGACY_PROTOCOL_VERSIONS[0]
+                )
+                self.legacy_protocol_version = protocol
                 return self._result(
                     request_id,
                     {
                         "protocolVersion": protocol,
                         "capabilities": {"tools": {"listChanged": False}},
                         "serverInfo": {"name": "audux", "version": APP_VERSION},
-                        "instructions": "Read-only access to a server-frozen Audux library scope. Tool outputs never include credentials or absolute file paths.",
+                        "instructions": MCP_INSTRUCTIONS,
+                    },
+                )
+            modern = (
+                isinstance(params.get("_meta"), dict)
+                and PROTOCOL_VERSION_META_KEY in params["_meta"]
+            )
+            if method == "server/discover" or modern or self.legacy_protocol_version is None:
+                validation_error = self._validate_modern_request(request_id, params)
+                if validation_error is not None:
+                    return validation_error
+                modern = True
+            result = self._modern_result if modern else self._result
+            if method == "server/discover":
+                return self._modern_result(
+                    request_id,
+                    {
+                        "supportedVersions": list(SUPPORTED_PROTOCOL_VERSIONS),
+                        "capabilities": {"tools": {"listChanged": False}},
+                        "instructions": MCP_INSTRUCTIONS,
+                        "ttlMs": 3_600_000,
+                        "cacheScope": "private",
                     },
                 )
             if method == "ping":
-                return self._result(request_id, {})
+                return result(request_id, {})
             if method == "tools/list":
-                tools = [schema["function"] for schema in DEFAULT_TOOL_REGISTRY.schemas(maximum_permission="read")]
-                return self._result(request_id, {"tools": [{"name": row["name"], "description": row["description"], "inputSchema": row["parameters"]} for row in tools]})
+                tools = [
+                    schema["function"]
+                    for schema in DEFAULT_TOOL_REGISTRY.schemas(
+                        maximum_permission="read"
+                    )
+                ]
+                payload = {
+                    "tools": [
+                        {
+                            "name": row["name"],
+                            "description": row["description"],
+                            "inputSchema": row["parameters"],
+                        }
+                        for row in tools
+                    ]
+                }
+                if modern:
+                    payload.update({"ttlMs": 300_000, "cacheScope": "private"})
+                return result(request_id, payload)
             if method == "tools/call":
                 name = params.get("name")
                 arguments = params.get("arguments") or {}
@@ -109,7 +232,7 @@ class AuduxMcpServer:
                     capabilities=LLMCapabilities(tool_calling=True),
                 )
                 self._audit(name, arguments, "done")
-                return self._result(
+                return result(
                     request_id,
                     {
                         "content": [{"type": "text", "text": json.dumps(output, ensure_ascii=False)}],
@@ -123,7 +246,8 @@ class AuduxMcpServer:
                 attempted_name = str(params.get("name") or "invalid")[:100]
                 attempted_arguments = params.get("arguments") if isinstance(params.get("arguments"), dict) else {}
                 self._audit(attempted_name, attempted_arguments, "failed", error.code)
-            return self._result(
+            result = self._modern_result if modern else self._result
+            return result(
                 request_id,
                 {
                     "content": [{"type": "text", "text": error.detail}],

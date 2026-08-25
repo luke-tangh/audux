@@ -32,3 +32,13 @@ def test_openapi_contains_shared_audio_and_transcript_models() -> None:
     assert "PaginatedAudioItemsResponse" in schemas
     assert "TranscriptResponse" in schemas
     assert "AITaskResponse" in schemas
+
+
+def test_audio_delete_contract_cannot_request_source_file_deletion() -> None:
+    operation = app.openapi()["paths"]["/audio-items/{audio_id}"]["delete"]
+    parameters = operation.get("parameters", [])
+
+    assert {parameter["name"] for parameter in parameters} == {"audio_id"}
+    assert _response_schema("/audio-items/{audio_id}", "delete") == {
+        "$ref": "#/components/schemas/OkResponse"
+    }

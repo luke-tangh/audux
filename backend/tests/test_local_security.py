@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 import app.local_security as security
@@ -15,9 +17,6 @@ class TestLocalSecurity:
             "http://localhost:5173",
             "https://localhost",
             "http://127.0.0.1:5173",
-            "http://127.0.0.2:3000",
-            "http://[::1]:5173",
-            "http://foo.localhost:5173",
             "https://tauri.localhost",
             "tauri://localhost",
         ],
@@ -30,6 +29,9 @@ class TestLocalSecurity:
         [
             "https://example.com",
             "http://localhost.evil.com",
+            "http://127.0.0.2:3000",
+            "http://[::1]:5173",
+            "http://foo.localhost:5173",
             "file://localhost/path",
             "ftp://localhost",
             "not-a-url",
@@ -37,6 +39,36 @@ class TestLocalSecurity:
     )
     def test_disallowed_request_origins(self, origin: str):
         assert not security._is_allowed_request_origin(origin)
+
+    def test_token_initialization_fails_if_token_cannot_be_persisted(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ):
+        token_path = tmp_path / "missing-parent" / "local_api_token"
+        monkeypatch.setattr(security, "AUDUX_TOKEN_FILE", token_path)
+
+        with pytest.raises(RuntimeError, match="Failed to initialize local API token"):
+            security._get_or_create_local_api_token()
+
+        assert not token_path.exists()
+
+    def test_token_initialization_fails_if_existing_token_cannot_be_secured(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ):
+        token_path = tmp_path / "local_api_token"
+        token_path.write_text("stable-token", encoding="utf-8")
+        monkeypatch.setattr(security, "AUDUX_TOKEN_FILE", token_path)
+
+        def fail_restriction(_):
+            raise OSError("chmod denied")
+
+        monkeypatch.setattr(security, "restrict_private_file", fail_restriction)
+
+        with pytest.raises(RuntimeError, match="Failed to initialize local API token"):
+            security._get_or_create_local_api_token()
 
     @pytest.mark.parametrize(
         "endpoint",

@@ -101,7 +101,7 @@ jobs:
           TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
         run: node scripts/prepare-updater-config.mjs
 
-      - name: Build signed Tauri app and updater artifacts
+      - name: Build Tauri app with signed updater artifacts
         if: github.event_name == 'push'
         working-directory: frontend
         env:
@@ -125,8 +125,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: audux-${{ matrix.name }}
-          # Upload distributable files only. In particular, exclude the
-          # uncompressed Linux *.AppDir staging tree used to build AppImage.
+          # Upload release inputs and distributable files only. In particular,
+          # exclude the uncompressed Linux *.AppDir staging tree used to build AppImage.
           path: |
             frontend/src-tauri/target/release/bundle/**/*.AppImage
             frontend/src-tauri/target/release/bundle/**/*.deb
@@ -138,6 +138,7 @@ jobs:
             frontend/src-tauri/target/release/bundle/**/*.app.tar.gz
             backend/dist/browser-lite/audux-lite-*.zip
             backend/dist/whisper-components/audux-whisper-*.zip
+            backend/dist/whisper-components/whisper-component-*.json
           if-no-files-found: error
 
   publish-release:
@@ -165,7 +166,7 @@ jobs:
             --output release-artifacts/whisper-components.json \
             --version "${GITHUB_REF_NAME#v}"
 
-      - name: Build signed application update manifest
+      - name: Build application update manifest
         shell: bash
         run: |
           python backend/build_update_manifest.py \
@@ -174,7 +175,7 @@ jobs:
             --version "${GITHUB_REF_NAME#v}" \
             --repository "${GITHUB_REPOSITORY}" \
             --tag "${GITHUB_REF_NAME}" \
-            --notes "Audux ${GITHUB_REF_NAME#v} signed application update"
+            --notes "Audux ${GITHUB_REF_NAME#v} application update"
 
       - name: List release files
         shell: bash

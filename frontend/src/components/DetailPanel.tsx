@@ -382,7 +382,7 @@ export default function DetailPanel({
     if (!ok) return;
 
     try {
-      await api.deleteAudio(audio!.id, false);
+      await api.deleteAudio(audio!.id);
       notify?.(t("detail.notifications.audioRemoved"), "success");
       onDeleted(audio!.id);
     } catch (err) {

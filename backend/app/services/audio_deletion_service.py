@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from sqlalchemy import text
 from sqlmodel import Session, select
 
@@ -20,7 +18,7 @@ from ..models import (
     TranscriptSegment,
 )
 from .errors import ServiceError
-from .media_paths import delete_managed_cover_file, find_library_root_id_for_path
+from .media_paths import delete_managed_cover_file
 from .task_state import BUSY_AUDIO_TASK_STATUSES
 
 
@@ -30,9 +28,7 @@ logger = get_logger(__name__)
 def _ensure_audio_deletable(
     session: Session,
     item: AudioItem,
-    *,
-    delete_file: bool,
-) -> Path:
+) -> None:
     audio_id = int(item.id)
     active_task = session.exec(
         select(AITask)
@@ -69,15 +65,6 @@ def _ensure_audio_deletable(
             "Audio is referenced by an organization run",
             code="organization.audio_referenced",
         )
-
-    audio_path = Path(item.file_path)
-    if delete_file and find_library_root_id_for_path(session, audio_path) is None:
-        raise ServiceError(
-            400,
-            "Audio file path must be within a configured library root",
-        )
-    return audio_path
-
 
 def _delete_transcript_graph(session: Session, audio_id: int) -> None:
     transcripts = session.exec(
@@ -139,56 +126,18 @@ def _commit_database_deletion(
         raise
 
 
-def _cleanup_files(
-    *,
-    audio_id: int,
-    audio_path: Path,
-    cover_path: str | None,
-    delete_file: bool,
-) -> tuple[bool, str | None]:
-    delete_managed_cover_file(cover_path)
-    if not delete_file or not audio_path.exists():
-        return False, None
-
-    try:
-        audio_path.unlink()
-        return True, None
-    except OSError as error:
-        logger.warning(
-            "Audio entry deleted but source file cleanup failed id=%s path=%s",
-            audio_id,
-            audio_path,
-            exc_info=error,
-        )
-        return False, "audio.delete_file_failed"
-
-
 def delete_audio_item(
     session: Session,
     audio_id: int,
-    delete_file: bool = False,
 ) -> dict:
     item = session.get(AudioItem, audio_id)
     if not item:
         raise ServiceError(404, "Audio item not found")
 
-    audio_path = _ensure_audio_deletable(
-        session,
-        item,
-        delete_file=delete_file,
-    )
+    _ensure_audio_deletable(session, item)
     cover_path = item.cover_path
     _commit_database_deletion(session, item)
-    file_deleted, cleanup_error = _cleanup_files(
-        audio_id=audio_id,
-        audio_path=audio_path,
-        cover_path=cover_path,
-        delete_file=delete_file,
-    )
+    delete_managed_cover_file(cover_path)
 
-    logger.info("Audio item deleted id=%s delete_file=%s", audio_id, delete_file)
-    return {
-        "ok": True,
-        "file_deleted": file_deleted,
-        "cleanup_error": cleanup_error,
-    }
+    logger.info("Audio item removed from library id=%s", audio_id)
+    return {"ok": True}

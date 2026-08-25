@@ -23,8 +23,8 @@ Transcript、全文检索以及受控 AI 工作流放在同一个资料库中，
 
 ## 快速开始
 
-开发环境需要 Python 3.12、[uv](https://docs.astral.sh/uv/) 和满足 Vite 8 要求的
-Node.js（20.19+ 或 22.12+）。首次安装依赖：
+开发环境需要 Python 3.12、[uv](https://docs.astral.sh/uv/) 和满足完整前端测试工具链要求的
+Node.js（22.22.2+ 的 22.x、24.15.0+ 的 24.x，或 26+）。首次安装依赖：
 
 ```bash
 uv sync --locked --group test

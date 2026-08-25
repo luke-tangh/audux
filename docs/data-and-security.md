@@ -50,7 +50,8 @@ Audux 将数据库和应用生成内容视为用户数据。自动化测试必�
 数据库快照不包含原始音频、模型缓存或导出文件。做完整灾难恢复备份时，应另外备份整个
 `~/.audux/` 和原始媒体目录。
 
-桌面版安装更新前会先完成签名包下载，再检查扫描、ASR、AI、Agent、资料库健康和整理 Run
+桌面版安装更新前会先完成 updater artifact 下载和 Tauri updater 签名验证，再检查扫描、
+ASR、AI、Agent、资料库健康和整理 Run
 均已停止，并创建经过 `PRAGMA quick_check` 与 SHA-256 校验的“升级前自动安全快照”。任何
 检查或快照失败都会中止安装。快照保留在 `backups/`，可在匹配 schema 的应用版本中恢复。
 预发布 schema 不兼容时仍拒绝启动且不修改数据库，不会为了完成更新而绕过 schema 检查。
@@ -88,6 +89,9 @@ curl http://127.0.0.1:8765/library-roots \
 修改数据的请求还必须带 `X-Audux-Client: audux`。开发环境可临时设置
 `AUDUX_ALLOW_ALL_CORS=1`，但不得用于日常运行或发布构建，也不能通过削弱 Token、Origin、
 CSP 或客户端 Header 来解决开发问题。
+
+Token 文件无法读取、创建或收紧为私有权限时，后端会拒绝启动；它不会退回到无法稳定认证的
+临时随机 Token。应修复 `~/.audux/` 的所有权、权限或磁盘问题后再启动。
 
 ## Provider 与 Agent 边界
 

@@ -23,7 +23,7 @@ ALLOW_ALL_CORS = os.getenv("AUDUX_ALLOW_ALL_CORS", "").lower() in {
 }
 
 LOCAL_ORIGIN_REGEX = (
-    r"^(https?://(127\.0\.0\.1|localhost)(:\d+)?"
+    r"^(?:https?://(?:127\.0\.0\.1|localhost)(?::\d+)?"
     r"|https?://tauri\.localhost"
     r"|tauri://localhost)$"
 )
@@ -70,22 +70,28 @@ def _get_or_create_local_api_token() -> str:
     - GET 媒体/导出接口可通过 query token 使用，方便 audio/img/window.open。
     - 不是系统级认证，无法防同机恶意进程读取本地 API。
     """
-    try:
-        if AUDUX_TOKEN_FILE.exists():
+    if AUDUX_TOKEN_FILE.exists():
+        try:
             token = AUDUX_TOKEN_FILE.read_text(encoding="utf-8").strip()
             if token:
                 restrict_private_file(AUDUX_TOKEN_FILE)
                 return token
-    except Exception:
-        logger.exception("Failed to read local API token")
+        except Exception as error:
+            logger.exception("Failed to read or secure local API token")
+            raise RuntimeError("Failed to initialize local API token") from error
 
     token = secrets.token_urlsafe(32)
 
     try:
         AUDUX_TOKEN_FILE.write_text(token, encoding="utf-8")
         restrict_private_file(AUDUX_TOKEN_FILE)
-    except Exception:
+    except Exception as error:
         logger.exception("Failed to write local API token")
+        try:
+            AUDUX_TOKEN_FILE.unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Failed to remove incomplete local API token")
+        raise RuntimeError("Failed to initialize local API token") from error
 
     return token
 
@@ -127,32 +133,7 @@ def _request_has_valid_local_token(request: Request) -> bool:
 def _is_allowed_request_origin(origin: str) -> bool:
     if ALLOW_ALL_CORS:
         return True
-
-    try:
-        parsed = urlparse(origin)
-        scheme = (parsed.scheme or "").lower()
-        host = (parsed.hostname or "").lower()
-
-        if scheme == "tauri" and host == "localhost":
-            return True
-
-        if scheme not in {"http", "https"}:
-            return False
-
-        if host in {"localhost", "127.0.0.1", "::1"}:
-            return True
-
-        if host.endswith(".localhost"):
-            return True
-
-        try:
-            ip = ipaddress.ip_address(host)
-            return bool(ip.is_loopback)
-        except Exception:
-            return False
-
-    except Exception:
-        return False
+    return re.fullmatch(LOCAL_ORIGIN_REGEX, origin) is not None
 
 
 def _is_local_endpoint(endpoint: str) -> bool:

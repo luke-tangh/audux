@@ -21,6 +21,7 @@
 ## 规划与版本记录
 
 - [功能路线图](roadmap.md)：v0.5–v0.9 已完成范围、v1.0 稳定门槛和后续候选项。
+- [v0.6 历史 PRD](../PRD.md)：仅供追溯早期决策，不代表当前 schema 或 API 契约。
 - [v0.9.0-beta.1](releases/v0.9.0-beta.1.md)：当前内部候选说明。
 - [v0.8.0-beta.1](releases/v0.8.0-beta.1.md)
 - [v0.7.0-beta.1](releases/v0.7.0-beta.1.md)

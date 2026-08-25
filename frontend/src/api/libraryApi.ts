@@ -1,7 +1,6 @@
 import type {
   ActivityFeed,
   AISuggestions,
-  AudioDeleteResult,
   AudioDetail,
   AudioItem,
   AudioListQuery,
@@ -142,8 +141,8 @@ export function createLibraryApi(context: ApiContext) {
         method: "PATCH",
         body: JSON.stringify(payload)
       }),
-    deleteAudio: (id: number, deleteFile = false) =>
-      request<AudioDeleteResult>(`/audio-items/${id}?delete_file=${String(deleteFile)}`, {
+    deleteAudio: (id: number) =>
+      request<{ ok: boolean }>(`/audio-items/${id}`, {
         method: "DELETE"
       }),
     relocateAudio: (id: number, filePath: string) =>

@@ -188,7 +188,7 @@ class TestMediaPlaylistExportApi(ApiIntegrationTest):
                 select(Transcript).where(Transcript.audio_id == self.first.id)
             ).all() == []
 
-    def test_audio_delete_can_remove_the_managed_media_file(self):
+    def test_audio_delete_legacy_query_cannot_remove_the_media_file(self):
         path = self.library / "second.wav"
         assert path.exists()
 
@@ -198,7 +198,8 @@ class TestMediaPlaylistExportApi(ApiIntegrationTest):
             headers=self.auth_headers(include_client=True),
         )
         assert deleted.status_code == 200, deleted.text
-        assert not path.exists()
+        assert deleted.json() == {"ok": True}
+        assert path.exists()
 
     def test_ai_suggestions_skip_invalid_newer_payloads_and_keep_defaults(self):
         with Session(self.engine) as session:

@@ -4,14 +4,15 @@ Audux 当前提供浏览器开发模式、Tauri 桌面开发模式和打包后�
 公开安装包将在 v1.0 才提供；当前 v0.x 需要从源码运行或使用内部构建产物。
 
 v1.0 发布后，普通用户可在 GitHub Releases 直接下载 Linux、Windows 或 macOS 安装包，
-无需安装 Python、Node.js 或 Rust。桌面版可在“设置 → 更新”检查签名更新；browser-lite
-需要从发布页下载并替换可执行文件。
+无需安装 Python、Node.js 或 Rust。桌面版可在“设置 → 更新”检查经 Tauri updater 签名
+验证的更新；browser-lite 需要从发布页下载并替换可执行文件。当前安装包暂不做 Windows
+Authenticode 或 Apple Developer ID / notarization，系统可能显示未知发布者警告。
 
 ## 环境要求
 
 - Python 3.12（项目声明范围为 `>=3.12,<3.13`）
 - [uv](https://docs.astral.sh/uv/)
-- Node.js 20.19+ 或 22.12+
+- Node.js 22.22.2+ 的 22.x、24.15.0+ 的 24.x，或 26+
 - Tauri 模式还需要 Rust stable 和对应平台的原生依赖
 
 不要在 WSL / Linux 中调用 Windows 的 `node.exe`、`npm`、`cargo.exe`，也不要复用
