@@ -51,7 +51,7 @@ openssl pkey -in audux-whisper-manifest-private.pem \
   -pubout -out audux-whisper-manifest-public.pem
 ```
 
-将两个 PEM 文件的完整内容分别配置为 GitHub Actions secrets：
+将两个 PEM 文件的完整内容分别配置为 `release` Environment secrets：
 
 - `AUDUX_WHISPER_MANIFEST_PRIVATE_KEY`
 - `AUDUX_WHISPER_MANIFEST_PUBLIC_KEY`
@@ -118,9 +118,10 @@ npm run tauri:build
 GitHub Actions 的 `Internal Builds and v1 Release` 可手动触发，在 Linux x64、Windows
 x64、macOS 13+ x64 和 macOS 13+ Apple Silicon 上构建 Tauri、browser-lite、backend
 sidecar 和 Whisper companion。
-手动运行默认只保留四个平台的已校验 artifacts，不读取 updater 私钥，也不创建 GitHub
-Release。将 `signed_preflight` 设为 `true` 时，workflow 会走与正式 tag 相同的签名、汇总、
-校验和与 provenance attestation 路径，生成完整 release candidate，但仍不会发布。
+手动运行默认使用无密钥、无需审批的 `internal-build` Environment，只保留四个平台的已校验
+artifacts，不读取签名 secrets，也不创建 GitHub Release。将 `signed_preflight` 设为 `true`
+时，workflow 会进入受审批的 `release` Environment，走与正式 tag 相同的签名、汇总、校验
+和与 provenance attestation 路径，生成完整 release candidate，但仍不会发布。
 
 标签构建在任何打包任务之前强制执行 backend 分支覆盖率、frontend 单元覆盖率/类型检查/
 生产构建/Playwright，以及 Linux、Windows、macOS 的 Rust 测试和 `cargo check`。任一门禁
@@ -167,7 +168,7 @@ cd frontend
 npx tauri signer generate -w /安全位置/audux-updater.key
 ```
 
-将私钥内容、私钥密码和公钥内容分别配置为 GitHub Actions secrets：
+将私钥内容、私钥密码和公钥内容分别配置为 `release` Environment secrets：
 
 - `TAURI_SIGNING_PRIVATE_KEY`
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
