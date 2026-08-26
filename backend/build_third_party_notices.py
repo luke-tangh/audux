@@ -124,6 +124,7 @@ def cargo_notices() -> list[PackageNotice]:
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
         target = next(
             (
@@ -149,6 +150,7 @@ def cargo_notices() -> list[PackageNotice]:
         cwd=TAURI_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     if result.returncode:
         detail = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else ""
