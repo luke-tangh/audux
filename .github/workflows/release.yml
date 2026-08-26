@@ -64,7 +64,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     environment:
-      name: release
+      name: ${{ needs.release-context.outputs.mode == 'signed' && 'release' || 'internal-build' }}
     env:
       AUDUX_WHISPER_MANIFEST_PUBLIC_KEY: ${{ secrets.AUDUX_WHISPER_MANIFEST_PUBLIC_KEY }}
       AUDUX_REQUIRE_WHISPER_MANIFEST_SIGNATURE: ${{ needs.release-context.outputs.mode == 'signed' && '1' || '0' }}

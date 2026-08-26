@@ -35,7 +35,7 @@ cargo check --locked
 确认 `git diff --check` 无输出，并确认 `VERSION`、Python、npm、Cargo 和 Tauri 的
 版本一致。
 
-确认仓库 Actions secrets 已配置且来自同一套受控密钥材料：
+确认 `release` Environment secrets 已配置且来自同一套受控密钥材料：
 
 - `TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`、
   `TAURI_UPDATER_PUBLIC_KEY`；
