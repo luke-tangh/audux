@@ -1,82 +1,62 @@
 import asyncio
-import json
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import httpx
 import pytest
 from sqlmodel import Session
 
 from tests.api_test_support import ApiIntegrationTest
-from app import tasks
+from app import asr_client, tasks
 from app.models import AITask, AudioItem
-
-
-class MockAsrHandler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        content_length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(content_length)
-
-        self.server.captured_request = {
-            "path": self.path,
-            "authorization": self.headers.get("Authorization"),
-            "content_type": self.headers.get("Content-Type"),
-            "body": body,
-        }
-
-        response = json.dumps(
-            {
-                "text": "完整 mock 转写",
-                "language": "zh",
-                "model": "mock-asr-response-model",
-                "segments": [
-                    {
-                        "start": 0,
-                        "end": 1.25,
-                        "text": "第一段",
-                    },
-                    {
-                        "start": 1.25,
-                        "end": 2.5,
-                        "text": "第二段",
-                    },
-                ],
-            },
-            ensure_ascii=False,
-        ).encode("utf-8")
-
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(response)))
-        self.end_headers()
-        self.wfile.write(response)
-
-    def log_message(self, format, *args):
-        return
 
 
 class TestExternalAsrFullChain(ApiIntegrationTest):
     @pytest.fixture(autouse=True)
-    def setup_mock_asr_server(self, api_test_context):
-        self.mock_server = ThreadingHTTPServer(
-            ("127.0.0.1", 0),
-            MockAsrHandler,
+    def setup_mock_asr_transport(self, api_test_context, monkeypatch):
+        self.captured_request = None
+
+        async def handle_request(request: httpx.Request) -> httpx.Response:
+            self.captured_request = {
+                "path": request.url.path,
+                "authorization": request.headers.get("Authorization"),
+                "content_type": request.headers.get("Content-Type"),
+                "body": await request.aread(),
+            }
+            return httpx.Response(
+                200,
+                json={
+                    "text": "完整 mock 转写",
+                    "language": "zh",
+                    "model": "mock-asr-response-model",
+                    "segments": [
+                        {
+                            "start": 0,
+                            "end": 1.25,
+                            "text": "第一段",
+                        },
+                        {
+                            "start": 1.25,
+                            "end": 2.5,
+                            "text": "第二段",
+                        },
+                    ],
+                },
+                request=request,
+            )
+
+        transport = httpx.MockTransport(handle_request)
+        monkeypatch.setattr(
+            asr_client,
+            "_create_async_client",
+            lambda timeout: httpx.AsyncClient(
+                timeout=timeout,
+                transport=transport,
+            ),
         )
-        self.mock_server.captured_request = None
-        self.mock_thread = threading.Thread(
-            target=self.mock_server.serve_forever,
-            daemon=True,
-        )
-        self.mock_thread.start()
 
         yield
-        self.mock_server.shutdown()
-        self.mock_server.server_close()
-        self.mock_thread.join(timeout=5)
 
     def test_api_task_worker_http_upload_and_transcript_persistence(self):
-        endpoint = (
-            f"http://127.0.0.1:{self.mock_server.server_address[1]}/v1"
-        )
+        endpoint = "http://127.0.0.1:9999/v1"
         settings = {
             "asr.provider": "external",
             "asr.external.endpoint": endpoint,
@@ -129,7 +109,7 @@ class TestExternalAsrFullChain(ApiIntegrationTest):
         asyncio.run(tasks.handle_transcribe_task(snapshot))
         tasks._mark_task_done(task_id)
 
-        captured = self.mock_server.captured_request
+        captured = self.captured_request
         assert captured is not None
         assert captured['path'] == '/v1/audio/transcriptions'
         assert captured['authorization'] == 'Bearer mock-asr-secret'

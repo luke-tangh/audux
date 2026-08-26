@@ -8,6 +8,10 @@ import httpx
 from .asr_config import ASR_TIMESTAMP_OFF, ASR_TIMESTAMP_REQUIRED
 
 
+def _create_async_client(timeout: int) -> httpx.AsyncClient:
+    return httpx.AsyncClient(timeout=timeout)
+
+
 def _number(value: Any, field: str) -> float:
     try:
         result = float(value)
@@ -114,7 +118,7 @@ async def transcribe_external_audio(
         files = {
             "file": (path.name, audio_file, content_type),
         }
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with _create_async_client(timeout) as client:
             response = await client.post(
                 url,
                 headers=headers,
