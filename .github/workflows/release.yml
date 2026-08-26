@@ -2,6 +2,12 @@ name: Internal Builds and v1 Release
 
 on:
   workflow_dispatch:
+    inputs:
+      signed_preflight:
+        description: Build and sign the complete release candidate without publishing it
+        required: true
+        default: false
+        type: boolean
   push:
     tags:
       - "v1.0.*"
@@ -10,123 +16,66 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: audux-release
   cancel-in-progress: false
 
 jobs:
-  backend-release-tests:
-    name: Release gate / backend
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
-      - name: Setup uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          version: "0.12.0"
-          enable-cache: true
-      - name: Install backend test dependencies
-        run: uv sync --locked --group test
-      - name: Run backend tests with branch coverage
-        run: >-
-          uv run --locked --group test python -m pytest backend/tests
-          --cov=app
-          --cov-branch
-          --cov-report=term-missing:skip-covered
-          --cov-report=xml
-          --cov-fail-under=70
+  quality-gates:
+    name: Release quality gates
+    uses: ./.github/workflows/quality-gates.yml
 
-  frontend-release-tests:
-    name: Release gate / frontend
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
+  release-context:
+    name: Validate release context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      mode: ${{ steps.context.outputs.mode }}
+      version: ${{ steps.context.outputs.version }}
     steps:
-      - name: Checkout
+      - name: Checkout complete history
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.3.0
         with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install frontend dependencies
-        run: npm ci
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Unit tests with coverage
-        run: npm run test:coverage
-      - name: Build frontend
-        run: npm run build
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-      - name: Install CJK fonts
+          fetch-depth: 0
+      - name: Validate version, ref, and main ancestry
+        id: context
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y fonts-noto-cjk
-          fc-cache -f
-          fc-match "Noto Sans CJK SC"
-      - name: Run visual and accessibility tests
-        run: npm run test:visual
-      - name: Upload Playwright failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        with:
-          name: release-playwright-test-results
-          path: frontend/test-results
-          if-no-files-found: ignore
-          retention-days: 7
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION)"
+          mode="unsigned"
 
-  tauri-release-tests:
-    name: Release gate / Tauri on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    defaults:
-      run:
-        working-directory: frontend/src-tauri
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
-      - name: Install Linux Tauri dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            rpm
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.1
-        with:
-          workspaces: frontend/src-tauri -> target
-      - name: Run Rust tests
-        run: cargo test --locked
-      - name: Cargo check
-        run: cargo check --locked
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            expected_version="${GITHUB_REF_NAME#v}"
+            test "${expected_version}" = "${version}"
+            git fetch --no-tags origin main
+            git merge-base --is-ancestor "${GITHUB_SHA}" "origin/main"
+            mode="signed"
+          elif [[ "${{ inputs.signed_preflight }}" == "true" ]]; then
+            test "${GITHUB_REF}" = "refs/heads/main"
+            mode="signed"
+          fi
+
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
   build-tauri:
-    name: Build Tauri on ${{ matrix.name }}
-    needs: [backend-release-tests, frontend-release-tests, tauri-release-tests]
+    name: Build ${{ needs.release-context.outputs.mode }} artifacts on ${{ matrix.name }}
+    needs: [quality-gates, release-context]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    environment:
+      name: release
     env:
       AUDUX_WHISPER_MANIFEST_PUBLIC_KEY: ${{ secrets.AUDUX_WHISPER_MANIFEST_PUBLIC_KEY }}
-      AUDUX_REQUIRE_WHISPER_MANIFEST_SIGNATURE: ${{ github.event_name == 'push' && '1' || '0' }}
+      AUDUX_REQUIRE_WHISPER_MANIFEST_SIGNATURE: ${{ needs.release-context.outputs.mode == 'signed' && '1' || '0' }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: linux-x64
-            os: ubuntu-latest
+            os: ubuntu-24.04
           - name: windows-x64
-            os: windows-latest
+            os: windows-2025
           - name: macos-x64
             os: macos-15-intel
           - name: macos-arm64
@@ -134,13 +83,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
-      - name: Validate public release tag matches application version
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          expected_version="${GITHUB_REF_NAME#v}"
-          application_version="$(tr -d '[:space:]' < VERSION)"
-          test "$expected_version" = "$application_version"
       - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
         run: |
@@ -156,12 +98,12 @@ jobs:
         with:
           version: "0.12.0"
           enable-cache: true
-      - name: Install backend dependencies
+      - name: Install backend build dependencies
         run: uv sync --locked --group build
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.3.0
         with:
-          node-version: "24"
+          node-version-file: .node-version
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install frontend dependencies
@@ -174,72 +116,71 @@ jobs:
         run: uv run --locked --group build python backend/build_browser_lite.py
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.97.1"
       - name: Cache Rust
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.1
         with:
           workspaces: frontend/src-tauri -> target
-      - name: Build unsigned Tauri app for internal validation
-        if: github.event_name == 'workflow_dispatch'
+      - name: Build unsigned Tauri app
+        if: needs.release-context.outputs.mode == 'unsigned'
         working-directory: frontend
         run: npm run tauri:build
       - name: Prepare signed updater configuration
-        if: github.event_name == 'push'
+        if: needs.release-context.outputs.mode == 'signed'
         working-directory: frontend
         env:
           TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
         run: node scripts/prepare-updater-config.mjs
       - name: Build Tauri app with signed updater artifacts
-        if: github.event_name == 'push'
+        if: needs.release-context.outputs.mode == 'signed'
         working-directory: frontend
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri:build -- --config src-tauri/tauri.release.conf.json
       - name: Normalize updater artifact names
-        if: github.event_name == 'push'
+        if: needs.release-context.outputs.mode == 'signed'
         working-directory: frontend
         shell: bash
-        run: node scripts/normalize-updater-artifacts.mjs "${{ matrix.name }}" "${GITHUB_REF_NAME#v}"
+        run: >-
+          node scripts/normalize-updater-artifacts.mjs
+          "${{ matrix.name }}"
+          "${{ needs.release-context.outputs.version }}"
       - name: Install Whisper companion dependencies
         run: uv sync --locked --extra asr --group build
       - name: Build Whisper companion
         run: uv run --locked --extra asr --group build python backend/build_whisper_companion.py
-      - name: Upload bundle artifact
+      - name: Validate and stage platform artifacts
+        run: >-
+          uv run --locked python backend/release_artifacts.py stage
+          --platform "${{ matrix.name }}"
+          --mode "${{ needs.release-context.outputs.mode }}"
+          --output release-stage
+      - name: Upload validated platform artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: audux-${{ matrix.name }}
-          path: |
-            frontend/src-tauri/target/release/bundle/**/*.AppImage
-            frontend/src-tauri/target/release/bundle/**/*.deb
-            frontend/src-tauri/target/release/bundle/**/*.rpm
-            frontend/src-tauri/target/release/bundle/**/*.msi
-            frontend/src-tauri/target/release/bundle/**/*.exe
-            frontend/src-tauri/target/release/bundle/**/*.dmg
-            frontend/src-tauri/target/release/bundle/**/*.sig
-            frontend/src-tauri/target/release/bundle/**/*.app.tar.gz
-            backend/dist/browser-lite/audux-lite-*.zip
-            backend/dist/whisper-components/audux-whisper-*.zip
-            backend/dist/whisper-components/whisper-component-*.json
+          path: release-stage/*
           if-no-files-found: error
+          retention-days: 14
 
-  publish-release:
-    name: Publish GitHub Release
-    runs-on: ubuntu-latest
-    needs: build-tauri
-    if: github.event_name == 'push' && startsWith(github.ref_name, 'v1.0.')
+  assemble-release-candidate:
+    name: Assemble and attest signed release candidate
+    needs: [release-context, build-tauri]
+    if: needs.release-context.outputs.mode == 'signed'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: release
     permissions:
-      contents: write
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
-      - name: Validate release notes
-        id: release-notes
-        shell: bash
-        run: |
-          notes_path="docs/releases/${GITHUB_REF_NAME}.md"
-          test -f "$notes_path"
-          echo "path=$notes_path" >> "$GITHUB_OUTPUT"
-      - name: Download bundle artifacts
+      - name: Download validated platform artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.0
         with:
           pattern: audux-*
@@ -253,47 +194,89 @@ jobs:
       - name: Install manifest signing dependencies
         run: uv sync --locked
       - name: Build Whisper component manifest
-        shell: bash
-        run: |
-          uv run --locked python backend/build_whisper_manifest.py \
-            --input release-artifacts \
-            --output release-artifacts/whisper-components.json \
-            --version "${GITHUB_REF_NAME#v}"
-      - name: Sign Whisper component manifest
+        run: >-
+          uv run --locked python backend/build_whisper_manifest.py
+          --input release-artifacts
+          --output release-metadata/whisper-components.json
+          --version "${{ needs.release-context.outputs.version }}"
+      - name: Sign and verify Whisper component manifest
         env:
           AUDUX_WHISPER_MANIFEST_PRIVATE_KEY: ${{ secrets.AUDUX_WHISPER_MANIFEST_PRIVATE_KEY }}
           AUDUX_WHISPER_MANIFEST_PUBLIC_KEY: ${{ secrets.AUDUX_WHISPER_MANIFEST_PUBLIC_KEY }}
         run: >-
           uv run --locked python backend/sign_whisper_manifest.py
-          release-artifacts/whisper-components.json
+          release-metadata/whisper-components.json
       - name: Build application update manifest
+        run: >-
+          uv run --locked python backend/build_update_manifest.py
+          --input release-artifacts
+          --output release-metadata/latest.json
+          --version "${{ needs.release-context.outputs.version }}"
+          --repository "${GITHUB_REPOSITORY}"
+          --tag "v${{ needs.release-context.outputs.version }}"
+          --notes "Audux ${{ needs.release-context.outputs.version }} application update"
+      - name: Assemble exact public asset set and checksums
+        run: >-
+          uv run --locked python backend/release_artifacts.py assemble
+          --input release-artifacts
+          --metadata release-metadata
+          --output release-assets
+          --version "${{ needs.release-context.outputs.version }}"
+      - name: Generate build provenance attestations
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: release-assets/*
+      - name: Upload signed release candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: audux-release-candidate-${{ needs.release-context.outputs.version }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-release:
+    name: Publish verified GitHub Release
+    needs: [release-context, assemble-release-candidate]
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'v1.0.')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Validate release notes
+        id: release-notes
         shell: bash
         run: |
-          python backend/build_update_manifest.py \
-            --input release-artifacts \
-            --output release-artifacts/latest.json \
-            --version "${GITHUB_REF_NAME#v}" \
-            --repository "${GITHUB_REPOSITORY}" \
-            --tag "${GITHUB_REF_NAME}" \
-            --notes "Audux ${GITHUB_REF_NAME#v} application update"
-      - name: List release files
-        shell: bash
-        run: find release-artifacts -maxdepth 10 -type f -print
-      - name: Upload files to GitHub Release
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.3
+          notes_path="docs/releases/${GITHUB_REF_NAME}.md"
+          test -f "${notes_path}"
+          echo "path=${notes_path}" >> "${GITHUB_OUTPUT}"
+      - name: Download signed release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.0
         with:
+          name: audux-release-candidate-${{ needs.release-context.outputs.version }}
+          path: release-assets
+      - name: Create draft release and upload exact assets
+        uses: softprops/action-gh-release@3d0d9888cb7fd6b750713d6e236d1fcb99157228 # v3.0.3
+        with:
+          tag_name: ${{ github.ref_name }}
           body_path: ${{ steps.release-notes.outputs.path }}
-          files: |
-            release-artifacts/**/*.AppImage
-            release-artifacts/**/*.deb
-            release-artifacts/**/*.rpm
-            release-artifacts/**/*.msi
-            release-artifacts/**/*.exe
-            release-artifacts/**/*.dmg
-            release-artifacts/**/*.sig
-            release-artifacts/**/*.app.tar.gz
-            release-artifacts/**/audux-lite-*.zip
-            release-artifacts/**/audux-whisper-*.zip
-            release-artifacts/whisper-components.json
-            release-artifacts/whisper-components.json.sig
-            release-artifacts/latest.json
+          draft: true
+          fail_on_unmatched_files: true
+          files: release-assets/*
+      - name: Download draft assets and verify checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          verify_dir="$(mktemp -d)"
+          gh release download "${GITHUB_REF_NAME}" --dir "${verify_dir}"
+          python backend/release_artifacts.py verify --input "${verify_dir}"
+      - name: Publish verified draft as latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false --latest

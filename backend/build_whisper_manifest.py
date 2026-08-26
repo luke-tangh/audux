@@ -2,12 +2,14 @@ import argparse
 import json
 from pathlib import Path
 
+from release_artifacts import EXPECTED_TARGETS, validate_whisper_descriptor
+
 
 def build_manifest(input_dir: Path, version: str) -> dict:
     components: dict[str, dict] = {}
 
     for path in sorted(input_dir.rglob("whisper-component-*.json")):
-        descriptor = json.loads(path.read_text(encoding="utf-8"))
+        descriptor = validate_whisper_descriptor(path)
         target = str(descriptor["target"])
         if target in components:
             raise ValueError(f"Duplicate Whisper component target: {target}")
@@ -23,8 +25,12 @@ def build_manifest(input_dir: Path, version: str) -> dict:
             ]
         }
 
-    if not components:
-        raise ValueError("No Whisper component descriptors found")
+    targets = set(components)
+    if targets != EXPECTED_TARGETS:
+        raise ValueError(
+            "Whisper component target set is incomplete: "
+            f"expected {sorted(EXPECTED_TARGETS)}, found {sorted(targets)}"
+        )
 
     return {
         "schema_version": 1,

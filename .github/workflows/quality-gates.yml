@@ -1,0 +1,138 @@
+name: Quality gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    name: Backend tests and retrieval evaluation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.12.0"
+          enable-cache: true
+      - name: Install backend test dependencies
+        run: uv sync --locked --group test
+      - name: Run backend tests with branch coverage
+        run: >-
+          uv run --locked --group test python -m pytest tests
+          --cov=app
+          --cov-branch
+          --cov-report=term-missing:skip-covered
+          --cov-report=xml
+          --cov-fail-under=70
+      - name: Run privacy-free retrieval evaluation
+        run: uv run --locked python evals/v0_7/run_retrieval_eval.py
+
+  frontend-build:
+    name: Frontend typecheck, coverage and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.3.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+      - name: Build frontend
+        run: npm run build
+
+  frontend-visual-tests:
+    name: Frontend visual and accessibility tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.3.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Install CJK fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          fc-cache -f
+          fc-match "Noto Sans CJK SC"
+      - name: Run visual and accessibility tests
+        run: npm run test:visual
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: playwright-test-results
+          path: frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  tauri-cargo-check:
+    name: Tauri tests and cargo check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - windows-2025
+          - macos-15
+    defaults:
+      run:
+        working-directory: frontend/src-tauri
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            rpm
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.97.1"
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.1
+        with:
+          workspaces: frontend/src-tauri -> target
+      - name: Run Rust tests
+        run: cargo test --locked
+      - name: Cargo check
+        run: cargo check --locked

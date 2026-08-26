@@ -118,15 +118,24 @@ npm run tauri:build
 GitHub Actions 的 `Internal Builds and v1 Release` 可手动触发，在 Linux x64、Windows
 x64、macOS 13+ x64 和 macOS 13+ Apple Silicon 上构建 Tauri、browser-lite、backend
 sidecar 和 Whisper companion。
-手动运行只保留 artifacts，不创建 GitHub Release。
+手动运行默认只保留四个平台的已校验 artifacts，不读取 updater 私钥，也不创建 GitHub
+Release。将 `signed_preflight` 设为 `true` 时，workflow 会走与正式 tag 相同的签名、汇总、
+校验和与 provenance attestation 路径，生成完整 release candidate，但仍不会发布。
 
 标签构建在任何打包任务之前强制执行 backend 分支覆盖率、frontend 单元覆盖率/类型检查/
 生产构建/Playwright，以及 Linux、Windows、macOS 的 Rust 测试和 `cargo check`。任一门禁
 失败，四平台构建和发布任务都不会开始。
 
-workflow 只允许 `v1.0.*` tag 进入公开发布任务。发布 tag 必须与根目录 `VERSION` 一致；
-Python、npm、Cargo、Tauri 和 backend 版本也必须一致，并且必须存在与 tag 同名的
-`docs/releases/<tag>.md` 发布说明。v0.x 不创建公开 Release。
+workflow 只允许 `v1.0.*` tag 进入公开发布任务。发布 tag 必须与根目录 `VERSION` 一致，且
+tag commit 必须属于远端 `main` 历史；Python、npm、Cargo、Tauri 和 backend 版本也必须
+一致，并且必须存在与 tag 同名的 `docs/releases/<tag>.md` 发布说明。v0.x 不创建公开
+Release。签名构建和发布 job 使用受保护的 `release` Environment；正式发布先创建 draft，
+重新下载全部 assets 验证 `SHA256SUMS`，成功后才公开为 latest Release。
+
+CI 与 release 共用 `.github/workflows/quality-gates.yml`，因此 backend 覆盖率、retrieval eval、
+frontend 覆盖率/类型检查/生产构建/Playwright，以及三平台 Rust 检查只有一份定义。Node 和
+Rust 分别固定在 `.node-version` 与 `rust-toolchain.toml`；runner、uv 和第三方 Actions 也都
+固定版本或完整 commit SHA，所有 job 都有超时限制。
 
 构建前至少确认：
 
@@ -166,12 +175,15 @@ npx tauri signer generate -w /安全位置/audux-updater.key
 
 私钥不可提交到仓库或放入 `.env`。丢失私钥后，已安装版本将无法验证后续更新；发布前应将
 它纳入加密离线备份。普通 `workflow_dispatch` 和本地 `npm run tauri:build` 不生成 updater
-产物，也不需要这些密钥。只有匹配版本号的公开标签构建会：
+产物，也不需要这些密钥。手动启用 `signed_preflight` 或推送匹配版本号的公开标签时才会：
 
 1. 生成临时 release 配置并嵌入公钥与 HTTPS 更新地址；
 2. 生成各平台 updater artifact 和 `.sig`；
 3. 汇总成同时包含 Linux x64、Windows x64、macOS x64/arm64 的 `latest.json`；
-4. 将普通安装包、updater artifact、签名和清单上传到同一个 GitHub Release。
+4. 严格校验各平台 artifact 白名单、ZIP 内容、descriptor 哈希和完整 target 集；
+5. 生成 `SHA256SUMS` 和 GitHub artifact provenance attestation；
+6. 正式 tag 流程将普通安装包、updater artifact、签名和清单作为 draft 上传，回读校验后
+   再公开。
 
 Updater 签名只验证应用内更新来源，不能替代 Windows Authenticode 或 Apple Developer ID /
 notarization。当前阶段按项目决定暂不配置操作系统级代码签名，因此 Windows 和 macOS 可能

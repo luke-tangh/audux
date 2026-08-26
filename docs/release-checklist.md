@@ -47,18 +47,26 @@ cargo check --locked
 
 ## 2. 构建演练
 
-在 GitHub Actions 中手动运行 `Internal Builds and v1 Release` workflow。确认四个构建
-任务成功并下载：
+在 GitHub Actions 中手动运行两次 `Internal Builds and v1 Release` workflow：
+
+1. 保持 `signed_preflight=false`，验证不读取签名私钥的日常四平台内部构建；
+2. 设置 `signed_preflight=true`，经 `release` Environment 审批后，验证与正式 tag 完全相同
+   的 updater 签名、Whisper 清单签名、四平台汇总、SHA-256 和 provenance attestation 流程。
+
+两次运行都不得创建 GitHub Release。签名预检应生成一个
+`audux-release-candidate-1.0.0` workflow artifact；下载并确认其中包含：
 
 - Linux x64 bundle
 - Windows x64 NSIS (`.exe`) bundle
 - macOS 13+ x64 bundle
 - macOS 13+ Apple Silicon bundle
-- 三个平台的 `audux-lite-<target>.zip`
-- 三个平台的 `audux-whisper-<target>.zip` 和 descriptor
+- 四个 target 的 `audux-lite-<target>.zip`
+- 四个 target 的 `audux-whisper-<target>.zip`
+- `latest.json`、`whisper-components.json`、`whisper-components.json.sig` 和 `SHA256SUMS`
 
-手动触发不得创建 GitHub Release。检查每个平台 artifact 中确实包含安装包，而不是
-debug sidecar placeholder。
+用 `sha256sum --check SHA256SUMS` 复核下载内容，并在运行详情中确认 provenance
+attestation 已生成。检查每个平台 artifact 中确实包含安装包，而不是 debug sidecar
+placeholder。
 解包安装包资源、browser-lite ZIP 和 Whisper ZIP，确认包含非空
 `LICENSE` 与 `THIRD_PARTY_NOTICES.txt`；Whisper ZIP 只允许 companion 可执行文件和这两个
 许可文件。
@@ -155,11 +163,13 @@ browser-lite 每个平台至少验证：
 
 ## 7. 公开发布门槛
 
-推送 tag 前，确认 `VERSION`、Python、npm、Cargo、Tauri 和发布说明均为 `1.0.0`，并确认
+推送 tag 前，确认 unsigned 和 signed preflight 均成功，`VERSION`、Python、npm、Cargo、
+Tauri 和发布说明均为 `1.0.0`，并确认
 `docs/compatibility.md` 中的支持平台、schema/归档、Provider/MCP、弃用和回滚契约与产物
 一致。workflow 只接受 `v1.0.*` 标签进入公开发布任务。
 
 只有 schema、隐私、匿名评测和三平台门槛全部通过后，才创建 `v1.0.0` 标签并发布。发布后
 仍需从 GitHub Release 重新下载每个平台安装包、browser-lite、Whisper component、
 `whisper-components.json`、`whisper-components.json.sig` 与 `latest.json`，核对哈希、签名、
-第三方许可清单和启动结果。
+第三方许可清单和启动结果。正式 workflow 会先创建 draft，重新下载全部 draft assets 并按
+`SHA256SUMS` 校验；只有校验成功才将其转成 latest 公开 Release。
