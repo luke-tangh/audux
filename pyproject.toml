@@ -11,7 +11,7 @@ dependencies = [
     "python-multipart==0.0.32",
     "httpx==0.28.1",
     "cryptography==50.0.0",
-    "numpy==2.2.6",
+    "numpy==2.5.2",
     "onnxruntime==1.23.2",
 ]
 
