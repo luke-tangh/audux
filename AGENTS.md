@@ -15,279 +15,164 @@ update the API schema/types, implementation, and verification together.
 
 ## Repository map
 
-- `frontend/src/App.tsx`: top-level UI composition.
-- `frontend/src/api.ts`: HTTP client, dynamic backend URL, local-token handling.
-- `frontend/src/tauri.ts`: Tauri command wrappers.
-- `frontend/src/components/`: UI and feature components.
-- `frontend/src/hooks/`: application and library state/controllers.
-- `frontend/src/styles/`: global tokens, layout, and component CSS.
-- `frontend/src/**/*.test.ts(x)`: Vitest unit and logic tests colocated with source.
-- `frontend/vitest.config.ts`: jsdom and V8 coverage configuration.
-- `frontend/tests/visual/`: Playwright behavior, accessibility, and screenshot tests.
-- `backend/app/main.py`: FastAPI app, middleware, startup, and security guard.
-- `backend/app/api_routes.py`: top-level API router assembly.
-- `backend/app/routes/`: HTTP request/response layer.
-- `backend/app/services/`: feature/business logic.
-- `backend/app/models.py` and `schemas.py`: persistence and API models.
-- `backend/app/db.py`: SQLite setup, current schema initialization, and FTS.
-- `backend/app/tasks.py`: background task lifecycle.
-- `backend/tests/`: pytest unit and API integration tests.
-- `backend/build_backend.py`: PyInstaller sidecar builder.
-- `frontend/src-tauri/src/lib.rs`: Tauri commands and backend process management.
-- `frontend/src-tauri/build.rs`: target-specific sidecar validation/placeholder.
-- `frontend/src-tauri/tauri.conf.json`: Tauri build, CSP, window, and bundle config.
+- `frontend/src/`: React UI, hooks, API client, Tauri wrappers, colocated Vitest
+  tests, and styles. Browser workflow and screenshot tests are in
+  `frontend/tests/visual/`.
+- `backend/app/`: FastAPI routes, services, models, database, scanning,
+  transcription, AI, and task lifecycle. Tests are in `backend/tests/`.
+- `frontend/src-tauri/`: Rust host, native commands, backend process lifecycle,
+  target sidecars, CSP, and packaging configuration.
+- `.github/workflows/`: CI, quality gates, release, and visual-baseline jobs.
 
-## Environment setup
+## Setup and common commands
 
-Use platform-native tools. In WSL/Linux, do not invoke Windows `node.exe`, `npm`,
-`cargo.exe`, or reuse a Windows-generated `node_modules`.
-
-Frontend:
+Use platform-native tools. In WSL/Linux, do not invoke Windows executables or
+reuse Windows-generated `node_modules`.
 
 ```bash
-cd frontend
+# From frontend/
 npm ci
-```
-
-Backend:
-
-```bash
-uv sync --locked
-uv sync --locked --group test
-```
-
-In sandboxed or managed environments, the default uv cache under `~/.cache/uv`
-may be read-only and fail with `Could not acquire lock` or `Read-only file
-system`. Set `UV_CACHE_DIR=/tmp/audux-uv-cache` for `uv sync` and
-`uv run` commands in that environment. The `/tmp` cache is disposable; this
-cache error is not a reason to skip tests.
-
-Use `uv sync --locked --extra asr` when ASR/faster-whisper behavior must be
-tested. Use `uv sync --locked --extra asr --group build` before building the
-separate Whisper companion. An embedded-ASR main sidecar additionally requires
-`AUDUX_BUILD_WITH_ASR=1`; normal release builds keep the main sidecar lightweight.
-These environments are substantially heavier than the base dependencies.
-
-Linux Tauri development also requires WebKitGTK 4.1, AppIndicator, librsvg,
-patchelf, and a native Rust toolchain. Install `fonts-noto-cjk` when validating
-Chinese UI text on a minimal Linux installation.
-
-## Common commands
-
-Run commands from the directory shown.
-
-Backend development and tests:
-
-```bash
-cd backend
-uv run --locked python run.py
-uv run --locked --group test python -m pytest tests
-uv run --locked --group test python -m pytest tests \
-  --cov=app --cov-branch \
-  --cov-report=term-missing:skip-covered --cov-report=xml \
-  --cov-fail-under=70
-```
-
-Frontend development and verification:
-
-```bash
-cd frontend
-npm run dev
 npm test
 npm run test:coverage
 npm run typecheck
 npm run build
-```
-
-Tauri:
-
-```bash
-cd frontend
-npm run tauri:dev
-npm run tauri:build
-```
-
-Visual tests:
-
-```bash
-cd frontend
 npm run test:visual
-```
 
-Rust-only check:
+# From backend/
+uv sync --locked --group test
+uv run --locked --group test python -m pytest tests
+uv run --locked --group test python -m pytest tests \
+  --cov=app --cov-branch --cov-report=term-missing:skip-covered \
+  --cov-report=xml --cov-fail-under=70
 
-```bash
-cd frontend/src-tauri
+# From frontend/src-tauri/
 cargo check --locked
 ```
 
-`npm run tauri:build` automatically builds the current platform's backend
-sidecar before compiling the frontend and Tauri bundle. To build only the
-sidecar:
+In managed environments, set `UV_CACHE_DIR=/tmp/audux-uv-cache` for `uv sync`
+and `uv run` if the default cache is read-only; do not skip tests for that
+reason. ASR validation uses `uv sync --locked --extra asr`; companion builds add
+`--group build`. Embedded-ASR sidecars require `AUDUX_BUILD_WITH_ASR=1`.
 
-```bash
-cd frontend
-npm run build:backend
-```
+Run Tauri from `frontend` with `npm run tauri:dev` or `npm run tauri:build`.
+The build creates the platform sidecar automatically; use `npm run build:backend`
+for only the sidecar and prefix it with `AUDUX_BUILD_WITH_ASR=0` for the
+lightweight variant. Linux Tauri needs WebKitGTK 4.1, AppIndicator, librsvg,
+patchelf, and Rust; minimal systems also need `fonts-noto-cjk` for Chinese UI.
 
-For a lightweight sidecar without ASR:
+## Critical constraints
 
-```bash
-AUDUX_BUILD_WITH_ASR=0 npm run build:backend
-```
+### Compatibility and user data
 
-## Architecture and behavior constraints
+- Schema v6, archive format v1, and documented Provider/MCP contracts are public
+  v1.0 boundaries. Contract changes need a compatibility plan, deprecation
+  notice, and regression coverage.
+- Runtime data under `~/.audux/` is user data. Tests and migrations must never
+  delete, reset, or target it.
+- Never update a stable schema in place. Require a forward migration, verified
+  backup, rollback on failure, and focused tests; otherwise reject the mismatch
+  without modifying the database.
+- Preserve SQLite foreign keys, WAL, busy timeout, and FTS behavior.
 
-### Stable compatibility
+### Local API and process security
 
-- Schema v6, archive format v1, and the documented Provider and MCP contracts
-  are public v1.0 compatibility boundaries.
-- Do not change a stable persisted or external contract without an explicit
-  compatibility plan, deprecation notice, and regression coverage.
+- Keep the backend on `127.0.0.1`. Do not weaken origin, CSP, token, CORS, or
+  unsafe-method client-header checks. `AUDUX_ALLOW_ALL_CORS=1` is development
+  only.
+- Non-exempt requests require the local token; mutations also require
+  `X-Audux-Client: audux`. Query tokens are allowed only for browser media,
+  cover, and download elements that cannot attach headers.
+- Never expose API keys or local tokens in logs, fixtures, screenshots, errors,
+  or commits.
+- Do not hardcode port `8765`. Tauri supplies `backend_base_url`; frontend HTTP
+  goes through `frontend/src/api.ts`. Preserve clean backend shutdown.
 
-### Local API and security
+### Layer ownership
 
-- Keep the backend bound to `127.0.0.1`.
-- Do not weaken origin checks, CSP, token checks, or unsafe-method client-header
-  checks to work around a development problem.
-- All non-exempt API requests require the local API token. Mutating requests
-  also require `X-Audux-Client: audux`.
-- Media, cover, and download URLs may use the access token query parameter
-  because those browser elements cannot attach custom headers.
-- `AUDUX_ALLOW_ALL_CORS=1` is development-only and must not become
-  a production default.
-- Never log, commit, expose, or place real LLM API keys or the local API token in
-  fixtures, screenshots, or error messages.
-
-### Backend port and process lifecycle
-
-- Do not hardcode port `8765` in new frontend behavior.
-- Tauri selects an available backend port and exposes it through the
-  `backend_base_url` command; frontend requests must go through `src/api.ts`.
-- Debug Tauri runs `backend/run.py` with a platform-appropriate Python.
-- Release Tauri runs the target-specific PyInstaller sidecar from
-  `src-tauri/binaries`.
-- Preserve clean backend shutdown when changing Tauri window/process behavior.
-
-### Database and user data
-
-- Runtime data lives under `~/.audux/`.
-- Treat the database, covers, logs, exports, and API token as user data. Do not
-  delete or reset them during tests or schema changes.
-- Never update a stable schema in place. A future schema change must include a
-  forward migration, a verified pre-update backup, failure rollback, and focused
-  tests. Builds without a migration path must reject schema mismatches without
-  modifying the database.
-- Preserve SQLite foreign keys, WAL mode, busy timeout, and FTS index behavior.
-
-### Frontend
-
-- Keep shared API payload shapes in `frontend/src/types.ts`.
-- Centralize HTTP/auth/error handling in `frontend/src/api.ts`; components
-  should not implement parallel fetch/token logic.
-- Reuse components from `frontend/src/components/ui/` before adding a new
-  one-off control.
-- Keep Material Design color, typography, shape, and state values in
-  `frontend/src/styles/tokens.css`.
-- Put component-specific CSS in the matching file under
-  `frontend/src/styles/components/`.
-- Preserve the CJK-capable font fallbacks in `frontend/src/styles/base.css`.
-- Maintain keyboard focus states, labels, and disabled/loading behavior when
-  changing controls.
-
-### Backend
-
-- Keep route handlers thin. Put reusable feature logic in `backend/app/services/`.
-- Use dependency-provided SQLModel sessions and explicit transactions where
-  related writes must succeed or fail together.
-- Validate filesystem access against configured library roots; do not accept
-  arbitrary client-provided local paths.
-- Keep long-running scan, transcription, and AI work out of request handlers.
-- Preserve cancellation and interrupted-task recovery semantics.
-
-### Tests
-
-- Backend tests must use temporary databases, media roots, covers, logs, and
-  token files. Never point automated tests at `~/.audux/`.
-- `backend/tests/conftest.py` establishes a process-wide temporary home before
-  test collection. Do not bypass this isolation when creating alternate test
-  entry points; API tests should also use `tests.api_test_support` for their
-  temporary database, token, and dependency overrides.
-- Backend coverage uses branch coverage over `backend/app`. CI enforces a 70%
-  minimum; do not lower the threshold to accommodate untested changes.
-- Keep frontend Vitest tests colocated as `*.test.ts` or `*.test.tsx`. Prefer
-  Vitest for API/auth, pure helpers, hooks, storage, and deterministic component
-  behavior.
-- Frontend CI runs V8 coverage with minimum global thresholds of 40% statements,
-  41% branches, 39% functions, and 41% lines. Treat these as a ratcheting floor;
-  review coverage in changed modules rather than optimizing only the global
-  number.
-- Use Playwright under `frontend/tests/visual/` for browser workflows, keyboard
-  and focus behavior, responsive layout, and screenshots. Mock local API calls
-  unless the test is explicitly designed as a real-backend integration test.
-- Do not place real API keys, local API tokens, user media, or user database
-  copies in fixtures, snapshots, coverage output, or failure artifacts.
-
-### Tauri and packaging
-
-- Keep platform-specific behavior behind Rust `cfg` checks or explicit target
-  detection.
-- Tauri `externalBin` filenames must match
-  `audux-backend-<target-triple>[.exe]`.
-- Never ship the debug sidecar placeholder in a release bundle.
-- Do not commit files from `frontend/src-tauri/binaries/`,
-  `frontend/src-tauri/target/`, `frontend/dist/`, `frontend/node_modules/`,
+- Frontend payload types belong in `types.ts`; HTTP/auth/error handling belongs
+  in `api.ts`. Reuse shared UI controls and style tokens, preserve CJK fonts,
+  focus states, labels, and loading/disabled behavior.
+- Keep backend routes thin and reusable logic in `services/`. Validate paths
+  against library roots, use explicit transactions for related writes, and keep
+  long-running work out of request handlers. Preserve cancellation and recovery.
+- Keep platform behavior behind Rust `cfg` or explicit target detection.
+  `externalBin` must be `audux-backend-<target-triple>[.exe]`; build sidecars on
+  their target OS and never ship the debug placeholder.
+- Do not commit generated binaries, `node_modules`, frontend/Tauri build output,
   or PyInstaller `build/` and `dist/` directories.
-- Build native sidecars on their target OS. Do not copy a Windows PyInstaller
-  executable into a Linux or macOS bundle.
+
+### Test isolation and coverage
+
+- Backend tests use the temporary home established by
+  `backend/tests/conftest.py`; API tests use `tests.api_test_support`. Never use
+  real user data or token files.
+- Backend branch coverage must remain at least 70%. Frontend V8 floors are 40%
+  statements, 41% branches, 39% functions, and 41% lines; review changed-module
+  coverage rather than only global totals.
+- Keep deterministic frontend tests colocated as `*.test.ts(x)`. Use Playwright
+  for workflows, accessibility, focus, responsive layout, and screenshots, with
+  mocked local APIs unless explicitly testing a real backend.
+- Never put secrets, user media, or user database copies in test artifacts.
 
 ## Coding conventions
 
-- Follow the style of the surrounding file; the repository has no global
-  formatter/linter configuration.
-- TypeScript uses ESM, React function components, and semicolons.
-- Avoid `any` in new TypeScript code when an API or state shape is known.
-- Python uses type hints where they improve public/service boundaries and keeps
-  imports package-relative inside `backend/app`.
-- Rust should remain `cargo fmt` compatible and avoid panics in runtime process
-  management; build-time configuration errors may fail clearly.
-- Keep user-facing UI text consistent with the existing Chinese interface.
-- Comments should explain invariants or non-obvious constraints, not restate
-  code.
+- Follow surrounding style. TypeScript uses ESM, React functions, semicolons,
+  and known types instead of `any`.
+- Use useful Python type hints and package-relative imports in `backend/app`.
+  Keep Rust `cargo fmt` compatible and avoid runtime process-management panics.
+- Keep UI text consistent with the Chinese interface. Comments should explain
+  invariants, not restate code.
+
+## Repository protection and contribution workflow
+
+Unless the user explicitly requests local-only work or an earlier stopping
+point, use this delivery workflow:
+
+1. Update `origin/main` and create a new focused topic branch from it. Do not
+   reuse a branch that already has an unrelated pull request.
+2. Complete the requested change and its tests without unrelated refactors.
+3. Run the applicable local checks from this document, broadening them in
+   proportion to risk. Resolve failures before delivery.
+4. Review `git status` and the full diff, run `git diff --check`, then commit and
+   push only the intended files.
+5. Open a pull request to `main` summarizing the change, completed checks,
+   skipped validation, platform limits, and material risks.
+6. Enable squash auto-merge on the pull request and report its URL. Required
+   GitHub checks remain the authority for the final merge; fix failures on the
+   topic branch rather than weakening a gate.
+
+`main` is protected for administrators too: never push directly, force-push,
+delete, or bypass protection. Pull-request branches must be current with `main`;
+all six quality gates must pass: backend, frontend, visual/accessibility, and
+Tauri on Linux, Windows, and macOS. Resolve every review conversation and
+preserve linear history. Before other remote actions, verify the repository,
+branch, commit range, and exact PR targets/authors; closing, reopening, or
+changing protection still requires explicit user authorization.
 
 ## Verification expectations
 
 Run the smallest relevant checks first, then broaden for cross-layer changes.
 
-- Backend-only change: relevant unit test(s), then the full backend pytest suite
-  with branch coverage. The result must satisfy the 70% CI threshold.
-- Frontend logic change: relevant Vitest test(s), then `npm test`,
-  `npm run typecheck`, and `npm run build`.
+- Backend: relevant tests, then full pytest with branch coverage.
+- Frontend logic: relevant Vitest, then `npm test`, `npm run typecheck`, and
+  `npm run build`; include coverage for new testable logic.
 - Frontend style-only change: `npm run typecheck` and `npm run build`.
-- Frontend coverage work or new testable logic: also run
-  `npm run test:coverage` and review the changed modules, not only the global
-  percentage.
-- Significant UI/layout change: also run `npm run test:visual`.
-- Rust/Tauri change: relevant `cargo test --locked` tests plus
-  `cargo check --locked`.
+- Significant UI/layout: also run Playwright visual tests.
+- Rust/Tauri: relevant `cargo test --locked` plus `cargo check --locked`.
 - API contract change: backend tests plus frontend Vitest, typecheck, and build.
 - Database, task-state, security, path-validation, or token change: add or update
   focused regression tests.
-- Release/sidecar change: build the sidecar and run `npm run tauri:build` on the
-  target OS when dependencies are available.
+- Release/sidecar: build the sidecar and Tauri bundle on the target OS.
 
-If an environment lacks a required native dependency, report the exact skipped
-check and still run all checks that remain meaningful. Do not claim a full Tauri
-build passed when only the frontend or `cargo check` was run.
+Run every meaningful check available. Report exact skips caused by missing
+native dependencies; do not claim a full Tauri build from frontend or Cargo-only
+checks.
 
 ## Change hygiene
 
 - Inspect `git status` before editing and preserve unrelated user changes.
-- Do not edit generated artifacts or dependency lockfiles unless the task
-  requires a dependency change.
-- Keep patches focused; avoid opportunistic refactors in security, schema handling,
-  task recovery, or packaging code.
-- Update README/CI/build scripts when a workflow or platform prerequisite
-  changes.
-- Before handoff, run `git diff --check` and summarize modified files, completed
-  checks, and any remaining platform-specific validation.
+- Do not edit generated artifacts or lockfiles unless required. Keep patches
+  focused, especially around security, schemas, recovery, and packaging.
+- Update documentation/CI/build scripts when workflows or prerequisites change.
+- Before handoff, run `git diff --check` and report modified files, checks, and
+  remaining platform validation.
