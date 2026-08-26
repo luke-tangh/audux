@@ -37,8 +37,9 @@ uv run --locked python backend/run.py
 检查 `http://127.0.0.1:8765/health`。若端口冲突，可设置 `AUDUX_API_PORT`；Tauri 自身会
 自动选择可用端口。
 
-如果数据库来自不兼容的预发布 schema，后端会有意拒绝启动且不修改数据库。请使用匹配
-版本的构建与快照，不要删除原数据库。
+如果数据库 schema 与当前构建不兼容且没有迁移路径，后端会有意拒绝启动且不修改数据库。
+请使用兼容版本或匹配快照恢复，不要删除原数据库。v1.0 的具体回滚步骤见
+[兼容性契约](compatibility.md#弃用备份与回滚)。
 
 ## 本地 Whisper 不可用
 
@@ -49,6 +50,10 @@ uv sync --locked --extra asr
 ```
 
 模型权重在首次使用时下载。离线环境需提前缓存模型或配置本地模型路径。
+
+如果安装状态显示 manifest 公钥、签名、大小或校验和错误，不要关闭验证。确认 Release 同时
+包含 `whisper-components.json` 与 `whisper-components.json.sig`，应用内置公钥与发布签名
+私钥属于同一密钥对，并重新下载未被代理或镜像修改的组件文件。
 
 ## 外部 ASR 失败
 

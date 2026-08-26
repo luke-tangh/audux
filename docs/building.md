@@ -39,7 +39,26 @@ uv run --locked --extra asr --group build python backend/build_whisper_companion
 
 产物位于 `backend/dist/whisper-components/`，包括平台 ZIP 和 descriptor。内部构建流程会
 汇总生成 `whisper-components.json`。默认下载地址指向与应用版本一致的 GitHub Release；
-开发或镜像测试可通过 `AUDUX_WHISPER_MANIFEST_URL` 指定 HTTPS manifest。
+开发或镜像测试可通过 `AUDUX_WHISPER_MANIFEST_URL` 指定 HTTPS manifest。客户端只接受由
+内置 Ed25519 公钥验证通过的 `whisper-components.json` 和同路径
+`whisper-components.json.sig`；ZIP 和其中的可执行文件还会分别校验大小与 SHA-256。
+
+首次公开发布前生成独立的 Whisper 清单签名密钥：
+
+```bash
+openssl genpkey -algorithm Ed25519 -out audux-whisper-manifest-private.pem
+openssl pkey -in audux-whisper-manifest-private.pem \
+  -pubout -out audux-whisper-manifest-public.pem
+```
+
+将两个 PEM 文件的完整内容分别配置为 GitHub Actions secrets：
+
+- `AUDUX_WHISPER_MANIFEST_PRIVATE_KEY`
+- `AUDUX_WHISPER_MANIFEST_PUBLIC_KEY`
+
+公开标签构建缺少公钥会直接失败，发布任务缺少私钥或签名失败也不会创建 Release。私钥不得
+提交到仓库；公钥会在构建时嵌入 backend sidecar 和 browser-lite。轮换密钥需要先发布同时
+信任新旧公钥的兼容版本，不能直接替换现有密钥。
 
 ## browser-lite
 
@@ -94,15 +113,20 @@ npm run tauri:build
 查找顺序为 `AUDUX_PYTHON`、激活的 `VIRTUAL_ENV`、仓库 `.venv`，最后是平台 Python
 命令；构建包装器在 Windows 还会尝试 `py -3`。
 
-## 内部构建与 v1.0 发布门槛
+## v1.0 构建与发布门槛
 
 GitHub Actions 的 `Internal Builds and v1 Release` 可手动触发，在 Linux x64、Windows
 x64、macOS 13+ x64 和 macOS 13+ Apple Silicon 上构建 Tauri、browser-lite、backend
 sidecar 和 Whisper companion。
 手动运行只保留 artifacts，不创建 GitHub Release。
 
+标签构建在任何打包任务之前强制执行 backend 分支覆盖率、frontend 单元覆盖率/类型检查/
+生产构建/Playwright，以及 Linux、Windows、macOS 的 Rust 测试和 `cargo check`。任一门禁
+失败，四平台构建和发布任务都不会开始。
+
 workflow 只允许 `v1.0.*` tag 进入公开发布任务。发布 tag 必须与根目录 `VERSION` 一致；
-Python、npm、Cargo、Tauri 和 backend 版本也必须一致。v0.x 不创建公开 Release。
+Python、npm、Cargo、Tauri 和 backend 版本也必须一致，并且必须存在与 tag 同名的
+`docs/releases/<tag>.md` 发布说明。v0.x 不创建公开 Release。
 
 构建前至少确认：
 
@@ -110,14 +134,15 @@ Python、npm、Cargo、Tauri 和 backend 版本也必须一致。v0.x 不创建�
 2. 当前平台 lite sidecar 与 Whisper companion 可以构建、校验和启动；
 3. 安装包没有 debug placeholder；
 4. LLM / ASR 配置没有指向不可信服务，也没有凭据进入产物；
-5. [`release-checklist.md`](release-checklist.md) 中对应平台的安装、恢复、Provider、MCP、
+5. 安装包资源和 browser-lite / Whisper ZIP 包含 `THIRD_PARTY_NOTICES.txt`；
+6. [`release-checklist.md`](release-checklist.md) 中对应平台的安装、恢复、Provider、MCP、
    归档和进程退出检查完成。
 
 `cargo check`、前端 build 或单独 sidecar 成功都不能替代目标 OS 上的完整 Tauri bundle 验证。
 
 ## 可安装版本、updater 验证与平台签名状态
 
-首次公开发布仍从 `v1.0.*` 标签开始。标签构建会发布以下可直接安装的文件：
+稳定版发布使用 `v1.0.*` 标签。标签构建会发布以下可直接安装的文件：
 
 - Linux x64：AppImage、DEB 和 RPM；
 - Windows x64：NSIS 安装程序；

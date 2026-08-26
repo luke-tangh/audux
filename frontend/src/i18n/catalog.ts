@@ -49,7 +49,7 @@ export const messages = {
   "startup.restart": ["重启应用", "Restart app"],
   "startup.openLogs": ["打开日志目录", "Open logs folder"],
   "startup.openData": ["打开数据目录", "Open data folder"],
-  "startup.hints.schema": ["当前数据库来自不兼容的预发布版本。原数据库没有被修改，请查看日志并使用同版本备份恢复。", "The database comes from an incompatible prerelease build. It was not modified; review the logs and restore with the matching build."],
+  "startup.hints.schema": ["当前数据库版本与此 Audux 版本不兼容。原数据库没有被修改；请查看日志，并使用兼容版本或匹配的备份恢复。", "The database version is incompatible with this Audux build. It was not modified; review the logs and use a compatible build or matching backup."],
   "startup.hints.permission": ["应用无法访问数据目录。请检查目录权限后重试。", "The app cannot access its data folder. Check folder permissions and retry."],
   "startup.hints.disk": ["磁盘空间可能不足。释放空间后再重试。", "Disk space may be low. Free some space and retry."],
   "startup.hints.token": ["本地安全令牌无法初始化。重启应用；若仍失败，请查看日志。", "The local security token could not initialize. Restart the app and check the logs if it persists."],

@@ -1,6 +1,6 @@
 [project]
 name = "audux"
-version = "0.9.0-beta.1"
+version = "1.0.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi==0.141.1",
@@ -10,6 +10,7 @@ dependencies = [
     "mutagen==1.48.1",
     "python-multipart==0.0.32",
     "httpx==0.28.1",
+    "cryptography==46.0.5",
     "numpy==2.2.6",
     "onnxruntime==1.23.2",
 ]

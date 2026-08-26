@@ -132,7 +132,7 @@ class TestDatabaseSchema:
             connection.execute("CREATE TABLE sentinel(value TEXT NOT NULL)")
             connection.execute("INSERT INTO sentinel VALUES ('untouched')")
 
-        with pytest.raises(RuntimeError, match="does not use the schema required"):
+        with pytest.raises(RuntimeError, match="schema version marker is missing"):
             db.create_db_and_tables()
 
         with sqlite3.connect(self.db_path) as connection:
@@ -161,8 +161,13 @@ class TestDatabaseSchema:
             )
             connection.execute("INSERT INTO sentinel VALUES ('untouched')")
 
-        with pytest.raises(RuntimeError, match="does not match this pre-release build"):
+        with pytest.raises(
+            RuntimeError,
+            match="is not supported by this Audux build",
+        ) as error:
             db.create_db_and_tables()
+
+        assert "The database was not modified" in str(error.value)
 
         with sqlite3.connect(self.db_path) as connection:
             assert connection.execute("SELECT value FROM sentinel").fetchone()[0] == (

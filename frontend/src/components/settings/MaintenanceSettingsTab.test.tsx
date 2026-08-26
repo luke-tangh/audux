@@ -103,7 +103,7 @@ describe("database backup maintenance", () => {
       manifest: {
         format: "audux-archive",
         format_version: 1,
-        app_version: "0.9.0-beta.1",
+        app_version: "1.0.0",
         schema_version: 6,
         created_at: "2026-08-23T00:00:00Z",
         counts: {}

@@ -1,12 +1,37 @@
 import build_backend
 import build_browser_lite
 import build_whisper_companion
+import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 class TestBuildBackend:
     def test_main_sidecar_excludes_asr_by_default(self, monkeypatch):
         monkeypatch.delenv("AUDUX_BUILD_WITH_ASR", raising=False)
         assert build_backend.build_with_asr() is False
+
+    def test_public_release_requires_whisper_manifest_key(self, monkeypatch):
+        monkeypatch.delenv(build_backend.WHISPER_PUBLIC_KEY_ENV, raising=False)
+        monkeypatch.setenv(build_backend.REQUIRE_WHISPER_SIGNATURE_ENV, "1")
+
+        with pytest.raises(RuntimeError, match=build_backend.WHISPER_PUBLIC_KEY_ENV):
+            build_backend.prepare_whisper_manifest_public_key()
+
+    def test_whisper_manifest_key_is_validated_and_normalized(
+        self, monkeypatch, tmp_path
+    ):
+        private_key = Ed25519PrivateKey.generate()
+        public_pem = private_key.public_key().public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        output = tmp_path / "whisper.pem"
+        monkeypatch.setenv(build_backend.WHISPER_PUBLIC_KEY_ENV, public_pem.decode())
+        monkeypatch.setattr(build_backend, "WHISPER_PUBLIC_KEY_PATH", output)
+
+        assert build_backend.prepare_whisper_manifest_public_key() == output
+        assert output.read_bytes() == public_pem
 
     def test_command_collects_dynamic_app_imports(self):
         command = build_backend.build_pyinstaller_command(
@@ -43,6 +68,21 @@ class TestBuildBackend:
             "tokenizers",
             "av",
         }
+
+    def test_sidecar_embeds_release_trust_and_notice_assets(self, tmp_path):
+        public_key = tmp_path / "whisper.pem"
+        notices = tmp_path / "THIRD_PARTY_NOTICES.txt"
+        command = build_backend.build_pyinstaller_command(
+            "audux-backend",
+            include_asr=False,
+            whisper_public_key=public_key,
+            release_notices=notices,
+        )
+
+        assert f"{public_key}{build_backend.os.pathsep}app/assets" in command
+        assert (
+            f"{notices}{build_backend.os.pathsep}app/assets/licenses" in command
+        )
 
     def test_whisper_companion_collects_asr_runtime(self):
         command = build_whisper_companion.build_command("audux-whisper")

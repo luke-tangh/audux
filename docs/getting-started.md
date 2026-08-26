@@ -1,10 +1,8 @@
 # 快速上手
 
-Audux 当前提供浏览器开发模式、Tauri 桌面开发模式和打包后的 browser-lite 三种运行形态。
-公开安装包将在 v1.0 才提供；当前 v0.x 需要从源码运行或使用内部构建产物。
-
-v1.0 发布后，普通用户可在 GitHub Releases 直接下载 Linux、Windows 或 macOS 安装包，
-无需安装 Python、Node.js 或 Rust。桌面版可在“设置 → 更新”检查经 Tauri updater 签名
+Audux 提供源码浏览器开发模式、Tauri 桌面版和打包后的 browser-lite 三种运行形态。
+普通用户可在 GitHub Releases 下载 Linux、Windows 或 macOS 的 v1.0 安装包，无需安装
+Python、Node.js 或 Rust。桌面版可在“设置 → 更新”检查经 Tauri updater 签名
 验证的更新；browser-lite 需要从发布页下载并替换可执行文件。当前安装包暂不做 Windows
 Authenticode 或 Apple Developer ID / notarization，系统可能显示未知发布者警告。
 

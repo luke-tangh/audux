@@ -16,6 +16,8 @@ from app.models import (
     AgentConversation,
     AgentMessage,
     AgentOperationAuditEvent,
+    AgentOperationItem,
+    AgentOperationPlan,
     AgentRun,
     AudioItem,
     AudioTag,
@@ -114,6 +116,52 @@ class TestV09OperationsMcpArchive(ApiIntegrationTest):
                 agent_operation_service.approve_and_execute(session, plan["id"], plan["fingerprint"])
             assert stale.value.code == "agent.operation_target_stale"
             assert session.get(AudioItem, allowed.id).title_user == "Manual edit"
+
+    def test_deleting_conversation_removes_operation_plan_and_audit_graph(self):
+        root = self.add_library_root(self.root_path / "library")
+        audio = self.add_audio(self.root_path / "library" / "one.mp3", root_id=root.id)
+
+        with Session(self.engine) as session:
+            run = self._run(session, [int(audio.id)])
+            conversation_id = int(run.conversation_id)
+            run_id = int(run.id)
+            plan = agent_operation_service.create_plan_from_proposals(
+                session,
+                run_id,
+                [
+                    {
+                        "tool_name": "update_metadata",
+                        "arguments": {
+                            "audio_id": audio.id,
+                            "title_user": "Planned title",
+                        },
+                    }
+                ],
+            )
+            plan_id = int(plan["id"])
+
+        deleted = self.client.request(
+            "DELETE",
+            f"/agent/conversations/{conversation_id}",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert deleted.status_code == 200, deleted.text
+        assert deleted.json() == {"ok": True}
+
+        with Session(self.engine) as session:
+            assert session.get(AgentConversation, conversation_id) is None
+            assert session.get(AgentRun, run_id) is None
+            assert session.get(AgentOperationPlan, plan_id) is None
+            assert session.exec(
+                select(AgentOperationItem).where(
+                    AgentOperationItem.plan_id == plan_id
+                )
+            ).all() == []
+            assert session.exec(
+                select(AgentOperationAuditEvent).where(
+                    AgentOperationAuditEvent.plan_id == plan_id
+                )
+            ).all() == []
 
     def test_agent_tool_call_creates_api_approvable_plan(
         self,

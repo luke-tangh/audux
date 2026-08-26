@@ -10,6 +10,9 @@ from build_backend import (
     ensure_pyinstaller_available,
     exe_suffix,
     onnxruntime_notice_files,
+    prepare_python_notices,
+    prepare_whisper_manifest_public_key,
+    PROJECT_LICENSE_PATH,
     tauri_target_triple,
 )
 
@@ -32,7 +35,12 @@ def executable_icon_path(system: str | None = None) -> Path | None:
     return TAURI_ICONS / icon_name if icon_name else None
 
 
-def build_command(name: str) -> list[str]:
+def build_command(
+    name: str,
+    *,
+    whisper_public_key: Path | None = None,
+    release_notices: Path | None = None,
+) -> list[str]:
     command = [
         sys.executable,
         "-m",
@@ -65,6 +73,26 @@ def build_command(name: str) -> list[str]:
                 f"{notice_file}{os.pathsep}app/assets/onnxruntime",
             ]
         )
+    if whisper_public_key is not None:
+        command.extend(
+            [
+                "--add-data",
+                f"{whisper_public_key}{os.pathsep}app/assets",
+            ]
+        )
+    if release_notices is not None:
+        command.extend(
+            [
+                "--add-data",
+                f"{release_notices}{os.pathsep}app/assets/licenses",
+            ]
+        )
+    command.extend(
+        [
+            "--add-data",
+            f"{PROJECT_LICENSE_PATH}{os.pathsep}app/assets/licenses",
+        ]
+    )
     command.extend(
         [
             "--collect-submodules",
@@ -87,7 +115,16 @@ def main() -> None:
 
     executable_base = "audux-lite"
     executable_name = f"{executable_base}{exe_suffix()}"
-    subprocess.check_call(build_command(executable_base), cwd=ROOT)
+    whisper_public_key = prepare_whisper_manifest_public_key()
+    notices_file = prepare_python_notices()
+    subprocess.check_call(
+        build_command(
+            executable_base,
+            whisper_public_key=whisper_public_key,
+            release_notices=notices_file,
+        ),
+        cwd=ROOT,
+    )
 
     built = ROOT / "dist" / executable_name
     if not built.is_file():
@@ -112,6 +149,8 @@ def main() -> None:
         compresslevel=9,
     ) as bundle:
         bundle.write(target_executable, arcname=executable_name)
+        bundle.write(PROJECT_LICENSE_PATH, arcname="LICENSE")
+        bundle.write(notices_file, arcname="THIRD_PARTY_NOTICES.txt")
 
     print(f"Browser-lite executable: {target_executable}")
     print(f"Browser-lite release archive: {archive}")

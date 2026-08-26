@@ -2,10 +2,24 @@ import json
 import tomllib
 from pathlib import Path
 
+from app import db
+from app.mcp_server import MCP_PROTOCOL_VERSION, LEGACY_PROTOCOL_VERSIONS
+from app.services.archive_service import ARCHIVE_FORMAT_VERSION
 from app.version import APP_VERSION
 
 
 class TestVersionConsistency:
+    def test_v1_0_public_contract_versions_are_frozen(self):
+        assert APP_VERSION == "1.0.0"
+        assert db.CURRENT_SCHEMA_VERSION == 6
+        assert ARCHIVE_FORMAT_VERSION == 1
+        assert MCP_PROTOCOL_VERSION == "2026-07-28"
+        assert LEGACY_PROTOCOL_VERSIONS == (
+            "2025-11-25",
+            "2025-06-18",
+            "2024-11-05",
+        )
+
     def test_release_version_is_consistent_across_layers(self):
         repository_root = Path(__file__).resolve().parents[2]
         expected = (repository_root / "VERSION").read_text(encoding="utf-8").strip()

@@ -6,11 +6,37 @@ from pathlib import Path
 
 import httpx
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 # Import the shared API fixture first so application data paths are redirected
 # before app.db (and therefore the component directories) is initialized.
 from tests import api_test_support  # noqa: F401
 from app.services import whisper_component_service as service
+
+
+def _signed_manifest_client(
+    manifest: dict,
+    private_key: Ed25519PrivateKey,
+    *,
+    tamper_signature: bool = False,
+) -> httpx.Client:
+    manifest_bytes = json.dumps(manifest).encode("utf-8")
+    signature = private_key.sign(manifest_bytes)
+    if tamper_signature:
+        signature = bytes([signature[0] ^ 1]) + signature[1:]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith(".sig"):
+            import base64
+
+            return httpx.Response(
+                200,
+                content=base64.b64encode(signature),
+                request=request,
+            )
+        return httpx.Response(200, content=manifest_bytes, request=request)
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
 
 
 def test_manifest_url_defaults_to_audux_release(monkeypatch):
@@ -64,15 +90,13 @@ def test_read_manifest_selects_target_and_quotes_asset_name(monkeypatch):
             }
         },
     }
-    client = httpx.Client(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(200, json=manifest, request=request)
-        )
-    )
+    private_key = Ed25519PrivateKey.generate()
+    client = _signed_manifest_client(manifest, private_key)
 
     entry, asset_url = service._read_manifest(
         client,
         "https://downloads.example/releases/manifest.json",
+        private_key.public_key(),
     )
 
     assert entry == manifest["components"]["test-target"]
@@ -89,14 +113,35 @@ def test_read_manifest_rejects_invalid_asset_names(monkeypatch, asset_name):
         "app_version": "1.2.3",
         "components": {"test-target": {"asset_name": asset_name}},
     }
-    client = httpx.Client(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(200, json=manifest, request=request)
-        )
-    )
+    private_key = Ed25519PrivateKey.generate()
+    client = _signed_manifest_client(manifest, private_key)
 
     with pytest.raises(ValueError, match="asset name"):
-        service._read_manifest(client, "https://downloads.example/manifest.json")
+        service._read_manifest(
+            client,
+            "https://downloads.example/manifest.json",
+            private_key.public_key(),
+        )
+    client.close()
+
+
+def test_read_manifest_rejects_invalid_signature(monkeypatch):
+    monkeypatch.setattr(service, "APP_VERSION", "1.2.3")
+    monkeypatch.setattr(service, "whisper_target_triple", lambda: "test-target")
+    manifest = {
+        "schema_version": 1,
+        "app_version": "1.2.3",
+        "components": {"test-target": {"asset_name": "component.zip"}},
+    }
+    private_key = Ed25519PrivateKey.generate()
+    client = _signed_manifest_client(manifest, private_key, tamper_signature=True)
+
+    with pytest.raises(ValueError, match="signature verification failed"):
+        service._read_manifest(
+            client,
+            "https://downloads.example/manifest.json",
+            private_key.public_key(),
+        )
     client.close()
 
 
@@ -116,6 +161,7 @@ def test_installed_executable_requires_matching_metadata(monkeypatch, tmp_path):
         "app_version": "1.2.3",
         "target": "test-target",
         "executable_name": executable.name,
+        "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
     }
     metadata_path.write_text(json.dumps(valid_metadata), encoding="utf-8")
     assert service._installed_executable() == executable
@@ -132,6 +178,10 @@ def test_installed_executable_requires_matching_metadata(monkeypatch, tmp_path):
         assert service._installed_executable() is None
 
     metadata_path.write_text("not json", encoding="utf-8")
+    assert service._installed_executable() is None
+
+    metadata_path.write_text(json.dumps(valid_metadata), encoding="utf-8")
+    executable.write_bytes(b"tampered")
     assert service._installed_executable() is None
 
 
@@ -153,6 +203,7 @@ def test_install_archive_rejects_additional_files(monkeypatch, tmp_path):
                 "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
                 "executable_name": "audux-whisper",
                 "executable_sha256": hashlib.sha256(executable_bytes).hexdigest(),
+                "executable_size": len(executable_bytes),
             },
         )
 

@@ -1,7 +1,7 @@
 # Audux PRD（v0.6 历史归档）
 
 > 本文件冻结记录 v0.6 规划时的需求、数据模型和阶段判断，不再代表当前实现或 API 契约。
-> 当前 `0.9.0-beta.1` 的产品边界以 [`docs/roadmap.md`](docs/roadmap.md)、
+> 当前 `1.0.0` 的产品边界以 [`docs/roadmap.md`](docs/roadmap.md)、
 > [`docs/data-and-security.md`](docs/data-and-security.md) 和当前代码/测试为准。不要依据本文的
 > 旧 SQL 草案修改 schema；当前 schema 为 v6。
 

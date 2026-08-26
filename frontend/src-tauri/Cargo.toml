@@ -1,6 +1,6 @@
 [package]
 name = "audux"
-version = "0.9.0-beta.1"
+version = "1.0.0"
 description = "Audux"
 authors = ["Luke Tang <Luke.TangH@outlook.com>"]
 edition = "2021"

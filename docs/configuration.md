@@ -16,7 +16,8 @@ asr.beam_size = 5
 ```
 
 桌面主程序不内置 faster-whisper、CTranslate2 或 PyAV。请在“设置 → ASR”下载当前平台的
-Whisper companion；ZIP 会校验版本、平台、大小和 SHA-256。`small`、`medium`、
+Whisper companion；下载前会用应用内置 Ed25519 公钥验证 manifest 签名，再校验 ZIP 与
+可执行文件的版本、平台、大小和 SHA-256。`small`、`medium`、
 `large-v3` 等模型权重在首次转写时下载到
 `~/.audux/models/faster-whisper/`，移除 companion 不会删除模型缓存。
 
@@ -25,6 +26,10 @@ Whisper companion；ZIP 会校验版本、平台、大小和 SHA-256。`small`�
 ```bash
 uv sync --locked --extra asr
 ```
+
+测试自建 HTTPS/loopback manifest 时，可设置 `AUDUX_WHISPER_MANIFEST_URL`；源码开发还必须
+通过 `AUDUX_WHISPER_MANIFEST_PUBLIC_KEY` 提供对应 Ed25519 公钥 PEM。manifest 旁必须存在
+同名 `.sig` 文件。正式打包版本只使用构建时内置的公钥，不读取运行时环境变量替换信任根。
 
 完全离线使用前，需要预先安装 companion 并缓存模型，或将 `asr.model_name` 指向可访问的
 本地模型目录。
@@ -135,7 +140,7 @@ llm.allow_remote_endpoint
 
 ## 只读 MCP Server
 
-v0.9 的 backend 可作为 stdio MCP Server 启动，复用应用内 Tool Registry，只暴露受限的
+v1.0 的 backend 可作为 stdio MCP Server 启动，复用应用内 Tool Registry，只暴露受限的
 list、search、get 和 statistics 类只读工具：
 
 ```bash

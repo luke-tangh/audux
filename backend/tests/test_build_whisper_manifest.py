@@ -55,3 +55,12 @@ def test_release_workflow_uploads_component_descriptors() -> None:
     )
 
     assert "backend/dist/whisper-components/whisper-component-*.json" in workflow
+    assert 'notes_path="docs/releases/${GITHUB_REF_NAME}.md"' in workflow
+    assert "body_path: ${{ steps.release-notes.outputs.path }}" in workflow
+    assert "needs: [backend-release-tests, frontend-release-tests, tauri-release-tests]" in workflow
+    assert "AUDUX_WHISPER_MANIFEST_PUBLIC_KEY" in workflow
+    assert "AUDUX_WHISPER_MANIFEST_PRIVATE_KEY" in workflow
+    assert "backend/sign_whisper_manifest.py" in workflow
+    assert "release-artifacts/whisper-components.json.sig" in workflow
+    assert "permissions:\n      contents: write" in workflow
+    assert "uses: actions/checkout@v" not in workflow

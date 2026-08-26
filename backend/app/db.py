@@ -85,8 +85,8 @@ def create_db_and_tables():
     if schema_version is not None and schema_version != CURRENT_SCHEMA_VERSION:
         raise RuntimeError(
             "Database schema version "
-            f"{schema_version} does not match this pre-release build "
-            f"({CURRENT_SCHEMA_VERSION})."
+            f"{schema_version} is not supported by this Audux build "
+            f"(required: {CURRENT_SCHEMA_VERSION}). The database was not modified."
         )
 
     SQLModel.metadata.create_all(engine)
@@ -130,7 +130,7 @@ def _database_schema_version(path: Path) -> int | None:
 
         if schema_table is None:
             raise RuntimeError(
-                "Database does not use the schema required by this pre-release build."
+                "Database schema version marker is missing. The database was not modified."
             )
 
         rows = conn.execute("SELECT version FROM app_schema WHERE id = 1").fetchall()

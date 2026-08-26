@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import binascii
 import contextlib
 import hashlib
 import importlib.util
@@ -13,10 +15,13 @@ import tempfile
 import threading
 from pathlib import Path
 from typing import Callable
-from urllib.parse import quote, urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse, urlsplit, urlunsplit
 from zipfile import ZipFile
 
 import httpx
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from sqlmodel import Session, select
 
 from ..asr_config import (
@@ -33,11 +38,15 @@ from .errors import ServiceError
 
 WHISPER_COMPONENT_ENV = "AUDUX_WHISPER_COMPANION"
 WHISPER_MANIFEST_URL_ENV = "AUDUX_WHISPER_MANIFEST_URL"
+WHISPER_MANIFEST_PUBLIC_KEY_ENV = "AUDUX_WHISPER_MANIFEST_PUBLIC_KEY"
 WHISPER_COMPONENT_DIR = COMPONENTS_DIR / "whisper"
 WHISPER_MODEL_CACHE_DIR = MODELS_DIR / "faster-whisper"
 WHISPER_PROTOCOL_VERSION = 1
 MAX_MANIFEST_BYTES = 1024 * 1024
+MAX_MANIFEST_SIGNATURE_BYTES = 4096
 MAX_COMPONENT_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
+THIRD_PARTY_NOTICES_NAME = "THIRD_PARTY_NOTICES.txt"
+PROJECT_LICENSE_NAME = "LICENSE"
 ACTIVE_TASK_STATUSES = {"pending", "running", "cancel_requested"}
 
 
@@ -114,7 +123,15 @@ def _installed_executable() -> Path | None:
         return None
 
     executable = metadata_path.parent / _executable_name()
-    return executable if executable.is_file() else None
+    expected_sha256 = metadata.get("executable_sha256")
+    if (
+        not executable.is_file()
+        or not isinstance(expected_sha256, str)
+        or len(expected_sha256) != 64
+        or _sha256(executable) != expected_sha256.lower()
+    ):
+        return None
+    return executable
 
 
 def _development_command() -> list[str] | None:
@@ -172,18 +189,72 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _manifest_signature_url(manifest_url: str) -> str:
+    parsed = urlsplit(manifest_url)
+    return urlunsplit(
+        (parsed.scheme, parsed.netloc, parsed.path + ".sig", parsed.query, "")
+    )
+
+
+def _load_manifest_public_key() -> Ed25519PublicKey:
+    packaged_key = (
+        Path(__file__).resolve().parents[1]
+        / "assets"
+        / "whisper_manifest_public_key.pem"
+    )
+    key_bytes = packaged_key.read_bytes() if packaged_key.is_file() else b""
+    if not key_bytes and not getattr(sys, "frozen", False):
+        key_bytes = os.getenv(WHISPER_MANIFEST_PUBLIC_KEY_ENV, "").encode("utf-8")
+    if not key_bytes.strip():
+        raise ValueError("Whisper component manifest public key is not configured")
+
+    key = serialization.load_pem_public_key(key_bytes)
+    if not isinstance(key, Ed25519PublicKey):
+        raise ValueError("Whisper component manifest public key must be Ed25519")
+    return key
+
+
+def _verify_manifest(
+    client: httpx.Client,
+    manifest_url: str,
+    public_key: Ed25519PublicKey | None = None,
+) -> bytes:
+    response = client.get(manifest_url)
+    response.raise_for_status()
+    _validate_download_url(str(response.url))
+    if len(response.content) > MAX_MANIFEST_BYTES:
+        raise ValueError("Whisper component manifest is too large")
+
+    signature_response = client.get(_manifest_signature_url(manifest_url))
+    signature_response.raise_for_status()
+    _validate_download_url(str(signature_response.url))
+    if len(signature_response.content) > MAX_MANIFEST_SIGNATURE_BYTES:
+        raise ValueError("Whisper component manifest signature is too large")
+    try:
+        signature = base64.b64decode(signature_response.content.strip(), validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("Whisper component manifest signature is invalid") from error
+    if len(signature) != 64:
+        raise ValueError("Whisper component manifest signature is invalid")
+
+    try:
+        (public_key or _load_manifest_public_key()).verify(signature, response.content)
+    except InvalidSignature as error:
+        raise ValueError("Whisper component manifest signature verification failed") from error
+    return response.content
+
+
 def _update_install_state(**changes) -> None:
     with _state_lock:
         _install_state.update(changes)
 
 
-def _read_manifest(client: httpx.Client, manifest_url: str) -> tuple[dict, str]:
-    response = client.get(manifest_url)
-    response.raise_for_status()
-    if len(response.content) > MAX_MANIFEST_BYTES:
-        raise ValueError("Whisper component manifest is too large")
-
-    manifest = response.json()
+def _read_manifest(
+    client: httpx.Client,
+    manifest_url: str,
+    public_key: Ed25519PublicKey | None = None,
+) -> tuple[dict, str]:
+    manifest = json.loads(_verify_manifest(client, manifest_url, public_key))
     if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
         raise ValueError("Unsupported Whisper component manifest")
     if manifest.get("app_version") != APP_VERSION:
@@ -215,6 +286,7 @@ def _download_archive(
     downloaded = 0
     with client.stream("GET", url) as response:
         response.raise_for_status()
+        _validate_download_url(str(response.url))
         content_length = response.headers.get("content-length")
         total = int(content_length) if content_length and content_length.isdigit() else expected_size
         _update_install_state(total_bytes=total)
@@ -236,11 +308,17 @@ def _download_archive(
 def _install_from_archive(archive_path: Path, entry: dict) -> None:
     archive_sha256 = str(entry.get("archive_sha256") or "").lower()
     executable_sha256 = str(entry.get("executable_sha256") or "").lower()
+    executable_size = int(entry.get("executable_size") or 0)
     expected_name = _executable_name()
 
     if len(archive_sha256) != 64 or _sha256(archive_path) != archive_sha256:
         raise ValueError("Whisper component archive checksum mismatch")
-    if entry.get("executable_name") != expected_name or len(executable_sha256) != 64:
+    if (
+        entry.get("executable_name") != expected_name
+        or len(executable_sha256) != 64
+        or executable_size <= 0
+        or executable_size > MAX_COMPONENT_ARCHIVE_BYTES
+    ):
         raise ValueError("Whisper component executable metadata is invalid")
 
     target_dir = _target_dir()
@@ -256,14 +334,36 @@ def _install_from_archive(archive_path: Path, entry: dict) -> None:
 
         with ZipFile(archive_path) as bundle:
             members = bundle.infolist()
-            if len(members) != 1 or members[0].filename != expected_name:
+            members_by_name = {member.filename: member for member in members}
+            if set(members_by_name) not in (
+                {expected_name},
+                {expected_name, THIRD_PARTY_NOTICES_NAME},
+                {expected_name, PROJECT_LICENSE_NAME, THIRD_PARTY_NOTICES_NAME},
+            ) or len(members_by_name) != len(members):
                 raise ValueError("Whisper component archive has unexpected contents")
-            member_mode = members[0].external_attr >> 16
-            if stat.S_ISLNK(member_mode):
+            if any(stat.S_ISLNK(member.external_attr >> 16) for member in members):
                 raise ValueError("Whisper component archive must not contain links")
-            with bundle.open(members[0]) as source, executable.open("wb") as destination:
+            executable_member = members_by_name[expected_name]
+            if executable_member.file_size != executable_size:
+                raise ValueError("Whisper component executable size is invalid")
+            with bundle.open(executable_member) as source, executable.open("wb") as destination:
                 shutil.copyfileobj(source, destination, length=1024 * 1024)
+            notices_member = members_by_name.get(THIRD_PARTY_NOTICES_NAME)
+            for included_name, included_member in (
+                (THIRD_PARTY_NOTICES_NAME, notices_member),
+                (PROJECT_LICENSE_NAME, members_by_name.get(PROJECT_LICENSE_NAME)),
+            ):
+                if included_member is None:
+                    continue
+                if included_member.file_size > MAX_MANIFEST_BYTES:
+                    raise ValueError("Whisper component license notices are too large")
+                with bundle.open(included_member) as source, (
+                    staging_dir / included_name
+                ).open("wb") as destination:
+                    shutil.copyfileobj(source, destination, length=1024 * 1024)
 
+        if executable.stat().st_size != executable_size:
+            raise ValueError("Whisper component executable size does not match the manifest")
         if _sha256(executable) != executable_sha256:
             raise ValueError("Whisper component executable checksum mismatch")
         if os.name != "nt":

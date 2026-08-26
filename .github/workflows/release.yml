@@ -7,17 +7,118 @@ on:
       - "v1.0.*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  backend-release-tests:
+    name: Release gate / backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.12.0"
+          enable-cache: true
+      - name: Install backend test dependencies
+        run: uv sync --locked --group test
+      - name: Run backend tests with branch coverage
+        run: >-
+          uv run --locked --group test python -m pytest backend/tests
+          --cov=app
+          --cov-branch
+          --cov-report=term-missing:skip-covered
+          --cov-report=xml
+          --cov-fail-under=70
+
+  frontend-release-tests:
+    name: Release gate / frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.3.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+      - name: Build frontend
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Install CJK fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          fc-cache -f
+          fc-match "Noto Sans CJK SC"
+      - name: Run visual and accessibility tests
+        run: npm run test:visual
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: release-playwright-test-results
+          path: frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  tauri-release-tests:
+    name: Release gate / Tauri on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: frontend/src-tauri
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            rpm
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.1
+        with:
+          workspaces: frontend/src-tauri -> target
+      - name: Run Rust tests
+        run: cargo test --locked
+      - name: Cargo check
+        run: cargo check --locked
+
   build-tauri:
     name: Build Tauri on ${{ matrix.name }}
+    needs: [backend-release-tests, frontend-release-tests, tauri-release-tests]
     runs-on: ${{ matrix.os }}
-
+    env:
+      AUDUX_WHISPER_MANIFEST_PUBLIC_KEY: ${{ secrets.AUDUX_WHISPER_MANIFEST_PUBLIC_KEY }}
+      AUDUX_REQUIRE_WHISPER_MANIFEST_SIGNATURE: ${{ github.event_name == 'push' && '1' || '0' }}
     strategy:
       fail-fast: false
       matrix:
@@ -30,11 +131,9 @@ jobs:
             os: macos-15-intel
           - name: macos-arm64
             os: macos-15
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
       - name: Validate public release tag matches application version
         if: github.event_name == 'push'
         shell: bash
@@ -42,7 +141,6 @@ jobs:
           expected_version="${GITHUB_REF_NAME#v}"
           application_version="$(tr -d '[:space:]' < VERSION)"
           test "$expected_version" = "$application_version"
-
       - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
         run: |
@@ -53,54 +151,43 @@ jobs:
             librsvg2-dev \
             patchelf \
             rpm
-
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.12.0"
           enable-cache: true
-
       - name: Install backend dependencies
         run: uv sync --locked --group build
-
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.3.0
         with:
           node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
-
       - name: Build browser-lite frontend
         working-directory: frontend
         run: npm run build:browser-lite
-
       - name: Build browser-lite executable
         run: uv run --locked --group build python backend/build_browser_lite.py
-
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
       - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.1
         with:
           workspaces: frontend/src-tauri -> target
-
       - name: Build unsigned Tauri app for internal validation
         if: github.event_name == 'workflow_dispatch'
         working-directory: frontend
         run: npm run tauri:build
-
       - name: Prepare signed updater configuration
         if: github.event_name == 'push'
         working-directory: frontend
         env:
           TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
         run: node scripts/prepare-updater-config.mjs
-
       - name: Build Tauri app with signed updater artifacts
         if: github.event_name == 'push'
         working-directory: frontend
@@ -108,25 +195,19 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri:build -- --config src-tauri/tauri.release.conf.json
-
       - name: Normalize updater artifact names
         if: github.event_name == 'push'
         working-directory: frontend
         shell: bash
         run: node scripts/normalize-updater-artifacts.mjs "${{ matrix.name }}" "${GITHUB_REF_NAME#v}"
-
       - name: Install Whisper companion dependencies
         run: uv sync --locked --extra asr --group build
-
       - name: Build Whisper companion
         run: uv run --locked --extra asr --group build python backend/build_whisper_companion.py
-
       - name: Upload bundle artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: audux-${{ matrix.name }}
-          # Upload release inputs and distributable files only. In particular,
-          # exclude the uncompressed Linux *.AppDir staging tree used to build AppImage.
           path: |
             frontend/src-tauri/target/release/bundle/**/*.AppImage
             frontend/src-tauri/target/release/bundle/**/*.deb
@@ -146,26 +227,45 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-tauri
     if: github.event_name == 'push' && startsWith(github.ref_name, 'v1.0.')
-
+    permissions:
+      contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
-
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+      - name: Validate release notes
+        id: release-notes
+        shell: bash
+        run: |
+          notes_path="docs/releases/${GITHUB_REF_NAME}.md"
+          test -f "$notes_path"
+          echo "path=$notes_path" >> "$GITHUB_OUTPUT"
       - name: Download bundle artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.0
         with:
           pattern: audux-*
           path: release-artifacts
           merge-multiple: false
-
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.12.0"
+          enable-cache: true
+      - name: Install manifest signing dependencies
+        run: uv sync --locked
       - name: Build Whisper component manifest
         shell: bash
         run: |
-          python backend/build_whisper_manifest.py \
+          uv run --locked python backend/build_whisper_manifest.py \
             --input release-artifacts \
             --output release-artifacts/whisper-components.json \
             --version "${GITHUB_REF_NAME#v}"
-
+      - name: Sign Whisper component manifest
+        env:
+          AUDUX_WHISPER_MANIFEST_PRIVATE_KEY: ${{ secrets.AUDUX_WHISPER_MANIFEST_PRIVATE_KEY }}
+          AUDUX_WHISPER_MANIFEST_PUBLIC_KEY: ${{ secrets.AUDUX_WHISPER_MANIFEST_PUBLIC_KEY }}
+        run: >-
+          uv run --locked python backend/sign_whisper_manifest.py
+          release-artifacts/whisper-components.json
       - name: Build application update manifest
         shell: bash
         run: |
@@ -176,15 +276,13 @@ jobs:
             --repository "${GITHUB_REPOSITORY}" \
             --tag "${GITHUB_REF_NAME}" \
             --notes "Audux ${GITHUB_REF_NAME#v} application update"
-
       - name: List release files
         shell: bash
-        run: |
-          find release-artifacts -maxdepth 10 -type f -print
-
+        run: find release-artifacts -maxdepth 10 -type f -print
       - name: Upload files to GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.3
         with:
+          body_path: ${{ steps.release-notes.outputs.path }}
           files: |
             release-artifacts/**/*.AppImage
             release-artifacts/**/*.deb
@@ -197,4 +295,5 @@ jobs:
             release-artifacts/**/audux-lite-*.zip
             release-artifacts/**/audux-whisper-*.zip
             release-artifacts/whisper-components.json
+            release-artifacts/whisper-components.json.sig
             release-artifacts/latest.json

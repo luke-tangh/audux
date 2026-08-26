@@ -10,6 +10,8 @@ from build_backend import (
     ensure_pyinstaller_available,
     exe_suffix,
     module_available,
+    prepare_python_notices,
+    PROJECT_LICENSE_PATH,
     tauri_target_triple,
 )
 
@@ -59,6 +61,7 @@ def main() -> None:
     target = tauri_target_triple()
     executable_name = f"audux-whisper{exe_suffix()}"
     command = build_command("audux-whisper")
+    notices_file = prepare_python_notices()
 
     subprocess.check_call(command, cwd=ROOT)
 
@@ -82,6 +85,8 @@ def main() -> None:
         compresslevel=compresslevel,
     ) as bundle:
         bundle.write(executable, arcname=executable_name)
+        bundle.write(PROJECT_LICENSE_PATH, arcname="LICENSE")
+        bundle.write(notices_file, arcname="THIRD_PARTY_NOTICES.txt")
 
     descriptor = {
         "target": target,

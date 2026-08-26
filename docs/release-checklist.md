@@ -1,11 +1,12 @@
-# 内部 Beta 验证清单
+# Audux v1.0 发布验证清单
 
-> v1.0 前所有版本均保留为内部 Beta。执行本清单只验证候选构建，不创建公开 GitHub
-> Release；首次公开发布统一为 v1.0。
+> 手动执行 workflow 只验证候选构建，不创建公开 GitHub Release。只有完成本清单并留存
+> 三平台记录后，才可推送与 `VERSION` 一致的稳定版 tag。
 
-当前候选为 `0.9.0-beta.1`，应用数据库 schema 为 v6。版本号以仓库根目录 `VERSION` 为准。
+当前发布版本为 `1.0.0`，应用数据库 schema 为 v6，归档格式为 v1。版本号以仓库根目录
+`VERSION` 为准。
 
-这份清单用于后续 Beta 候选版本。测试必须使用临时媒体库和测试数据目录，不要直接
+这份清单用于 v1.0 候选构建和正式 tag。测试必须使用临时媒体库和测试数据目录，不要直接
 拿唯一一份真实用户数据做升级或卸载测试。
 
 ## 1. 自动化预检
@@ -18,6 +19,7 @@ uv run --locked --group test python -m pytest tests \
   --cov=app --cov-branch \
   --cov-report=term-missing:skip-covered --cov-report=xml \
   --cov-fail-under=70
+uv run --locked python evals/v0_7/run_retrieval_eval.py
 
 cd ../frontend
 npm run test:coverage
@@ -33,6 +35,16 @@ cargo check --locked
 确认 `git diff --check` 无输出，并确认 `VERSION`、Python、npm、Cargo 和 Tauri 的
 版本一致。
 
+确认仓库 Actions secrets 已配置且来自同一套受控密钥材料：
+
+- `TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`、
+  `TAURI_UPDATER_PUBLIC_KEY`；
+- `AUDUX_WHISPER_MANIFEST_PRIVATE_KEY`、`AUDUX_WHISPER_MANIFEST_PUBLIC_KEY`。
+
+所有 workflow 的第三方 Action 必须固定到完整 commit SHA。正式 tag workflow 会在构建前
+再次执行 backend、frontend、Playwright 和三平台 Rust 门禁；不得通过重跑发布 job 绕过失败
+的测试 job。
+
 ## 2. 构建演练
 
 在 GitHub Actions 中手动运行 `Internal Builds and v1 Release` workflow。确认四个构建
@@ -47,6 +59,9 @@ cargo check --locked
 
 手动触发不得创建 GitHub Release。检查每个平台 artifact 中确实包含安装包，而不是
 debug sidecar placeholder。
+解包安装包资源、browser-lite ZIP 和 Whisper ZIP，确认包含非空
+`LICENSE` 与 `THIRD_PARTY_NOTICES.txt`；Whisper ZIP 只允许 companion 可执行文件和这两个
+许可文件。
 
 ## 3. 全新安装冒烟测试
 
@@ -87,9 +102,9 @@ browser-lite 每个平台至少验证：
 - `Ctrl+C` 或关闭终端后 backend 退出且端口释放。
 - 未安装/已安装 Whisper companion 两种状态与 Tauri 版本保持一致。
 
-## 4. 备份与恢复冒烟测试
+## 4. 备份、恢复与回滚冒烟测试
 
-使用当前预发布 schema 的临时测试数据：
+使用 schema v6 的临时测试数据：
 
 - 手动备份执行 `PRAGMA quick_check` 返回 `ok`。
 - 音频、标签、playlist、transcript、任务历史和设置仍可读取。
@@ -101,13 +116,18 @@ browser-lite 每个平台至少验证：
   空间不足均应在切换前被拒绝。
 - Tauri 提交恢复后自动重启；browser-lite 保留待恢复请求并明确提示手动重启。
 - 模拟目标库初始化失败时自动换回恢复前快照，并在设置中显示 rolled-back 结果。
+- 从 `0.9.0-beta.1` schema v6 数据启动 `1.0.0`，确认无需迁移且数据未被改写；再按
+  [兼容性契约](compatibility.md#弃用备份与回滚)用 `pre_update` 快照演练回滚。
 
 ## 5. Backend 生命周期与 Provider
 
 - 先占用默认端口 `8765` 再启动应用，确认 Tauri 自动选择其他回环端口。
 - 关闭窗口并确认备用端口释放。
 - lite 安装包在未安装组件时明确提示，不创建本地转写任务。
-- 从 Release manifest 下载、校验并安装 Whisper companion，完成一次本地转写。
+- 从 Release manifest 下载、验证 `whisper-components.json.sig`、校验 ZIP 与可执行文件哈希
+  并安装 Whisper companion，完成一次本地转写。
+- 分别篡改 manifest、`.sig`、ZIP、可执行文件和 descriptor 声明大小，确认安装在替换现有
+  component 前失败；已安装 component 被修改后不得继续作为可用 companion。
 - 首次模型下载写入 `models/faster-whisper/`；移除/重装组件后模型缓存仍保留。
 - 取消运行中的本地转写后 companion 子进程退出，任务最终为 canceled。
 - External ASR 使用 mock/测试服务完成一次 multipart 上传并写入 transcript。
@@ -117,7 +137,7 @@ browser-lite 每个平台至少验证：
   校验通过；离线环境不得尝试下载 VAD 模型或 runtime。
 - 非 loopback ASR 和 LLM endpoint 仍显示隐私警告并需要显式允许。
 
-## 6. v0.9 归档、诊断与长期运行门槛
+## 6. v1.0 归档、诊断与长期运行门槛
 
 - 导出当前格式归档，解包核对 manifest、数据 SHA-256 和实体计数；搜索归档确认不含 API Key、
   本地 API Token、绝对媒体根路径和日志。
@@ -133,10 +153,13 @@ browser-lite 每个平台至少验证：
 - Linux、Windows、macOS 分别从目标系统构建并执行上述 smoke；检查发布包不含 debug
   placeholder，MCP `--mcp` 入口和可选 Whisper component 均可运行。
 
-## 7. 禁止公开发布门槛
+## 7. 公开发布门槛
 
-v0.x 阶段只允许手动运行 workflow 并下载内部 artifacts，不推送会触发公开 Release 的
-版本标签。workflow 只接受 `v1.0.*` 标签进入首次公开发布任务。
+推送 tag 前，确认 `VERSION`、Python、npm、Cargo、Tauri 和发布说明均为 `1.0.0`，并确认
+`docs/compatibility.md` 中的支持平台、schema/归档、Provider/MCP、弃用和回滚契约与产物
+一致。workflow 只接受 `v1.0.*` 标签进入公开发布任务。
 
-只有 v1.0 的 schema 策略、隐私和三平台门槛全部通过后，才创建首次公开版本标签并发布；
-发布后仍需下载 GitHub Release 文件做安装包哈希和启动抽查。
+只有 schema、隐私、匿名评测和三平台门槛全部通过后，才创建 `v1.0.0` 标签并发布。发布后
+仍需从 GitHub Release 重新下载每个平台安装包、browser-lite、Whisper component、
+`whisper-components.json`、`whisper-components.json.sig` 与 `latest.json`，核对哈希、签名、
+第三方许可清单和启动结果。

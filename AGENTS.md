@@ -138,10 +138,12 @@ AUDUX_BUILD_WITH_ASR=0 npm run build:backend
 
 ## Architecture and behavior constraints
 
-### Pre-v1.0 compatibility
+### Stable compatibility
 
-- The product has not been released. Do not add backward-compatibility code
-  before v1.0. Remove this subsection after v1.0 is released.
+- Schema v6, archive format v1, and the documented Provider and MCP contracts
+  are public v1.0 compatibility boundaries.
+- Do not change a stable persisted or external contract without an explicit
+  compatibility plan, deprecation notice, and regression coverage.
 
 ### Local API and security
 
@@ -172,9 +174,10 @@ AUDUX_BUILD_WITH_ASR=0 npm run build:backend
 - Runtime data lives under `~/.audux/`.
 - Treat the database, covers, logs, exports, and API token as user data. Do not
   delete or reset them during tests or schema changes.
-- Before v1.0, update the current schema directly and increment its schema marker.
-  Do not add migrations or automatically transform databases from earlier builds;
-  reject schema mismatches without modifying the database.
+- Never update a stable schema in place. A future schema change must include a
+  forward migration, a verified pre-update backup, failure rollback, and focused
+  tests. Builds without a migration path must reject schema mismatches without
+  modifying the database.
 - Preserve SQLite foreign keys, WAL mode, busy timeout, and FTS index behavior.
 
 ### Frontend

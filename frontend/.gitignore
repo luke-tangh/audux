@@ -7,3 +7,4 @@ src-tauri/binaries
 src-tauri/target
 src-tauri/gen
 src-tauri/tauri.release.conf.json
+src-tauri/build-resources/

@@ -66,7 +66,7 @@ for (const candidate of candidates) {
   const args = [...candidate.args, backendScript, ...forwardedArgs];
   const result = spawnSync(candidate.command, args, {
     cwd: join(projectRoot, "backend"),
-    env: process.env,
+    env: { ...process.env, AUDUX_BUILD_TAURI_NOTICES: "1" },
     stdio: "inherit",
   });
 

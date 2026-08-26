@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 const SIDECAR_BASENAME: &str = "audux-backend";
 const DEV_PLACEHOLDER_MARKER: &[u8] = b"AUDUX_DEV_SIDECAR_PLACEHOLDER\n";
+const DEV_NOTICES_MARKER: &[u8] = b"AUDUX_DEV_THIRD_PARTY_NOTICES_PLACEHOLDER\n";
 
 fn target_sidecar_path() -> Option<PathBuf> {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").ok()?;
@@ -113,6 +114,50 @@ fn ensure_dev_sidecar_placeholder() {
     );
 }
 
+fn ensure_bundle_license_resources() {
+    let profile = env::var("PROFILE").unwrap_or_default();
+    let manifest_dir =
+        PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required"));
+    let resources_dir = manifest_dir.join("build-resources");
+    let license_path = resources_dir.join("LICENSE");
+    let notices_path = resources_dir.join("THIRD_PARTY_NOTICES.txt");
+
+    println!("cargo:rerun-if-changed={}", license_path.display());
+    println!("cargo:rerun-if-changed={}", notices_path.display());
+
+    if profile == "release" {
+        if !license_path.is_file()
+            || !notices_path.is_file()
+            || file_starts_with(&notices_path, DEV_NOTICES_MARKER)
+        {
+            panic!(
+                "\nRelease license resources are missing or still placeholders.\n\
+                 Build through `cd frontend && npm run tauri:build`; the backend build\n\
+                 step generates LICENSE and THIRD_PARTY_NOTICES.txt before bundling.\n"
+            );
+        }
+        return;
+    }
+
+    fs::create_dir_all(&resources_dir)
+        .expect("failed to create src-tauri/build-resources directory");
+    if !license_path.is_file() {
+        fs::copy(manifest_dir.join("../../LICENSE"), &license_path)
+            .expect("failed to prepare development LICENSE resource");
+    }
+    if !notices_path.is_file() {
+        fs::write(
+            &notices_path,
+            [
+                DEV_NOTICES_MARKER,
+                b"Development-only placeholder; public release builds must replace this file.\n",
+            ]
+            .concat(),
+        )
+        .expect("failed to prepare development third-party notices resource");
+    }
+}
+
 #[cfg(unix)]
 fn ensure_unix_executable(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
@@ -137,6 +182,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=TARGET");
 
     ensure_dev_sidecar_placeholder();
+    ensure_bundle_license_resources();
 
     tauri_build::build();
 }

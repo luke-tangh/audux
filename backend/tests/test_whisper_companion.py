@@ -63,6 +63,8 @@ def test_install_archive_verifies_and_activates_component(monkeypatch, tmp_path)
     archive = tmp_path / "component.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
         bundle.write(executable, executable.name)
+        bundle.writestr(service.PROJECT_LICENSE_NAME, b"Audux license")
+        bundle.writestr(service.THIRD_PARTY_NOTICES_NAME, b"Dependency notices")
 
     service._install_from_archive(
         archive,
@@ -70,6 +72,7 @@ def test_install_archive_verifies_and_activates_component(monkeypatch, tmp_path)
             "archive_sha256": _digest(archive),
             "executable_name": executable.name,
             "executable_sha256": _digest(executable),
+            "executable_size": executable.stat().st_size,
         },
     )
 
@@ -79,6 +82,14 @@ def test_install_archive_verifies_and_activates_component(monkeypatch, tmp_path)
     assert metadata["app_version"] == "1.2.3"
     assert metadata["target"] == "test-target"
     assert metadata["installed_at"]
+    assert (
+        installed.with_name(service.PROJECT_LICENSE_NAME).read_bytes()
+        == b"Audux license"
+    )
+    assert (
+        installed.with_name(service.THIRD_PARTY_NOTICES_NAME).read_bytes()
+        == b"Dependency notices"
+    )
 
 
 def test_install_archive_rejects_checksum_mismatch(monkeypatch, tmp_path):

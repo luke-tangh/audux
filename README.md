@@ -18,8 +18,8 @@ Transcript、全文检索以及受控 AI 工作流放在同一个资料库中，
 - **本地优先集成**：OpenAI-compatible LLM、只读 MCP stdio Server、当前格式归档、
   脱敏诊断包和 Tauri / browser-lite 两种桌面形态。
 
-详细能力与版本边界见[路线图](docs/roadmap.md)和
-[v0.9 内部候选说明](docs/releases/v0.9.0-beta.1.md)。
+详细能力与版本边界见[路线图](docs/roadmap.md)、[v1 兼容性契约](docs/compatibility.md)和
+[v1.0.0 发布说明](docs/releases/v1.0.0.md)。
 
 ## 快速开始
 
@@ -65,11 +65,12 @@ npm run tauri:dev
 | [快速上手](docs/getting-started.md) | 运行模式、首次启动与基本使用流程 |
 | [AI、ASR 与 MCP 配置](docs/configuration.md) | Whisper、外部 ASR、LLM、长音频切片和 MCP |
 | [数据与安全](docs/data-and-security.md) | 数据目录、备份恢复、归档、API 与隐私边界 |
+| [v1 兼容性契约](docs/compatibility.md) | 支持平台、稳定格式、Provider、弃用与回滚策略 |
 | [开发环境与测试](docs/development.md) | 分层结构、依赖安装、测试和修改验证 |
 | [构建与发布验证](docs/building.md) | sidecar、browser-lite、Tauri 和内部构建流程 |
 | [故障排查](docs/troubleshooting.md) | Token、后端、Provider、索引和任务问题 |
 | [功能路线图](docs/roadmap.md) | 已完成阶段、v1.0 门槛和候选增强项 |
-| [内部 Beta 验证清单](docs/release-checklist.md) | 三平台发布前检查与长期运行门槛 |
+| [v1.0 发布验证清单](docs/release-checklist.md) | 三平台发布前检查与长期运行门槛 |
 
 ## 项目结构
 
@@ -119,7 +120,7 @@ cargo check --locked
 - 运行数据默认位于 `~/.audux/`，自动化测试不得使用该目录。
 - 后端只绑定 `127.0.0.1`，敏感 API 受本地随机 Token、Origin 和客户端 Header 保护。
 - 远程 ASR 会发送音频，远程 LLM 会发送 metadata 与 Transcript；两者都必须显式允许。
-- v1.0 前不自动迁移旧 schema；版本不匹配时拒绝启动且不修改数据库。
+- v1.0 冻结数据库 schema v6；没有显式迁移路径的版本不匹配会拒绝启动且不修改数据库。
 - Agent 不拥有任意文件、网络或 Shell 权限，正式写入必须经过范围冻结、预览与审批。
 
 具体备份、恢复和 API 调试方式见[数据与安全](docs/data-and-security.md)。
