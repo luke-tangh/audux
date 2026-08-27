@@ -7,7 +7,7 @@ targets = [
 all-features = true
 
 [advisories]
-unmaintained = "all"
+unmaintained = "workspace"
 unsound = "all"
 unused-ignored-advisory = "deny"
 ignore = [

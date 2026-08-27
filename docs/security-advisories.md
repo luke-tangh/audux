@@ -2,7 +2,8 @@
 
 依赖安全公告默认必须修复或阻断发布。只有没有兼容上游修复、受影响代码路径不可达，并且有
 补偿验证、公开跟踪项和明确到期时间时，才可加入临时例外。`cargo-deny` 会让未列入本页的
-Rust 公告失败；例外不再出现在依赖图中时也必须删除，不能把 allowlist 当作永久基线。
+vulnerability、unsound 和直接依赖 unmaintained 公告失败；间接依赖的维护状态由上游跟踪项
+管理。例外不再出现在依赖图中时也必须删除，不能把 allowlist 当作永久基线。
 
 ## RUSTSEC-2024-0429 / GHSA-wrw7-89jp-8q8g
 
@@ -36,8 +37,8 @@ Rust 公告失败；例外不再出现在依赖图中时也必须删除，不能
 
 ### 补偿控制与发布要求
 
-- `deny.toml` 只忽略这一条公告，并将其他 vulnerability、unsound 和 unmaintained 公告作为
-  CI 失败；`unused-ignored-advisory = "deny"` 确保上游依赖不再命中后必须删除例外。
+- `deny.toml` 只忽略这一条公告，并将其他 vulnerability、unsound 和直接依赖 unmaintained
+  公告作为 CI 失败；`unused-ignored-advisory = "deny"` 确保上游依赖不再命中后必须删除例外。
 - CI 在期限之后主动失败，维护者必须重新评估，而不是静默延长例外。
 - 推送稳定 tag 前，Linux release 包必须完成启动、窗口与原生对话框、休眠恢复、正常退出、
   端口冲突和长期运行验收；异常崩溃会撤销本例外。
