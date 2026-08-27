@@ -133,12 +133,39 @@ jobs:
           TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
         run: node scripts/prepare-updater-config.mjs
       - name: Build Tauri app with signed updater artifacts
-        if: needs.release-context.outputs.mode == 'signed'
+        if: needs.release-context.outputs.mode == 'signed' && runner.os != 'macOS'
         working-directory: frontend
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri:build -- --config src-tauri/tauri.release.conf.json
+      - name: Build macOS app with signed updater artifacts
+        if: needs.release-context.outputs.mode == 'signed' && runner.os == 'macOS'
+        working-directory: frontend
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        # Tauri's DMG bundler can fail transiently on hosted macOS runners. Keep
+        # verbose output for diagnosis and retry only the affected platform.
+        run: |
+          set -euo pipefail
+          max_attempts=3
+
+          for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+            if npm run tauri:build -- --verbose --config src-tauri/tauri.release.conf.json; then
+              exit 0
+            fi
+
+            if ((attempt == max_attempts)); then
+              echo "::error::macOS Tauri build failed after ${max_attempts} attempts"
+              exit 1
+            fi
+
+            retry_delay=$((attempt * 5))
+            echo "::warning::macOS Tauri build attempt ${attempt} failed; retrying in ${retry_delay}s"
+            sleep "${retry_delay}"
+          done
       - name: Normalize updater artifact names
         if: needs.release-context.outputs.mode == 'signed'
         working-directory: frontend
