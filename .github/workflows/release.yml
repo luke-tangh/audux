@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       signed_preflight:
-        description: Build and sign the complete release candidate without publishing it
+        description: Build and sign a release candidate from main without publishing or manual approval
         required: true
         default: false
         type: boolean
@@ -63,6 +63,8 @@ jobs:
     needs: [quality-gates, release-context]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
+    # This environment scopes signing secrets and allowed refs. It intentionally
+    # has no required reviewer because Audux is maintained by one person.
     environment:
       name: ${{ needs.release-context.outputs.mode == 'signed' && 'release' || 'internal-build' }}
     env:
