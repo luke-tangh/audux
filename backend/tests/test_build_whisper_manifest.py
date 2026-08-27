@@ -80,6 +80,10 @@ def test_release_workflow_uploads_component_descriptors() -> None:
     assert "uses: ./.github/workflows/quality-gates.yml" in workflow
     assert "permissions:\n      contents: write" in workflow
     assert "uses: actions/checkout@v" not in workflow
+    assert (
+        "uses: softprops/action-gh-release@"
+        "3d0d9888cb7fd7b750713d6e236d1fcb99157228"
+    ) in workflow
 
 
 def test_release_workflow_retries_transient_macos_dmg_failures() -> None:
@@ -95,4 +99,26 @@ def test_release_workflow_retries_transient_macos_dmg_failures() -> None:
     assert (
         "npm run tauri:build -- --verbose --config "
         "src-tauri/tauri.release.conf.json"
+    ) in workflow
+
+
+def test_release_recovery_requires_matching_tag_run_and_verified_candidate() -> None:
+    repository_root = Path(__file__).resolve().parents[2]
+    workflow = (
+        repository_root / ".github" / "workflows" / "recover-release.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "actions: read" in workflow
+    assert "contents: write" in workflow
+    assert "test \"$(jq -r '.event'" in workflow
+    assert "test \"$(jq -r '.path'" in workflow
+    assert "test \"$(jq -r '.head_branch'" in workflow
+    assert "test \"$(jq -r '.head_sha'" in workflow
+    assert "candidate_count" in workflow
+    assert "expired == false" in workflow
+    assert "backend/release_artifacts.py verify" in workflow
+    assert "run-id: ${{ inputs.source_run_id }}" in workflow
+    assert (
+        "softprops/action-gh-release@"
+        "3d0d9888cb7fd7b750713d6e236d1fcb99157228"
     ) in workflow
