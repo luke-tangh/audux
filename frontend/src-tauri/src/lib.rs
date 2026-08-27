@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 use std::io;
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 use std::process::Child;
 
 use tauri::Manager;
@@ -87,7 +87,7 @@ fn application_updater_configured(app: tauri::AppHandle) -> bool {
     updater_config_is_ready(app.config().plugins.0.get("updater"))
 }
 
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 fn terminate_std_child(child: &mut Child) -> io::Result<()> {
     if child.try_wait()?.is_some() {
         return Ok(());

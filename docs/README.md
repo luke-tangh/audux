@@ -9,6 +9,7 @@
 - [AI、ASR 与 MCP 配置](configuration.md)：本地 Whisper、外部 ASR、LLM、长音频切片
   以及只读 MCP Server。
 - [数据与安全](data-and-security.md)：数据目录、备份恢复、可移植归档、本地 API 和隐私。
+- [Rust 安全公告例外](security-advisories.md)：有期限的依赖风险决定、补偿控制和退出条件。
 - [v1 稳定性与兼容性契约](compatibility.md)：支持平台、格式、Provider、弃用与回滚。
 - [故障排查](troubleshooting.md)：处理启动、Token、Provider、搜索索引和任务状态问题。
 

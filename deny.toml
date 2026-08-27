@@ -1,0 +1,15 @@
+[graph]
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+  "aarch64-apple-darwin",
+]
+all-features = true
+
+[advisories]
+unmaintained = "all"
+unsound = "all"
+unused-ignored-advisory = "deny"
+ignore = [
+  { id = "RUSTSEC-2024-0429", reason = "Time-bound unreachable-code exception for the Tauri 2 GTK3 chain; see docs/security-advisories.md. Review by 2026-10-31 or before the next v1.x release." },
+]

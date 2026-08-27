@@ -30,10 +30,14 @@ npm run test:visual
 cd src-tauri
 cargo test --locked
 cargo check --locked
+
+cd ../..
+cargo deny --manifest-path frontend/src-tauri/Cargo.toml --locked check advisories
 ```
 
 确认 `git diff --check` 无输出，并确认 `VERSION`、Python、npm、Cargo 和 Tauri 的
-版本一致。
+版本一致。复核 [Rust 安全公告例外](security-advisories.md) 未过期，依赖链、可达性证据、
+补偿测试和公开跟踪项仍准确；稳定 tag 不得依赖已过期或没有记录的 allowlist。
 
 确认 `release` Environment secrets 已配置且来自同一套受控密钥材料：
 

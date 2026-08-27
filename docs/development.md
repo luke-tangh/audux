@@ -95,10 +95,15 @@ npm run test:visual
 ```bash
 cargo test --locked
 cargo check --locked
+
+# 需要 cargo-deny；CI 使用固定版本执行同一门禁
+cd ../..
+cargo deny --manifest-path frontend/src-tauri/Cargo.toml --locked check advisories
 ```
 
 这些命令不等同于完整 Tauri 打包。若缺少 WebKitGTK 等平台依赖，应准确报告跳过的构建，
-并继续完成仍有意义的前端和 Rust 检查。
+并继续完成仍有意义的前端和 Rust 检查。`deny.toml` 中的公告例外必须同时有
+[风险记录](security-advisories.md)、复核期限和跟踪项；不得为了通过门禁加入无期限忽略。
 
 ## 按改动选择检查
 
