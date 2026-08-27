@@ -132,6 +132,23 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.1
         with:
           workspaces: frontend/src-tauri -> target
+      - name: Enforce Rust advisory exception deadline
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          GLIB_ADVISORY_REVIEW_DEADLINE: "2026-10-31"
+        run: |
+          if [[ "$(date -u +%F)" > "${GLIB_ADVISORY_REVIEW_DEADLINE}" ]]; then
+            echo "RUSTSEC-2024-0429 exception expired on ${GLIB_ADVISORY_REVIEW_DEADLINE}."
+            exit 1
+          fi
+      - name: Audit Rust dependency advisories
+        if: runner.os == 'Linux'
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          manifest-path: frontend/src-tauri/Cargo.toml
+          command: check advisories
+          arguments: --locked
       - name: Run Rust tests
         run: cargo test --locked
       - name: Cargo check
