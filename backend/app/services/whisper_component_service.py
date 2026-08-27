@@ -79,11 +79,9 @@ def whisper_target_triple() -> str:
             else "x86_64-pc-windows-msvc"
         )
     if system == "darwin":
-        return (
-            "aarch64-apple-darwin"
-            if machine in {"arm64", "aarch64"}
-            else "x86_64-apple-darwin"
-        )
+        if machine in {"arm64", "aarch64"}:
+            return "aarch64-apple-darwin"
+        raise ServiceError(400, "Audux v1 supports macOS on Apple Silicon only")
     if system == "linux":
         return (
             "aarch64-unknown-linux-gnu"

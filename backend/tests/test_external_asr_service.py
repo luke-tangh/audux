@@ -58,7 +58,7 @@ def test_preprocessing_status_requires_ffmpeg_and_bundled_vad(
         lambda: {
             "available": False,
             "model_available": False,
-            "runtime_version": "1.23.2",
+            "runtime_version": "1.29.0",
             "provider": None,
             "model": "silero_vad_16k_op15.onnx",
             "error": "missing",

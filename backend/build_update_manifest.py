@@ -8,7 +8,6 @@ from urllib.parse import quote
 PLATFORM_ARTIFACTS = {
     "linux-x86_64": ("audux-linux-x64", "*.AppImage"),
     "windows-x86_64": ("audux-windows-x64", "*.exe"),
-    "darwin-x86_64": ("audux-macos-x64", "*.app.tar.gz"),
     "darwin-aarch64": ("audux-macos-arm64", "*.app.tar.gz"),
 }
 

@@ -11,7 +11,9 @@
 | --- | --- | --- |
 | Linux | x86_64，具有 WebKitGTK 4.1 的现代发行版 | AppImage、DEB、RPM、browser-lite |
 | Windows | Windows 10/11 x86_64，WebView2 Runtime | NSIS、browser-lite |
-| macOS | macOS 13 或更高版本，Intel 或 Apple Silicon | DMG、browser-lite |
+| macOS | macOS 14 或更高版本，Apple Silicon | DMG、browser-lite |
+
+v1.0 不支持 Intel Mac，也不发布 macOS x86_64 安装包、browser-lite 或 Whisper component。
 
 Windows 安装包暂未做 Authenticode 签名，macOS 安装包暂未做 Developer ID 签名或公证；
 系统可能显示未知发布者提示。Tauri 应用内更新仍必须通过项目 updater 密钥签名验证。
@@ -77,4 +79,3 @@ Windows 安装包暂未做 Authenticode 签名，macOS 安装包暂未做 Develo
 - embedding 尚未作为必装组件；v1.0 的可重复检索质量基线是 SQLite FTS5。
 - ASR/LLM 质量取决于模型和硬件。没有证据的模型回答、Tag 或勘误不能绕过后端校验与用户
   审批成为正式内容。
-

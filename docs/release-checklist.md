@@ -49,19 +49,18 @@ cargo check --locked
 
 在 GitHub Actions 中手动运行两次 `Internal Builds and v1 Release` workflow：
 
-1. 保持 `signed_preflight=false`，验证不读取签名私钥的日常四平台内部构建；
+1. 保持 `signed_preflight=false`，验证不读取签名私钥的日常三目标内部构建；
 2. 设置 `signed_preflight=true`，经 `release` Environment 审批后，验证与正式 tag 完全相同
-   的 updater 签名、Whisper 清单签名、四平台汇总、SHA-256 和 provenance attestation 流程。
+   的 updater 签名、Whisper 清单签名、三目标汇总、SHA-256 和 provenance attestation 流程。
 
 两次运行都不得创建 GitHub Release。签名预检应生成一个
 `audux-release-candidate-1.0.0` workflow artifact；下载并确认其中包含：
 
 - Linux x64 bundle
 - Windows x64 NSIS (`.exe`) bundle
-- macOS 13+ x64 bundle
-- macOS 13+ Apple Silicon bundle
-- 四个 target 的 `audux-lite-<target>.zip`
-- 四个 target 的 `audux-whisper-<target>.zip`
+- macOS 14+ Apple Silicon bundle
+- 三个 target 的 `audux-lite-<target>.zip`
+- 三个 target 的 `audux-whisper-<target>.zip`
 - `latest.json`、`whisper-components.json`、`whisper-components.json.sig` 和 `SHA256SUMS`
 
 用 `sha256sum --check SHA256SUMS` 复核下载内容，并在运行详情中确认 provenance

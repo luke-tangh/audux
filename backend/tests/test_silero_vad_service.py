@@ -79,7 +79,7 @@ def test_bundled_model_checksum_and_cpu_runtime_are_available():
     assert status["available"] is True
     assert status["model_available"] is True
     assert status["provider"] == "CPUExecutionProvider"
-    assert status["runtime_version"] == "1.23.2"
+    assert status["runtime_version"] == "1.29.0"
     assert Path(silero_vad_service.MODEL_PATH).stat().st_size > 1_000_000
 
 

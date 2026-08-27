@@ -18,7 +18,6 @@ def _write_artifact(root: Path, relative_path: str) -> None:
 def test_build_update_manifest_uses_signed_platform_artifacts(tmp_path: Path):
     _write_artifact(tmp_path, "audux-linux-x64/Audux_1.0.1_amd64.AppImage")
     _write_artifact(tmp_path, "audux-windows-x64/Audux_1.0.1_x64-setup.exe")
-    _write_artifact(tmp_path, "audux-macos-x64/Audux_x64.app.tar.gz")
     _write_artifact(tmp_path, "audux-macos-arm64/Audux_arm64.app.tar.gz")
 
     manifest = build_manifest(
@@ -34,7 +33,6 @@ def test_build_update_manifest_uses_signed_platform_artifacts(tmp_path: Path):
     assert set(manifest["platforms"]) == {
         "linux-x86_64",
         "windows-x86_64",
-        "darwin-x86_64",
         "darwin-aarch64",
     }
     assert manifest["platforms"]["windows-x86_64"]["url"].endswith(
