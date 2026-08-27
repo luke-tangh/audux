@@ -134,11 +134,6 @@ Release。签名构建和发布 job 使用仅允许 `main` 与 `v1.0.*` tag 的 
 Environment 负责隔离签名 secrets 和限制发布来源，不配置 required reviewers。正式发布先创建
 draft，重新下载全部 assets 验证 `SHA256SUMS`，成功后才公开为 latest Release。
 
-如果 tag workflow 已成功汇总并 attestation 完整 release candidate、但最终 GitHub Release
-发布 job 失败，可从 `main` 手动运行 `Recover verified v1 Release`，传入失败 run ID 和对应
-tag。恢复 workflow 会重新验证 source run 的 tag/SHA、候选 artifact 和 checksums，并继续执行
-相同的 draft、回下载验证和 latest 发布流程；不能用于任意分支构建或已存在的 Release。
-
 CI 与 release 共用 `.github/workflows/quality-gates.yml`，因此 backend 覆盖率、retrieval eval、
 frontend 覆盖率/类型检查/生产构建/Playwright，以及三平台 Rust 检查只有一份定义。Node 和
 Rust 分别固定在 `.node-version` 与 `rust-toolchain.toml`；runner、uv 和第三方 Actions 也都
