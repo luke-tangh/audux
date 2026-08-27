@@ -80,3 +80,19 @@ def test_release_workflow_uploads_component_descriptors() -> None:
     assert "uses: ./.github/workflows/quality-gates.yml" in workflow
     assert "permissions:\n      contents: write" in workflow
     assert "uses: actions/checkout@v" not in workflow
+
+
+def test_release_workflow_retries_transient_macos_dmg_failures() -> None:
+    repository_root = Path(__file__).resolve().parents[2]
+    workflow = (repository_root / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Build macOS app with signed updater artifacts" in workflow
+    assert "runner.os == 'macOS'" in workflow
+    assert "max_attempts=3" in workflow
+    assert 'sleep "${retry_delay}"' in workflow
+    assert (
+        "npm run tauri:build -- --verbose --config "
+        "src-tauri/tauri.release.conf.json"
+    ) in workflow
