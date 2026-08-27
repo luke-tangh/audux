@@ -118,10 +118,10 @@ npm run tauri:build
 GitHub Actions 的 `Internal Builds and v1 Release` 可手动触发，在 Linux x64、Windows
 x64 和 macOS 14+ Apple Silicon 上构建 Tauri、browser-lite、backend sidecar 和 Whisper
 companion。macOS Intel 不在 v1.0 支持范围内。
-手动运行默认使用无密钥、无需审批的 `internal-build` Environment，只保留三个目标的已校验
-artifacts，不读取签名 secrets，也不创建 GitHub Release。将 `signed_preflight` 设为 `true`
-时，workflow 会进入受审批的 `release` Environment，走与正式 tag 相同的签名、汇总、校验
-和与 provenance attestation 路径，生成完整 release candidate，但仍不会发布。
+手动运行默认使用无密钥的 `internal-build` Environment，只保留三个目标的已校验 artifacts，
+不读取签名 secrets，也不创建 GitHub Release。将 `signed_preflight` 设为 `true` 时，workflow
+会从 `main` 进入 `release` Environment，走与正式 tag 相同的签名、汇总、校验和与
+provenance attestation 路径，生成完整 release candidate，但仍不会发布，也不需要人工审批。
 
 标签构建在任何打包任务之前强制执行 backend 分支覆盖率、frontend 单元覆盖率/类型检查/
 生产构建/Playwright，以及 Linux、Windows、macOS 的 Rust 测试和 `cargo check`。任一门禁
@@ -130,8 +130,9 @@ artifacts，不读取签名 secrets，也不创建 GitHub Release。将 `signed_
 workflow 只允许 `v1.0.*` tag 进入公开发布任务。发布 tag 必须与根目录 `VERSION` 一致，且
 tag commit 必须属于远端 `main` 历史；Python、npm、Cargo、Tauri 和 backend 版本也必须
 一致，并且必须存在与 tag 同名的 `docs/releases/<tag>.md` 发布说明。v0.x 不创建公开
-Release。签名构建和发布 job 使用受保护的 `release` Environment；正式发布先创建 draft，
-重新下载全部 assets 验证 `SHA256SUMS`，成功后才公开为 latest Release。
+Release。签名构建和发布 job 使用仅允许 `main` 与 `v1.0.*` tag 的 `release` Environment；该
+Environment 负责隔离签名 secrets 和限制发布来源，不配置 required reviewers。正式发布先创建
+draft，重新下载全部 assets 验证 `SHA256SUMS`，成功后才公开为 latest Release。
 
 CI 与 release 共用 `.github/workflows/quality-gates.yml`，因此 backend 覆盖率、retrieval eval、
 frontend 覆盖率/类型检查/生产构建/Playwright，以及三平台 Rust 检查只有一份定义。Node 和
