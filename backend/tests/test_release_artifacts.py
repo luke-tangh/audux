@@ -29,7 +29,6 @@ def _write_platform_files(root: Path, platform: str, *, signed: bool) -> None:
     bundle_names = {
         "linux-x64": ("Audux.AppImage", "Audux.deb", "Audux.rpm"),
         "windows-x64": ("Audux_1.0.0_x64-setup.exe",),
-        "macos-x64": ("Audux_1.0.0_x64.dmg",),
         "macos-arm64": ("Audux_1.0.0_aarch64.dmg",),
     }[platform]
     for name in bundle_names:
@@ -39,7 +38,6 @@ def _write_platform_files(root: Path, platform: str, *, signed: bool) -> None:
         updater_name = {
             "linux-x64": "Audux.AppImage",
             "windows-x64": "Audux_1.0.0_x64-setup.exe",
-            "macos-x64": "Audux_1.0.0_x64.app.tar.gz",
             "macos-arm64": "Audux_1.0.0_arm64.app.tar.gz",
         }[platform]
         updater = bundle_root / updater_name
@@ -135,7 +133,6 @@ def test_assemble_release_enforces_complete_set_and_checksums(tmp_path: Path):
     updater_assets = {
         "linux-x86_64": "Audux.AppImage",
         "windows-x86_64": "Audux_1.0.0_x64-setup.exe",
-        "darwin-x86_64": "Audux_1.0.0_x64.app.tar.gz",
         "darwin-aarch64": "Audux_1.0.0_arm64.app.tar.gz",
     }
     (metadata / "latest.json").write_text(

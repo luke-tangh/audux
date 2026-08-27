@@ -49,6 +49,14 @@ def test_manifest_url_defaults_to_audux_release(monkeypatch):
     )
 
 
+def test_whisper_target_rejects_intel_macos(monkeypatch):
+    monkeypatch.setattr(service.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(service.platform, "machine", lambda: "x86_64")
+
+    with pytest.raises(service.ServiceError, match="Apple Silicon only"):
+        service.whisper_target_triple()
+
+
 @pytest.mark.parametrize(
     "url",
     [

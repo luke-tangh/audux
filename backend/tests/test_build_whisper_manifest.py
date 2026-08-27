@@ -73,6 +73,8 @@ def test_release_workflow_uploads_component_descriptors() -> None:
     assert "release-metadata/whisper-components.json" in workflow
     assert "backend/release_artifacts.py assemble" in workflow
     assert "signed_preflight:" in workflow
+    assert "macos-arm64" in workflow
+    assert "macos-15-intel" not in workflow
     assert "draft: true" in workflow
     assert "fail_on_unmatched_files: true" in workflow
     assert "uses: ./.github/workflows/quality-gates.yml" in workflow

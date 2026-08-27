@@ -50,12 +50,6 @@ PLATFORMS = {
             ".exe",
         ),
         PlatformSpec(
-            "macos-x64",
-            "x86_64-apple-darwin",
-            ("*.dmg",),
-            "*.app.tar.gz",
-        ),
-        PlatformSpec(
             "macos-arm64",
             "aarch64-apple-darwin",
             ("*.dmg",),
@@ -295,7 +289,6 @@ def _validate_metadata(metadata_dir: Path, output_names: set[str], version: str)
     expected_platforms = {
         "linux-x86_64",
         "windows-x86_64",
-        "darwin-x86_64",
         "darwin-aarch64",
     }
     if set(latest.get("platforms", {})) != expected_platforms:

@@ -46,7 +46,9 @@ def tauri_target_triple() -> str:
     if system == "darwin":
         if machine in ["arm64", "aarch64"]:
             return "aarch64-apple-darwin"
-        return "x86_64-apple-darwin"
+        raise RuntimeError(
+            "Unsupported platform: Audux v1 supports macOS on Apple Silicon only"
+        )
 
     if system == "linux":
         if machine in ["arm64", "aarch64"]:

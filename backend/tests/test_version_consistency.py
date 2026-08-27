@@ -40,7 +40,8 @@ class TestVersionConsistency:
         with (
             repository_root / "frontend" / "src-tauri" / "tauri.conf.json"
         ).open(encoding="utf-8") as file:
-            desktop_version = json.load(file)["version"]
+            desktop_config = json.load(file)
+            desktop_version = desktop_config["version"]
 
         assert {
             python_version,
@@ -49,6 +50,7 @@ class TestVersionConsistency:
             desktop_version,
             APP_VERSION,
         } == {expected}
+        assert desktop_config["bundle"]["macOS"]["minimumSystemVersion"] == "14.0"
 
     def test_prerelease_version_does_not_enable_windows_msi(self):
         repository_root = Path(__file__).resolve().parents[2]

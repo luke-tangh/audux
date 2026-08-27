@@ -116,16 +116,16 @@ npm run tauri:build
 ## v1.0 构建与发布门槛
 
 GitHub Actions 的 `Internal Builds and v1 Release` 可手动触发，在 Linux x64、Windows
-x64、macOS 13+ x64 和 macOS 13+ Apple Silicon 上构建 Tauri、browser-lite、backend
-sidecar 和 Whisper companion。
-手动运行默认使用无密钥、无需审批的 `internal-build` Environment，只保留四个平台的已校验
+x64 和 macOS 14+ Apple Silicon 上构建 Tauri、browser-lite、backend sidecar 和 Whisper
+companion。macOS Intel 不在 v1.0 支持范围内。
+手动运行默认使用无密钥、无需审批的 `internal-build` Environment，只保留三个目标的已校验
 artifacts，不读取签名 secrets，也不创建 GitHub Release。将 `signed_preflight` 设为 `true`
 时，workflow 会进入受审批的 `release` Environment，走与正式 tag 相同的签名、汇总、校验
 和与 provenance attestation 路径，生成完整 release candidate，但仍不会发布。
 
 标签构建在任何打包任务之前强制执行 backend 分支覆盖率、frontend 单元覆盖率/类型检查/
 生产构建/Playwright，以及 Linux、Windows、macOS 的 Rust 测试和 `cargo check`。任一门禁
-失败，四平台构建和发布任务都不会开始。
+失败，三个目标的构建和发布任务都不会开始。
 
 workflow 只允许 `v1.0.*` tag 进入公开发布任务。发布 tag 必须与根目录 `VERSION` 一致，且
 tag commit 必须属于远端 `main` 历史；Python、npm、Cargo、Tauri 和 backend 版本也必须
@@ -156,7 +156,7 @@ Rust 分别固定在 `.node-version` 与 `rust-toolchain.toml`；runner、uv 和
 
 - Linux x64：AppImage、DEB 和 RPM；
 - Windows x64：NSIS 安装程序；
-- macOS 13+：Intel x64 与 Apple Silicon arm64 的 DMG；
+- macOS 14+ Apple Silicon：arm64 DMG；
 - 三个平台的 browser-lite 与可选 Whisper companion。
 
 桌面端的“设置 → 更新”只读取 GitHub Release 中的 `latest.json`。正式构建使用 Tauri v2
@@ -180,7 +180,7 @@ npx tauri signer generate -w /安全位置/audux-updater.key
 
 1. 生成临时 release 配置并嵌入公钥与 HTTPS 更新地址；
 2. 生成各平台 updater artifact 和 `.sig`；
-3. 汇总成同时包含 Linux x64、Windows x64、macOS x64/arm64 的 `latest.json`；
+3. 汇总成同时包含 Linux x64、Windows x64、macOS arm64 的 `latest.json`；
 4. 严格校验各平台 artifact 白名单、ZIP 内容、descriptor 哈希和完整 target 集；
 5. 生成 `SHA256SUMS` 和 GitHub artifact provenance attestation；
 6. 正式 tag 流程将普通安装包、updater artifact、签名和清单作为 draft 上传，回读校验后

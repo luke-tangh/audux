@@ -12,6 +12,11 @@ if (!platformName || !version) {
 
 if (!platformName.startsWith("macos-")) process.exit(0);
 
+if (platformName !== "macos-arm64") {
+  console.error(`Unsupported macOS release platform: ${platformName}`);
+  process.exit(1);
+}
+
 const bundleDir = join(frontendDir, "src-tauri", "target", "release", "bundle", "macos");
 const archives = existsSync(bundleDir)
   ? readdirSync(bundleDir).filter((name) => name.endsWith(".app.tar.gz"))
@@ -22,9 +27,8 @@ if (archives.length !== 1) {
   process.exit(1);
 }
 
-const architecture = platformName === "macos-arm64" ? "arm64" : "x64";
 const sourceName = archives[0];
-const targetName = `Audux_${version}_${architecture}.app.tar.gz`;
+const targetName = `Audux_${version}_arm64.app.tar.gz`;
 const sourcePath = join(bundleDir, sourceName);
 const sourceSignature = `${sourcePath}.sig`;
 

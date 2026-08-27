@@ -274,7 +274,7 @@ class TestTaskApiLifecycle(ApiIntegrationTest):
                 "ffprobe_available": False,
                 "vad_available": True,
                 "vad_model_available": True,
-                "vad_runtime_version": "1.23.2",
+                "vad_runtime_version": "1.29.0",
                 "vad_provider": "CPUExecutionProvider",
                 "vad_model": "silero_vad_16k_op15.onnx",
                 "vad_error": None,

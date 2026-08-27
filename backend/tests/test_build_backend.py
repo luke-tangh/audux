@@ -7,6 +7,13 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
 class TestBuildBackend:
+    def test_target_triple_rejects_intel_macos(self, monkeypatch):
+        monkeypatch.setattr(build_backend.platform, "system", lambda: "Darwin")
+        monkeypatch.setattr(build_backend.platform, "machine", lambda: "x86_64")
+
+        with pytest.raises(RuntimeError, match="Apple Silicon only"):
+            build_backend.tauri_target_triple()
+
     def test_main_sidecar_excludes_asr_by_default(self, monkeypatch):
         monkeypatch.delenv("AUDUX_BUILD_WITH_ASR", raising=False)
         assert build_backend.build_with_asr() is False
