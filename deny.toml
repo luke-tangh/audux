@@ -11,5 +11,5 @@ unmaintained = "workspace"
 unsound = "all"
 unused-ignored-advisory = "deny"
 ignore = [
-  { id = "RUSTSEC-2024-0429", reason = "Time-bound unreachable-code exception for the Tauri 2 GTK3 chain; see docs/security-advisories.md. Review by 2026-10-31 or before the next v1.x release." },
+  { id = "RUSTSEC-2024-0429", reason = "Time-bound unreachable-code exception for the Tauri 2 GTK3 chain; see docs/zh-CN/reference/security-advisories.md. Review by 2026-10-31 or before the next v1.x release." },
 ]

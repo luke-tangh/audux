@@ -1,4 +1,6 @@
-# 快速上手
+# 安装与快速上手
+
+[用户指南](README.md) · [中文文档首页](../README.md)
 
 Audux 提供源码浏览器开发模式、Tauri 桌面版和打包后的 browser-lite 三种运行形态。
 普通用户可在 GitHub Releases 下载 Linux、Windows 或 macOS 的 v1.0 安装包，无需安装
@@ -77,7 +79,7 @@ Tauri 会启动 Vite 和 Python backend。开发模式查找 Python 的顺序为
 3. 仓库根目录 `.venv`；
 4. Windows 的 `python`，或 Linux / macOS 的 `python3`。
 
-Linux 原生依赖和完整构建方式见[构建与发布验证](building.md)。
+Linux 原生依赖和完整构建方式见[构建与发布验证](../contributing/building.md)。
 
 ## 首次使用
 

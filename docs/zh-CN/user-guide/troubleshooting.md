@@ -1,5 +1,7 @@
 # 故障排查
 
+[用户指南](README.md) · [中文文档首页](../README.md)
+
 先查看启动恢复页或全局活动中心中的错误详情。日志与诊断包可能帮助定位问题，但不要在
 Issue、截图或聊天中暴露 API Key、本地 API Token、绝对媒体路径或用户 Transcript。
 
@@ -39,7 +41,7 @@ uv run --locked python backend/run.py
 
 如果数据库 schema 与当前构建不兼容且没有迁移路径，后端会有意拒绝启动且不修改数据库。
 请使用兼容版本或匹配快照恢复，不要删除原数据库。v1.0 的具体回滚步骤见
-[兼容性契约](compatibility.md#弃用备份与回滚)。
+[兼容性契约](../reference/compatibility.md#弃用备份与回滚)。
 
 ## 本地 Whisper 不可用
 

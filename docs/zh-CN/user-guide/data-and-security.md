@@ -1,4 +1,6 @@
-# 数据与安全
+# 数据、备份与安全
+
+[用户指南](README.md) · [中文文档首页](../README.md)
 
 Audux 将数据库和应用生成内容视为用户数据。自动化测试必须使用临时目录，不能指向真实的
 `~/.audux/`。
@@ -82,7 +84,7 @@ Token 或用户绝对路径。
 3. 除 `/health`、`/auth/token` 和 API docs 外，请求需要 `X-Audux-Token`。
 4. `<audio>`、`<img>` 和下载等无法附加 Header 的请求使用 `?access_token=<token>`。
 
-前端在 [`frontend/src/api.ts`](../frontend/src/api.ts) 中统一获取和附加 Token。手动调试：
+前端在 [`frontend/src/api.ts`](../../../frontend/src/api.ts) 中统一获取和附加 Token。手动调试：
 
 ```bash
 curl http://127.0.0.1:8765/auth/token \

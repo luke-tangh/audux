@@ -1,5 +1,7 @@
 # 开发环境与测试
 
+[开发与贡献](README.md) · [中文文档首页](../README.md)
+
 Audux 包含 React 前端、FastAPI backend 和 Tauri host 三层。行为应由所属层实现；跨层功能
 需要同步更新 API schema、共享 TypeScript 类型、实现和测试。
 
@@ -15,7 +17,7 @@ Audux 包含 React 前端、FastAPI backend 和 Tauri host 三层。行为应由
 | `backend/tests/` | pytest 单元与 API 集成测试 |
 | `frontend/src-tauri/` | Tauri 命令、backend 进程生命周期与打包 |
 
-更细的文件职责与编码约束见仓库根目录的 [`AGENTS.md`](../AGENTS.md)。
+更细的文件职责与编码约束见仓库根目录的 [`AGENTS.md`](../../../AGENTS.md)。
 
 ## 安装依赖
 
@@ -103,7 +105,8 @@ cargo deny --manifest-path frontend/src-tauri/Cargo.toml --locked check advisori
 
 这些命令不等同于完整 Tauri 打包。若缺少 WebKitGTK 等平台依赖，应准确报告跳过的构建，
 并继续完成仍有意义的前端和 Rust 检查。`deny.toml` 中的公告例外必须同时有
-[风险记录](security-advisories.md)、复核期限和跟踪项；不得为了通过门禁加入无期限忽略。
+[风险记录](../reference/security-advisories.md)、复核期限和跟踪项；不得为了通过门禁加入
+无期限忽略。
 
 ## 按改动选择检查
 
