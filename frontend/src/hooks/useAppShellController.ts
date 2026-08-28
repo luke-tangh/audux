@@ -3,6 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import type { AudioItem } from "../types";
 import { useDialog } from "../components/dialog/UnifiedDialog";
+import {
+  confirmApplicationClose,
+  listenForApplicationCloseRequest,
+  setApplicationCloseGuard
+} from "../tauri";
 import type { ViewMode } from "./library/types";
 
 type Params = {
@@ -11,6 +16,7 @@ type Params = {
   view: ViewMode;
   openSettings: () => void;
   initialized: boolean;
+  navigationReady: boolean;
   rootsLength: number;
   activeSavedViewId: number | null;
   selectedPlaylistId: number | null;
@@ -23,6 +29,7 @@ export function useAppShellController({
   view,
   openSettings,
   initialized,
+  navigationReady,
   rootsLength,
   activeSavedViewId,
   selectedPlaylistId,
@@ -34,6 +41,7 @@ export function useAppShellController({
   const [inspectorDirty, setInspectorDirty] = useState(false);
   const [settingsDirty, setSettingsDirty] = useState(false);
   const settingsBeforeLeaveRef = useRef<(() => Promise<boolean>) | null>(null);
+  const closeRequestInFlightRef = useRef(false);
   const [compactNavigation, setCompactNavigation] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches
   );
@@ -53,6 +61,7 @@ export function useAppShellController({
 
   useEffect(() => {
     if (!inspectorDirty && !settingsDirty) return;
+    if ("__TAURI_INTERNALS__" in window) return;
     const preventWindowClose = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
@@ -60,6 +69,47 @@ export function useAppShellController({
     window.addEventListener("beforeunload", preventWindowClose);
     return () => window.removeEventListener("beforeunload", preventWindowClose);
   }, [inspectorDirty, settingsDirty]);
+
+  useEffect(() => {
+    void setApplicationCloseGuard(inspectorDirty || settingsDirty);
+  }, [inspectorDirty, settingsDirty]);
+
+  useEffect(() => () => {
+    void setApplicationCloseGuard(false);
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: () => void = () => undefined;
+
+    void listenForApplicationCloseRequest(async () => {
+      if (disposed || closeRequestInFlightRef.current) return;
+      closeRequestInFlightRef.current = true;
+      try {
+        if (settingsDirty) {
+          const prepareSettings = settingsBeforeLeaveRef.current;
+          if (!prepareSettings || !(await prepareSettings())) return;
+        }
+        if (inspectorDirty && !(await confirmDiscardInspectorChanges())) return;
+        setInspectorDirty(false);
+        setInspectorOpen(false);
+        await confirmApplicationClose();
+      } finally {
+        closeRequestInFlightRef.current = false;
+      }
+    }).then((disposeListener) => {
+      if (disposed) {
+        disposeListener();
+      } else {
+        unlisten = disposeListener;
+      }
+    }).catch(console.error);
+
+    return () => {
+      disposed = true;
+      unlisten();
+    };
+  }, [dialog, inspectorDirty, settingsDirty, t]);
 
   useEffect(() => {
     if (!inspectorOpen || !window.matchMedia("(max-width: 1040px)").matches) return;
@@ -89,8 +139,8 @@ export function useAppShellController({
   }, [sidebarCollapsed]);
 
   useEffect(() => {
-    if (initialized && rootsLength === 0) setOnboardingOpen(true);
-  }, [initialized, rootsLength]);
+    if (initialized && navigationReady && rootsLength === 0) setOnboardingOpen(true);
+  }, [initialized, navigationReady, rootsLength]);
 
   async function confirmDiscardInspectorChanges() {
     if (!inspectorDirty) return true;

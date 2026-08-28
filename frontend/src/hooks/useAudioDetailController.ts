@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import type { AISuggestions, AudioItem, Tag, Transcript } from "../types";
 import type { EditingPatch, NumericSelection, ToastType } from "../components/detail/types";
 import { toErrorMessage } from "../i18n/errors";
@@ -31,6 +31,15 @@ function metadataFor(audio: AudioItem): Partial<AudioItem> {
     language: audio.language || "",
     is_favorite: audio.is_favorite
   };
+}
+
+async function optionalNotFound<T>(request: Promise<T>): Promise<T | null> {
+  try {
+    return await request;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 export function useAudioDetailController({
@@ -106,9 +115,9 @@ export function useAudioDetailController({
       }
       const [detail, tagRows, transcriptValue, suggestionsValue] = await Promise.all([
         api.getAudioDetail(audio.id),
-        api.listTags().catch(() => []),
-        api.getTranscript(audio.id).catch(() => null),
-        api.getAiSuggestions(audio.id).catch(() => null)
+        api.listTags(),
+        optionalNotFound(api.getTranscript(audio.id)),
+        api.getAiSuggestions(audio.id)
       ]);
       if (canceled) return;
       lastLoadedAudioIdRef.current = audio.id;
@@ -173,11 +182,11 @@ export function useAudioDetailController({
     if (!audio) return;
     const [detail, tagRows] = await Promise.all([
       api.getAudioDetail(audio.id),
-      api.listTags().catch(() => [])
+      api.listTags()
     ]);
     setTags(detail.tags);
     setAllTags(tagRows);
-    setAiSuggestions(await api.getAiSuggestions(audio.id).catch(() => null));
+    setAiSuggestions(await api.getAiSuggestions(audio.id));
   }
 
   return {

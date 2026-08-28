@@ -36,8 +36,8 @@ curl http://127.0.0.1:8765/library-roots \
 uv run --locked python backend/run.py
 ```
 
-检查 `http://127.0.0.1:8765/health`。若端口冲突，可设置 `AUDUX_API_PORT`；Tauri 自身会
-自动选择可用端口。
+检查 `http://127.0.0.1:8765/health`。若端口冲突，可设置 `AUDUX_API_PORT`；Tauri 后端会
+原子绑定可用端口。
 
 如果数据库 schema 与当前构建不兼容且没有迁移路径，后端会有意拒绝启动且不修改数据库。
 请使用兼容版本或匹配快照恢复，不要删除原数据库。v1.0 的具体回滚步骤见

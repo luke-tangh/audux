@@ -40,7 +40,8 @@ npm ci
 
 ```bash
 # Backend；默认 127.0.0.1:8765
-uv run --locked python backend/run.py
+AUDUX_ALLOWED_ORIGINS=http://127.0.0.1:5173 \
+  uv run --locked python backend/run.py
 
 # Frontend；默认 127.0.0.1:5173
 cd frontend
@@ -51,8 +52,9 @@ cd frontend
 npm run tauri:dev
 ```
 
-可用 `AUDUX_API_PORT` 改变独立 backend 端口；新的前端行为必须继续通过 `src/api.ts` 和
-Tauri 的动态 backend URL 获取地址，不能硬编码 `8765`。
+可用 `AUDUX_API_PORT` 改变独立 backend 端口。`AUDUX_ALLOWED_ORIGINS` 是逗号分隔的精确
+浏览器开发白名单，不能替换为所有 localhost 端口。新的前端行为必须继续通过 `src/api.ts`
+和 Tauri 的动态 backend URL 获取地址，不能硬编码 `8765`。
 
 ## Backend 验证
 

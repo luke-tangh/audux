@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from starlette.requests import Request
 
 import app.local_security as security
 
@@ -8,6 +9,12 @@ import app.local_security as security
 @pytest.fixture(autouse=True)
 def disable_allow_all_cors(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(security, "ALLOW_ALL_CORS", False)
+    monkeypatch.setattr(
+        security,
+        "ALLOWED_CROSS_ORIGINS",
+        security.TAURI_ORIGINS
+        | {"http://127.0.0.1:5173", "http://localhost:5173"},
+    )
 
 
 class TestLocalSecurity:
@@ -15,8 +22,8 @@ class TestLocalSecurity:
         "origin",
         [
             "http://localhost:5173",
-            "https://localhost",
             "http://127.0.0.1:5173",
+            "http://tauri.localhost",
             "https://tauri.localhost",
             "tauri://localhost",
         ],
@@ -28,6 +35,9 @@ class TestLocalSecurity:
         "origin",
         [
             "https://example.com",
+            "https://localhost",
+            "http://localhost:4173",
+            "http://127.0.0.1:4173",
             "http://localhost.evil.com",
             "http://127.0.0.2:3000",
             "http://[::1]:5173",
@@ -39,6 +49,41 @@ class TestLocalSecurity:
     )
     def test_disallowed_request_origins(self, origin: str):
         assert not security._is_allowed_request_origin(origin)
+
+    def test_browser_lite_same_origin_is_allowed_without_trusting_other_ports(self):
+        request = Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "scheme": "http",
+                "path": "/settings",
+                "query_string": b"",
+                "headers": [(b"host", b"127.0.0.1:49152")],
+                "server": ("127.0.0.1", 49152),
+            }
+        )
+
+        assert security._is_allowed_request_origin(
+            "http://127.0.0.1:49152", request
+        )
+        assert not security._is_allowed_request_origin(
+            "http://127.0.0.1:49153", request
+        )
+
+    def test_development_origins_require_explicit_configuration(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setenv(
+            security.ALLOWED_ORIGINS_ENV,
+            "http://127.0.0.1:5173,http://localhost:5173",
+        )
+
+        configured = security._configured_allowed_origins()
+
+        assert "http://127.0.0.1:5173" in configured
+        assert "http://localhost:5173" in configured
+        assert "http://localhost:4173" not in configured
 
     def test_token_initialization_fails_if_token_cannot_be_persisted(
         self,

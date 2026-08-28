@@ -70,7 +70,7 @@ describe("useNavigationData", () => {
     expect(result.current.savedViews.map((view) => view.name)).toEqual(["Work"]);
   });
 
-  it("keeps successful navigation data when the other endpoint fails", async () => {
+  it("preserves successful slices but surfaces partial navigation failures", async () => {
     apiMocks.listTags.mockRejectedValue(new Error("tags unavailable"));
     apiMocks.listPlaylists.mockResolvedValue([
       {
@@ -82,10 +82,19 @@ describe("useNavigationData", () => {
     ]);
     const { result } = renderHook(() => useNavigationData());
 
-    await act(async () => result.current.loadNavigation());
+    let loadError: unknown;
+    await act(async () => {
+      try {
+        await result.current.loadNavigation();
+      } catch (error) {
+        loadError = error;
+      }
+    });
 
+    expect(loadError).toEqual(new Error("tags unavailable"));
     expect(result.current.tags).toEqual([]);
     expect(result.current.playlists.map((playlist) => playlist.name)).toEqual(["Available"]);
+    expect(result.current.navigationReady).toBe(false);
   });
 
   it("coalesces concurrent navigation loads", async () => {

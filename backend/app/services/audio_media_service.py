@@ -18,6 +18,7 @@ from .media_paths import (
 
 
 logger = get_logger(__name__)
+MAX_COVER_BYTES = 10 * 1024 * 1024
 
 
 def get_audio_file_response(session: Session, audio_id: int) -> FileResponse:
@@ -68,7 +69,7 @@ def upload_audio_cover_data(
             raise ServiceError(400, "Unsupported image format")
     if not data:
         raise ServiceError(400, "Empty cover file")
-    if len(data) > 10 * 1024 * 1024:
+    if len(data) > MAX_COVER_BYTES:
         raise ServiceError(400, "Cover file is too large")
 
     COVERS_DIR.mkdir(parents=True, exist_ok=True)

@@ -1,27 +1,39 @@
-use std::net::TcpListener;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::thread;
+use std::time::{Duration, Instant};
 
 #[cfg(any(debug_assertions, test))]
 use std::io;
 #[cfg(any(debug_assertions, test))]
 use std::process::Child;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 #[cfg(not(debug_assertions))]
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 const BACKEND_API_HOST: &str = "127.0.0.1";
 const BACKEND_PORT_ENV: &str = "AUDUX_API_PORT";
-const DEFAULT_BACKEND_PORT: u16 = 8765;
+const BACKEND_PORT_FILE_ENV: &str = "AUDUX_API_PORT_FILE";
+#[cfg(debug_assertions)]
+const ALLOWED_ORIGINS_ENV: &str = "AUDUX_ALLOWED_ORIGINS";
+#[cfg(debug_assertions)]
+const DEV_FRONTEND_ORIGIN: &str = "http://127.0.0.1:5173";
 
 #[cfg(debug_assertions)]
 struct BackendProcess(Mutex<Option<std::process::Child>>);
 
 struct BackendConfig {
-    port: u16,
-    base_url: String,
+    port_file: PathBuf,
+}
+
+#[derive(Default)]
+struct ApplicationCloseState {
+    dirty: AtomicBool,
+    confirmed: AtomicBool,
 }
 
 #[cfg(not(debug_assertions))]
@@ -29,42 +41,40 @@ struct BackendSidecarProcess(Mutex<Option<CommandChild>>);
 
 impl BackendConfig {
     fn new() -> Self {
-        let port = choose_backend_port();
-
         Self {
-            port,
-            base_url: format!("http://{BACKEND_API_HOST}:{port}"),
+            port_file: std::env::temp_dir()
+                .join(format!("audux-backend-{}.port", std::process::id())),
         }
     }
 }
 
-fn requested_backend_port() -> u16 {
-    std::env::var(BACKEND_PORT_ENV)
+fn read_backend_base_url(path: &Path) -> Result<String, String> {
+    let raw =
+        fs::read_to_string(path).map_err(|error| format!("Backend port is not ready: {error}"))?;
+    let port = raw
+        .trim()
+        .parse::<u16>()
         .ok()
-        .and_then(|value| value.trim().parse::<u16>().ok())
         .filter(|port| *port > 0)
-        .unwrap_or(DEFAULT_BACKEND_PORT)
+        .ok_or_else(|| "Backend published an invalid port".to_string())?;
+    Ok(format!("http://{BACKEND_API_HOST}:{port}"))
 }
 
-fn is_port_available(port: u16) -> bool {
-    TcpListener::bind((BACKEND_API_HOST, port)).is_ok()
-}
-
-fn random_available_port() -> Option<u16> {
-    let listener = TcpListener::bind((BACKEND_API_HOST, 0)).ok()?;
-    Some(listener.local_addr().ok()?.port())
-}
-
-fn choose_backend_port_for(requested: u16) -> u16 {
-    if is_port_available(requested) {
-        return requested;
+fn wait_for_backend_base_url(path: &Path, timeout: Duration) -> Result<String, String> {
+    let started = Instant::now();
+    loop {
+        if let Ok(base_url) = read_backend_base_url(path) {
+            return Ok(base_url);
+        }
+        if started.elapsed() >= timeout {
+            return Err("Timed out waiting for the backend port".to_string());
+        }
+        thread::sleep(Duration::from_millis(50));
     }
-
-    random_available_port().unwrap_or(requested)
 }
 
-fn choose_backend_port() -> u16 {
-    choose_backend_port_for(requested_backend_port())
+fn should_prevent_application_close(state: &ApplicationCloseState) -> bool {
+    state.dirty.load(Ordering::SeqCst) && !state.confirmed.load(Ordering::SeqCst)
 }
 
 fn updater_config_is_ready(config: Option<&serde_json::Value>) -> bool {
@@ -134,8 +144,33 @@ async fn pick_audio_file(window: tauri::Window) -> Result<Option<String>, String
 
 #[tauri::command]
 async fn backend_base_url(app: tauri::AppHandle) -> Result<String, String> {
-    let config = app.state::<BackendConfig>();
-    Ok(config.base_url.clone())
+    let port_file = app.state::<BackendConfig>().port_file.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        wait_for_backend_base_url(&port_file, Duration::from_secs(15))
+    })
+    .await
+    .map_err(|error| format!("Failed to wait for backend startup: {error}"))?
+}
+
+#[tauri::command]
+fn confirm_application_close(
+    window: tauri::Window,
+    state: tauri::State<'_, ApplicationCloseState>,
+) -> Result<(), String> {
+    state.confirmed.store(true, Ordering::SeqCst);
+    if let Err(error) = window.close() {
+        state.confirmed.store(false, Ordering::SeqCst);
+        return Err(format!("Failed to close application window: {error}"));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn set_application_close_guard(state: tauri::State<'_, ApplicationCloseState>, enabled: bool) {
+    state.dirty.store(enabled, Ordering::SeqCst);
+    if enabled {
+        state.confirmed.store(false, Ordering::SeqCst);
+    }
 }
 
 #[tauri::command]
@@ -183,11 +218,15 @@ fn open_logs_directory() -> Result<(), String> {
 fn start_backend_sidecar(app: &tauri::AppHandle) {
     let config = app.state::<BackendConfig>();
 
-    // Child processes inherit the current process environment. This lets both
-    // dev Python backend and release sidecar bind to the Tauri-selected port.
-    std::env::set_var(BACKEND_PORT_ENV, config.port.to_string());
+    let _ = fs::remove_file(&config.port_file);
+    // The backend binds port 0 itself and atomically publishes the selected
+    // port. Keeping the listener in the backend removes the check/bind race.
+    std::env::set_var(BACKEND_PORT_ENV, "0");
+    std::env::set_var(BACKEND_PORT_FILE_ENV, &config.port_file);
+    #[cfg(debug_assertions)]
+    std::env::set_var(ALLOWED_ORIGINS_ENV, DEV_FRONTEND_ORIGIN);
 
-    println!("Backend API base URL: {}", config.base_url);
+    println!("Backend port file: {}", config.port_file.display());
 
     #[cfg(debug_assertions)]
     {
@@ -234,6 +273,13 @@ fn stop_backend_sidecar(app: &tauri::AppHandle) {
         if let Some(child) = guard.take() {
             let _ = child.kill();
             println!("Backend sidecar stopped.");
+        }
+    }
+
+    let config = app.state::<BackendConfig>();
+    if let Err(error) = fs::remove_file(&config.port_file) {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            eprintln!("Failed to remove backend port file: {error}");
         }
     }
 }
@@ -397,6 +443,7 @@ pub fn run() {
 
     let builder = tauri::Builder::default()
         .manage(backend_config)
+        .manage(ApplicationCloseState::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
@@ -413,6 +460,8 @@ pub fn run() {
             pick_audio_folder,
             pick_audio_file,
             backend_base_url,
+            confirm_application_close,
+            set_application_close_guard,
             application_updater_configured,
             restart_application,
             open_app_data_directory,
@@ -424,31 +473,48 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let handle = window.app_handle();
-                stop_backend_sidecar(&handle);
+                let state = handle.state::<ApplicationCloseState>();
+                if should_prevent_application_close(&state) {
+                    api.prevent_close();
+                    if let Err(error) = window.emit("audux://close-requested", ()) {
+                        eprintln!("Failed to request frontend close confirmation: {error}");
+                    }
+                }
             }
         })
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
 
-    app.run(|app_handle, event| {
-        if matches!(
-            event,
-            tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
-        ) {
-            stop_backend_sidecar(app_handle);
+    app.run(|app_handle, event| match event {
+        tauri::RunEvent::Exit => stop_backend_sidecar(app_handle),
+        tauri::RunEvent::ExitRequested { api, .. } => {
+            let state = app_handle.state::<ApplicationCloseState>();
+            if should_prevent_application_close(&state) {
+                api.prevent_exit();
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    if let Err(error) = window.emit("audux://close-requested", ()) {
+                        eprintln!("Failed to request frontend exit confirmation: {error}");
+                    }
+                }
+            } else {
+                stop_backend_sidecar(app_handle);
+            }
         }
+        _ => {}
     });
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        choose_backend_port_for, terminate_std_child, updater_config_is_ready, BACKEND_API_HOST,
+        read_backend_base_url, should_prevent_application_close, terminate_std_child,
+        updater_config_is_ready, ApplicationCloseState,
     };
-    use std::net::TcpListener;
+    use std::fs;
     use std::process::{Command, Stdio};
+    use std::sync::atomic::Ordering;
     use std::thread;
     use std::time::Duration;
 
@@ -470,14 +536,25 @@ mod tests {
     }
 
     #[test]
-    fn backend_port_conflict_uses_an_available_fallback() {
-        let occupied = TcpListener::bind((BACKEND_API_HOST, 0)).unwrap();
-        let occupied_port = occupied.local_addr().unwrap().port();
+    fn backend_base_url_uses_the_atomically_published_port() {
+        let path =
+            std::env::temp_dir().join(format!("audux-port-test-{}.port", std::process::id()));
+        fs::write(&path, "49152").unwrap();
+        assert_eq!(
+            read_backend_base_url(&path).unwrap(),
+            "http://127.0.0.1:49152"
+        );
+        fs::remove_file(path).unwrap();
+    }
 
-        let selected_port = choose_backend_port_for(occupied_port);
-
-        assert_ne!(selected_port, occupied_port);
-        assert!(selected_port > 0);
+    #[test]
+    fn application_close_requires_frontend_confirmation() {
+        let state = ApplicationCloseState::default();
+        assert!(!should_prevent_application_close(&state));
+        state.dirty.store(true, Ordering::SeqCst);
+        assert!(should_prevent_application_close(&state));
+        state.confirmed.store(true, Ordering::SeqCst);
+        assert!(!should_prevent_application_close(&state));
     }
 
     #[test]

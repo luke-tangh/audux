@@ -34,8 +34,8 @@ From the repository root:
 uv run --locked python backend/run.py
 ```
 
-Check `http://127.0.0.1:8765/health`. Set `AUDUX_API_PORT` after a port conflict; Tauri selects a
-free port automatically.
+Check `http://127.0.0.1:8765/health`. Set `AUDUX_API_PORT` after a port conflict; the Tauri backend
+binds a free port atomically.
 
 An incompatible schema without a migration is intentionally rejected without modification. Use a
 compatible application version or matching snapshot; do not delete the database. See

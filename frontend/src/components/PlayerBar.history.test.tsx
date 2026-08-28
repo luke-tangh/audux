@@ -52,6 +52,46 @@ beforeEach(() => {
 });
 
 describe("PlayerBar listening history", () => {
+  it("retries the same playback position after a failed save", async () => {
+    const error = new Error("backend unavailable");
+    vi.mocked(api.updatePlaybackPosition)
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({ ok: true });
+    const onPositionSaved = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { container } = render(
+      <LocaleProvider>
+        <DialogProvider>
+          <PlayerBar
+            audio={audio}
+            queue={[audio]}
+            queueIndex={0}
+            playRequestId={0}
+            canPrevious={false}
+            canNext={false}
+            onPrevious={vi.fn()}
+            onNext={vi.fn()}
+            onQueueSelect={vi.fn()}
+            onQueueRemove={vi.fn()}
+            onQueueMove={vi.fn()}
+            onQueueClear={vi.fn()}
+            onPositionSaved={onPositionSaved}
+          />
+        </DialogProvider>
+      </LocaleProvider>
+    );
+    const element = container.querySelector("audio") as HTMLAudioElement;
+    element.currentTime = 12;
+
+    fireEvent.pause(element);
+    await waitFor(() => expect(api.updatePlaybackPosition).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(console.error).toHaveBeenCalledWith(error));
+
+    fireEvent.pause(element);
+    await waitFor(() => expect(api.updatePlaybackPosition).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onPositionSaved).toHaveBeenCalledWith(audio.id, 12));
+  });
+
   it("starts on real playback and records active wall-clock time across pause and close", async () => {
     let now = 1_000;
     vi.spyOn(Date, "now").mockImplementation(() => now);

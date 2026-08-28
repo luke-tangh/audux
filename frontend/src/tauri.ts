@@ -15,9 +15,12 @@ export type ApplicationUpdateProgress = {
   totalBytes: number | null;
 };
 
-async function invokeCommand<T>(command: string): Promise<T> {
+async function invokeCommand<T>(
+  command: string,
+  args?: Record<string, unknown>
+): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
-  return invoke<T>(command);
+  return args ? invoke<T>(command, args) : invoke<T>(command);
 }
 
 export function resolveTauriBackendBaseUrl(): Promise<string> {
@@ -26,6 +29,38 @@ export function resolveTauriBackendBaseUrl(): Promise<string> {
 
 export async function isTauriRuntime(): Promise<boolean> {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export async function listenForApplicationCloseRequest(
+  handler: () => void | Promise<void>
+): Promise<() => void> {
+  if (!(await isTauriRuntime())) return () => undefined;
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen("audux://close-requested", () => {
+    void handler();
+  });
+}
+
+export async function confirmApplicationClose(): Promise<boolean> {
+  if (!(await isTauriRuntime())) return false;
+  try {
+    await invokeCommand("confirm_application_close");
+    return true;
+  } catch (err) {
+    console.error("confirm_application_close failed", err);
+    return false;
+  }
+}
+
+export async function setApplicationCloseGuard(enabled: boolean): Promise<boolean> {
+  if (!(await isTauriRuntime())) return false;
+  try {
+    await invokeCommand("set_application_close_guard", { enabled });
+    return true;
+  } catch (err) {
+    console.error("set_application_close_guard failed", err);
+    return false;
+  }
 }
 
 export async function getCurrentApplicationVersion(): Promise<string> {

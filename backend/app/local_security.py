@@ -22,11 +22,26 @@ ALLOW_ALL_CORS = os.getenv("AUDUX_ALLOW_ALL_CORS", "").lower() in {
     "yes",
 }
 
-LOCAL_ORIGIN_REGEX = (
-    r"^(?:https?://(?:127\.0\.0\.1|localhost)(?::\d+)?"
-    r"|https?://tauri\.localhost"
-    r"|tauri://localhost)$"
+ALLOWED_ORIGINS_ENV = "AUDUX_ALLOWED_ORIGINS"
+TAURI_ORIGINS = frozenset(
+    {
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+        "tauri://localhost",
+    }
 )
+
+
+def _configured_allowed_origins() -> frozenset[str]:
+    values = {
+        value.strip().rstrip("/")
+        for value in os.getenv(ALLOWED_ORIGINS_ENV, "").split(",")
+        if value.strip()
+    }
+    return frozenset(TAURI_ORIGINS | values)
+
+
+ALLOWED_CROSS_ORIGINS = _configured_allowed_origins()
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -130,10 +145,36 @@ def _request_has_valid_local_token(request: Request) -> bool:
     return hmac.compare_digest(provided, expected)
 
 
-def _is_allowed_request_origin(origin: str) -> bool:
+def _origin_matches_request(origin: str, request: Request) -> bool:
+    try:
+        parsed = urlparse(origin)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return False
+        if parsed.path or parsed.params or parsed.query or parsed.fragment:
+            return False
+
+        request_host = request.url.hostname
+        if not request_host or parsed.hostname.lower() != request_host.lower():
+            return False
+        if request_host.lower() != "localhost" and not ipaddress.ip_address(
+            request_host
+        ).is_loopback:
+            return False
+
+        origin_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        request_port = request.url.port or (443 if request.url.scheme == "https" else 80)
+        return parsed.scheme == request.url.scheme and origin_port == request_port
+    except (ValueError, TypeError):
+        return False
+
+
+def _is_allowed_request_origin(origin: str, request: Request | None = None) -> bool:
     if ALLOW_ALL_CORS:
         return True
-    return re.fullmatch(LOCAL_ORIGIN_REGEX, origin) is not None
+    normalized = origin.rstrip("/")
+    if normalized in ALLOWED_CROSS_ORIGINS:
+        return True
+    return request is not None and _origin_matches_request(normalized, request)
 
 
 def _is_local_endpoint(endpoint: str) -> bool:

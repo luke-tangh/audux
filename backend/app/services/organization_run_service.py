@@ -583,17 +583,46 @@ def cancel_run(session: Session, run_id: int) -> dict:
     run = _run(session, run_id)
     if run.status in TERMINAL_STATUSES:
         return _serialize_run(run)
-    target_ids = session.exec(
-        select(OrganizationRunTarget.audio_id).where(
-            OrganizationRunTarget.run_id == run_id
+    attachment_events = session.exec(
+        select(OrganizationAuditEvent).where(
+            OrganizationAuditEvent.event_type == "transcription.attached"
         )
     ).all()
-    if target_ids:
+    owned_task_ids: set[int] = set()
+    attached_elsewhere: dict[int, set[int]] = {}
+    for event in attachment_events:
+        detail = _load_json(event.detail_json, {})
+        if not isinstance(detail, dict) or not isinstance(detail.get("task_id"), int):
+            continue
+        task_id = detail["task_id"]
+        if event.run_id == run_id and detail.get("owned") is True:
+            owned_task_ids.add(task_id)
+        elif event.run_id != run_id:
+            attached_elsewhere.setdefault(task_id, set()).add(event.run_id)
+
+    other_run_ids = {
+        other_run_id
+        for task_id in owned_task_ids
+        for other_run_id in attached_elsewhere.get(task_id, set())
+    }
+    other_active_run_ids = {
+        other.id
+        for other in session.exec(
+            select(OrganizationRun).where(OrganizationRun.id.in_(other_run_ids))
+        ).all()
+        if other.id is not None and other.status not in TERMINAL_STATUSES
+    } if other_run_ids else set()
+    cancelable_task_ids = {
+        task_id
+        for task_id in owned_task_ids
+        if not (attached_elsewhere.get(task_id, set()) & other_active_run_ids)
+    }
+    if cancelable_task_ids:
         from ..models import AITask
 
         tasks = session.exec(
             select(AITask)
-            .where(AITask.audio_id.in_(target_ids))
+            .where(AITask.id.in_(cancelable_task_ids))
             .where(AITask.task_type == "transcribe")
             .where(AITask.status.in_(["pending", "running", "cancel_requested"]))
         ).all()

@@ -42,7 +42,8 @@ Start the backend and frontend in separate terminals from the repository root:
 
 ```bash
 # Terminal 1
-uv run --locked python backend/run.py
+AUDUX_ALLOWED_ORIGINS=http://127.0.0.1:5173 \
+  uv run --locked python backend/run.py
 
 # Terminal 2
 cd frontend
@@ -50,7 +51,7 @@ npm run dev
 ```
 
 Open `http://127.0.0.1:5173`. The standalone development backend defaults to
-`127.0.0.1:8765`; Tauri and browser-lite select a backend port dynamically, so frontend business
+`127.0.0.1:8765`; Tauri and browser-lite bind a backend port dynamically, so frontend business
 logic must not depend on the default port.
 
 To start Tauri development mode:
