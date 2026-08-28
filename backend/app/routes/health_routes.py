@@ -4,6 +4,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from ..db import get_session
+from ..response_schemas import (
+    LibraryHealthSummaryResponse,
+    LibraryHealthTaskResponse,
+    SafeRelinkCandidatesResponse,
+    SafeRelinkCommitResponse,
+    SafeRelinkPreviewResponse,
+)
 from ..schemas import (
     DuplicateHashConfirmRequest,
     SafeRelinkCommitRequest,
@@ -34,12 +41,12 @@ def _schedule_task(
     return response
 
 
-@router.get("/library-health")
+@router.get("/library-health", response_model=LibraryHealthSummaryResponse)
 def get_library_health(session: Session = Depends(get_session)):
     return health_service.get_library_health_summary(session)
 
 
-@router.get("/library-health/tasks")
+@router.get("/library-health/tasks", response_model=list[LibraryHealthTaskResponse])
 def list_library_health_tasks(
     limit: int = Query(default=20, ge=1, le=100),
     session: Session = Depends(get_session),
@@ -47,7 +54,7 @@ def list_library_health_tasks(
     return health_service.list_health_tasks(session, limit=limit)
 
 
-@router.post("/library-health/checks")
+@router.post("/library-health/checks", response_model=LibraryHealthTaskResponse)
 def create_library_health_check(
     session: Session = Depends(get_session),
 ):
@@ -55,7 +62,10 @@ def create_library_health_check(
     return _schedule_task(session, task)
 
 
-@router.post("/library-health/duplicates/confirm")
+@router.post(
+    "/library-health/duplicates/confirm",
+    response_model=LibraryHealthTaskResponse,
+)
 def confirm_duplicate_hashes(
     payload: DuplicateHashConfirmRequest,
     session: Session = Depends(get_session),
@@ -68,7 +78,10 @@ def confirm_duplicate_hashes(
     return _schedule_task(session, task)
 
 
-@router.post("/library-health/tasks/{task_id}/cancel")
+@router.post(
+    "/library-health/tasks/{task_id}/cancel",
+    response_model=LibraryHealthTaskResponse,
+)
 def cancel_library_health_task(
     task_id: int,
     session: Session = Depends(get_session),
@@ -76,7 +89,10 @@ def cancel_library_health_task(
     return health_service.cancel_health_task(session, task_id)
 
 
-@router.post("/library-health/tasks/{task_id}/retry")
+@router.post(
+    "/library-health/tasks/{task_id}/retry",
+    response_model=LibraryHealthTaskResponse,
+)
 def retry_library_health_task(
     task_id: int,
     session: Session = Depends(get_session),
@@ -85,7 +101,10 @@ def retry_library_health_task(
     return _schedule_task(session, task)
 
 
-@router.get("/library-health/audio/{audio_id}/relink-candidates")
+@router.get(
+    "/library-health/audio/{audio_id}/relink-candidates",
+    response_model=SafeRelinkCandidatesResponse,
+)
 def find_relink_candidates(
     audio_id: int,
     limit: int = Query(default=20, ge=1, le=50),
@@ -98,7 +117,10 @@ def find_relink_candidates(
     )
 
 
-@router.post("/library-health/audio/{audio_id}/relink-preview")
+@router.post(
+    "/library-health/audio/{audio_id}/relink-preview",
+    response_model=SafeRelinkPreviewResponse,
+)
 def preview_safe_relink(
     audio_id: int,
     payload: SafeRelinkPreviewRequest,
@@ -111,7 +133,10 @@ def preview_safe_relink(
     )
 
 
-@router.post("/library-health/audio/{audio_id}/relink")
+@router.post(
+    "/library-health/audio/{audio_id}/relink",
+    response_model=SafeRelinkCommitResponse,
+)
 def commit_safe_relink(
     audio_id: int,
     payload: SafeRelinkCommitRequest,

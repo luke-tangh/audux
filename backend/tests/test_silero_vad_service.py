@@ -1,6 +1,9 @@
 import asyncio
+import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import wave
 
 import pytest
@@ -18,6 +21,33 @@ from app.services.silero_vad_service import (
 )
 
 np = silero_vad_service.np
+
+
+def test_import_disables_onnx_telemetry_before_runtime_initialization(
+    tmp_path: Path,
+):
+    backend_root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    environment.pop("ORT_DISABLE_TELEMETRY", None)
+    script = (
+        "import os, sys; "
+        f"sys.path.insert(0, {str(backend_root)!r}); "
+        "from app.services import silero_vad_service; "
+        "assert os.environ['ORT_DISABLE_TELEMETRY'] == '1'"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert list(tmp_path.glob("*.ses")) == []
+    assert "telemetry" not in result.stderr.lower()
 
 
 class FakeSession:

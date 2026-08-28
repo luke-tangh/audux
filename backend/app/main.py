@@ -21,6 +21,7 @@ from .services.health_service import recover_interrupted_health_tasks
 from .services.agent_service import recover_interrupted_agent_runs
 from .services.organization_run_service import recover_interrupted_runs
 from .services.errors import ServiceError
+from .response_schemas import AuthTokenResponse, HealthResponse
 from .request_limits import RequestBodyLimitMiddleware
 from .local_security import (
     ALLOW_ALL_CORS,
@@ -165,12 +166,12 @@ async def local_request_guard(request: Request, call_next):
     return await call_next(request)
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 def health():
     return {"status": "ok"}
 
 
-@app.get("/auth/token")
+@app.get("/auth/token", response_model=AuthTokenResponse)
 def get_auth_token():
     return {
         "token": _get_or_create_local_api_token(),

@@ -18,6 +18,11 @@ for _thread_env in (
 ):
     os.environ[_thread_env] = "1"
 
+# Audux is local-first. ONNX Runtime 1.29 enables POSIX telemetry in official
+# builds, so opt out before importing it; doing this later can already create a
+# persistent device identifier and a ``*.ses`` file in the working directory.
+os.environ["ORT_DISABLE_TELEMETRY"] = "1"
+
 import numpy as np
 import onnxruntime as ort
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from ..db import get_session
+from ..response_schemas import OkResponse, SavedViewResponse
 from ..schemas import (
     SavedViewCopy,
     SavedViewCreate,
@@ -14,12 +15,12 @@ from ..services import saved_view_service
 router = APIRouter(prefix="/saved-views")
 
 
-@router.get("")
+@router.get("", response_model=list[SavedViewResponse])
 def list_saved_views(session: Session = Depends(get_session)):
     return saved_view_service.list_saved_views(session)
 
 
-@router.post("")
+@router.post("", response_model=SavedViewResponse)
 def create_saved_view(
     payload: SavedViewCreate,
     session: Session = Depends(get_session),
@@ -31,7 +32,7 @@ def create_saved_view(
     )
 
 
-@router.patch("/reorder")
+@router.patch("/reorder", response_model=list[SavedViewResponse])
 def reorder_saved_views(
     payload: SavedViewsReorder,
     session: Session = Depends(get_session),
@@ -42,7 +43,7 @@ def reorder_saved_views(
     )
 
 
-@router.patch("/{view_id}")
+@router.patch("/{view_id}", response_model=SavedViewResponse)
 def update_saved_view(
     view_id: int,
     payload: SavedViewUpdate,
@@ -56,7 +57,7 @@ def update_saved_view(
     )
 
 
-@router.post("/{view_id}/copy")
+@router.post("/{view_id}/copy", response_model=SavedViewResponse)
 def copy_saved_view(
     view_id: int,
     payload: SavedViewCopy,
@@ -69,7 +70,7 @@ def copy_saved_view(
     )
 
 
-@router.delete("/{view_id}")
+@router.delete("/{view_id}", response_model=OkResponse)
 def delete_saved_view(
     view_id: int,
     session: Session = Depends(get_session),

@@ -107,6 +107,8 @@ Token 文件无法读取、创建或收紧为私有权限时，后端会拒绝�
 
 ## Provider 与 Agent 边界
 
+- Audux 会在加载内置本地 VAD 前禁用 ONNX Runtime 遥测，不初始化上传器、遥测事件或持久化
+  设备标识。
 - 远程 ASR 会收到完整音频或切片，远程 LLM 会收到相关 metadata 与 Transcript。
 - 非回环 endpoint 默认拒绝，必须在设置中明确允许。
 - Agent scope 由后端解析并冻结，不由 Prompt 自律；Transcript 与模型输出都视为不可信输入。

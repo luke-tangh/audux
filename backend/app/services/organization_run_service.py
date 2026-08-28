@@ -582,7 +582,7 @@ def apply_run(session: Session, run_id: int, payload: OrganizationRunApply) -> d
 def cancel_run(session: Session, run_id: int) -> dict:
     run = _run(session, run_id)
     if run.status in TERMINAL_STATUSES:
-        return _serialize_run(run)
+        return get_run(session, run_id)
     attachment_events = session.exec(
         select(OrganizationAuditEvent).where(
             OrganizationAuditEvent.event_type == "transcription.attached"
@@ -642,7 +642,7 @@ def cancel_run(session: Session, run_id: int) -> dict:
         run.finished_at = run.updated_at
     session.add(run)
     session.commit()
-    return _serialize_run(run)
+    return get_run(session, run_id)
 
 
 def retry_run(session: Session, run_id: int) -> dict:
@@ -656,7 +656,7 @@ def retry_run(session: Session, run_id: int) -> dict:
     run.updated_at = now_iso()
     session.add(run)
     session.commit()
-    return _serialize_run(run)
+    return get_run(session, run_id)
 
 
 def recover_interrupted_runs(bind) -> int:

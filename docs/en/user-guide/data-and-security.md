@@ -116,6 +116,8 @@ disk problems under `~/.audux/` first.
 
 ## Provider and agent boundaries
 
+- Audux disables ONNX Runtime telemetry before loading the bundled local VAD;
+  no uploader, telemetry event, or persistent device identifier is initialized.
 - Remote ASR receives full audio or chunks; remote LLMs receive relevant metadata and transcripts.
 - Non-loopback endpoints are rejected until explicitly allowed.
 - The backend resolves and freezes agent scope; prompts do not control authorization. Transcript

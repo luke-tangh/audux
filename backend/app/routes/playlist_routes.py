@@ -1,9 +1,19 @@
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlmodel import Session
 
 from ..db import get_session
+from ..response_schemas import (
+    CountResponse,
+    OkResponse,
+    PaginatedAudioItemsResponse,
+    PlaylistDeleteResponse,
+    PlaylistDetailResponse,
+    PlaylistItemResponse,
+    PlaylistResponse,
+)
 from ..schemas import (
     AudioSortMode,
     PlaylistCreate,
@@ -18,7 +28,7 @@ from ..services import playlist_service
 router = APIRouter()
 
 
-@router.post("/playlists")
+@router.post("/playlists", response_model=PlaylistResponse)
 def create_playlist(
     payload: PlaylistCreate,
     session: Session = Depends(get_session),
@@ -26,12 +36,12 @@ def create_playlist(
     return playlist_service.create_playlist(session, payload.name, payload.description)
 
 
-@router.get("/playlists")
+@router.get("/playlists", response_model=list[PlaylistResponse])
 def list_playlists(session: Session = Depends(get_session)):
     return playlist_service.list_playlists(session)
 
 
-@router.post("/playlists/smart")
+@router.post("/playlists/smart", response_model=PlaylistResponse)
 def create_smart_playlist(
     payload: SmartPlaylistCreate,
     session: Session = Depends(get_session),
@@ -44,7 +54,7 @@ def create_smart_playlist(
     )
 
 
-@router.patch("/playlists/{playlist_id}")
+@router.patch("/playlists/{playlist_id}", response_model=PlaylistResponse)
 def update_playlist(
     playlist_id: int,
     payload: PlaylistUpdate,
@@ -57,7 +67,7 @@ def update_playlist(
     )
 
 
-@router.delete("/playlists/{playlist_id}")
+@router.delete("/playlists/{playlist_id}", response_model=PlaylistDeleteResponse)
 def delete_playlist(
     playlist_id: int,
     session: Session = Depends(get_session),
@@ -65,7 +75,7 @@ def delete_playlist(
     return playlist_service.delete_playlist(session, playlist_id)
 
 
-@router.get("/playlists/{playlist_id}")
+@router.get("/playlists/{playlist_id}", response_model=PlaylistDetailResponse)
 def get_playlist(
     playlist_id: int,
     include_disabled_roots: bool = False,
@@ -78,7 +88,10 @@ def get_playlist(
     )
 
 
-@router.get("/playlists/{playlist_id}/items")
+@router.get(
+    "/playlists/{playlist_id}/items",
+    response_model=PaginatedAudioItemsResponse,
+)
 def list_playlist_audio_items(
     playlist_id: int,
     q: Optional[str] = None,
@@ -121,7 +134,10 @@ def list_playlist_audio_items(
     )
 
 
-@router.post("/playlists/{playlist_id}/items")
+@router.post(
+    "/playlists/{playlist_id}/items",
+    response_model=PlaylistItemResponse,
+)
 def add_audio_to_playlist(
     playlist_id: int,
     payload: PlaylistItemAdd,
@@ -134,7 +150,10 @@ def add_audio_to_playlist(
     )
 
 
-@router.patch("/playlists/{playlist_id}/items/reorder")
+@router.patch(
+    "/playlists/{playlist_id}/items/reorder",
+    response_model=CountResponse,
+)
 def reorder_playlist_items(
     playlist_id: int,
     payload: PlaylistItemsReorder,
@@ -147,7 +166,10 @@ def reorder_playlist_items(
     )
 
 
-@router.delete("/playlists/{playlist_id}/items/{item_id}")
+@router.delete(
+    "/playlists/{playlist_id}/items/{item_id}",
+    response_model=OkResponse,
+)
 def remove_playlist_item(
     playlist_id: int,
     item_id: int,
@@ -160,7 +182,7 @@ def remove_playlist_item(
     )
 
 
-@router.get("/playlists/{playlist_id}/export")
+@router.get("/playlists/{playlist_id}/export", response_class=Response)
 def export_playlist(
     playlist_id: int,
     format: str = "json",
