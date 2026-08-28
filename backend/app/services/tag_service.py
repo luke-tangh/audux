@@ -36,13 +36,15 @@ def update_tag(session: Session, tag_id: int, name_value: str | None) -> Tag:
 
     tag.name = name
     session.add(tag)
-    session.commit()
-    session.refresh(tag)
-
-    for audio_id in audio_ids:
-        rebuild_audio_search_index(session, audio_id)
-
-    session.refresh(tag)
+    try:
+        session.flush()
+        for audio_id in audio_ids:
+            rebuild_audio_search_index(session, audio_id, commit=False)
+        session.commit()
+        session.refresh(tag)
+    except Exception:
+        session.rollback()
+        raise
     logger.info("Tag renamed id=%s name=%s", tag_id, name)
     return tag
 
@@ -65,10 +67,14 @@ def delete_tag(session: Session, tag_id: int, force: bool = False) -> dict:
         session.delete(link)
 
     session.delete(tag)
-    session.commit()
-
-    for audio_id in affected_audio_ids:
-        rebuild_audio_search_index(session, audio_id)
+    try:
+        session.flush()
+        for audio_id in affected_audio_ids:
+            rebuild_audio_search_index(session, audio_id, commit=False)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
 
     logger.info("Tag deleted id=%s force=%s", tag_id, force)
     return {
@@ -113,13 +119,15 @@ def merge_tag(session: Session, source_tag_id: int, target_tag_id: int) -> dict:
             session.add(audio)
 
     session.delete(source)
-    session.flush()
-
-    for audio_id in affected_audio_ids:
-        rebuild_audio_search_index(session, audio_id, commit=False)
-
-    session.commit()
-    session.refresh(target)
+    try:
+        session.flush()
+        for audio_id in affected_audio_ids:
+            rebuild_audio_search_index(session, audio_id, commit=False)
+        session.commit()
+        session.refresh(target)
+    except Exception:
+        session.rollback()
+        raise
 
     logger.info(
         "Tag merged source_id=%s target_id=%s affected_audio=%s",
@@ -141,11 +149,15 @@ def add_tags_to_audio(
     tags: list[str],
     source: str = "user",
 ) -> list[Tag]:
-    result = add_tags_to_audio_no_commit(session, audio_id, tags, source)
-    rebuild_audio_search_index(session, audio_id, commit=False)
-    session.commit()
-    for tag in result:
-        session.refresh(tag)
+    try:
+        result = add_tags_to_audio_no_commit(session, audio_id, tags, source)
+        rebuild_audio_search_index(session, audio_id, commit=False)
+        session.commit()
+        for tag in result:
+            session.refresh(tag)
+    except Exception:
+        session.rollback()
+        raise
     return result
 
 
@@ -206,6 +218,11 @@ def remove_audio_tag(session: Session, audio_id: int, tag_id: int) -> dict:
         item.updated_at = now_iso()
         session.add(item)
 
-    session.commit()
-    rebuild_audio_search_index(session, audio_id)
+    try:
+        session.flush()
+        rebuild_audio_search_index(session, audio_id, commit=False)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
     return {"ok": True}

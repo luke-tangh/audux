@@ -1,12 +1,22 @@
-from typing import Any, TypeVar
+from typing import Any, Protocol, TypeVar, cast
 
-from sqlalchemy import func, update
+from sqlalchemy import CursorResult, func, update
 from sqlmodel import Session, select
 
 from .models import now_iso
 
 
-TaskRow = TypeVar("TaskRow")
+class TaskRowProtocol(Protocol):
+    # SQLModel exposes scalar values on instances and SQL expressions on the
+    # model class. Any is intentional at this generic class/instance boundary.
+    id: Any
+    status: Any
+    created_at: Any
+    started_at: Any
+    updated_at: Any
+
+
+TaskRow = TypeVar("TaskRow", bound=TaskRowProtocol)
 
 
 def claim_next_pending(
@@ -29,13 +39,16 @@ def claim_next_pending(
         if preserve_started_at
         else timestamp
     )
-    result = session.execute(
-        update(model)
-        .where(model.id == row_id, model.status == "pending")
-        .values(
-            status="running",
-            started_at=started_at,
-            updated_at=timestamp,
+    result = cast(
+        CursorResult[Any],
+        session.execute(
+            update(model)
+            .where(model.id == row_id, model.status == "pending")
+            .values(
+                status="running",
+                started_at=started_at,
+                updated_at=timestamp,
+            )
         )
     )
     session.commit()

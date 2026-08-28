@@ -14,23 +14,66 @@ from .task_state import get_active_scan_task, is_unique_constraint_error
 logger = get_logger(__name__)
 
 
-def create_library_root(session: Session, path_value: str) -> LibraryRoot:
+def _validated_library_path(path_value: str) -> str:
     path = str(Path(path_value).expanduser().resolve())
 
     if not Path(path).exists() or not Path(path).is_dir():
         raise ServiceError(400, "Invalid directory")
+    return path
 
-    exists = session.exec(select(LibraryRoot).where(LibraryRoot.path == path)).first()
-    if exists:
+
+def _ensure_library_path_available(session: Session, path: str) -> None:
+    if session.exec(select(LibraryRoot.id).where(LibraryRoot.path == path)).first():
         raise ServiceError(409, "Library root already exists")
+
+
+def create_library_root(session: Session, path_value: str) -> LibraryRoot:
+    path = _validated_library_path(path_value)
+    _ensure_library_path_available(session, path)
 
     root = LibraryRoot(path=path)
     session.add(root)
-    session.commit()
-    session.refresh(root)
+    try:
+        session.commit()
+        session.refresh(root)
+    except IntegrityError as error:
+        session.rollback()
+        if session.exec(select(LibraryRoot.id).where(LibraryRoot.path == path)).first():
+            raise ServiceError(409, "Library root already exists") from error
+        raise
 
     logger.info("Library root created: %s", path)
     return root
+
+
+def create_library_import(
+    session: Session,
+    path_value: str,
+) -> tuple[LibraryRoot, ScanTask]:
+    """Create a library root and its initial scan task atomically."""
+    path = _validated_library_path(path_value)
+    _ensure_library_path_available(session, path)
+    root = LibraryRoot(path=path)
+    session.add(root)
+
+    try:
+        session.flush()
+        task = ScanTask(root_id=int(root.id), status="pending")
+        session.add(task)
+        session.commit()
+        session.refresh(root)
+        session.refresh(task)
+    except IntegrityError as error:
+        session.rollback()
+        if session.exec(select(LibraryRoot.id).where(LibraryRoot.path == path)).first():
+            raise ServiceError(409, "Library root already exists") from error
+        raise
+    except Exception:
+        session.rollback()
+        raise
+
+    logger.info("Library root import queued: %s task=%s", path, task.id)
+    return root, task
 
 
 def list_library_roots(session: Session) -> list[LibraryRoot]:

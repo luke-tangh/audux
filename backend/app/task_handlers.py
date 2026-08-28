@@ -10,7 +10,7 @@ from .asr_client import transcribe_external_audio
 from .asr_config import ASR_PROVIDER_EXTERNAL, get_external_asr_api_key, resolve_asr_task_config
 from .local_security import ensure_asr_endpoint_allowed, ensure_llm_endpoint_allowed
 from .logger import get_logger
-from .models import AudioItem, Transcript, TranscriptSegment, now_iso
+from .models import AITask, AudioItem, Transcript, TranscriptSegment, now_iso
 from .search import rebuild_audio_search_index
 from .settings_reader import get_setting, get_setting_float, get_setting_int
 from .task_heartbeat import run_with_task_heartbeat as _run_with_task_heartbeat

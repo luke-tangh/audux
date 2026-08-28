@@ -57,6 +57,19 @@ class TestV08OrganizationRunApi(ApiIntegrationTest):
         assert response.status_code == 200, response.text
         return response.json()
 
+    @pytest.mark.anyio
+    async def test_worker_can_be_stopped_and_restarted(self):
+        await organization_tasks.stop_worker()
+
+        first = organization_tasks.start_worker_once()
+        assert organization_tasks.start_worker_once() is first
+        await organization_tasks.stop_worker()
+        assert first.cancelled()
+
+        second = organization_tasks.start_worker_once()
+        assert second is not first
+        await organization_tasks.stop_worker()
+
     def test_create_freezes_targets_and_persists_all_stages(self):
         transcript = self._seed_transcript()
         run = self._create_run()

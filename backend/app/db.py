@@ -12,6 +12,7 @@ from .time_utils import utc_now_iso
 
 logger = logging.getLogger(__name__)
 CURRENT_SCHEMA_VERSION = 6
+APP_DATA_DIR_ENV = "AUDUX_DATA_DIR"
 
 
 def _ensure_private_directory(path: Path) -> None:
@@ -32,26 +33,26 @@ def restrict_private_file(path: Path) -> None:
         logger.warning("Could not restrict file permissions: %s", path)
 
 
-APP_DATA_DIR = Path.home() / ".audux"
-_ensure_private_directory(APP_DATA_DIR)
+def _configured_app_data_dir() -> Path:
+    configured = os.getenv(APP_DATA_DIR_ENV, "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    return Path.home() / ".audux"
+
+
+APP_DATA_DIR = _configured_app_data_dir()
 
 COVERS_DIR = APP_DATA_DIR / "covers"
-_ensure_private_directory(COVERS_DIR)
 
 LOGS_DIR = APP_DATA_DIR / "logs"
-_ensure_private_directory(LOGS_DIR)
 
 EXPORTS_DIR = APP_DATA_DIR / "exports"
-_ensure_private_directory(EXPORTS_DIR)
 
 BACKUPS_DIR = APP_DATA_DIR / "backups"
-_ensure_private_directory(BACKUPS_DIR)
 
 COMPONENTS_DIR = APP_DATA_DIR / "components"
-_ensure_private_directory(COMPONENTS_DIR)
 
 MODELS_DIR = APP_DATA_DIR / "models"
-_ensure_private_directory(MODELS_DIR)
 
 DB_PATH = APP_DATA_DIR / "database.sqlite"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -64,6 +65,20 @@ engine = create_engine(
         "timeout": 30,
     },
 )
+
+
+def initialize_runtime_directories() -> None:
+    """Create private runtime directories during application startup."""
+    for path in (
+        APP_DATA_DIR,
+        COVERS_DIR,
+        LOGS_DIR,
+        EXPORTS_DIR,
+        BACKUPS_DIR,
+        COMPONENTS_DIR,
+        MODELS_DIR,
+    ):
+        _ensure_private_directory(path)
 
 
 @event.listens_for(engine, "connect")

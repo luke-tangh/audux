@@ -61,16 +61,32 @@ npm run tauri:dev
 从 `backend/` 执行：
 
 ```bash
+uv run --locked --group test ruff check app tests
+
+uv run --locked --group test mypy \
+  app/worker_supervisor.py app/task_runtime.py app/db.py
+
 uv run --locked --group test python -m pytest tests
 
 uv run --locked --group test python -m pytest tests \
   --cov=app --cov-branch \
   --cov-report=term-missing:skip-covered --cov-report=xml \
   --cov-fail-under=70
+
+uv run --locked --group test coverage report --include='app/task_handlers.py' --fail-under=70
+uv run --locked --group test coverage report --include='app/task_heartbeat.py' --fail-under=60
+uv run --locked --group test coverage report --include='app/tasks.py' --fail-under=60
+uv run --locked --group test coverage report --include='app/agent_tasks.py' --fail-under=65
+uv run --locked --group test coverage report --include='app/organization_tasks.py' --fail-under=55
+uv run --locked --group test coverage report --include='app/worker_supervisor.py' --fail-under=90
 ```
 
-测试基础设施在收集前建立进程级临时 home。API 测试应复用 `tests.api_test_support`，不得
-绕过临时数据库、媒体根、封面、日志和 Token 文件隔离。
+聚焦覆盖门禁用于保护任务执行、心跳、监督恢复以及长时间运行的组织/Agent 工作流，避免
+这些关键路径的覆盖缺口被仓库总体平均值掩盖。
+
+测试基础设施在收集前把 `AUDUX_DATA_DIR` 设为进程级临时目录。API 测试应复用
+`tests.api_test_support`，不得绕过临时数据库、媒体根、封面、日志和 Token 文件隔离。
+应用导入阶段只解析运行路径，目录统一在应用启动阶段创建。
 
 ## Frontend 验证
 

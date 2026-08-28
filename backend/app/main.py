@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from .api_routes import router as api_router
 from .logger import setup_logging, get_logger
-from .db import engine
+from .db import engine, initialize_runtime_directories
 from .scanner import recover_interrupted_scan_tasks
 from .tasks import start_worker_once, stop_worker
 from .agent_tasks import start_agent_worker_once, stop_agent_worker
@@ -38,12 +38,13 @@ from .local_security import (
 )
 
 
-setup_logging()
 logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    initialize_runtime_directories()
+    setup_logging()
     initialize_database_with_pending_restore()
     _get_or_create_local_api_token()
 

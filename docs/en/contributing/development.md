@@ -64,17 +64,33 @@ backend URL, never a hardcoded `8765`.
 Run from `backend/`:
 
 ```bash
+uv run --locked --group test ruff check app tests
+
+uv run --locked --group test mypy \
+  app/worker_supervisor.py app/task_runtime.py app/db.py
+
 uv run --locked --group test python -m pytest tests
 
 uv run --locked --group test python -m pytest tests \
   --cov=app --cov-branch \
   --cov-report=term-missing:skip-covered --cov-report=xml \
   --cov-fail-under=70
+
+uv run --locked --group test coverage report --include='app/task_handlers.py' --fail-under=70
+uv run --locked --group test coverage report --include='app/task_heartbeat.py' --fail-under=60
+uv run --locked --group test coverage report --include='app/tasks.py' --fail-under=60
+uv run --locked --group test coverage report --include='app/agent_tasks.py' --fail-under=65
+uv run --locked --group test coverage report --include='app/organization_tasks.py' --fail-under=55
+uv run --locked --group test coverage report --include='app/worker_supervisor.py' --fail-under=90
 ```
 
-Test infrastructure establishes a process-wide temporary home before collection. API tests reuse
-`tests.api_test_support` and must not bypass temporary database, media-root, cover, log, or token
-isolation.
+The focused coverage gate protects task execution, heartbeat, supervision, and long-running
+organization/agent workflows from being hidden by the repository-wide average.
+
+Test infrastructure sets `AUDUX_DATA_DIR` to a process-wide temporary directory before collection.
+API tests reuse `tests.api_test_support` and must not bypass temporary database, media-root, cover,
+log, or token isolation. Application imports only resolve runtime paths; directory creation occurs
+during application startup.
 
 ## Frontend validation
 
