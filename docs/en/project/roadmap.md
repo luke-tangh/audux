@@ -3,15 +3,15 @@
 [Project planning](README.md) · [English documentation home](../README.md) ·
 [简体中文](../../zh-CN/project/roadmap.md)
 
-> Updated 2026-08-25. The current stable version is `1.0.0`, database schema v6, archive format v1.
+> Updated 2026-08-28. The current stable version is `1.0.0`, database schema v6, archive format v1.
 > v0.x versions are retained as internal beta history. The
 > [compatibility contract](../reference/compatibility.md) defines the public v1 boundary.
 
 ## Current assessment
 
-The internal v0.5-v0.9 stages have converged into the v1.0 implementation. A public tag still
-requires the three-platform installation, recovery, provider, MCP, archive, and long-running gates;
-manual workflows create internal validation artifacts only.
+The internal v0.5-v0.9 stages converged into the first public stable release, v1.0.0. Every later
+public tag still requires the three-platform installation, recovery, provider, MCP, archive, and
+long-running gates; manual workflows create internal validation artifacts only.
 
 Audux does not treat chapters, semantic retrieval, Q&A, and AI organization as isolated features.
 They form a constrained local agent loop that is inspectable, pausable, and recoverable:
@@ -159,7 +159,12 @@ allowing framework data models to redefine product data.
 | v0.7 | Evidence retrieval and read-only agent | Complete |
 | v0.8 | Transcription, validation, tags, and correction loop | Complete |
 | v0.9 | Safe operation agent, MCP, archives, and release hardening | Complete |
-| v1.0 | Stable agent-native local audio knowledge base | Implementation complete; release acceptance pending |
+| v1.0 | Stable agent-native local audio knowledge base | Released |
+| v1.0.x | Stability, upgrades, and platform trust | Planned |
+| v1.1 | Optional hybrid semantic retrieval | Planned |
+| v1.2 | Bookmarks, clips, and personal notes | Planned |
+| v1.3 | Transcript Studio | Candidate |
+| v1.4 | Continuous ingestion and evidence-backed outputs | Candidate |
 
 ## v0.5: core workflow baseline
 
@@ -240,7 +245,7 @@ Exit gates require no approval bypass, scope expansion, or partial writes; match
 MCP results through a real stdio seam; complete archive export/import; and realistic long-running,
 cancellation, recovery, and exit evidence on every platform.
 
-## v1.0: stable local audio knowledge base
+## v1.0: stable local audio knowledge base (released)
 
 v1.0 is a quality and compatibility gate, not another feature pile. It requires documented platform,
 database, archive, provider, and MCP versions; migration/deprecation policy; tested backup, restore,
@@ -253,7 +258,111 @@ Implementation freezes schema v6, archive v1, Provider/MCP contracts, offline de
 deletion semantics. The [compatibility contract](../reference/compatibility.md) and
 [release checklist](../contributing/release-checklist.md) govern public tagging.
 
-## Explicitly outside v1.0
+## Post-v1.0 release line
+
+The release line follows this order: establish trust, improve retrieval, deepen personal knowledge,
+refine transcripts, then automate ingestion. Version numbers express outcomes and dependency order,
+not precommitted dates. Before implementation, every minor release still needs an ADR for its data
+model, compatibility path, resource budget, and acceptance dataset.
+
+### v1.0.x: stability, upgrades, and platform trust
+
+- Prioritize public-release defects in installation, first launch, upgrades, rollback,
+  suspend/resume, process exit, and provider compatibility instead of adding major features.
+- Generalize the release workflow from `v1.0.*` to a v1.x flow that strictly validates the version,
+  main ancestry, release notes, signatures, and assembled artifacts.
+- Improve startup, scanning, search, playback, and task resource limits for large libraries while
+  keeping diagnostics local and redacted by default.
+- Add Windows Authenticode and Apple Developer ID signing/notarization once project identity and
+  secure key management are available; platform signing does not replace Tauri updater signatures.
+- Patch releases retain database schema v6, archive format v1, and the published Provider/MCP
+  contracts.
+
+Exit gate: patch builds complete installation, in-app upgrade, and documented rollback on all three
+targets, with no known data corruption, undisclosed remote sending, or broken degradation path.
+
+### v1.1: optional hybrid semantic retrieval
+
+- Ship an optional local embedding component with model, dimension, chunking, source revision, and
+  index-version provenance. Embeddings and vector indexes remain deletable, rebuildable derivatives.
+- Fuse FTS, metadata filters, and vector similarity without allowing semantic results to bury exact
+  title, tag, author, or keyword matches.
+- Support incremental indexing, cancellation, restart recovery, model replacement, and full repair;
+  an index failure never blocks playback, manual organization, or FTS.
+- Show `FTS`, `Hybrid`, and fallback reasons in search and agent UI. Backend scope enforcement,
+  result limits, and citation/revision validation remain authoritative.
+- Target no change to trusted user data or the archive format. If the implementation requires a
+  stable-schema change, it must first provide the same snapshot, migration, and rollback evidence
+  required for v1.2.
+
+Exit gate: fixed bilingual evaluations meet predefined Recall@k, ranking, and citation-coverage
+improvements without regressing exact FTS queries; latency, disk, and memory budgets pass with
+10,000 audio items on every target; uninstalling embeddings returns losslessly to FTS.
+
+### v1.2: bookmarks, clips, and personal notes
+
+- Add bookmarks, clips, and personal notes bound to audio, time ranges, and optional transcript
+  revisions/segments. Every record seeks to playback and displays source context.
+- Add waveform preview, clip-review cache, and clip export without editing, cutting, or overwriting
+  original audio files.
+- Include bookmarks and notes in unified retrieval and agent evidence. Agents are read-only by
+  default; create, edit, or delete operations require an exact plan and one-time approval.
+- Bring richer local tag taxonomy, synonyms, and user terminology into search and export with this
+  knowledge layer.
+- As the first planned stable minor that changes trusted user data, ship an explicit migration from
+  schema v6, a verified `pre_update` snapshot, and rollback on failure. A new archive format must
+  continue importing v1 and fully cover the added content.
+
+Exit gate: create, edit, search, playback, export, archive import, and database restore never lose or
+misbind notes; failed upgrades restore the old schema; legacy import and new-format round trips pass
+at realistic scale.
+
+### v1.3: Transcript Studio
+
+- Add word timestamps, manual timeline edits, and realignment of affected ranges after accepted text
+  correction.
+- Add optional speaker diarization, speaker renaming, and speaker-aware search, citation, chapters,
+  and notes.
+- Deliver alignment and diarization models as optional components. Missing components, insufficient
+  hardware, or low quality retain the segment workflow and show an explicit fallback reason.
+- Keep raw ASR, automatic alignment, automatic speaker output, and user-accepted content separate.
+  Realignment or rediarization never silently overwrites user edits.
+
+Exit gate: fixed multilingual fixtures record alignment-boundary and speaker quality; every automatic
+result is playable, editable, rejectable, and rebuildable; no stale word, speaker, or time anchor acts
+as current evidence after a revision change.
+
+### v1.4: continuous ingestion and evidence-backed outputs
+
+- Folder watchers turn changes under trusted library roots into debounced, cancellable, recoverable
+  incremental scans. Event storms, renames, moves, temporary disconnects, and platform differences
+  must not create duplicates or false deletions.
+- Automatic organization retains explicit scope, concurrency/time/disk budgets, and pausable runs.
+  Remote-provider use follows a user-selected policy and discloses the send scope before execution;
+  a new file never causes silent network access.
+- Generate study outlines, show notes, and cross-audio topic reports from current audio, playlists,
+  saved views, or explicit selections. Factual passages require playable citations and export to a
+  stable portable format.
+- Neither automated ingestion nor reporting receives file deletion, move, overwrite, arbitrary
+  network, or shell capabilities.
+
+Exit gate: every target passes long-running watch, suspend/resume, event-storm, and task-restart tests;
+automatic runs cannot expand frozen scope or cause undisclosed remote sending; report citations are
+revalidated before export and seek to the current revision.
+
+### Ordering and compatibility
+
+1. v1.1 delivers rebuildable derived data first, keeping retrieval experiments separate from the
+   first user-data migration.
+2. v1.2 uses bookmarks and notes to validate stable migration, archive evolution, and rollback as a
+   template for later schema changes.
+3. v1.3 keeps alignment and speaker features optional because model size, hardware, and quality vary.
+4. v1.4 adds cross-platform file events and automatic runs only after retrieval, the knowledge layer,
+   and recovery semantics are stable.
+5. v1.x minor releases add compatible capabilities. A schema, archive, Provider/MCP, or local
+   single-user trust-boundary break requires a compatible migration or a new-major proposal.
+
+## Boundaries retained throughout v1.x
 
 - A general agent with internet, shell, arbitrary files, or arbitrary HTTP endpoints.
 - Multi-agent swarms, invisible delegation, or unauditable autonomous loops.
@@ -262,23 +371,18 @@ deletion semantics. The [compatibility contract](../reference/compatibility.md) 
 - Model self-reflection as factual verification or definitive answers without transcript evidence.
 - Cloud/multi-device sync, shared sessions, mobile clients, or a built-in model store.
 
-These change the local single-user trusted-library boundary and require separate post-v1 proposals.
-
-## Candidate enhancements
-
-- Speaker diarization/renaming and speaker-aware retrieval/citations.
-- Word timestamps, manual timeline edits, and realignment after accepted correction.
-- Bookmarks, clips, and notes as agent-readable but read-only-by-default knowledge.
-- Folder watching and automatic organization runs with explicit scope/resource policy.
-- Clip review caches, waveform previews, and segment export.
-- Richer local tag taxonomy, synonyms, and user-maintained terminology.
-- Exportable study outlines, show notes, and cross-audio topic reports.
+These change the local single-user trusted-library boundary and do not enter scope merely because a
+post-v1 release line exists. Cloud sync, collaboration, mobile clients, general agents, write MCP,
+and a model store each require an independent proposal; a public-contract change belongs in a new
+major version.
 
 ## Current priorities
 
-1. Complete Tauri, browser-lite, MCP, and Whisper-companion clean-install, long-running,
-   suspend/resume, port-conflict, and normal-exit acceptance on Linux, Windows, and macOS.
-2. Retain independent security evidence for archive dry-run/import, snapshot rollback, diagnostic
-   redaction, and controlled agent approval.
-3. Continue fixed retrieval, citation, correction, and tag evaluations and record quality/resource
-   regressions. Candidate enhancements must not displace the v1.0 stability gate.
+1. Maintain the v1.0.x patch rhythm, validate real upgrade/rollback paths, and safely extend the
+   release workflow to later v1.x tags.
+2. Fix the v1.1 embedding candidate, hybrid ranking algorithm, three-platform size/resource budgets,
+   and bilingual retrieval gates without weakening FTS or offline operation.
+3. Write the v1.2 schema/archive ADR and migration rehearsal before implementing bookmark, clip, and
+   note UI.
+4. Continue retrieval, citation, correction, and tag evaluations and record compatibility, security,
+   and resource regressions from public builds.
