@@ -136,7 +136,11 @@ patchelf, and Rust; minimal systems also need `fonts-noto-cjk` for Chinese UI.
 Unless the user explicitly requests local-only work or an earlier stopping
 point, use this delivery workflow:
 
-1. Update `origin/main` and create a new focused topic branch from it. Do not
+1. Fetch and prune `origin`, switch to `main`, fast-forward it from
+   `origin/main`, and run `python3 scripts/clean_local_branches.py --delete`
+   before creating a new focused topic branch. The cleanup only removes local
+   branches whose exact GitHub PR head was merged into `origin/main`; it skips
+   checked-out worktrees and branches without matching merge evidence. Do not
    reuse a branch that already has an unrelated pull request.
 2. Complete the requested change and its tests without unrelated refactors.
 3. Run the applicable local checks from this document, broadening them in
@@ -148,6 +152,10 @@ point, use this delivery workflow:
 6. Enable squash auto-merge on the pull request and report its URL. Required
    GitHub checks remain the authority for the final merge; fix failures on the
    topic branch rather than weakening a gate.
+7. After the pull request is confirmed merged, switch to `main`, fast-forward
+   it from `origin/main`, and run
+   `python3 scripts/clean_local_branches.py --delete`. If cleanup cannot run at
+   the end of the current session, the next task's first step must perform it.
 
 `main` is protected for administrators too: never push directly, force-push,
 delete, or bypass protection. Pull-request branches must be current with `main`;
