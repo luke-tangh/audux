@@ -1,5 +1,7 @@
 import sqlite3
 import stat
+import subprocess
+import sys
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -112,6 +114,47 @@ class TestDatabaseSchema:
 
         if db.os.name != "nt":
             assert stat.S_IMODE(self.db_path.stat().st_mode) == 0o600
+
+    def test_import_does_not_create_runtime_directories(self, tmp_path: Path):
+        runtime_dir = tmp_path / "not-created-during-import"
+        environment = dict(db.os.environ)
+        environment[db.APP_DATA_DIR_ENV] = str(runtime_dir)
+
+        result = subprocess.run(
+            [sys.executable, "-c", "import app.db"],
+            cwd=Path(__file__).parents[1],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert not runtime_dir.exists()
+
+    def test_explicit_database_initialization_creates_runtime_directories(
+        self,
+        tmp_path: Path,
+    ):
+        runtime_dir = tmp_path / "created-during-initialization"
+        environment = dict(db.os.environ)
+        environment[db.APP_DATA_DIR_ENV] = str(runtime_dir)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from app import db, models; db.create_db_and_tables()",
+            ],
+            cwd=Path(__file__).parents[1],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert (runtime_dir / "database.sqlite").is_file()
 
     @pytest.mark.skipif(db.os.name == "nt", reason="POSIX permission bits")
     def test_private_paths_tighten_existing_permissions(self, tmp_path: Path):

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from sqlmodel import Session, select
 
@@ -461,3 +463,100 @@ class TestTaskStateTransitions(ApiIntegrationTest):
                 .where(Transcript.is_current.is_(True))
             ).one()
             assert transcript.full_text == "ARK-ASR-3B uses PyTorch."
+
+    @pytest.mark.anyio
+    async def test_analyze_persists_bounded_structured_output(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        with Session(self.engine) as session:
+            session.add_all(
+                [
+                    Setting(key="llm.endpoint", value="http://127.0.0.1:11434/v1"),
+                    Setting(key="llm.model_name", value="local-model"),
+                    Setting(key="ai.output_language", value="en"),
+                    Transcript(
+                        audio_id=int(self.audio.id),
+                        full_text="A local transcript used as evidence.",
+                        is_current=True,
+                    ),
+                ]
+            )
+            session.commit()
+            task = tasks.create_task(session, int(self.audio.id), "analyze")
+            task.status = "running"
+            session.add(task)
+            session.commit()
+            snapshot = tasks._snapshot_task(task)
+
+        captured: dict = {}
+
+        async def fake_chat(**kwargs):
+            captured.update(kwargs)
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "description": "x" * 900,
+                                    "tags": [
+                                        " topic ",
+                                        "topic",
+                                        "",
+                                        "a" * 50,
+                                    ],
+                                    "language": "en",
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+
+        monkeypatch.setattr(task_handlers, "call_openai_compatible_chat", fake_chat)
+
+        await task_handlers.handle_analyze_task(snapshot)
+
+        assert captured["model_name"] == "local-model"
+        assert "A local transcript used as evidence." in captured["messages"][1]["content"]
+        with Session(self.engine) as session:
+            audio = session.get(AudioItem, self.audio.id)
+            task = session.get(AITask, snapshot.id)
+            output = json.loads(task.output_payload)
+            assert audio.ai_status == "done"
+            assert audio.language == "en"
+            assert len(audio.description_ai) == 800
+            assert output["description"] == audio.description_ai
+            assert output["tags"] == ["topic", "a" * 40]
+
+    @pytest.mark.anyio
+    async def test_analyze_rejects_invalid_structured_output_after_preserving_raw_content(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        with Session(self.engine) as session:
+            session.add_all(
+                [
+                    Setting(key="llm.endpoint", value="http://127.0.0.1:11434/v1"),
+                    Setting(key="llm.model_name", value="local-model"),
+                ]
+            )
+            session.commit()
+            task = tasks.create_task(session, int(self.audio.id), "analyze")
+            task.status = "running"
+            session.add(task)
+            session.commit()
+            snapshot = tasks._snapshot_task(task)
+
+        async def fake_chat(**kwargs):
+            return {"choices": [{"message": {"content": "not-json"}}]}
+
+        monkeypatch.setattr(task_handlers, "call_openai_compatible_chat", fake_chat)
+
+        with pytest.raises(ValueError, match="LLM response is not valid JSON"):
+            await task_handlers.handle_analyze_task(snapshot)
+
+        with Session(self.engine) as session:
+            task = session.get(AITask, snapshot.id)
+            assert json.loads(task.output_payload) == {"raw_content": "not-json"}

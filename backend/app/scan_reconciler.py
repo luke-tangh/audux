@@ -76,6 +76,19 @@ def _ensure_cover(session: Session, item: AudioItem, file_path: Path, force_refr
         session.commit()
 
 
+def _commit_audio_with_search_index(session: Session, item: AudioItem) -> None:
+    """Commit audio metadata and its FTS projection as one transaction."""
+    session.add(item)
+    try:
+        session.flush()
+        rebuild_audio_search_index(session, int(item.id), commit=False)
+        session.commit()
+        session.refresh(item)
+    except Exception:
+        session.rollback()
+        raise
+
+
 def _audio_file_changed(existing: AudioItem, stat, mtime: str) -> bool:
     if existing.file_size != stat.st_size:
         return True
@@ -197,16 +210,11 @@ def _relocate_audio_item_by_hash(
 
     item.updated_at = now_iso()
 
-    session.add(item)
-    session.commit()
-    session.refresh(item)
+    _commit_audio_with_search_index(session, item)
 
     # 同一 hash 通常表示同一文件，封面无需强制刷新；
     # 但如果旧封面缺失，则尝试重新提取。
     _ensure_cover(session, item, file_path, force_refresh=False)
-
-    if item.id is not None:
-        rebuild_audio_search_index(session, item.id)
 
     logger.info(
         "Detected moved audio by file_hash id=%s old_path=%s new_path=%s hash=%s",
@@ -267,11 +275,8 @@ def reconcile_audio_candidate(
             existing.updated_at = now_iso()
             for key, value in read_audio_metadata(file_path).items():
                 setattr(existing, key, value)
-            session.add(existing)
-            session.commit()
-            session.refresh(existing)
+            _commit_audio_with_search_index(session, existing)
             _ensure_cover(session, existing, file_path, force_refresh=True)
-            rebuild_audio_search_index(session, int(existing.id))
             return CandidateReconciliation(resolved, updated=1)
 
         touched = _touch_existing_without_metadata(existing, root_id)
@@ -328,11 +333,8 @@ def reconcile_audio_candidate(
         library_root_id=root_id,
         **read_audio_metadata(file_path),
     )
-    session.add(item)
-    session.commit()
-    session.refresh(item)
+    _commit_audio_with_search_index(session, item)
     _ensure_cover(session, item, file_path)
-    rebuild_audio_search_index(session, int(item.id))
     return CandidateReconciliation(resolved, imported=1)
 
 

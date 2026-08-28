@@ -25,6 +25,7 @@ from .task_repository import (
     recover_interrupted_tasks,
     set_audio_task_status,
 )
+from .worker_supervisor import run_supervised_loop
 
 
 logger = get_logger(__name__)
@@ -103,37 +104,38 @@ def _mark_task_failed_or_canceled_after_exception(task_id: int, exc: Exception):
         session.commit()
 
 
-async def worker_loop():
-    while True:
-        await asyncio.sleep(1)
+async def _worker_iteration() -> None:
+    snapshot: TaskSnapshot | None = None
+    with Session(db.engine) as session:
+        task = claim_next_pending_task(session)
+        if task:
+            snapshot = _snapshot_task(task)
 
-        snapshot: TaskSnapshot | None = None
+    if not snapshot:
+        return
 
+    try:
+        if snapshot.task_type == "transcribe":
+            await handle_transcribe_task(snapshot)
+        elif snapshot.task_type == "analyze":
+            await handle_analyze_task(snapshot)
+        else:
+            raise ValueError(f"Unknown task type: {snapshot.task_type}")
+        _mark_task_done(snapshot.id)
+    except TaskCanceled:
         with Session(db.engine) as session:
-            task = claim_next_pending_task(session)
-            if task:
-                snapshot = _snapshot_task(task)
+            finalize_canceled_task(session, snapshot.id)
+    except Exception as error:
+        logger.exception("AI/ASR task failed id=%s", snapshot.id)
+        _mark_task_failed_or_canceled_after_exception(snapshot.id, error)
 
-        if not snapshot:
-            continue
 
-        try:
-            if snapshot.task_type == "transcribe":
-                await handle_transcribe_task(snapshot)
-            elif snapshot.task_type == "analyze":
-                await handle_analyze_task(snapshot)
-            else:
-                raise ValueError(f"Unknown task type: {snapshot.task_type}")
-
-            _mark_task_done(snapshot.id)
-
-        except TaskCanceled:
-            with Session(db.engine) as session:
-                finalize_canceled_task(session, snapshot.id)
-
-        except Exception as e:
-            logger.exception("AI/ASR task failed id=%s", snapshot.id)
-            _mark_task_failed_or_canceled_after_exception(snapshot.id, e)
+async def worker_loop() -> None:
+    await run_supervised_loop(
+        "ai_asr",
+        _worker_iteration,
+        poll_interval=1.0,
+    )
 
 
 def start_worker_once() -> asyncio.Task[None]:

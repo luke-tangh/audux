@@ -24,6 +24,10 @@ jobs:
           enable-cache: true
       - name: Install backend test dependencies
         run: uv sync --locked --group test
+      - name: Run backend lint and targeted type checks
+        run: |
+          uv run --locked --group test ruff check app tests
+          uv run --locked --group test mypy app/worker_supervisor.py app/task_runtime.py app/db.py
       - name: Run backend tests with branch coverage
         run: >-
           uv run --locked --group test python -m pytest tests
@@ -32,6 +36,14 @@ jobs:
           --cov-report=term-missing:skip-covered
           --cov-report=xml
           --cov-fail-under=70
+      - name: Enforce critical orchestration coverage
+        run: |
+          uv run --locked --group test coverage report --include='app/task_handlers.py' --fail-under=70
+          uv run --locked --group test coverage report --include='app/task_heartbeat.py' --fail-under=60
+          uv run --locked --group test coverage report --include='app/tasks.py' --fail-under=60
+          uv run --locked --group test coverage report --include='app/agent_tasks.py' --fail-under=65
+          uv run --locked --group test coverage report --include='app/organization_tasks.py' --fail-under=55
+          uv run --locked --group test coverage report --include='app/worker_supervisor.py' --fail-under=90
       - name: Run privacy-free retrieval evaluation
         run: uv run --locked python evals/v0_7/run_retrieval_eval.py
 

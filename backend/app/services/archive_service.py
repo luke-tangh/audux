@@ -53,6 +53,7 @@ from ..models import (
 )
 from ..time_utils import utc_now_iso
 from ..version import APP_VERSION
+from ..worker_supervisor import worker_state_snapshot
 from .download_utils import attachment_headers
 from .errors import ServiceError
 from ..search import rebuild_audio_search_index
@@ -466,6 +467,7 @@ def create_diagnostic_bundle(session: Session) -> dict[str, Any]:
         "settings": settings,
         "database": {"integrity": integrity},
         "state_summary": task_states,
+        "worker_state": worker_state_snapshot(),
         "resource_policy": {
             "ai_asr_task_workers": 1,
             "agent_run_workers": 1,

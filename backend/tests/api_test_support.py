@@ -1,5 +1,4 @@
 import asyncio
-import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -9,17 +8,10 @@ from sqlalchemy import event
 from sqlmodel import Session, create_engine
 
 
-# Importing app.main initializes the normal data directories and logger. Resolve
-# those module-level paths under a process-lifetime temporary directory so API
-# tests never touch the user's ~/.audux data.
-TEST_RUNTIME_DIR = tempfile.TemporaryDirectory(prefix="audux-tests-")
-
-with pytest.MonkeyPatch.context() as monkeypatch:
-    monkeypatch.setattr(Path, "home", lambda: Path(TEST_RUNTIME_DIR.name))
-    from app import db, local_security, tasks
-    from app.db import get_session
-    from app.main import app
-    from app.models import AudioItem, LibraryRoot, Setting
+from app import db, local_security, tasks
+from app.db import get_session
+from app.main import app
+from app.models import AudioItem, LibraryRoot, Setting
 
 
 class AsgiTestClient:

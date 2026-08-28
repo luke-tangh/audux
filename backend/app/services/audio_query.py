@@ -627,5 +627,10 @@ def build_audio_items_stmt(
 
 
 def rebuild_many_audio_search_indexes(session: Session, audio_ids: list[int]):
-    for audio_id in audio_ids:
-        rebuild_audio_search_index(session, audio_id)
+    try:
+        for audio_id in audio_ids:
+            rebuild_audio_search_index(session, audio_id, commit=False)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise

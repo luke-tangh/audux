@@ -33,8 +33,7 @@ def import_library_root(
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    root = library_service.create_library_root(session, payload.path)
-    task = library_service.create_scan_task(session, root.id)
+    root, task = library_service.create_library_import(session, payload.path)
     background_tasks.add_task(scan_library_root_task, root.id, task.id)
     return {"root": root, "scan_task": task}
 

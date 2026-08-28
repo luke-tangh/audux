@@ -246,10 +246,14 @@ def update_audio_item(session: Session, audio_id: int, data: dict) -> AudioItem:
 
     item.updated_at = now_iso()
     session.add(item)
-    session.commit()
-    session.refresh(item)
-
-    rebuild_audio_search_index(session, item.id)
+    try:
+        session.flush()
+        rebuild_audio_search_index(session, int(item.id), commit=False)
+        session.commit()
+        session.refresh(item)
+    except Exception:
+        session.rollback()
+        raise
     return item
 
 
@@ -315,11 +319,14 @@ def relocate_audio_item(
 
     item.updated_at = now_iso()
     session.add(item)
-    session.commit()
-    session.refresh(item)
-
-    rebuild_audio_search_index(session, item.id)
-    session.refresh(item)
+    try:
+        session.flush()
+        rebuild_audio_search_index(session, int(item.id), commit=False)
+        session.commit()
+        session.refresh(item)
+    except Exception:
+        session.rollback()
+        raise
     logger.info("Audio item relocated id=%s path=%s", audio_id, new_path)
 
     return item
