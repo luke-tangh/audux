@@ -1,6 +1,6 @@
 # 开发环境与测试
 
-[开发与贡献](README.md) · [中文文档首页](../README.md)
+[开发与贡献](README.md) · [中文文档首页](../README.md) · [English](../../en/contributing/development.md) · 简体中文
 
 Audux 包含 React 前端、FastAPI backend 和 Tauri host 三层。行为应由所属层实现；跨层功能
 需要同步更新 API schema、共享 TypeScript 类型、实现和测试。

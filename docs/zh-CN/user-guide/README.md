@@ -1,6 +1,6 @@
 # 用户指南
 
-[返回中文文档首页](../README.md)
+[返回中文文档首页](../README.md) · [English](../../en/user-guide/README.md) · 简体中文
 
 本分区面向使用 Audux、配置本地或远程 Provider，以及排查日常问题的用户。
 

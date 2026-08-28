@@ -1,6 +1,6 @@
 # 安装与快速上手
 
-[用户指南](README.md) · [中文文档首页](../README.md)
+[用户指南](README.md) · [中文文档首页](../README.md) · [English](../../en/user-guide/getting-started.md) · 简体中文
 
 Audux 提供源码浏览器开发模式、Tauri 桌面版和打包后的 browser-lite 三种运行形态。
 普通用户可在 GitHub Releases 下载 Linux、Windows 或 macOS 的 v1.0 安装包，无需安装

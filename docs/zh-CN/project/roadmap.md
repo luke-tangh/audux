@@ -1,6 +1,6 @@
 # Audux 功能路线图
 
-[项目规划](README.md) · [中文文档首页](../README.md)
+[项目规划](README.md) · [中文文档首页](../README.md) · [English](../../en/project/roadmap.md) · 简体中文
 
 > 更新于 2026-08-25。当前稳定版本为 `1.0.0`（schema v6、归档格式 v1）。v0.x 版本仅
 > 保留为内部 Beta 历史记录；v1 的公开边界以[兼容性契约](../reference/compatibility.md)为准。

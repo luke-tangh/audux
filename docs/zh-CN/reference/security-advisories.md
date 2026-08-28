@@ -1,6 +1,6 @@
 # Rust 安全公告例外
 
-[参考与稳定契约](README.md) · [中文文档首页](../README.md)
+[参考与稳定契约](README.md) · [中文文档首页](../README.md) · [English](../../en/reference/security-advisories.md) · 简体中文
 
 依赖安全公告默认必须修复或阻断发布。只有没有兼容上游修复、受影响代码路径不可达，并且有
 补偿验证、公开跟踪项和明确到期时间时，才可加入临时例外。`cargo-deny` 会让未列入本页的

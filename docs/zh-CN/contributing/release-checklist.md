@@ -1,6 +1,6 @@
 # Audux v1.0 发布验证清单
 
-[开发与贡献](README.md) · [中文文档首页](../README.md)
+[开发与贡献](README.md) · [中文文档首页](../README.md) · [English](../../en/contributing/release-checklist.md) · 简体中文
 
 > 手动执行 workflow 只验证候选构建，不创建公开 GitHub Release。只有完成本清单并留存
 > 三平台记录后，才可推送与 `VERSION` 一致的稳定版 tag。
@@ -170,8 +170,9 @@ browser-lite 每个平台至少验证：
 
 推送 tag 前，确认 unsigned 和 signed preflight 均成功，`VERSION`、Python、npm、Cargo、
 Tauri 和发布说明均为 `1.0.0`，并确认
-`docs/zh-CN/reference/compatibility.md` 中的支持平台、schema/归档、Provider/MCP、弃用和
-回滚契约与产物一致。workflow 只接受 `v1.0.*` 标签进入公开发布任务。
+`docs/en/reference/compatibility.md` 与 `docs/zh-CN/reference/compatibility.md` 中的支持平台、
+schema/归档、Provider/MCP、弃用和回滚契约与产物一致。workflow 只接受 `v1.0.*` 标签进入
+公开发布任务。
 
 只有 schema、隐私、匿名评测和三平台门槛全部通过后，才创建 `v1.0.0` 标签并发布。发布后
 仍需从 GitHub Release 重新下载每个平台安装包、browser-lite、Whisper component、

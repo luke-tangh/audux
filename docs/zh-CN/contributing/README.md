@@ -1,6 +1,6 @@
 # 开发与贡献
 
-[返回中文文档首页](../README.md)
+[返回中文文档首页](../README.md) · [English](../../en/contributing/README.md) · 简体中文
 
 本分区面向实现功能、验证跨层改动以及维护发布流程的贡献者：
 
