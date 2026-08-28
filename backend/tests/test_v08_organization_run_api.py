@@ -132,6 +132,8 @@ class TestV08OrganizationRunApi(ApiIntegrationTest):
             headers=self.auth_headers(include_client=True),
         )
         assert canceled.status_code == 200, canceled.text
+        assert canceled.json()["id"] == owned_run["id"]
+        assert canceled.json()["status"] == "canceled"
         with Session(self.engine) as session:
             unrelated = session.get(AITask, unrelated_id)
             assert unrelated.status == "running"
@@ -144,6 +146,8 @@ class TestV08OrganizationRunApi(ApiIntegrationTest):
             headers=self.auth_headers(include_client=True),
         )
         assert retried.status_code == 200
+        assert retried.json()["id"] == owned_run["id"]
+        assert retried.json()["status"] == "pending"
         with Session(self.engine) as session:
             owned = AITask(
                 audio_id=self.audio.id,

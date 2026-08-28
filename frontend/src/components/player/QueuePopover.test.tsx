@@ -41,6 +41,8 @@ describe("QueuePopover", () => {
       />
     );
 
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(/^(播放队列|Play queue)$/);
+
     fireEvent.click(container.querySelectorAll<HTMLButtonElement>(".queue-row-main")[1]);
     fireEvent.click(container.querySelectorAll<HTMLButtonElement>(".queue-remove")[1]);
     fireEvent.click(container.querySelector<HTMLButtonElement>(".queue-popover-header button")!);

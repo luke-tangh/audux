@@ -2,6 +2,12 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from ..db import get_session
+from ..response_schemas import (
+    OkResponse,
+    TagDeleteResponse,
+    TagMergeResponse,
+    TagResponse,
+)
 from ..schemas import TagMergeRequest, TagUpdate, TagsAddRequest
 from ..services import tag_service
 
@@ -9,12 +15,12 @@ from ..services import tag_service
 router = APIRouter()
 
 
-@router.get("/tags")
+@router.get("/tags", response_model=list[TagResponse])
 def list_tags(session: Session = Depends(get_session)):
     return tag_service.list_tags(session)
 
 
-@router.patch("/tags/{tag_id}")
+@router.patch("/tags/{tag_id}", response_model=TagResponse)
 def update_tag(
     tag_id: int,
     payload: TagUpdate,
@@ -23,7 +29,7 @@ def update_tag(
     return tag_service.update_tag(session, tag_id, payload.name)
 
 
-@router.delete("/tags/{tag_id}")
+@router.delete("/tags/{tag_id}", response_model=TagDeleteResponse)
 def delete_tag(
     tag_id: int,
     force: bool = False,
@@ -32,7 +38,7 @@ def delete_tag(
     return tag_service.delete_tag(session, tag_id, force)
 
 
-@router.post("/tags/{tag_id}/merge")
+@router.post("/tags/{tag_id}/merge", response_model=TagMergeResponse)
 def merge_tag(
     tag_id: int,
     payload: TagMergeRequest,
@@ -45,7 +51,7 @@ def merge_tag(
     )
 
 
-@router.post("/audio-items/{audio_id}/tags")
+@router.post("/audio-items/{audio_id}/tags", response_model=list[TagResponse])
 def add_tags_to_audio(
     audio_id: int,
     payload: TagsAddRequest,
@@ -59,7 +65,10 @@ def add_tags_to_audio(
     )
 
 
-@router.delete("/audio-items/{audio_id}/tags/{tag_id}")
+@router.delete(
+    "/audio-items/{audio_id}/tags/{tag_id}",
+    response_model=OkResponse,
+)
 def remove_audio_tag(
     audio_id: int,
     tag_id: int,

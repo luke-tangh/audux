@@ -1,6 +1,7 @@
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi.responses import Response
 from sqlmodel import Session
 
 from ..db import get_session
@@ -196,12 +197,12 @@ def update_playback_event(
     )
 
 
-@router.get("/audio-items/{audio_id}/file")
+@router.get("/audio-items/{audio_id}/file", response_class=Response)
 def get_audio_file(audio_id: int, session: Session = Depends(get_session)):
     return audio_media_service.get_audio_file_response(session, audio_id)
 
 
-@router.get("/audio-items/{audio_id}/cover")
+@router.get("/audio-items/{audio_id}/cover", response_class=Response)
 def get_audio_cover(audio_id: int, session: Session = Depends(get_session)):
     return audio_media_service.get_audio_cover_response(session, audio_id)
 

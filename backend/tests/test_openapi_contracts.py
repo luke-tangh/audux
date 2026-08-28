@@ -7,22 +7,20 @@ def _response_schema(path: str, method: str, status: str = "200") -> dict:
 
 
 def test_frontend_facing_routes_publish_explicit_response_contracts() -> None:
-    routes = [
-        ("/audio-items", "get", "200"),
-        ("/audio-items/{audio_id}", "get", "200"),
-        ("/audio-items/batch/transcribe", "post", "200"),
-        ("/audio-items/{audio_id}/transcript", "get", "200"),
-        ("/audio-items/{audio_id}/transcript", "patch", "200"),
-        ("/ai-tasks", "get", "200"),
-        ("/settings", "get", "200"),
-        ("/settings/{section}", "put", "200"),
-        ("/asr/whisper-component", "get", "200"),
-    ]
+    missing_contracts: list[str] = []
 
-    for path, method, status in routes:
-        schema = _response_schema(path, method, status)
-        assert schema, f"{method.upper()} {path} has an empty response schema"
-        assert schema != {}, f"{method.upper()} {path} still exposes an untyped object"
+    for path, path_item in app.openapi()["paths"].items():
+        for method, operation in path_item.items():
+            if method not in {"get", "post", "put", "patch", "delete"}:
+                continue
+            for status, response in operation["responses"].items():
+                if not status.startswith("2"):
+                    continue
+                json_response = response.get("content", {}).get("application/json")
+                if json_response is not None and not json_response.get("schema"):
+                    missing_contracts.append(f"{method.upper()} {path} ({status})")
+
+    assert missing_contracts == []
 
 
 def test_openapi_contains_shared_audio_and_transcript_models() -> None:

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 from sqlmodel import Session
 
 from ..db import get_session
@@ -64,7 +65,10 @@ def get_transcript_revision(
     )
 
 
-@router.get("/audio-items/{audio_id}/transcript/export")
+@router.get(
+    "/audio-items/{audio_id}/transcript/export",
+    response_class=Response,
+)
 def export_transcript(
     audio_id: int,
     format: str = "txt",
