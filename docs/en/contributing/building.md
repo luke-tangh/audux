@@ -120,7 +120,7 @@ npm run tauri:build
 Python lookup uses `AUDUX_PYTHON`, active `VIRTUAL_ENV`, repository `.venv`, then the platform
 Python command; on Windows the wrapper also tries `py -3`.
 
-## v1.0 build and release gates
+## v1.x build and release gates
 
 The `Internal Builds and v1 Release` workflow builds Tauri, browser-lite, backend sidecars, and
 Whisper companions on Linux x64, Windows x64, and macOS 14+ Apple Silicon. Intel macOS is outside
@@ -135,11 +135,12 @@ Before packaging, tag builds require backend branch coverage, frontend unit cove
 production build/Playwright, and Rust tests plus `cargo check` on Linux, Windows, and macOS. Any
 failure prevents all three build and publish jobs.
 
-Only `v1.0.*` tags can publish. The tag must match `VERSION`, belong to remote `main`, and agree with
-Python, npm, Cargo, Tauri, and backend versions. A matching
-`docs/en/releases/<tag>.md` release body is required. v0.x tags never publish. Signing jobs use a
-`release` Environment restricted to `main` and `v1.0.*`; draft assets are downloaded and verified
-against `SHA256SUMS` before the release becomes latest.
+Only strict stable `v1.<minor>.<patch>` tags can publish; leading zeroes and prerelease suffixes are
+rejected. The tag must match `VERSION`, belong to remote `main`, and agree with Python, npm, Cargo,
+Tauri, and backend versions. Matching `docs/en/releases/<tag>.md` and
+`docs/zh-CN/releases/<tag>.md` release notes are required. v0.x and v2+ tags never publish. Signing
+jobs use a `release` Environment restricted to `main` and `v1.*.*`; draft assets are downloaded and
+verified against `SHA256SUMS` before the release becomes latest.
 
 CI and release reuse `.github/workflows/quality-gates.yml`, so backend coverage/retrieval eval,
 frontend coverage/typecheck/build/Playwright, and three-platform Rust gates have one definition.
@@ -160,7 +161,7 @@ bundle on the target OS.
 
 ## Installers, updater validation, and platform signing
 
-Stable `v1.0.*` tags publish:
+Stable v1.x tags publish the currently supported target set:
 
 - Linux x64 AppImage, DEB, and RPM;
 - Windows x64 NSIS installer;

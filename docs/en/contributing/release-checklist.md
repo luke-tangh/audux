@@ -163,7 +163,8 @@ Using temporary schema-v6 data:
 
 Before tagging, require successful unsigned and signed preflight; matching version declarations;
 and agreement between artifacts and both `docs/en/reference/compatibility.md` and
-`docs/zh-CN/reference/compatibility.md`. Only a `v1.0.*` tag can enter publication.
+`docs/zh-CN/reference/compatibility.md`. Only a strict stable `v1.<minor>.<patch>` tag matching
+`VERSION` can enter publication, and both localized release-note files must exist.
 
 Create `v1.0.0` only after schema, privacy, anonymous evaluation, and three-platform evidence is
 complete. After publication, redownload every installer, browser-lite, Whisper component,

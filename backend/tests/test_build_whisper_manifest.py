@@ -64,7 +64,8 @@ def test_release_workflow_uploads_component_descriptors() -> None:
     )
 
     assert "backend/release_artifacts.py stage" in workflow
-    assert 'notes_path="docs/en/releases/${GITHUB_REF_NAME}.md"' in workflow
+    assert 'english_notes_path="docs/en/releases/${GITHUB_REF_NAME}.md"' in workflow
+    assert 'chinese_notes_path="docs/zh-CN/releases/${GITHUB_REF_NAME}.md"' in workflow
     assert "body_path: ${{ steps.release-notes.outputs.path }}" in workflow
     assert "needs: [quality-gates, release-context]" in workflow
     assert "AUDUX_WHISPER_MANIFEST_PUBLIC_KEY" in workflow
@@ -73,6 +74,9 @@ def test_release_workflow_uploads_component_descriptors() -> None:
     assert "release-metadata/whisper-components.json" in workflow
     assert "backend/release_artifacts.py assemble" in workflow
     assert "signed_preflight:" in workflow
+    assert '- "v1.*.*"' in workflow
+    assert "backend/validate_release_context.py" in workflow
+    assert "needs.release-context.outputs.mode == 'signed'" in workflow
     assert "macos-arm64" in workflow
     assert "macos-15-intel" not in workflow
     assert "draft: true" in workflow

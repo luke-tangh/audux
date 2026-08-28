@@ -115,7 +115,7 @@ npm run tauri:build
 查找顺序为 `AUDUX_PYTHON`、激活的 `VIRTUAL_ENV`、仓库 `.venv`，最后是平台 Python
 命令；构建包装器在 Windows 还会尝试 `py -3`。
 
-## v1.0 构建与发布门槛
+## v1.x 构建与发布门槛
 
 GitHub Actions 的 `Internal Builds and v1 Release` 可手动触发，在 Linux x64、Windows
 x64 和 macOS 14+ Apple Silicon 上构建 Tauri、browser-lite、backend sidecar 和 Whisper
@@ -129,12 +129,14 @@ provenance attestation 路径，生成完整 release candidate，但仍不会发
 生产构建/Playwright，以及 Linux、Windows、macOS 的 Rust 测试和 `cargo check`。任一门禁
 失败，三个目标的构建和发布任务都不会开始。
 
-workflow 只允许 `v1.0.*` tag 进入公开发布任务。发布 tag 必须与根目录 `VERSION` 一致，且
-tag commit 必须属于远端 `main` 历史；Python、npm、Cargo、Tauri 和 backend 版本也必须
-一致，并且必须存在与 tag 同名的 `docs/en/releases/<tag>.md` 英文发布说明。v0.x 不创建公开
-Release。签名构建和发布 job 使用仅允许 `main` 与 `v1.0.*` tag 的 `release` Environment；该
-Environment 负责隔离签名 secrets 和限制发布来源，不配置 required reviewers。正式发布先创建
-draft，重新下载全部 assets 验证 `SHA256SUMS`，成功后才公开为 latest Release。
+workflow 只允许严格的稳定版 `v1.<minor>.<patch>` tag 进入公开发布任务；带前导零或预发布
+后缀的版本会被拒绝。发布 tag 必须与根目录 `VERSION` 一致，且 tag commit 必须属于远端
+`main` 历史；Python、npm、Cargo、Tauri 和 backend 版本也必须一致，并且必须同时存在与 tag
+同名的 `docs/en/releases/<tag>.md` 和 `docs/zh-CN/releases/<tag>.md` 发布说明。v0.x 与 v2+
+不创建公开 Release。签名构建和发布 job 使用仅允许 `main` 与 `v1.*.*` tag 的 `release`
+Environment；该 Environment 负责隔离签名 secrets 和限制发布来源，不配置 required
+reviewers。正式发布先创建 draft，重新下载全部 assets 验证 `SHA256SUMS`，成功后才公开为
+latest Release。
 
 CI 与 release 共用 `.github/workflows/quality-gates.yml`，因此 backend 覆盖率、retrieval eval、
 frontend 覆盖率/类型检查/生产构建/Playwright，以及三平台 Rust 检查只有一份定义。Node 和
@@ -155,7 +157,7 @@ Rust 分别固定在 `.node-version` 与 `rust-toolchain.toml`；runner、uv 和
 
 ## 可安装版本、updater 验证与平台签名状态
 
-稳定版发布使用 `v1.0.*` 标签。标签构建会发布以下可直接安装的文件：
+稳定 v1.x 标签发布当前支持目标的以下可直接安装文件：
 
 - Linux x64：AppImage、DEB 和 RPM；
 - Windows x64：NSIS 安装程序；

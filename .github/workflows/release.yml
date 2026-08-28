@@ -10,7 +10,7 @@ on:
         type: boolean
   push:
     tags:
-      - "v1.0.*"
+      - "v1.*.*"
 
 permissions:
   contents: read
@@ -36,27 +36,23 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
           fetch-depth: 0
-      - name: Validate version, ref, and main ancestry
+      - name: Fetch main for release ancestry validation
+        if: github.event_name == 'push'
+        run: git fetch --no-tags origin main
+      - name: Validate version, ref, main ancestry, and release notes
         id: context
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(tr -d '[:space:]' < VERSION)"
-          mode="unsigned"
-
-          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
-            expected_version="${GITHUB_REF_NAME#v}"
-            test "${expected_version}" = "${version}"
-            git fetch --no-tags origin main
-            git merge-base --is-ancestor "${GITHUB_SHA}" "origin/main"
-            mode="signed"
-          elif [[ "${{ inputs.signed_preflight }}" == "true" ]]; then
-            test "${GITHUB_REF}" = "refs/heads/main"
-            mode="signed"
-          fi
-
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+        env:
+          AUDUX_SIGNED_PREFLIGHT: ${{ inputs.signed_preflight }}
+        run: >-
+          python3 backend/validate_release_context.py
+          --repository-root "${GITHUB_WORKSPACE}"
+          --event-name "${GITHUB_EVENT_NAME}"
+          --ref "${GITHUB_REF}"
+          --ref-name "${GITHUB_REF_NAME}"
+          --sha "${GITHUB_SHA}"
+          --signed-preflight "${AUDUX_SIGNED_PREFLIGHT}"
+          --main-ref origin/main
+          --github-output "${GITHUB_OUTPUT}"
 
   build-tauri:
     name: Build ${{ needs.release-context.outputs.mode }} artifacts on ${{ matrix.name }}
@@ -264,7 +260,7 @@ jobs:
   publish-release:
     name: Publish verified GitHub Release
     needs: [release-context, assemble-release-candidate]
-    if: github.event_name == 'push' && startsWith(github.ref_name, 'v1.0.')
+    if: github.event_name == 'push' && needs.release-context.outputs.mode == 'signed'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment:
@@ -278,9 +274,11 @@ jobs:
         id: release-notes
         shell: bash
         run: |
-          notes_path="docs/en/releases/${GITHUB_REF_NAME}.md"
-          test -f "${notes_path}"
-          echo "path=${notes_path}" >> "${GITHUB_OUTPUT}"
+          english_notes_path="docs/en/releases/${GITHUB_REF_NAME}.md"
+          chinese_notes_path="docs/zh-CN/releases/${GITHUB_REF_NAME}.md"
+          test -f "${english_notes_path}"
+          test -f "${chinese_notes_path}"
+          echo "path=${english_notes_path}" >> "${GITHUB_OUTPUT}"
       - name: Download signed release candidate
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.0
         with:
