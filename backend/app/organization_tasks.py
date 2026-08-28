@@ -13,6 +13,7 @@ from .logger import get_logger
 from .models import (
     AITask,
     AudioItem,
+    OrganizationAuditEvent,
     OrganizationRun,
     OrganizationRunTarget,
     Tag,
@@ -72,6 +73,7 @@ async def _wait_for_transcriptions(run_id: int, targets: list[OrganizationRunTar
     missing_ids = [target.audio_id for target in targets if target.source_transcript_id is None]
     if not missing_ids:
         return
+    task_ids_by_audio: dict[int, int] = {}
     with Session(db.engine) as session:
         for audio_id in missing_ids:
             active = session.exec(
@@ -80,8 +82,30 @@ async def _wait_for_transcriptions(run_id: int, targets: list[OrganizationRunTar
                 .where(AITask.task_type == "transcribe")
                 .where(AITask.status.in_(["pending", "running", "cancel_requested"]))
             ).first()
+            spawned = active is None
             if active is None:
-                enqueue_transcribe(session, audio_id)
+                active = enqueue_transcribe(session, audio_id)
+            if active.id is None:
+                raise RuntimeError("Transcription task was not persisted")
+            task_ids_by_audio[audio_id] = active.id
+            session.add(
+                OrganizationAuditEvent(
+                    run_id=run_id,
+                    audio_id=audio_id,
+                    event_type="transcription.attached",
+                    detail_json=json.dumps(
+                        {
+                            "task_id": active.id,
+                            "audio_id": audio_id,
+                            "owned": spawned,
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                )
+            )
+            session.commit()
 
     while True:
         if _is_canceled(run_id):
@@ -89,14 +113,16 @@ async def _wait_for_transcriptions(run_id: int, targets: list[OrganizationRunTar
         with Session(db.engine) as session:
             tasks = session.exec(
                 select(AITask)
-                .where(AITask.audio_id.in_(missing_ids))
-                .where(AITask.task_type == "transcribe")
-                .order_by(AITask.created_at.desc())
+                .where(AITask.id.in_(list(task_ids_by_audio.values())))
             ).all()
-            latest: dict[int, AITask] = {}
+            attached: dict[int, AITask] = {}
             for task in tasks:
-                latest.setdefault(task.audio_id, task)
-            if all(latest.get(audio_id) and latest[audio_id].status in {"done", "failed", "canceled"} for audio_id in missing_ids):
+                attached[task.audio_id] = task
+            if all(
+                attached.get(audio_id)
+                and attached[audio_id].status in {"done", "failed", "canceled"}
+                for audio_id in missing_ids
+            ):
                 return
         await asyncio.sleep(1)
 

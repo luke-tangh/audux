@@ -50,7 +50,8 @@ UV_CACHE_DIR=/tmp/audux-uv-cache uv sync --locked --group test
 先在仓库根目录启动 FastAPI：
 
 ```bash
-uv run --locked python backend/run.py
+AUDUX_ALLOWED_ORIGINS=http://127.0.0.1:5173 \
+  uv run --locked python backend/run.py
 ```
 
 默认健康检查地址是 `http://127.0.0.1:8765/health`。另开终端启动 Vite：
@@ -60,8 +61,8 @@ cd frontend
 npm run dev
 ```
 
-然后打开 `http://127.0.0.1:5173`。此处的 `8765` 只是独立开发服务器默认值；Tauri 会
-选择可用端口，并通过原生命令把实际地址交给前端。
+然后打开 `http://127.0.0.1:5173`。此处的 `8765` 只是独立开发服务器默认值；Tauri 后端会
+原子绑定可用端口，并通过原生命令把实际地址交给前端。
 
 ## Tauri 开发模式
 

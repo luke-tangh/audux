@@ -212,7 +212,7 @@ async def upload_audio_cover(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
 ):
-    data = await file.read()
+    data = await file.read(audio_media_service.MAX_COVER_BYTES + 1)
     return audio_media_service.upload_audio_cover_data(
         session=session,
         audio_id=audio_id,

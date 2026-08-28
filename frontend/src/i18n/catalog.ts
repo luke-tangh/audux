@@ -1141,6 +1141,7 @@ export const messages = {
   "errors.cover.unsupported_format": ["不支持该图片格式。", "This image format is not supported."],
   "errors.cover.empty": ["封面文件为空。", "The cover file is empty."],
   "errors.cover.too_large": ["封面文件过大。", "The cover file is too large."],
+  "errors.request.body_too_large": ["请求内容过大。", "The request body is too large."],
   "errors.transcript.not_found": ["找不到转写文本。", "Transcript not found."],
   "errors.transcript.task_active": ["转写任务已在等待、运行或取消中。", "A transcription task is already pending, running, or canceling."],
   "errors.transcript.edit_active": ["转写任务运行期间不能编辑转写文本。", "The transcript cannot be edited while transcription is active."],

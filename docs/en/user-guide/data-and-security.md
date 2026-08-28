@@ -84,11 +84,14 @@ tokens, or user absolute paths.
 The standalone backend defaults to `127.0.0.1:8765`; Tauri and browser-lite use a dynamic loopback
 port. Security controls are:
 
-1. CORS allows only localhost and Tauri origins by default.
+1. CORS allows only Tauri origins by default. Browser-lite uses the API's exact same origin;
+   browser development origins must be explicitly listed in `AUDUX_ALLOWED_ORIGINS`.
 2. `POST`, `PUT`, `PATCH`, and `DELETE` require `X-Audux-Client: audux`.
 3. Except for `/health`, `/auth/token`, and API documentation, requests require `X-Audux-Token`.
 4. Browser media, image, and download elements that cannot attach headers use
    `?access_token=<token>`.
+5. Request bodies are capped at 70 MiB, with a stricter 10 MiB bounded read for cover uploads;
+   public request fields also have domain-specific length limits.
 
 The frontend obtains and attaches the token only through
 [`frontend/src/api.ts`](../../../frontend/src/api.ts). For manual development debugging:
@@ -101,9 +104,11 @@ curl http://127.0.0.1:8765/library-roots \
   -H "X-Audux-Token: <token>"
 ```
 
-Mutations also need `X-Audux-Client: audux`. `AUDUX_ALLOW_ALL_CORS=1` is for temporary development
-only; never use it in normal operation or a release, and never weaken token, origin, CSP, or client
-header checks to solve a development problem.
+Mutations also need `X-Audux-Client: audux`. For browser development, set an exact comma-separated
+allowlist such as `AUDUX_ALLOWED_ORIGINS=http://127.0.0.1:5173`. Arbitrary localhost ports are not
+trusted. `AUDUX_ALLOW_ALL_CORS=1` is for temporary development only; never use it in normal
+operation or a release, and never weaken token, origin, CSP, or client header checks to solve a
+development problem.
 
 If the token file cannot be read, created, or restricted to the current user, the backend refuses
 to start instead of falling back to an unstable temporary token. Fix ownership, permissions, or

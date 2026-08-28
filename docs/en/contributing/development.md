@@ -42,7 +42,8 @@ default cache. Do not install the larger ASR and PyInstaller environments for un
 
 ```bash
 # Backend; defaults to 127.0.0.1:8765
-uv run --locked python backend/run.py
+AUDUX_ALLOWED_ORIGINS=http://127.0.0.1:5173 \
+  uv run --locked python backend/run.py
 
 # Frontend; defaults to 127.0.0.1:5173
 cd frontend
@@ -53,8 +54,10 @@ cd frontend
 npm run tauri:dev
 ```
 
-`AUDUX_API_PORT` changes the standalone backend port. Frontend code must continue to obtain the
-actual URL through `src/api.ts` and Tauri's dynamic backend URL, never a hardcoded `8765`.
+`AUDUX_API_PORT` changes the standalone backend port. `AUDUX_ALLOWED_ORIGINS` is an exact,
+comma-separated browser-development allowlist; do not replace it with every localhost port.
+Frontend code must continue to obtain the actual URL through `src/api.ts` and Tauri's dynamic
+backend URL, never a hardcoded `8765`.
 
 ## Backend validation
 

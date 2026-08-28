@@ -21,9 +21,10 @@ from .services.health_service import recover_interrupted_health_tasks
 from .services.agent_service import recover_interrupted_agent_runs
 from .services.organization_run_service import recover_interrupted_runs
 from .services.errors import ServiceError
+from .request_limits import RequestBodyLimitMiddleware
 from .local_security import (
     ALLOW_ALL_CORS,
-    LOCAL_ORIGIN_REGEX,
+    ALLOWED_CROSS_ORIGINS,
     AUDUX_CLIENT_HEADER_NAME,
     AUDUX_CLIENT_HEADER_VALUE,
     AUDUX_TOKEN_HEADER_NAME,
@@ -101,10 +102,11 @@ async def service_error_handler(_: Request, error: ServiceError):
         content={"detail": error.structured_detail()},
     )
 
+app.add_middleware(RequestBodyLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if ALLOW_ALL_CORS else [],
-    allow_origin_regex=None if ALLOW_ALL_CORS else LOCAL_ORIGIN_REGEX,
+    allow_origin_regex=None,
+    allow_origins=["*"] if ALLOW_ALL_CORS else sorted(ALLOWED_CROSS_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -122,7 +124,7 @@ async def local_request_guard(request: Request, call_next):
     """
     本地 API 防护。
 
-    - Origin 必须是本机 / Tauri，除非显式开启 ALLOW_ALL_CORS。
+    - Origin 必须与本机 API 同源、属于 Tauri，或由配置显式允许。
     - unsafe method 必须携带固定本地客户端 header，防普通 CSRF form。
     - 除 health/auth/docs 外，所有 API 需要本地 token。
     - 媒体、封面、导出等 GET 可用 query token，方便 <audio>/<img>/window.open。
@@ -131,7 +133,7 @@ async def local_request_guard(request: Request, call_next):
         path = request.url.path
 
         origin = request.headers.get("origin")
-        if origin and not _is_allowed_request_origin(origin):
+        if origin and not _is_allowed_request_origin(origin, request):
             return JSONResponse(
                 status_code=403,
                 content={"detail": {"code": "security.forbidden_origin", "params": {}, "fallback": "Forbidden origin"}},

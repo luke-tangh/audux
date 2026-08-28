@@ -88,7 +88,14 @@ export function useLibraryController() {
   const { ensureBackendReady, resetBackendReady } = useBackendReady();
   const dialog = useDialog();
   const { toasts, notify, closeToast } = useToast();
-  const { tags, playlists, roots, savedViews, loadNavigation } = useNavigationData();
+  const {
+    tags,
+    playlists,
+    roots,
+    savedViews,
+    navigationReady,
+    loadNavigation
+  } = useNavigationData();
   const selection = useAudioSelection({ items: audioItems, notify });
   const activePlaylist = playlists.find((playlist) => playlist.id === selectedPlaylistId);
   const isSmartPlaylist = activePlaylist?.kind === "smart";
@@ -704,6 +711,7 @@ export function useLibraryController() {
     loadingMore,
     loadError,
     initialized,
+    navigationReady,
     startupState,
     startupError,
 

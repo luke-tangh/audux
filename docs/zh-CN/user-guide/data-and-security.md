@@ -79,10 +79,13 @@ Token 或用户绝对路径。
 独立开发后端默认只监听 `127.0.0.1:8765`；Tauri 与 browser-lite 使用动态回环端口。
 安全机制包括：
 
-1. CORS 默认只允许 localhost 和 Tauri origin。
+1. CORS 默认只允许 Tauri origin；browser-lite 与 API 严格同源，浏览器开发 origin 必须通过
+   `AUDUX_ALLOWED_ORIGINS` 明确列出。
 2. `POST`、`PUT`、`PATCH`、`DELETE` 要求 `X-Audux-Client: audux`。
 3. 除 `/health`、`/auth/token` 和 API docs 外，请求需要 `X-Audux-Token`。
 4. `<audio>`、`<img>` 和下载等无法附加 Header 的请求使用 `?access_token=<token>`。
+5. 请求体上限为 70 MiB，封面上传使用更严格的 10 MiB 有界读取；公开请求字段也有按领域设置的
+   长度限制。
 
 前端在 [`frontend/src/api.ts`](../../../frontend/src/api.ts) 中统一获取和附加 Token。手动调试：
 
@@ -94,9 +97,10 @@ curl http://127.0.0.1:8765/library-roots \
   -H "X-Audux-Token: <token>"
 ```
 
-修改数据的请求还必须带 `X-Audux-Client: audux`。开发环境可临时设置
-`AUDUX_ALLOW_ALL_CORS=1`，但不得用于日常运行或发布构建，也不能通过削弱 Token、Origin、
-CSP 或客户端 Header 来解决开发问题。
+修改数据的请求还必须带 `X-Audux-Client: audux`。浏览器开发应设置精确的逗号分隔白名单，
+例如 `AUDUX_ALLOWED_ORIGINS=http://127.0.0.1:5173`；任意 localhost 端口不再受信任。
+开发环境可临时设置 `AUDUX_ALLOW_ALL_CORS=1`，但不得用于日常运行或发布构建，也不能通过
+削弱 Token、Origin、CSP 或客户端 Header 来解决开发问题。
 
 Token 文件无法读取、创建或收紧为私有权限时，后端会拒绝启动；它不会退回到无法稳定认证的
 临时随机 Token。应修复 `~/.audux/` 的所有权、权限或磁盘问题后再启动。

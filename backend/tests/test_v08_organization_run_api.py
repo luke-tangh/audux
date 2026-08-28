@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from app import organization_tasks
 from app.models import (
+    AITask,
     AudioItem,
     AudioTag,
     OrganizationAuditEvent,
@@ -109,6 +110,98 @@ class TestV08OrganizationRunApi(ApiIntegrationTest):
         with Session(self.engine) as session:
             assert session.get(AudioItem, self.audio.id) is not None
             assert session.get(Transcript, transcript["transcript"]["id"]) is not None
+
+    def test_cancel_only_stops_transcription_owned_exclusively_by_the_run(self):
+        self._seed_transcript()
+        owned_run = self._create_run()
+        shared_run = self._create_run()
+        with Session(self.engine) as session:
+            unrelated = AITask(
+                audio_id=self.audio.id,
+                task_type="transcribe",
+                status="running",
+                input_payload="{}",
+            )
+            session.add(unrelated)
+            session.commit()
+            session.refresh(unrelated)
+            unrelated_id = unrelated.id
+
+        canceled = self.client.post(
+            f"/organization-runs/{owned_run['id']}/cancel",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert canceled.status_code == 200, canceled.text
+        with Session(self.engine) as session:
+            unrelated = session.get(AITask, unrelated_id)
+            assert unrelated.status == "running"
+            unrelated.status = "done"
+            session.add(unrelated)
+            session.commit()
+
+        retried = self.client.post(
+            f"/organization-runs/{owned_run['id']}/retry",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert retried.status_code == 200
+        with Session(self.engine) as session:
+            owned = AITask(
+                audio_id=self.audio.id,
+                task_type="transcribe",
+                status="pending",
+                input_payload="{}",
+            )
+            session.add(owned)
+            session.commit()
+            session.refresh(owned)
+            session.add(
+                OrganizationAuditEvent(
+                    run_id=owned_run["id"],
+                    audio_id=self.audio.id,
+                    event_type="transcription.attached",
+                    detail_json=json.dumps(
+                        {"task_id": owned.id, "audio_id": self.audio.id, "owned": True}
+                    ),
+                )
+            )
+            session.add(
+                OrganizationAuditEvent(
+                    run_id=shared_run["id"],
+                    audio_id=self.audio.id,
+                    event_type="transcription.attached",
+                    detail_json=json.dumps(
+                        {"task_id": owned.id, "audio_id": self.audio.id, "owned": False}
+                    ),
+                )
+            )
+            session.commit()
+            owned_id = owned.id
+
+        shared_cancel = self.client.post(
+            f"/organization-runs/{owned_run['id']}/cancel",
+            headers=self.auth_headers(include_client=True),
+        )
+
+        assert shared_cancel.status_code == 200, shared_cancel.text
+        with Session(self.engine) as session:
+            assert session.get(AITask, owned_id).status == "pending"
+
+        self.client.post(
+            f"/organization-runs/{shared_run['id']}/cancel",
+            headers=self.auth_headers(include_client=True),
+        )
+        canceled_again = self.client.post(
+            f"/organization-runs/{owned_run['id']}/retry",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert canceled_again.status_code == 200
+        final_cancel = self.client.post(
+            f"/organization-runs/{owned_run['id']}/cancel",
+            headers=self.auth_headers(include_client=True),
+        )
+        assert final_cancel.status_code == 200
+        with Session(self.engine) as session:
+            assert session.get(AITask, owned_id).status == "canceled"
 
     def test_edited_acceptance_validates_the_value_before_recording_decision(self):
         transcript = self._seed_transcript()

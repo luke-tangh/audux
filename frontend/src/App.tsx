@@ -88,6 +88,7 @@ export default function App() {
     loadingMore,
     loadError,
     initialized,
+    navigationReady,
     startupState,
     startupError,
 
@@ -167,6 +168,7 @@ export default function App() {
     view,
     openSettings,
     initialized,
+    navigationReady,
     rootsLength: roots.length,
     activeSavedViewId,
     selectedPlaylistId,

@@ -71,6 +71,7 @@ function controller(overrides: Record<string, unknown> = {}) {
     loadingMore: false,
     loadError: "",
     initialized: true,
+    navigationReady: true,
     startupState: "ready",
     startupError: "",
     listTitle: "Library",

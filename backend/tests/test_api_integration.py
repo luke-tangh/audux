@@ -6,6 +6,7 @@ from sqlmodel import Session
 from tests.api_test_support import ApiIntegrationTest
 from app import local_security
 from app.models import AITask, AudioItem, Setting
+from app.request_limits import MAX_REQUEST_BODY_BYTES
 
 
 class TestLocalApiSecurity(ApiIntegrationTest):
@@ -48,10 +49,36 @@ class TestLocalApiSecurity(ApiIntegrationTest):
 
         allowed_origin = self.client.get(
             "/settings",
-            headers=self.auth_headers(origin="http://localhost:5173"),
+            headers=self.auth_headers(origin="https://tauri.localhost"),
         )
         assert allowed_origin.status_code == 200
-        assert allowed_origin.headers['access-control-allow-origin'] == 'http://localhost:5173'
+        assert allowed_origin.headers['access-control-allow-origin'] == 'https://tauri.localhost'
+
+        attacker_origin = self.client.get(
+            "/auth/token",
+            headers={
+                local_security.AUDUX_CLIENT_HEADER_NAME:
+                    local_security.AUDUX_CLIENT_HEADER_VALUE,
+                "Origin": "http://localhost:4173",
+            },
+        )
+        assert attacker_origin.status_code == 403
+        assert attacker_origin.json()['detail']['code'] == 'security.forbidden_origin'
+
+        oversized = self.client.post(
+            "/settings",
+            headers={
+                **self.auth_headers(
+                    include_client=True,
+                    origin="https://tauri.localhost",
+                ),
+                "Content-Length": str(MAX_REQUEST_BODY_BYTES + 1),
+            },
+            content=b"",
+        )
+        assert oversized.status_code == 413
+        assert oversized.json()['detail']['code'] == 'request.body_too_large'
+        assert oversized.headers['access-control-allow-origin'] == 'https://tauri.localhost'
 
         missing_unsafe_header = self.client.put(
             "/settings",

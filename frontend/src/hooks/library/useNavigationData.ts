@@ -7,6 +7,7 @@ export function useNavigationData() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [roots, setRoots] = useState<LibraryRoot[]>([]);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [navigationReady, setNavigationReady] = useState(false);
   const loadPromiseRef = useRef<Promise<{
     tags: Tag[];
     playlists: Playlist[];
@@ -18,21 +19,37 @@ export function useNavigationData() {
     if (loadPromiseRef.current) return loadPromiseRef.current;
 
     loadPromiseRef.current = (async () => {
-      const [tagRows, playlistRows, rootRows, savedViewRows] = await Promise.all([
-        api.listTags().catch(() => []),
-        api.listPlaylists().catch(() => []),
-        api.listLibraryRoots().catch(() => []),
-        api.listSavedViews().catch(() => [])
+      const results = await Promise.allSettled([
+        api.listTags(),
+        api.listPlaylists(),
+        api.listLibraryRoots(),
+        api.listSavedViews()
       ]);
+      const [tagResult, playlistResult, rootResult, savedViewResult] = results;
+      const nextTags = tagResult.status === "fulfilled" && Array.isArray(tagResult.value)
+        ? tagResult.value
+        : tags;
+      const nextPlaylists = playlistResult.status === "fulfilled"
+        && Array.isArray(playlistResult.value)
+        ? playlistResult.value
+        : playlists;
+      const nextRoots = rootResult.status === "fulfilled" && Array.isArray(rootResult.value)
+        ? rootResult.value
+        : roots;
+      const nextSavedViews = savedViewResult.status === "fulfilled"
+        && Array.isArray(savedViewResult.value)
+        ? savedViewResult.value
+        : savedViews;
+      if (tagResult.status === "fulfilled") setTags(nextTags);
+      if (playlistResult.status === "fulfilled") setPlaylists(nextPlaylists);
+      if (rootResult.status === "fulfilled") setRoots(nextRoots);
+      if (savedViewResult.status === "fulfilled") setSavedViews(nextSavedViews);
 
-      const nextTags = Array.isArray(tagRows) ? tagRows : [];
-      const nextPlaylists = Array.isArray(playlistRows) ? playlistRows : [];
-      const nextRoots = Array.isArray(rootRows) ? rootRows : [];
-      const nextSavedViews = Array.isArray(savedViewRows) ? savedViewRows : [];
-      setTags(nextTags);
-      setPlaylists(nextPlaylists);
-      setRoots(nextRoots);
-      setSavedViews(nextSavedViews);
+      const failure = results.find(
+        (result): result is PromiseRejectedResult => result.status === "rejected"
+      );
+      if (failure) throw failure.reason;
+      setNavigationReady(true);
       return {
         tags: nextTags,
         playlists: nextPlaylists,
@@ -51,6 +68,7 @@ export function useNavigationData() {
     playlists,
     roots,
     savedViews,
+    navigationReady,
     loadNavigation
   };
 }

@@ -53,6 +53,11 @@ export function usePlayerController({
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastSavedRef = useRef<{ audioId: number; position: number } | null>(null);
+  const pendingSaveRef = useRef<{
+    audioId: number;
+    position: number;
+    promise: Promise<void>;
+  } | null>(null);
   const endedAudioIdRef = useRef<number | null>(null);
   const playbackTrackerRef = useRef<PlaybackTracker | null>(null);
 
@@ -158,13 +163,33 @@ export function usePlayerController({
       return;
     }
 
-    lastSavedRef.current = {
-      audioId,
-      position: normalized
-    };
+    const pending = pendingSaveRef.current;
+    if (
+      pending
+      && pending.audioId === audioId
+      && Math.abs(pending.position - normalized) < 0.5
+    ) {
+      return pending.promise;
+    }
 
-    await api.updatePlaybackPosition(audioId, normalized);
-    onPositionSaved(audioId, normalized);
+    const waitForPrevious = pending?.promise.catch(() => undefined)
+      ?? Promise.resolve();
+    const promise = waitForPrevious
+      .then(() => api.updatePlaybackPosition(audioId, normalized))
+      .then(() => {
+        lastSavedRef.current = {
+          audioId,
+          position: normalized
+        };
+        onPositionSaved(audioId, normalized);
+      })
+      .finally(() => {
+        if (pendingSaveRef.current?.promise === promise) {
+          pendingSaveRef.current = null;
+        }
+      });
+    pendingSaveRef.current = { audioId, position: normalized, promise };
+    return promise;
   }
 
   function saveCurrentPosition(positionOverride?: number) {

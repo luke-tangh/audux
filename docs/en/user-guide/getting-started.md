@@ -54,7 +54,8 @@ UV_CACHE_DIR=/tmp/audux-uv-cache uv sync --locked --group test
 Start FastAPI from the repository root:
 
 ```bash
-uv run --locked python backend/run.py
+AUDUX_ALLOWED_ORIGINS=http://127.0.0.1:5173 \
+  uv run --locked python backend/run.py
 ```
 
 The default health endpoint is `http://127.0.0.1:8765/health`. In another terminal, start Vite:
@@ -64,8 +65,9 @@ cd frontend
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`. Port `8765` is only the standalone development default. Tauri
-selects a free port and gives the actual backend URL to the frontend through a native command.
+Open `http://127.0.0.1:5173`. Port `8765` is only the standalone development default. The Tauri
+backend atomically binds a free port and gives the actual URL to the frontend through a native
+command.
 
 ## Tauri development mode
 

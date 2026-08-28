@@ -1,5 +1,7 @@
+import json
 from typing import Annotated, Any, List, Literal, Optional
-from pydantic import BaseModel, Field, model_validator
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 AudioSortMode = Literal[
@@ -14,9 +16,14 @@ AudioSortMode = Literal[
     "play_count_desc",
 ]
 
+TagName = Annotated[str, Field(max_length=80)]
+MAX_TRANSCRIPT_CHARACTERS = 5_000_000
+MAX_TRANSCRIPT_SEGMENT_CHARACTERS = 20_000
+MAX_STRUCTURED_METADATA_BYTES = 64 * 1024
+
 
 class LibraryRootCreate(BaseModel):
-    path: str
+    path: str = Field(min_length=1, max_length=4096)
 
 
 class LibraryRootUpdate(BaseModel):
@@ -24,11 +31,11 @@ class LibraryRootUpdate(BaseModel):
 
 
 class AudioUpdate(BaseModel):
-    title_user: Optional[str] = None
-    author_user: Optional[str] = None
-    album_user: Optional[str] = None
-    description_user: Optional[str] = None
-    language: Optional[str] = None
+    title_user: Optional[str] = Field(default=None, max_length=500)
+    author_user: Optional[str] = Field(default=None, max_length=500)
+    album_user: Optional[str] = Field(default=None, max_length=500)
+    description_user: Optional[str] = Field(default=None, max_length=20_000)
+    language: Optional[str] = Field(default=None, max_length=64)
     is_favorite: Optional[bool] = None
 
 
@@ -53,7 +60,7 @@ class PlaybackQueueResolveRequest(BaseModel):
 
 
 class RelocateAudioRequest(BaseModel):
-    file_path: str
+    file_path: str = Field(min_length=1, max_length=4096)
 
 
 class DuplicateHashConfirmRequest(BaseModel):
@@ -71,12 +78,12 @@ class SafeRelinkCommitRequest(SafeRelinkPreviewRequest):
 
 
 class TagsAddRequest(BaseModel):
-    tags: List[str]
-    source: str = "user"
+    tags: List[TagName] = Field(min_length=1, max_length=50)
+    source: str = Field(default="user", min_length=1, max_length=32)
 
 
 class TagUpdate(BaseModel):
-    name: Optional[str] = None
+    name: Optional[str] = Field(default=None, min_length=1, max_length=80)
 
 
 class TagMergeRequest(BaseModel):
@@ -84,12 +91,12 @@ class TagMergeRequest(BaseModel):
 
 
 class PlaylistCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
+    name: str = Field(min_length=1, max_length=80)
+    description: Optional[str] = Field(default=None, max_length=500)
 
 
 class PlaylistUpdate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=80)
 
 
 class PlaylistItemAdd(BaseModel):
@@ -97,24 +104,24 @@ class PlaylistItemAdd(BaseModel):
 
 
 class PlaylistItemsReorder(BaseModel):
-    item_ids: List[int]
+    item_ids: List[int] = Field(min_length=1, max_length=500)
 
 
 class TranscriptSegmentCreate(BaseModel):
     segment_index: int = Field(ge=0)
     start_seconds: float = Field(allow_inf_nan=False)
     end_seconds: float = Field(allow_inf_nan=False)
-    text: str
+    text: str = Field(max_length=MAX_TRANSCRIPT_SEGMENT_CHARACTERS)
 
 
 class TranscriptCreate(BaseModel):
-    language: Optional[str] = None
-    full_text: str
-    model_name: Optional[str] = None
-    provider_name: Optional[str] = None
+    language: Optional[str] = Field(default=None, max_length=64)
+    full_text: str = Field(max_length=MAX_TRANSCRIPT_CHARACTERS)
+    model_name: Optional[str] = Field(default=None, max_length=256)
+    provider_name: Optional[str] = Field(default=None, max_length=128)
     source_type: Literal["asr", "manual", "agent"] = "asr"
     task_config_summary: Optional[dict] = None
-    glossary_version: Optional[str] = None
+    glossary_version: Optional[str] = Field(default=None, max_length=128)
     quality_metrics: Optional[dict] = None
     segments: List[TranscriptSegmentCreate] = Field(
         default_factory=list,
@@ -128,22 +135,44 @@ class TranscriptCreate(BaseModel):
             raise ValueError(
                 "segment indexes must be unique, ordered, and start at zero"
             )
+        if (
+            sum(len(segment.text) for segment in self.segments)
+            > MAX_TRANSCRIPT_CHARACTERS
+        ):
+            raise ValueError("combined segment text is too large")
+        for name, value in (
+            ("task_config_summary", self.task_config_summary),
+            ("quality_metrics", self.quality_metrics),
+        ):
+            if value is not None and len(
+                json.dumps(value, ensure_ascii=False).encode("utf-8")
+            ) > MAX_STRUCTURED_METADATA_BYTES:
+                raise ValueError(f"{name} is too large")
         return self
 
 
 class TranscriptUpdate(BaseModel):
-    full_text: str
+    full_text: str = Field(max_length=MAX_TRANSCRIPT_CHARACTERS)
     expected_updated_at: str = Field(min_length=1)
 
 
 class TranscriptSegmentUpdate(BaseModel):
     id: int = Field(gt=0)
-    text: str
+    text: str = Field(max_length=MAX_TRANSCRIPT_SEGMENT_CHARACTERS)
 
 
 class TranscriptSegmentsUpdate(BaseModel):
     expected_updated_at: str = Field(min_length=1)
     segments: List[TranscriptSegmentUpdate] = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_combined_segment_text(self):
+        if (
+            sum(len(segment.text) for segment in self.segments)
+            > MAX_TRANSCRIPT_CHARACTERS
+        ):
+            raise ValueError("combined segment text is too large")
+        return self
 
 
 class TranscriptChapterCreate(BaseModel):
@@ -178,12 +207,21 @@ class TranscriptIssueUpdate(BaseModel):
 
 
 class SettingUpdate(BaseModel):
-    key: str
-    value: str
+    key: str = Field(min_length=1, max_length=120)
+    value: str = Field(max_length=16_384)
 
 
 class SettingsSectionUpdate(BaseModel):
     values: dict[str, str] = Field(min_length=1, max_length=32)
+
+    @field_validator("values")
+    @classmethod
+    def validate_setting_values(cls, values: dict[str, str]):
+        if any(not key or len(key) > 120 for key in values):
+            raise ValueError("setting keys must contain between 1 and 120 characters")
+        if any(len(value) > 16_384 for value in values.values()):
+            raise ValueError("setting values must not exceed 16384 characters")
+        return values
 
 
 class DatabaseBackupCreate(BaseModel):
@@ -254,9 +292,9 @@ class SmartPlaylistCreate(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    endpoint: str
-    model_name: str
-    api_key: Optional[str] = None
+    endpoint: str = Field(min_length=1, max_length=2048)
+    model_name: str = Field(min_length=1, max_length=256)
+    api_key: Optional[str] = Field(default=None, max_length=8192)
     timeout: int = Field(default=60, ge=1, le=3600)
     max_tokens: Optional[int] = Field(default=800, gt=0)
     temperature: Optional[float] = Field(
@@ -268,8 +306,8 @@ class LLMConfig(BaseModel):
 
 
 class LLMModelDiscoveryConfig(BaseModel):
-    endpoint: str
-    api_key: Optional[str] = None
+    endpoint: str = Field(min_length=1, max_length=2048)
+    api_key: Optional[str] = Field(default=None, max_length=8192)
     timeout: int = Field(default=60, ge=1, le=3600)
 
 
@@ -369,6 +407,15 @@ class OrganizationProposalDecision(BaseModel):
     edited_value: Optional[Any] = None
     note: Optional[str] = Field(default=None, max_length=500)
 
+    @field_validator("edited_value")
+    @classmethod
+    def validate_edited_value_size(cls, value: Any):
+        if value is not None and len(
+            json.dumps(value, ensure_ascii=False).encode("utf-8")
+        ) > MAX_STRUCTURED_METADATA_BYTES:
+            raise ValueError("edited_value is too large")
+        return value
+
 
 class OrganizationRunApply(BaseModel):
     categories: List[Literal["correction", "tag", "description", "chapter"]] = Field(
@@ -389,7 +436,7 @@ BatchOrganizationAction = Literal[
 class BatchOrganizationRequest(BaseModel):
     audio_ids: List[int] = Field(min_length=1, max_length=500)
     action: BatchOrganizationAction
-    tag_names: List[str] = Field(default_factory=list, max_length=50)
+    tag_names: List[TagName] = Field(default_factory=list, max_length=50)
     tag_ids: List[int] = Field(default_factory=list, max_length=50)
     playlist_id: Optional[int] = None
     is_favorite: Optional[bool] = None

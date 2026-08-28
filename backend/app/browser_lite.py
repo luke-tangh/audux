@@ -7,6 +7,31 @@ from .main import app as api_app
 
 
 BUNDLED_FRONTEND_DIR = "browser_frontend"
+SECURITY_HEADERS = (
+    (
+        b"content-security-policy",
+        b"default-src 'self'; connect-src 'self'; media-src 'self' blob:; "
+        b"img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
+        b"script-src 'self'; object-src 'none'; base-uri 'none'; "
+        b"frame-ancestors 'none'",
+    ),
+    (b"x-content-type-options", b"nosniff"),
+    (b"referrer-policy", b"no-referrer"),
+    (b"x-frame-options", b"DENY"),
+)
+
+
+def add_security_headers(message: dict) -> dict:
+    if message["type"] != "http.response.start":
+        return message
+    headers = list(message.get("headers", []))
+    existing = {name.lower() for name, _ in headers}
+    headers.extend(
+        (name, value)
+        for name, value in SECURITY_HEADERS
+        if name not in existing
+    )
+    return {**message, "headers": headers}
 
 
 def browser_frontend_dir() -> Path:
@@ -45,6 +70,9 @@ class BrowserLiteApplication:
         return candidate.is_file()
 
     async def __call__(self, scope, receive, send):
+        async def send_with_security_headers(message):
+            await send(add_security_headers(message))
+
         if (
             scope["type"] == "http"
             and self._is_static_request(
@@ -52,10 +80,10 @@ class BrowserLiteApplication:
                 str(scope.get("method") or "GET").upper(),
             )
         ):
-            await self.static_app(scope, receive, send)
+            await self.static_app(scope, receive, send_with_security_headers)
             return
 
-        await api_app(scope, receive, send)
+        await api_app(scope, receive, send_with_security_headers)
 
 
 def create_browser_lite_app() -> BrowserLiteApplication:
