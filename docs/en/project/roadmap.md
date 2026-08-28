@@ -269,8 +269,8 @@ model, compatibility path, resource budget, and acceptance dataset.
 
 - Prioritize public-release defects in installation, first launch, upgrades, rollback,
   suspend/resume, process exit, and provider compatibility instead of adding major features.
-- Generalize the release workflow from `v1.0.*` to a v1.x flow that strictly validates the version,
-  main ancestry, release notes, signatures, and assembled artifacts.
+- The release workflow accepts strict stable v1.x tags and validates the version, main ancestry,
+  localized release notes, signatures, and assembled artifacts before publication.
 - Improve startup, scanning, search, playback, and task resource limits for large libraries while
   keeping diagnostics local and redacted by default.
 - Add Windows Authenticode and Apple Developer ID signing/notarization once project identity and
@@ -378,8 +378,8 @@ major version.
 
 ## Current priorities
 
-1. Maintain the v1.0.x patch rhythm, validate real upgrade/rollback paths, and safely extend the
-   release workflow to later v1.x tags.
+1. Maintain the v1.0.x patch rhythm, validate real upgrade/rollback paths, and exercise the
+   generalized v1.x release flow with signed candidates before later minor releases.
 2. Fix the v1.1 embedding candidate, hybrid ranking algorithm, three-platform size/resource budgets,
    and bilingual retrieval gates without weakening FTS or offline operation.
 3. Write the v1.2 schema/archive ADR and migration rehearsal before implementing bookmark, clip, and
