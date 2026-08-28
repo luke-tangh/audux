@@ -1,6 +1,6 @@
 # 历史资料
 
-[返回中文文档首页](../README.md)
+[返回中文文档首页](../README.md) · [English](../../en/history/README.md) · 简体中文
 
 - [v0.6 历史 PRD](v0.6-prd.md)：冻结记录早期需求、数据模型与阶段判断。
 

@@ -1,6 +1,6 @@
 # 数据、备份与安全
 
-[用户指南](README.md) · [中文文档首页](../README.md)
+[用户指南](README.md) · [中文文档首页](../README.md) · [English](../../en/user-guide/data-and-security.md) · 简体中文
 
 Audux 将数据库和应用生成内容视为用户数据。自动化测试必须使用临时目录，不能指向真实的
 `~/.audux/`。

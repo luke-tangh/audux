@@ -1,6 +1,6 @@
 # 发布记录
 
-[返回中文文档首页](../README.md)
+[返回中文文档首页](../README.md) · [English](../../en/releases/README.md) · 简体中文
 
 ## 稳定版本
 

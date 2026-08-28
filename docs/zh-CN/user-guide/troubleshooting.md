@@ -1,6 +1,6 @@
 # 故障排查
 
-[用户指南](README.md) · [中文文档首页](../README.md)
+[用户指南](README.md) · [中文文档首页](../README.md) · [English](../../en/user-guide/troubleshooting.md) · 简体中文
 
 先查看启动恢复页或全局活动中心中的错误详情。日志与诊断包可能帮助定位问题，但不要在
 Issue、截图或聊天中暴露 API Key、本地 API Token、绝对媒体路径或用户 Transcript。

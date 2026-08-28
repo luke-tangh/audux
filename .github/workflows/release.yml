@@ -278,7 +278,7 @@ jobs:
         id: release-notes
         shell: bash
         run: |
-          notes_path="docs/zh-CN/releases/${GITHUB_REF_NAME}.md"
+          notes_path="docs/en/releases/${GITHUB_REF_NAME}.md"
           test -f "${notes_path}"
           echo "path=${notes_path}" >> "${GITHUB_OUTPUT}"
       - name: Download signed release candidate

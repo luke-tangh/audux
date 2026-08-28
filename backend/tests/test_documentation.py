@@ -5,7 +5,9 @@ from urllib.parse import unquote, urlsplit
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DOCS_ROOT = REPOSITORY_ROOT / "docs"
+EN_ROOT = DOCS_ROOT / "en"
 ZH_CN_ROOT = DOCS_ROOT / "zh-CN"
+LOCALIZED_ROOTS = {"en": EN_ROOT, "zh-CN": ZH_CN_ROOT}
 MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 
 
@@ -13,7 +15,7 @@ def _project_markdown_files() -> list[Path]:
     return [REPOSITORY_ROOT / "README.md", *sorted(DOCS_ROOT.rglob("*.md"))]
 
 
-def test_chinese_documentation_has_reader_oriented_sections() -> None:
+def test_localized_documentation_has_matching_reader_oriented_sections() -> None:
     expected_sections = {
         "user-guide",
         "reference",
@@ -24,12 +26,21 @@ def test_chinese_documentation_has_reader_oriented_sections() -> None:
     }
 
     assert (DOCS_ROOT / "README.md").is_file()
-    assert (ZH_CN_ROOT / "README.md").is_file()
-    assert expected_sections == {
-        path.name for path in ZH_CN_ROOT.iterdir() if path.is_dir()
+    for localized_root in LOCALIZED_ROOTS.values():
+        assert (localized_root / "README.md").is_file()
+        assert expected_sections == {
+            path.name for path in localized_root.iterdir() if path.is_dir()
+        }
+        for section in expected_sections:
+            assert (localized_root / section / "README.md").is_file()
+
+    english_files = {
+        path.relative_to(EN_ROOT) for path in EN_ROOT.rglob("*.md")
     }
-    for section in expected_sections:
-        assert (ZH_CN_ROOT / section / "README.md").is_file()
+    chinese_files = {
+        path.relative_to(ZH_CN_ROOT) for path in ZH_CN_ROOT.rglob("*.md")
+    }
+    assert english_files == chinese_files
 
 
 def test_legacy_chinese_document_paths_are_empty() -> None:
@@ -51,14 +62,20 @@ def test_legacy_chinese_document_paths_are_empty() -> None:
     assert not (REPOSITORY_ROOT / "PRD.md").exists()
 
 
-def test_chinese_content_pages_link_back_to_language_index() -> None:
-    content_pages = [
-        path for path in ZH_CN_ROOT.rglob("*.md") if path.name != "README.md"
-    ]
-
-    assert content_pages
-    for document in content_pages:
-        assert "[中文文档首页]" in document.read_text(encoding="utf-8")
+def test_localized_pages_link_to_their_index_and_counterpart() -> None:
+    for locale, localized_root in LOCALIZED_ROOTS.items():
+        documents = list(localized_root.rglob("*.md"))
+        assert documents
+        for document in documents:
+            text = document.read_text(encoding="utf-8")
+            if locale == "en":
+                assert "[简体中文]" in text
+                if document.name != "README.md":
+                    assert "[English documentation home]" in text
+            else:
+                assert "[English]" in text
+                if document.name != "README.md":
+                    assert "[中文文档首页]" in text
 
 
 def test_project_markdown_relative_links_resolve() -> None:

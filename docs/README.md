@@ -1,7 +1,7 @@
 # Audux documentation
 
-Choose a language:
-
+- [English](en/README.md)
 - [简体中文](zh-CN/README.md)
 
-English documentation is planned. The complete Simplified Chinese documentation is available above.
+Each language tree uses the same reader-oriented sections for user guides, reference contracts,
+contributor documentation, project planning, release notes, and historical material.
