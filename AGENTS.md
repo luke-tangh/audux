@@ -22,6 +22,10 @@ update the API schema/types, implementation, and verification together.
   transcription, AI, and task lifecycle. Tests are in `backend/tests/`.
 - `frontend/src-tauri/`: Rust host, native commands, backend process lifecycle,
   target sidecars, CSP, and packaging configuration.
+- `docs/`: Language entry point and locale-specific user, reference,
+  contributing, project, release, and history documentation. Simplified Chinese
+  documentation is in `docs/zh-CN/`; specialized README files stay colocated
+  with the scripts or fixtures they explain.
 - `.github/workflows/`: CI, quality gates, release, and visual-baseline jobs.
 
 ## Setup and common commands
@@ -100,6 +104,10 @@ patchelf, and Rust; minimal systems also need `fonts-noto-cjk` for Chinese UI.
   their target OS and never ship the debug placeholder.
 - Do not commit generated binaries, `node_modules`, frontend/Tauri build output,
   or PyInstaller `build/` and `dist/` directories.
+- Keep localized project documentation under `docs/<locale>/` with the same
+  reader-oriented sections. When public compatibility, security, Provider/MCP,
+  build, or release facts change, update every published language in the same
+  change. Keep `docs/README.md` as the language entry point.
 
 ### Test isolation and coverage
 

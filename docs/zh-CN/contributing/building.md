@@ -1,5 +1,7 @@
 # 构建与发布验证
 
+[开发与贡献](README.md) · [中文文档首页](../README.md)
+
 Audux 的 native sidecar 必须在目标操作系统构建。不要把一个平台的 PyInstaller 产物复制
 进另一个平台的 Tauri bundle，也不要在 release 中包含 debug placeholder。
 
@@ -129,7 +131,7 @@ provenance attestation 路径，生成完整 release candidate，但仍不会发
 
 workflow 只允许 `v1.0.*` tag 进入公开发布任务。发布 tag 必须与根目录 `VERSION` 一致，且
 tag commit 必须属于远端 `main` 历史；Python、npm、Cargo、Tauri 和 backend 版本也必须
-一致，并且必须存在与 tag 同名的 `docs/releases/<tag>.md` 发布说明。v0.x 不创建公开
+一致，并且必须存在与 tag 同名的 `docs/zh-CN/releases/<tag>.md` 发布说明。v0.x 不创建公开
 Release。签名构建和发布 job 使用仅允许 `main` 与 `v1.0.*` tag 的 `release` Environment；该
 Environment 负责隔离签名 secrets 和限制发布来源，不配置 required reviewers。正式发布先创建
 draft，重新下载全部 assets 验证 `SHA256SUMS`，成功后才公开为 latest Release。

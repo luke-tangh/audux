@@ -1,5 +1,7 @@
 # Audux v1.0 发布验证清单
 
+[开发与贡献](README.md) · [中文文档首页](../README.md)
+
 > 手动执行 workflow 只验证候选构建，不创建公开 GitHub Release。只有完成本清单并留存
 > 三平台记录后，才可推送与 `VERSION` 一致的稳定版 tag。
 
@@ -36,8 +38,8 @@ cargo deny --manifest-path frontend/src-tauri/Cargo.toml --locked check advisori
 ```
 
 确认 `git diff --check` 无输出，并确认 `VERSION`、Python、npm、Cargo 和 Tauri 的
-版本一致。复核 [Rust 安全公告例外](security-advisories.md) 未过期，依赖链、可达性证据、
-补偿测试和公开跟踪项仍准确；稳定 tag 不得依赖已过期或没有记录的 allowlist。
+版本一致。复核 [Rust 安全公告例外](../reference/security-advisories.md) 未过期，依赖链、
+可达性证据、补偿测试和公开跟踪项仍准确；稳定 tag 不得依赖已过期或没有记录的 allowlist。
 
 确认 `release` Environment secrets 已配置且来自同一套受控密钥材料：
 
@@ -128,7 +130,7 @@ browser-lite 每个平台至少验证：
 - Tauri 提交恢复后自动重启；browser-lite 保留待恢复请求并明确提示手动重启。
 - 模拟目标库初始化失败时自动换回恢复前快照，并在设置中显示 rolled-back 结果。
 - 从 `0.9.0-beta.1` schema v6 数据启动 `1.0.0`，确认无需迁移且数据未被改写；再按
-  [兼容性契约](compatibility.md#弃用备份与回滚)用 `pre_update` 快照演练回滚。
+  [兼容性契约](../reference/compatibility.md#弃用备份与回滚)用 `pre_update` 快照演练回滚。
 
 ## 5. Backend 生命周期与 Provider
 
@@ -168,8 +170,8 @@ browser-lite 每个平台至少验证：
 
 推送 tag 前，确认 unsigned 和 signed preflight 均成功，`VERSION`、Python、npm、Cargo、
 Tauri 和发布说明均为 `1.0.0`，并确认
-`docs/compatibility.md` 中的支持平台、schema/归档、Provider/MCP、弃用和回滚契约与产物
-一致。workflow 只接受 `v1.0.*` 标签进入公开发布任务。
+`docs/zh-CN/reference/compatibility.md` 中的支持平台、schema/归档、Provider/MCP、弃用和
+回滚契约与产物一致。workflow 只接受 `v1.0.*` 标签进入公开发布任务。
 
 只有 schema、隐私、匿名评测和三平台门槛全部通过后，才创建 `v1.0.0` 标签并发布。发布后
 仍需从 GitHub Release 重新下载每个平台安装包、browser-lite、Whisper component、

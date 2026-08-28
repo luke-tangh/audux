@@ -1,5 +1,7 @@
 # AI、ASR 与 MCP 配置
 
+[用户指南](README.md) · [中文文档首页](../README.md)
+
 Audux 的核心播放、手工编辑、关键词搜索和导出不依赖 ASR、LLM 或网络。Provider 配置
 保存在本地设置中；API Key 不进入任务 payload、归档或诊断包，也不应出现在日志中。
 
