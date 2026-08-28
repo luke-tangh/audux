@@ -96,6 +96,7 @@ def get_session():
 
 
 def create_db_and_tables():
+    initialize_runtime_directories()
     schema_version = _database_schema_version(DB_PATH)
     if schema_version is not None and schema_version != CURRENT_SCHEMA_VERSION:
         raise RuntimeError(
